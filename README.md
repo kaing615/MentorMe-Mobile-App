@@ -134,5 +134,3 @@ refactor(user): change user model structure
 ### Leader : Nguyễn Đình Tâm - 23521389
 - Huỳnh Lê Đại Thắng - 23521422
 - Bùi Ngọc Thái - 23521412
-- Phạm Đăng Khoa (Frontend)
-- Huỳnh Lê Đại Thắng (DevOps, Backend)

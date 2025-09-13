@@ -4,7 +4,7 @@
 
 ---
 
-![Sơ đồ kiến trúc](./docs/architecture/img/architecture-v1.png)
+![Sơ đồ kiến trúc](./docs/architecture/mentor-me-mobile-architecture.png)
 
 ## 🚀 Tính năng chính
 

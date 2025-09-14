@@ -4,9 +4,11 @@
 
 ---
 
+## Sơ đồ kiến trúc
+
 ![Sơ đồ kiến trúc](./docs/architecture/mentor-me-mobile-architecture.png)
 
-## 🚀 Tính năng chính
+## Tính năng chính
 
 - Đăng ký / Đăng nhập
 - Quản lý hồ sơ mentor & mentee (bio, avatar, chuyên môn, lịch rảnh)
@@ -23,6 +25,13 @@
 
 ## 🏗️ Công nghệ sử dụng: Kotlin & Jetpack Compose
 
+- **Backend:** Express + TypeScript
+- **Realtime chat:** Socket.IO
+- **Video call:** WebRTC
+- **Auth:** JWT
+- **File Storage:** Cloudinary / AWS S3
+- **Database:** PostgreSQL, Redis
+
 ---
 
 ## ⚡️ Khởi động nhanh dự án
@@ -35,10 +44,64 @@ git clone https://github.com/kaing615/MentorMe-Mobile-App/
 
 ### Chạy Local
 
+#### Cài đặt backend
+
+```bash
+cd backend
+cp .env.example .env        # Tạo file .env và điền biến môi trường
+npm install
+npm run dev
+```
+
+#### Mobile App
+
+- Mở thư mục app/ bằng Android Studio
+- Chạy Android Simulator
+
+Nếu backend chưa bật HTTPS, cần cho phép cleartext khi debug:
+
+```
+"AndroidManifest.xml: android:usesCleartextTraffic="true"
+"(tuỳ chọn) res/xml/network_security_config.xml để whitelist domain."
+```
+
 ### Cấu trúc thư mục
 
 ```bash
-
+MentorMe-Mobile-App/
+├─ app/                                   # Android (Kotlin + Jetpack Compose)
+│  ├─ src/
+│  ├─ build.gradle.kts
+│  └─ ...                                 # các file Android khác
+├─ backend/                               # Backend API (Express + TypeScript)
+│  ├─ src/
+│  │  ├─ axios/
+│  │  │  └─ axios.client.ts
+│  │  ├─ controllers/                     # controller nhận request → gọi handler/repo
+│  │  ├─ handlers/                        # nghiệp vụ (service/use-case)
+│  │  ├─ middlewares/                     # auth, validate, error handling...
+│  │  ├─ repositories/                    # truy vấn DB (Postgres), cache (Redis)
+│  │  ├─ routes/
+│  │  │  └─ index.ts                      # mount các route /api/v1/*
+│  │  ├─ socket/                          # (tuỳ) socket.io
+│  │  ├─ utils/
+│  │  │  ├─ postgres.ts                   # Neon / Postgres client (sql)
+│  │  │  └─ redis.ts                      # Redis client
+│  │  ├─ validations/                     # schema validate (Joi/express-validator)
+│  │  ├─ server.ts                        # entrypoint Express
+│  │  └─ swagger.yaml                     # OpenAPI
+│  ├─ .env.example                        # mẫu biến môi trường
+│  ├─ package.json
+│  ├─ package-lock.json
+│  └─ tsconfig.json
+│
+├─ docs/
+│  └─ architecture/
+│     └─ (sơ đồ kiến trúc, diagram, v.v.)
+├─ README.md
+├─ .gitignore
+├─ gradle/                                # Android Gradle wrapper
+└─ ...                                    # các file phụ trợ khác
 ```
 
 ---

@@ -1,0 +1,22 @@
+openapi: 3.0.0
+info:
+  title: MentorMe Mobile API Documentation
+  version: 1.0.0
+  description: API documentation for MentorMe Mobile backend - Nền tảng kết nối Mentor và Mentee
+  contact:
+    name: Nhóm 12 - Đồ án NT118
+    email: 23521389@gm.uit.edu.vn
+
+servers:
+  - url: http://localhost:4000/api/v1
+    description: Development server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []

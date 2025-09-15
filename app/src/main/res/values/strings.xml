@@ -1,4 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- App strings -->
     <string name="app_name">MentorMe</string>
-    <string name="title_activity_main">MainActivity</string>
+
+    <!-- Authentication -->
+    <string name="welcome_back">Welcome Back</string>
+    <string name="sign_in_subtitle">Sign in to continue learning</string>
+    <string name="create_account">Create Account</string>
+    <string name="join_mentorme">Join MentorMe today</string>
+    <string name="email">Email</string>
+    <string name="password">Password</string>
+    <string name="confirm_password">Confirm Password</string>
+    <string name="full_name">Full Name</string>
+    <string name="sign_in">Sign In</string>
+    <string name="sign_up">Sign Up</string>
+    <string name="dont_have_account">Don\'t have an account?</string>
+    <string name="already_have_account">Already have an account?</string>
+    <string name="i_am_a">I am a:</string>
+    <string name="student">Student</string>
+    <string name="mentor">Mentor</string>
+
+    <!-- Navigation -->
+    <string name="home">Home</string>
+    <string name="mentors">Mentors</string>
+    <string name="bookings">Bookings</string>
+    <string name="messages">Messages</string>
+    <string name="profile">Profile</string>
+
+    <!-- Home Screen -->
+    <string name="welcome_back_home">Welcome back!</string>
+    <string name="ready_to_learn">Ready to learn something new today?</string>
+    <string name="quick_actions">Quick Actions</string>
+    <string name="find_mentors">Find Mentors</string>
+    <string name="browse_mentors">Browse available mentors</string>
+    <string name="my_bookings">My Bookings</string>
+    <string name="view_sessions">View your sessions</string>
+    <string name="featured_mentors">Featured Mentors</string>
+    <string name="recent_bookings">Recent Bookings</string>
+    <string name="see_all">See All</string>
+
+    <!-- Booking -->
+    <string name="book_session">Book Session</string>
+    <string name="available">Available</string>
+    <string name="per_hour">/hour</string>
+    <string name="rating">Rating</string>
+    <string name="about">About</string>
+    <string name="expertise">Expertise</string>
+    <string name="mentor_not_found">Mentor not found</string>
+
+    <!-- Booking Status -->
+    <string name="pending">Pending</string>
+    <string name="confirmed">Confirmed</string>
+    <string name="in_progress">In Progress</string>
+    <string name="completed">Completed</string>
+    <string name="cancelled">Cancelled</string>
+    <string name="join">Join</string>
+    <string name="chat">Chat</string>
+    <string name="minutes">minutes</string>
+
+    <!-- Profile -->
+    <string name="settings">Settings</string>
+    <string name="app_preferences">App preferences and notifications</string>
+    <string name="booking_history">Booking History</string>
+    <string name="view_past_sessions">View past sessions</string>
+    <string name="payment_methods">Payment Methods</string>
+    <string name="manage_payment">Manage payment options</string>
+    <string name="help_support">Help &amp; Support</string>
+    <string name="get_help">Get help and contact support</string>
+    <string name="about_app">About</string>
+    <string name="app_version">App version and info</string>
+    <string name="sign_out">Sign Out</string>
+    <string name="log_out_account">Log out of your account</string>
+
+    <!-- Common -->
+    <string name="filters">Filters</string>
+    <string name="all">All</string>
+    <string name="upcoming">Upcoming</string>
+    <string name="with">with</string>
+    <string name="unknown">Unknown</string>
+    <string name="no_bio">No bio available</string>
+
+    <!-- Error messages -->
+    <string name="error_network">Network error. Please check your connection.</string>
+    <string name="error_generic">Something went wrong. Please try again.</string>
+    <string name="error_invalid_email">Please enter a valid email address</string>
+    <string name="error_invalid_password">Password must be at least 6 characters</string>
 </resources>
+

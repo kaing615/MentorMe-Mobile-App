@@ -6,12 +6,14 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.SystemBarStyle
-import androidx.annotation.RequiresApi
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
-import com.mentorme.app.ui.navigation.AppNav
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
 import dagger.hilt.android.AndroidEntryPoint
+import com.mentorme.app.core.designsystem.MentorMeTheme
+import com.mentorme.app.ui.navigation.MentorMeNavigation
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -23,6 +25,24 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.auto(0x00000000, 0x00000000)
         )
         super.onCreate(savedInstanceState)
-        setContent { AppNav() }
+        enableEdgeToEdge()
+        setContent {
+            MentorMeTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    MentorMeApp()
+                }
+            }
+        }
     }
+}
+
+@Composable
+fun MentorMeApp() {
+    // TODO: Add authentication state management with ViewModel
+    var isAuthenticated by remember { mutableStateOf(false) }
+
+    MentorMeNavigation(isAuthenticated = isAuthenticated)
 }

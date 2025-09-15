@@ -2,9 +2,7 @@ package com.mentorme.app.core.di
 
 import com.mentorme.app.core.network.ApiKeyInterceptor
 import com.mentorme.app.core.network.AuthInterceptor
-import com.mentorme.app.core.network.NetworkConstants
 import com.mentorme.app.data.remote.MentorMeApi
-import com.mentorme.app.data.network.api.auth.AuthApiService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -34,9 +32,8 @@ object NetworkModule {
                     level = HttpLoggingInterceptor.Level.BODY
                 }
             )
-            .connectTimeout(NetworkConstants.CONNECT_TIMEOUT, TimeUnit.SECONDS)
-            .readTimeout(NetworkConstants.READ_TIMEOUT, TimeUnit.SECONDS)
-            .writeTimeout(NetworkConstants.WRITE_TIMEOUT, TimeUnit.SECONDS)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
             .build()
     }
 
@@ -44,7 +41,7 @@ object NetworkModule {
     @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
         return Retrofit.Builder()
-            .baseUrl(NetworkConstants.BASE_URL)
+            .baseUrl("http://10.0.2.2:3000/api/") // Android emulator localhost
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
@@ -54,11 +51,5 @@ object NetworkModule {
     @Singleton
     fun provideMentorMeApi(retrofit: Retrofit): MentorMeApi {
         return retrofit.create(MentorMeApi::class.java)
-    }
-
-    @Provides
-    @Singleton
-    fun provideAuthApiService(retrofit: Retrofit): AuthApiService {
-        return retrofit.create(AuthApiService::class.java)
     }
 }

@@ -1,165 +1,99 @@
 package com.mentorme.app.data.repository.impl
 
-import com.mentorme.app.core.utils.AppResult
-import com.mentorme.app.data.dto.auth.AuthResponse
-import com.mentorme.app.data.dto.auth.SignInRequest
-import com.mentorme.app.data.dto.auth.SignUpRequest
-import com.mentorme.app.data.dto.auth.VerifyOtpRequest
-import com.mentorme.app.data.dto.auth.ResendOtpRequest
-import com.mentorme.app.data.network.api.auth.AuthApiService
+import com.mentorme.app.core.datastore.DataStoreManager
+import com.mentorme.app.core.utils.Result
+import com.mentorme.app.data.dto.*
+import com.mentorme.app.data.model.User
+import com.mentorme.app.data.remote.MentorMeApi
 import com.mentorme.app.data.repository.AuthRepository
+import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 @Singleton
 class AuthRepositoryImpl @Inject constructor(
-    private val authApiService: AuthApiService
+    private val api: MentorMeApi,
+    private val dataStoreManager: DataStoreManager
 ) : AuthRepository {
 
-    override suspend fun signUp(request: SignUpRequest): AppResult<AuthResponse> =
-        withContext(Dispatchers.IO) {
-            try {
-                val resp = authApiService.signUp(request)
-                if (resp.isSuccessful) {
-                    resp.body()?.let { authResponse ->
-                        if (authResponse.success) {
-                            AppResult.success(authResponse)
-                        } else {
-                            // Server returned an error in the response body
-                            AppResult.failure(authResponse.message)
-                        }
-                    } ?: AppResult.failure("Response body is null")
-                } else {
-                    // Parse error response body if available
-                    val errorBody = resp.errorBody()?.string()
-                    AppResult.failure("HTTP ${resp.code()}: ${errorBody ?: resp.message()}")
-                }
-            } catch (e: Exception) {
-                AppResult.failure(e.message ?: "Unknown error occurred")
-            }
-        }
-
-    override suspend fun signUpMentor(request: SignUpRequest): AppResult<AuthResponse> =
-        withContext(Dispatchers.IO) {
-            try {
-                val resp = authApiService.signUpMentor(request)
-                if (resp.isSuccessful) {
-                    resp.body()?.let { authResponse ->
-                        if (authResponse.success) {
-                            AppResult.success(authResponse)
-                        } else {
-                            // Server returned an error in the response body
-                            AppResult.failure(authResponse.message)
-                        }
-                    } ?: AppResult.failure("Response body is null")
-                } else {
-                    // Parse error response body if available
-                    val errorBody = resp.errorBody()?.string()
-                    AppResult.failure("HTTP ${resp.code()}: ${errorBody ?: resp.message()}")
-                }
-            } catch (e: Exception) {
-                AppResult.failure(e.message ?: "Unknown error occurred")
-            }
-        }
-
-    override suspend fun signIn(request: SignInRequest): AppResult<AuthResponse> =
-        withContext(Dispatchers.IO) {
-            try {
-                val resp = authApiService.signIn(request)
-                if (resp.isSuccessful) {
-                    resp.body()?.let { authResponse ->
-                        if (authResponse.success) {
-                            AppResult.success(authResponse)
-                        } else {
-                            // Server returned an error in the response body
-                            AppResult.failure(authResponse.message)
-                        }
-                    } ?: AppResult.failure("Response body is null")
-                } else {
-                    // Parse error response body if available
-                    val errorBody = resp.errorBody()?.string()
-                    AppResult.failure("HTTP ${resp.code()}: ${errorBody ?: resp.message()}")
-                }
-            } catch (e: Exception) {
-                AppResult.failure(e.message ?: "Unknown error occurred")
-            }
-        }
-
-    override suspend fun verifyOtp(request: VerifyOtpRequest): AppResult<AuthResponse> =
-        withContext(Dispatchers.IO) {
-            try {
-                val resp = authApiService.verifyOtp(request)
-                if (resp.isSuccessful) {
-                    resp.body()?.let { authResponse ->
-                        if (authResponse.success) {
-                            AppResult.success(authResponse)
-                        } else {
-                            // Server returned an error in the response body
-                            AppResult.failure(authResponse.message)
-                        }
-                    } ?: AppResult.failure("Response body is null")
-                } else {
-                    // Parse error response body if available
-                    val errorBody = resp.errorBody()?.string()
-                    AppResult.failure("HTTP ${resp.code()}: ${errorBody ?: resp.message()}")
-                }
-            } catch (e: Exception) {
-                AppResult.failure(e.message ?: "Unknown error occurred")
-            }
-        }
-
-    override suspend fun resendOtp(request: ResendOtpRequest): AppResult<AuthResponse> =
-        withContext(Dispatchers.IO) {
-            try {
-                // Tạo SignUpRequest với thông tin từ email - backend sẽ nhận ra user đã tồn tại và gửi lại OTP
-                val signUpRequest = SignUpRequest(
-                    userName = request.email.substringBefore("@"), // Tạo username đơn giản từ email
-                    email = request.email,
-                    password = "temp_password_for_resend" // Password tạm cho resend
+    override suspend fun login(email: String, password: String): Result<AuthResponse> {
+        return try {
+            val response = api.login(LoginRequest(email, password))
+            if (response.isSuccessful && response.body() != null) {
+                val authResponse = response.body()!!
+                dataStoreManager.saveToken(authResponse.token)
+                dataStoreManager.saveUserInfo(
+                    userId = authResponse.user.id,
+                    email = authResponse.user.email,
+                    name = authResponse.user.name,
+                    role = authResponse.user.role.name
                 )
-                val resp = authApiService.resendOtp(signUpRequest)
-                if (resp.isSuccessful) {
-                    resp.body()?.let { authResponse ->
-                        if (authResponse.success) {
-                            AppResult.success(authResponse)
-                        } else {
-                            // Server returned an error in the response body
-                            AppResult.failure(authResponse.message)
-                        }
-                    } ?: AppResult.failure("Response body is null")
-                } else {
-                    // Parse error response body if available
-                    val errorBody = resp.errorBody()?.string()
-                    AppResult.failure("HTTP ${resp.code()}: ${errorBody ?: resp.message()}")
-                }
-            } catch (e: Exception) {
-                AppResult.failure(e.message ?: "Unknown error occurred")
+                Result.Success(authResponse)
+            } else {
+                Result.Error(Exception("Login failed: ${response.message()}"))
             }
+        } catch (e: Exception) {
+            Result.Error(e)
         }
+    }
 
-    override suspend fun signOut(): AppResult<AuthResponse> =
-        withContext(Dispatchers.IO) {
-            try {
-                val resp = authApiService.signOut()
-                if (resp.isSuccessful) {
-                    resp.body()?.let { authResponse ->
-                        if (authResponse.success) {
-                            AppResult.success(authResponse)
-                        } else {
-                            // Server returned an error in the response body
-                            AppResult.failure(authResponse.message)
-                        }
-                    } ?: AppResult.failure("Response body is null")
-                } else {
-                    // Parse error response body if available
-                    val errorBody = resp.errorBody()?.string()
-                    AppResult.failure("HTTP ${resp.code()}: ${errorBody ?: resp.message()}")
-                }
-            } catch (e: Exception) {
-                AppResult.failure(e.message ?: "Unknown error occurred")
+    override suspend fun register(email: String, password: String, name: String, role: String): Result<AuthResponse> {
+        return try {
+            val response = api.register(RegisterRequest(email, password, name, role))
+            if (response.isSuccessful && response.body() != null) {
+                val authResponse = response.body()!!
+                dataStoreManager.saveToken(authResponse.token)
+                dataStoreManager.saveUserInfo(
+                    userId = authResponse.user.id,
+                    email = authResponse.user.email,
+                    name = authResponse.user.name,
+                    role = authResponse.user.role.name
+                )
+                Result.Success(authResponse)
+            } else {
+                Result.Error(Exception("Registration failed: ${response.message()}"))
             }
+        } catch (e: Exception) {
+            Result.Error(e)
         }
+    }
 
+    override suspend fun logout(): Result<Unit> {
+        return try {
+            api.logout()
+            dataStoreManager.clearToken()
+            dataStoreManager.clearUserInfo()
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            // Still clear local data even if API call fails
+            dataStoreManager.clearToken()
+            dataStoreManager.clearUserInfo()
+            Result.Success(Unit)
+        }
+    }
+
+    override suspend fun getCurrentUser(): Result<User> {
+        return try {
+            val response = api.getCurrentUser()
+            if (response.isSuccessful && response.body() != null) {
+                Result.Success(response.body()!!)
+            } else {
+                Result.Error(Exception("Failed to get current user: ${response.message()}"))
+            }
+        } catch (e: Exception) {
+            Result.Error(e)
+        }
+    }
+
+    override fun getToken(): Flow<String?> {
+        return dataStoreManager.getToken()
+    }
+
+    override suspend fun saveToken(token: String) {
+        dataStoreManager.saveToken(token)
+    }
+
+    override suspend fun clearToken() {
+        dataStoreManager.clearToken()
+    }
 }

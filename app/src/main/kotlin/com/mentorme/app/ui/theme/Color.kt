@@ -1,4 +1,4 @@
-package com.example.mentorme.ui.theme
+package com.mentorme.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

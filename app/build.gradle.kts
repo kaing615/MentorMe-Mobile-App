@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.mentorme"
+    namespace = "com.mentorme.app"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.mentorme"
+        applicationId = "com.mentorme.app"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

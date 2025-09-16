@@ -8,10 +8,12 @@ import swaggerUi from "swagger-ui-express";
 import YAML from "yamljs";
 import path from "path";
 import { fileURLToPath } from "url";
+import http from "http";
+import mongoose from "mongoose";
 
 import routes from "./routes/index";
 import redis from "./utils/redis";
-import requestHandlerPostgres from "./utils/postgres";
+import { connectMongoDB } from "./utils/mongo";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,18 +33,48 @@ const swaggerDocument = YAML.load(path.join(__dirname, "swagger.yaml"));
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 app.use("/api/v1", routes);
-app.get("/pg-version", requestHandlerPostgres);
 app.get("/", (_req: Request, res: Response) => {
   res.send("Welcome to the MentorMe Mobile backend!");
 });
 
-const server = app.listen(PORT, async () => {
-  await redis.connect();
-  console.log("Redis connected");
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-  console.log(`📖 API docs: http://localhost:${PORT}/api-docs`);
+app.get("/health", (_req, res) => {
+  res.json({
+    status: "ok",
+    redis: redis.isOpen,
+    mongo: mongoose.connection.readyState,
+  });
 });
 
-const shutdown = () => server.close(() => process.exit(0));
+async function startServer() {
+  try {
+    await redis.connect();
+    console.log("Redis connected");
+
+    await connectMongoDB();
+
+    server.listen(PORT, () => {
+      console.log(`Server is running on http://localhost:${PORT}`);
+      console.log(`API docs: http://localhost:${PORT}/api-docs`);
+    });
+  } catch (err) {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+  }
+}
+
+const server = http.createServer(app);
+startServer();
+
+const shutdown = async () => {
+  try {
+    server.close(() => console.log("HTTP server closed"));
+    if (redis.isOpen) await redis.quit();
+    if (mongoose.connection.readyState === 1) await mongoose.connection.close();
+    console.log("Cleaned up Redis and MongoDB connections");
+  } finally {
+    process.exit(0);
+  }
+};
+
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);

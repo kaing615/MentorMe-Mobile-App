@@ -1,0 +1,40 @@
+import mongoose, {
+  Document,
+  HydratedDocument,
+  model,
+  Schema,
+  Types,
+} from "mongoose";
+
+export interface IUser extends Document {
+  _id: Types.ObjectId;
+  userName: string;
+  email: string;
+  passwordHash: string;
+  role: "mentee" | "mentor" | "admin";
+  status: "active" | "pending" | "pending-mentor";
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const userSchema: Schema<IUser> = new Schema(
+  {
+    userName: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    passwordHash: { type: String, required: true },
+    role: {
+      type: String,
+      enum: ["mentee", "mentor", "admin"],
+      default: "mentee",
+    },
+    status: {
+      type: String,
+      enum: ["active", "pending", "pending-mentor"],
+      default: "pending",
+    },
+  },
+  { timestamps: true }
+);
+
+export type UserDoc = HydratedDocument<IUser>;
+export const User = model<IUser>("User", userSchema);

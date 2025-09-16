@@ -30,7 +30,7 @@
 - **Video call:** WebRTC
 - **Auth:** JWT
 - **File Storage:** Cloudinary / AWS S3
-- **Database:** PostgreSQL, Redis
+- **Database:** MongoDB, Redis
 
 ---
 
@@ -85,8 +85,9 @@ MentorMe-Mobile-App/
 │  │  │  └─ index.ts                      # mount các route /api/v1/*
 │  │  ├─ socket/                          # (tuỳ) socket.io
 │  │  ├─ utils/
-│  │  │  ├─ postgres.ts                   # Neon / Postgres client (sql)
+│  │  │  ├─ mongo.ts                      # MongoDB (NoSQL)
 │  │  │  └─ redis.ts                      # Redis client
+│  │  │  └─ sendGrid.ts                   
 │  │  ├─ validations/                     # schema validate (Joi/express-validator)
 │  │  ├─ server.ts                        # entrypoint Express
 │  │  └─ swagger.yaml                     # OpenAPI
@@ -94,7 +95,6 @@ MentorMe-Mobile-App/
 │  ├─ package.json
 │  ├─ package-lock.json
 │  └─ tsconfig.json
-│
 ├─ docs/
 │  └─ architecture/
 │     └─ (sơ đồ kiến trúc, diagram, v.v.)

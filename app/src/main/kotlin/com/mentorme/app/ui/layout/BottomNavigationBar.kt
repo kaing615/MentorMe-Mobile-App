@@ -1,86 +1,110 @@
 package com.mentorme.app.ui.layout
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Message
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHostController
+import androidx.navigation.NavDestination
+import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.mentorme.app.ui.navigation.Routes
+import androidx.navigation.NavHostController
+import com.mentorme.app.ui.theme.liquidGlass
 import com.mentorme.app.ui.theme.liquidGlassStrong
+
+data class NavItem(
+    val route: String,
+    val label: String,
+    val icon: ImageVector,
+    val badgeCount: Int = 0
+)
+
+private val navItems = listOf(
+    NavItem("home",     "Trang chủ", Icons.Filled.Home),
+    NavItem("search",   "Tìm kiếm", Icons.Filled.Search),
+    NavItem("calendar", "Lịch hẹn", Icons.Filled.CalendarMonth, badgeCount = 1),
+    NavItem("messages", "Tin nhắn", Icons.Filled.Chat,          badgeCount = 2),
+    NavItem("profile",  "Cá nhân",  Icons.Filled.Person)
+)
 
 @Composable
 fun BottomNavigationBar(
-    nav: NavHostController,
-    role: String = "mentee",
-    unreadMessages: Int = 0,
-    upcomingSessions: Int = 0
+    navController: NavHostController,
+    modifier: Modifier = Modifier
 ) {
-    data class Tab(
-        val route: String,
-        val label: String,
-        val icon: androidx.compose.ui.graphics.vector.ImageVector,
-        val badge: Int = 0
-    )
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentDestination = backStackEntry?.destination
 
-    val mentorTabs = listOf(
-        Tab(Routes.Home, "Dashboard", Icons.Filled.BarChart),
-        Tab(Routes.Calendar, "Lịch hẹn", Icons.Filled.DateRange, badge = upcomingSessions),
-        Tab(Routes.Messages, "Tin nhắn", Icons.AutoMirrored.Filled.Message, badge = unreadMessages)
-    )
-    val menteeTabs = listOf(
-        Tab(Routes.Home, "Trang chủ", Icons.Filled.Home),
-        Tab(Routes.Mentors, "Tìm kiếm", Icons.Filled.Search),
-        Tab(Routes.Calendar, "Lịch hẹn", Icons.Filled.DateRange, badge = upcomingSessions),
-        Tab(Routes.Messages, "Tin nhắn", Icons.AutoMirrored.Filled.Message, badge = unreadMessages)
-    )
-    val tabs = if (role == "mentor") mentorTabs else menteeTabs
-
+    // Khối bao ngoài để "nâng" thanh lên, bo góc lớn và tránh khu vực system bars.
     Box(
-        Modifier
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .liquidGlassStrong() // 👈 hiệu ứng glass mạnh
+        modifier = modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()     // tránh khu vực gesture bar
+            .padding(bottom = 10.dp)     // cách mép dưới cho cảm giác nổi
     ) {
-        NavigationBar(
-            containerColor = Color.Transparent,
-            tonalElevation = 0.dp
-        ) {
-            val backStack by nav.currentBackStackEntryAsState()
-            val current = backStack?.destination?.route
+        val shape = RoundedCornerShape(28.dp)
 
-            tabs.forEach { tab ->
+        NavigationBar(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 16.dp)
+                .clip(shape)
+                .liquidGlassStrong(radius = 28.dp) // Giữ liquid glass effect
+                .shadow(elevation = 20.dp, shape = shape, clip = false),
+            containerColor = Color.Transparent, // Nền hoàn toàn trong suốt
+            tonalElevation = 0.dp,
+            contentColor = Color.Transparent // Đảm bảo không có màu nền nào
+        ) {
+            navItems.forEach { item ->
+                val selected = currentDestination isSelected item.route
                 NavigationBarItem(
-                    selected = current == tab.route,
+                    selected = selected,
                     onClick = {
-                        nav.navigate(tab.route) {
+                        navController.navigate(item.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
-                            popUpTo(Routes.Home) { saveState = true }
                         }
                     },
                     icon = {
-                        BadgedBox(
-                            badge = {
-                                if (tab.badge > 0) {
-                                    Badge {
-                                        Text(tab.badge.toString())
-                                    }
-                                }
+                        if (item.badgeCount > 0) {
+                            BadgedBox(badge = { Badge { Text(item.badgeCount.toString()) } }) {
+                                Icon(item.icon, contentDescription = item.label)
                             }
-                        ) {
-                            Icon(tab.icon, contentDescription = tab.label)
+                        } else {
+                            Icon(item.icon, contentDescription = item.label)
                         }
                     },
-                    label = { Text(tab.label) }
+                    label = { Text(item.label) },
+                    alwaysShowLabel = true,
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color.White,
+                        selectedTextColor = Color.White,
+                        indicatorColor     = Color.White.copy(alpha = 0.10f), // viên highlight nhẹ
+                        unselectedIconColor = Color.White.copy(alpha = 0.75f),
+                        unselectedTextColor = Color.White.copy(alpha = 0.75f)
+                    )
                 )
             }
         }
     }
+}
+
+private infix fun NavDestination?.isSelected(route: String): Boolean {
+    return this?.hierarchy?.any { it.route == route } == true
 }

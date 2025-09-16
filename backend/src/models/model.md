@@ -1,37 +1,38 @@
-# Repositories
+# Models
 
-Các repository trong dự án này chịu trách nhiệm truy xuất và thao tác dữ liệu từ các nguồn lưu trữ (database, API, v.v.). Chúng giúp tách biệt logic truy cập dữ liệu khỏi các tầng khác của ứng dụng, đảm bảo code dễ bảo trì và kiểm thử.
+Các model trong dự án này mô tả cấu trúc và ràng buộc dữ liệu (schema), ánh xạ với các bảng/collection và hỗ trợ xác định quan hệ giữa các thực thể. Chúng giúp tách biệt mô hình dữ liệu khỏi các tầng khác của ứng dụng, đảm bảo code dễ bảo trì và kiểm thử.
 
-## Danh sách các repository
+## Danh sách các model
 
-- **UserRepository**  
-   Quản lý dữ liệu người dùng: tạo, đọc, cập nhật, xóa thông tin người dùng.
+- **UserModel**  
+   Đại diện dữ liệu người dùng: thuộc tính, validation, quan hệ.
 
-- **MentorRepository**  
-   Quản lý dữ liệu mentor: truy xuất thông tin mentor, cập nhật profile mentor.
+- **MentorModel**  
+   Đại diện dữ liệu mentor: thông tin hồ sơ, chuyên môn, quan hệ.
 
-- **SessionRepository**  
-   Quản lý các phiên làm việc giữa mentor và mentee.
+- **SessionModel**  
+   Đại diện các phiên làm việc giữa mentor và mentee.
 
-- **ReviewRepository**  
-   Lưu trữ và truy xuất các phản hồi từ người dùng.
+- **ReviewModel**  
+   Đại diện các phản hồi/đánh giá từ người dùng.
 
 ## Cách sử dụng
 
-Các repository được sử dụng trong các service để thực hiện các thao tác với dữ liệu. Ví dụ:
+Các model được sử dụng trong service/controller hoặc lớp truy cập dữ liệu để thao tác với dữ liệu. Ví dụ:
 
 ```ts
-const user = await userRepository.findById(userId);
+// Ví dụ (giả định ORM hỗ trợ các phương thức truy vấn trên Model)
+const user = await UserModel.findById(userId);
 ```
 
-## Thêm repository mới
+## Thêm model mới
 
-1. Tạo file mới trong thư mục `repositories`.
-2. Định nghĩa các phương thức cần thiết cho repository bằng TypeScript interface hoặc class.
-3. Export repository để sử dụng ở các service hoặc controller.
+1. Tạo file mới trong thư mục `models`.
+2. Định nghĩa schema/TypeScript interface hoặc class cho model (thuộc tính, ràng buộc, quan hệ).
+3. Export model để sử dụng ở service hoặc controller.
 
 ## Lưu ý
 
-- Repository chỉ nên chứa logic truy xuất dữ liệu, không chứa business logic.
-- Sử dụng các phương thức rõ ràng, dễ hiểu.
-- Nên định nghĩa kiểu dữ liệu trả về và tham số bằng TypeScript để tăng tính an toàn và dễ bảo trì.
+- Model chỉ nên mô tả cấu trúc dữ liệu và hành vi gắn liền với thực thể; tránh chứa business logic hoặc logic truy xuất dữ liệu phức tạp.
+- Sử dụng tên thuộc tính và phương thức rõ ràng, dễ hiểu.
+- Định nghĩa kiểu dữ liệu trả về và tham số bằng TypeScript để tăng tính an toàn và dễ bảo trì.

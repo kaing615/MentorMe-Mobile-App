@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: MentorMe Mobile API Documentation
-  version: 1.0.0
+  version: 1.0.1
   description: API documentation for MentorMe Mobile backend - Nền tảng kết nối Mentor và Mentee
   contact:
     name: Nhóm 12 - Đồ án NT118
@@ -11,12 +11,390 @@ servers:
   - url: http://localhost:4000/api/v1
     description: Development server
 
+tags:
+  - name: Auth
+    description: Xác thực người dùng (đăng ký, đăng nhập, đăng xuất)
+
 components:
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Sign-in successful
+        data:
+          nullable: true
+          description: Payload specific to the endpoint
+      required: [message]
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Invalid email or password
+        data:
+          nullable: true
+          example: null
+      required: [message]
+
+    SignUpMenteeRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          example: mentee1@example.com
+        userName:
+          type: string
+          example: Alex
+        password:
+          type: string
+          format: password
+          example: strongPassword123
+      required: [email, userName, password]
+
+    SignUpMenteeResponseData:
+      type: object
+      properties:
+        userId:
+          type: string
+          example: "665f1a9b3bcf9a4d0a2f1bcd"
+        email:
+          type: string
+          format: email
+        userName:
+          type: string
+        status:
+          type: string
+          enum: [pending, active]
+          example: pending
+        verificationId:
+          type: string
+          description: Identifier to use when verifying OTP
+          example: "9f8a1ac51e4f4a609b2d2a3f4b3e7c12"
+        expiresIn:
+          type: integer
+          description: OTP time to live in seconds
+          example: 600
+      required: [userId, email, userName, status, verificationId, expiresIn]
+
+    SignUpMentorRequest:
+      allOf:
+        - $ref: "#/components/schemas/SignUpMenteeRequest"
+      description: Same fields as mentee signup
+    SignUpMentorResponseData:
+      type: object
+      properties:
+        userId:
+          type: string
+        email:
+          type: string
+          format: email
+        userName:
+          type: string
+        status:
+          type: string
+          enum: [pending-mentor]
+          example: pending-mentor
+        role:
+          type: string
+          enum: [mentor]
+          example: mentor
+      required: [userId, email, userName, status, role]
+
+    SignInRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          example: mentee1@example.com
+        password:
+          type: string
+          format: password
+          example: strongPassword123
+      required: [email, password]
+
+    SignInResponseData:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [mentee, mentor, admin]
+          example: mentee
+        userId:
+          type: string
+        status:
+          type: string
+          enum: [active, pending, pending-mentor]
+          example: active
+        token:
+          type: string
+          description: JWT token (7d expiry)
+      required: [email, role, userId, status]
+
+    VerifyOtpRequest:
+      type: object
+      properties:
+        verificationId:
+          type: string
+          example: "9f8a1ac51e4f4a609b2d2a3f4b3e7c12"
+        code:
+          type: string
+          pattern: '^\\d{6}$'
+          example: "123456"
+      required: [verificationId, code]
+
+    VerifyOtpResponseData:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        userId:
+          type: string
+        status:
+          type: string
+          enum: [active, pending-mentor]
+        token:
+          type: string
+          nullable: true
+          description: Present only when status becomes active (mentee flow)
+      required: [email, userId, status]
+
+paths:
+  /auth/signup:
+    post:
+      tags: [Auth]
+      summary: Sign up as mentee (sends OTP)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignUpMenteeRequest"
+      responses:
+        "201":
+          description: User created (pending) and OTP sent
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SignUpMenteeResponseData"
+        "400":
+          description: Missing/invalid inputs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error (create user / send OTP failed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/signup-mentor:
+    post:
+      tags: [Auth]
+      summary: Sign up as mentor (application review flow)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignUpMentorRequest"
+      responses:
+        "201":
+          description: Mentor application received
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SignUpMentorResponseData"
+        "400":
+          description: Missing/invalid inputs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error (create user failed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/signin:
+    post:
+      tags: [Auth]
+      summary: Sign in with email & password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignInRequest"
+      responses:
+        "200":
+          description: Sign-in successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SignInResponseData"
+        "400":
+          description: Missing/invalid inputs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid email or password / inactive user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/verify-otp:
+    post:
+      tags: [Auth]
+      summary: Verify email using OTP
+      description: |
+        Confirms the OTP that was sent via `/auth/signup`. Code paths:
+        - **200 (Email verified)**:
+          - Mentee: status becomes `active` and a JWT token is returned.
+          - Mentor: status becomes `pending-mentor` (no token).
+          - Already verified (active): returns status `active` (no token).
+        - **400**: missing fields, invalid format, expired/missing OTP, invalid OTP, or too many attempts.
+        - **404**: user not found.
+        - **500**: failed to activate account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyOtpRequest"
+      responses:
+        "200":
+          description: Email verified / already verified
+          content:
+            application/json:
+              examples:
+                mentee_activated_with_token:
+                  value:
+                    message: Email verified
+                    data:
+                      email: mentee1@example.com
+                      userId: "665f1a9b3bcf9a4d0a2f1bcd"
+                      status: active
+                      token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                already_verified_no_token:
+                  value:
+                    message: Email already verified
+                    data:
+                      email: mentee1@example.com
+                      userId: "665f1a9b3bcf9a4d0a2f1bcd"
+                      status: active
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/VerifyOtpResponseData"
+        "400":
+          description: Invalid/expired OTP, invalid format, missing fields, or too many attempts
+          content:
+            application/json:
+              examples:
+                missing_fields:
+                  value:
+                    {
+                      message: "verificationId and code are required",
+                      data: null,
+                    }
+                invalid_format:
+                  value: { message: "Invalid OTP format", data: null }
+                otp_not_found:
+                  value: { message: "OTP expired or not found", data: null }
+                invalid_otp:
+                  value: { message: "Invalid OTP", data: null }
+                too_many_attempts:
+                  value:
+                    {
+                      message: "Too many attempts. Request a new OTP.",
+                      data: null,
+                    }
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to activate account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/signout:
+    post:
+      tags: [Auth]
+      summary: Sign out and blacklist current token until expiry
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Sign-out successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "401":
+          description: Missing/invalid token (implementation may still return OK if token absent).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
 security:
   - BearerAuth: []

@@ -47,77 +47,48 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.database.ktx)
-    // Icon set
+
+    // Bộ icon đầy đủ cho Compose
     implementation("androidx.compose.material:material-icons-extended")
+
 
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
 
-    // Compose BOM để đồng bộ version
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+
     implementation(libs.androidx.navigation.compose)
+
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)
-    implementation(libs.firebase.database.ktx)
+    implementation("androidx.compose.foundation:foundation:1.9.1")
     kapt(libs.hilt.compiler)
 
     implementation(libs.retrofit)
     implementation(libs.retrofit.gson)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
+
     implementation(libs.androidx.datastore.preferences)
+
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
+
     implementation(libs.coil.compose)
+
     implementation(libs.kotlinx.coroutines.android)
+
     implementation(libs.gson)
-    implementation("io.konform:konform-jvm:0.4.0")
-// Use the correct version
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.mockito)
+    testImplementation(libs.mockito)    // Fix: mockito.core → mockito
+
     androidTestImplementation(libs.androidx.junit)
-
-    // Navigation
-    implementation(libs.androidx.navigation.compose)
-
-    // Hilt Dependency Injection
-    implementation(libs.hilt.android)
-    implementation(libs.hilt.navigation.compose)
-    kapt(libs.hilt.compiler)
-
-    // Retrofit & OkHttp
-    implementation(libs.retrofit)
-    implementation(libs.retrofit.gson)
-    implementation(libs.okhttp)
-    implementation(libs.okhttp.logging)
-
-    // DataStore
-    implementation(libs.androidx.datastore.preferences)
-
-    // ViewModel & LiveData
-    implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.lifecycle.runtime.compose)
-
-    // Image Loading
-    implementation(libs.coil.compose)
-
-    // Coroutines
-    implementation(libs.kotlinx.coroutines.android)
-
-    // Gson
-    implementation(libs.gson)
-
-    // Testing
-    androidTestImplementation(libs.androidx.espresso.core)
-    testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.mockito.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
 

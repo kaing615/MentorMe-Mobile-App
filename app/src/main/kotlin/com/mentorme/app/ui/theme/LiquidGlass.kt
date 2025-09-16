@@ -9,151 +9,70 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-
-// Constants
-const val GLASS_ALPHA = 0.15f
-const val GLASS_BORDER = 0.3f
+import com.mentorme.app.ui.theme.GradientPrimary
 
 /* =========================
  * Tokens map từ globals.css
  * ========================= */
 
-/**
- * Liquid Glass Card Component
- */
-// --- LiquidGlassCard: tách LỚP NỀN (có blur) và LỚP CONTENT (không blur) ---
-@Composable
-fun LiquidGlassCard(
-    modifier: Modifier = Modifier,
-    radius: Dp = 16.dp,
-    alpha: Float = GLASS_ALPHA,
-    borderAlpha: Float = GLASS_BORDER,
-    strong: Boolean = false,
-    content: @Composable BoxScope.() -> Unit
-) {
-    val glassModifier =
-        if (strong) modifier.liquidGlassStrong(radius, alpha, borderAlpha)
-        else modifier.liquidGlass(radius, alpha, borderAlpha)
 
-    Box(modifier = glassModifier, content = content)
-}
+// Liquid glass (CSS: --glass-*)
+private const val GLASS_ALPHA       = 0.10f // --glass-bg
+private const val GLASS_ALPHA_HOVER = 0.20f // --glass-bg-hover
+private const val GLASS_BORDER      = 0.20f // --glass-border
+private const val GLASS_STRONG      = 0.25f // --glass-backdrop
 
+/* ===========================================================
+ * Modifiers: gradient + glass (tương đương utilities trong CSS)
+ * =========================================================== */
 
+/** Nền linear-gradient giống util `.gradient-*` bên web. */
+fun Modifier.gradientBackground(
+    colors: List<Color>,
+    start: Offset = Offset.Zero,
+    end: Offset = Offset.Infinite
+) = background(Brush.linearGradient(colors, start, end))
 
-/**
- * Card-based LiquidGlassCard - Material3 Card with liquid glass effect
- * Use this for clickable cards or when you need ColumnScope
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun LiquidGlassCardColumn(
-    modifier: Modifier = Modifier,
-    radius: Dp = 22.dp,
-    alpha: Float = 0.15f,
-    borderAlpha: Float = 0.3f,
-    strong: Boolean = false,
-    elevation: Dp = if (strong) 20.dp else 8.dp,
-    onClick: (() -> Unit)? = null,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    val glassModifier = if (strong) {
-        modifier.liquidGlassStrong(radius, alpha, borderAlpha)
-    } else {
-        modifier.liquidGlass(radius, alpha, borderAlpha)
-    }
-
-    val colors = CardDefaults.cardColors(
-        containerColor = Color.Transparent,
-        contentColor = Color.Unspecified
-    )
-
-    if (onClick != null) {
-        Card(
-            onClick = onClick,
-            modifier = glassModifier,
-            colors = colors,
-            elevation = CardDefaults.cardElevation(defaultElevation = elevation)
-        ) {
-            Column(Modifier.padding(16.dp), content = content)
-        }
-    } else {
-        Card(
-            modifier = glassModifier,
-            colors = colors,
-            elevation = CardDefaults.cardElevation(defaultElevation = elevation)
-        ) {
-            Column(Modifier.padding(16.dp), content = content)
-        }
-    }
-}
-
-/**
- * Liquid Glass modifier effect
- */
+/** Card “liquid glass” – tương đương `.glass` (bg mờ + border mờ). */
 fun Modifier.liquidGlass(
-    radius: Dp = 16.dp,
-    alpha: Float = 0.15f,
-    borderAlpha: Float = 0.3f
+    radius: Dp = 32.dp,
+    alpha: Float = GLASS_ALPHA,
+    borderAlpha: Float = GLASS_BORDER
 ) = this
+    .background(Color.White.copy(alpha = alpha), RoundedCornerShape(radius))
+    .border(1.dp, Color.White.copy(alpha = borderAlpha), RoundedCornerShape(radius))
     .clip(RoundedCornerShape(radius))
-    .background(
-        brush = Brush.linearGradient(
-            colors = listOf(
-                Color.White.copy(alpha = alpha),
-                Color.White.copy(alpha = alpha * 0.7f)
-            )
-        )
-    )
-    .border(
-        width = 1.dp,
-        brush = Brush.linearGradient(
-            colors = listOf(
-                Color.White.copy(alpha = borderAlpha),
-                Color.White.copy(alpha = borderAlpha * 0.5f)
-            )
-        ),
-        shape = RoundedCornerShape(radius)
-    )
 
 /** Bản mạnh hơn – tương đương `.glass-strong`. */
 fun Modifier.liquidGlassStrong(
     radius: Dp = 32.dp,
-    alpha: Float = 0.25f,
-    borderAlpha: Float = 0.4f
-) = this
-    .clip(RoundedCornerShape(radius))
-    .background(Color.White.copy(alpha = alpha))
-    .border(
-        width = 1.5.dp,
-        color = Color.White.copy(alpha = borderAlpha),
-        shape = RoundedCornerShape(radius)
-    )
+    alpha: Float = GLASS_STRONG,
+    borderAlpha: Float = 0.30f
+) = this.liquidGlass(radius = radius, alpha = alpha, borderAlpha = borderAlpha)
 
 /* =======================================================
  * Liquid background: mô phỏng body::before + keyframes
  * ======================================================= */
 
 /**
- * Nền động "liquid motion" giống `body::before`:
+ * Nền động “liquid motion” giống `body::before`:
  *  - Lớp 1: gradient nền chính (GradientPrimary)
  *  - Lớp 2: 3 radial-gradient bán trong suốt di chuyển liên tục.
  *
- * Web tham chiếu: `body` + `@keyframes liquidMotion`.
+ * Web tham chiếu: `body` + `@keyframes liquidMotion`. :contentReference[oaicite:2]{index=2}
  */
 @Composable
 fun LiquidBackground(
@@ -177,7 +96,7 @@ fun LiquidBackground(
     Box(
         modifier
             .fillMaxSize()
-            .background(Brush.linearGradient(baseGradient))
+            .gradientBackground(baseGradient)
     ) {
         Canvas(Modifier.fillMaxSize()) {
             val w = size.width
@@ -189,28 +108,46 @@ fun LiquidBackground(
             val dy = (t - 0.5f) * 20f
             val rot = t * 360f
 
-            rotate(degrees = rot, pivot = center) {
-                translate(left = dx, top = dy) {
-                    // blob 1: ở ~20% 80%
-                    drawCircle(
-                        color = blob1,
-                        radius = maxOf(w, h) * 0.35f,
-                        center = Offset(w * 0.20f, h * 0.80f)
-                    )
-                    // blob 2: ở ~80% 20%
-                    drawCircle(
-                        color = blob2,
-                        radius = maxOf(w, h) * 0.35f,
-                        center = Offset(w * 0.80f, h * 0.20f)
-                    )
-                    // blob 3: ở ~40% 40%
-                    drawCircle(
-                        color = blob3,
-                        radius = maxOf(w, h) * 0.28f,
-                        center = Offset(w * 0.40f, h * 0.40f)
-                    )
-                }
+            withTransform({
+                rotate(degrees = rot, pivot = center)
+                translate(left = dx, top = dy)
+            }) {
+                // blob 1: ở ~20% 80%
+                drawCircle(
+                    color = blob1,
+                    radius = maxOf(w, h) * 0.35f,
+                    center = Offset(w * 0.20f, h * 0.80f)
+                )
+                // blob 2: ở ~80% 20%
+                drawCircle(
+                    color = blob2,
+                    radius = maxOf(w, h) * 0.35f,
+                    center = Offset(w * 0.80f, h * 0.20f)
+                )
+                // blob 3: ở ~40% 40%
+                drawCircle(
+                    color = blob3,
+                    radius = maxOf(w, h) * 0.28f,
+                    center = Offset(w * 0.40f, h * 0.40f)
+                )
             }
         }
     }
 }
+
+/* ==========================
+ * Mẹo sử dụng nhanh trong UI
+ * ==========================
+ *
+ * Scaffold(
+ *   modifier = Modifier.gradientBackground(GradientPrimary)
+ * ) { ... }
+ *
+ * LiquidGlassCard/Container:
+ * Box(Modifier.liquidGlass().padding(16.dp)) { ... }
+ *
+ * Nút gradient:
+ * MMPrimaryButton đã dùng GradientSecondary theo web button. :contentReference[oaicite:3]{index=3}
+ * Input glass:
+ * MMTextField đã map --input-background, --border. :contentReference[oaicite:4]{index=4}
+ */

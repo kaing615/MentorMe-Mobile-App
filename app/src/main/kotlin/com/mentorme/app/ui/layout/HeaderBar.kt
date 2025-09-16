@@ -1,23 +1,22 @@
 package com.mentorme.app.ui.layout
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Message
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import com.mentorme.app.ui.theme.liquidGlass
 
 data class UserUi(
     val name: String,
@@ -27,94 +26,92 @@ data class UserUi(
 
 @Composable
 fun HeaderBar(
-    user: Any?, // Giữ type trung tính để tránh phụ thuộc model của dự án
-    onProfileClick: () -> Unit = {},
-    onNotificationsClick: () -> Unit = {},
-    onMessagesClick: () -> Unit = {},
-    onLogoutClick: () -> Unit = {},
-    onLoginClick: () -> Unit = {},
-    onRegisterClick: () -> Unit = {},
-    modifier: Modifier = Modifier,
-    onLogout: () -> Unit
+    user: UserUi?,
+    onLoginClick: () -> Unit,
+    onRegisterClick: () -> Unit,
+    onProfileClick: () -> Unit,
+    onLogout: (() -> Unit)? = null
 ) {
-    val shape = RoundedCornerShape(22.dp)
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            // Không vẽ nền nào ở ngoài: chỉ padding theo status bar
-            .statusBarsPadding()
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-            .shadow(elevation = 8.dp, shape = shape, clip = false)
-            .clip(shape)
-            // NỀN kính: màu trắng rất nhạt (không che nội dung phía sau)
-            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)), shape),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Logo / Tiêu đề
+    Surface(color = Color.Transparent) {
         Row(
             modifier = Modifier
-                .padding(start = 12.dp, top = 10.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .fillMaxWidth()
+                .height(56.dp)
+                .liquidGlass(), // 👈 glass nhẹ cho header
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Dấu chấm "online"
-            Card(
-                shape = CircleShape,
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF00E5FF).copy(alpha = 0.85f)
+            // Logo
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "MentorMe",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
-            ) { }
-            Text(
-                text = "MentorMe",
-                modifier = Modifier.padding(start = 8.dp),
-                color = Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        // Actions
-        if (user != null) {
-            Row(
-                modifier = Modifier.padding(end = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onMessagesClick) {
-                    BadgedBox(badge = { Badge { Text("1") } }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Message,
-                            contentDescription = "Tin nhắn",
-                            tint = Color.White
-                        )
-                    }
-                }
-                IconButton(onClick = onNotificationsClick) {
-                    BadgedBox(badge = { Badge { Text("2") } }) {
-                        Icon(
-                            imageVector = Icons.Filled.Notifications,
-                            contentDescription = "Thông báo",
-                            tint = Color.White
-                        )
-                    }
-                }
-                IconButton(onClick = onProfileClick) {
-                    Icon(
-                        imageVector = Icons.Filled.Person,
-                        contentDescription = "Cá nhân",
-                        tint = Color.White
-                    )
-                }
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    Modifier
+                        .size(8.dp)
+                        .background(Color(0xFF60A5FA), CircleShape)
+                )
             }
-        } else {
-            Row(
-                modifier = Modifier.padding(end = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedButton(onClick = onLoginClick) { Text("Đăng nhập") }
-                Button(onClick = onRegisterClick) { Text("Đăng ký") }
+
+            // Right controls
+            if (user != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { }) {
+                        BadgedBox(badge = { Badge { Text("3") } }) {
+                            Icon(Icons.Filled.Notifications, contentDescription = "Thông báo")
+                        }
+                    }
+                    IconButton(onClick = { }) {
+                        BadgedBox(badge = { Badge { Text("2") } }) {
+                            Icon(Icons.AutoMirrored.Filled.Message, contentDescription = "Tin nhắn")
+                        }
+                    }
+
+                    var expanded by remember { mutableStateOf(false) }
+                    IconButton(onClick = { expanded = !expanded }) {
+                        if (user.avatar != null) {
+                            AsyncImage(
+                                model = user.avatar,
+                                contentDescription = user.name,
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(Color.Gray, CircleShape)
+                            )
+                        } else {
+                            Icon(Icons.Filled.Person, contentDescription = "Profile")
+                        }
+                    }
+                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Profile") },
+                            onClick = {
+                                expanded = false
+                                onProfileClick()
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null) }
+                        )
+                        if (onLogout != null) {
+                            DropdownMenuItem(
+                                text = { Text("Đăng xuất", color = Color(0xFFE11D48)) },
+                                onClick = {
+                                    expanded = false
+                                    onLogout()
+                                },
+                                leadingIcon = { Icon(Icons.Filled.Logout, contentDescription = null, tint = Color(0xFFE11D48)) }
+                            )
+                        }
+                    }
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(onClick = onLoginClick) { Text("Đăng nhập") }
+                    Button(onClick = onRegisterClick) { Text("Đăng ký") }
+                }
             }
         }
     }

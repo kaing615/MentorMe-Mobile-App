@@ -4,6 +4,7 @@ import com.mentorme.app.core.utils.Result
 import com.mentorme.app.data.dto.*
 import com.mentorme.app.data.model.*
 import com.mentorme.app.data.remote.MentorMeApi
+import com.mentorme.app.data.repository.BookingRepository
 import com.mentorme.app.data.repository.MentorRepository
 import javax.inject.Inject
 import javax.inject.Singleton

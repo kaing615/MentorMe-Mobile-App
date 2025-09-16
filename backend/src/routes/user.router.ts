@@ -12,9 +12,24 @@ import {
 
 const router = Router();
 
-router.post("/signup", validate, userController.signUpMentee);
-router.post("/signup-mentor", validate, userController.signUpAsMentor);
-router.post("/signin", validate, userController.signIn);
-router.post("/verify-otp", validate, userController.verifyEmailOtp);
+router.post(
+  "/signup",
+  signUpMenteeValidator,
+  validate,
+  userController.signUpMentee
+);
+router.post(
+  "/signup-mentor",
+  signUpMentorValidator,
+  validate,
+  userController.signUpAsMentor
+);
+router.post("/signin", signInValidator, validate, userController.signIn);
+router.post(
+  "/verify-otp",
+  verifyOtpValidator,
+  validate,
+  userController.verifyEmailOtp
+);
 
 export default router;

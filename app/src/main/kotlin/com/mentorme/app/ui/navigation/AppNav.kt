@@ -3,11 +3,11 @@ package com.mentorme.app.ui.navigation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -15,8 +15,8 @@ import androidx.navigation.compose.rememberNavController
 import com.mentorme.app.ui.calendar.CalendarScreen
 import com.mentorme.app.ui.home.HomeScreen
 import com.mentorme.app.ui.layout.GlassBottomBar
-import com.mentorme.app.ui.layout.HeaderBar
 import com.mentorme.app.ui.layout.UserUi
+import com.mentorme.app.ui.navigation.Routes
 import com.mentorme.app.ui.profile.ProfileScreen
 import com.mentorme.app.ui.theme.LiquidBackground
 
@@ -39,7 +39,9 @@ fun AppNav(
     ) {
         // Nền liquid gradient bao phủ toàn màn hình - sẽ hiển thị qua các bar trong suốt
         LiquidBackground(
-            modifier = androidx.compose.ui.Modifier.fillMaxSize()
+            modifier = Modifier
+                .matchParentSize()
+                .zIndex(-1f)                 // luôn nằm dưới
         )
 
         // Scaffold với nền trong suốt hoàn toàn
@@ -67,16 +69,19 @@ fun AppNav(
             Box(
                 modifier = androidx.compose.ui.Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
+//                    .padding(paddingValues)
             ) {
                 NavHost(
                     navController = nav,
                     startDestination = Routes.Home,
-                    modifier = androidx.compose.ui.Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .fillMaxSize()
                 ) {
                     composable(Routes.Home) { HomeScreen() }
                     composable(Routes.Calendar) { CalendarScreen() }
                     composable(Routes.Profile) { ProfileScreen() }
+//                    composable(Routes.Messages){ /*...*/ }
+
                 }
             }
         }

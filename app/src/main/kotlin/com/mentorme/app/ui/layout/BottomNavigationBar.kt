@@ -67,21 +67,20 @@ fun GlassBottomBar(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val current = backStackEntry?.destination
 
-    val shape = RoundedCornerShape(28.dp)
+    val shape = RoundedCornerShape(24.dp)
 
     Box(
         modifier = modifier
-            .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
             .fillMaxWidth()
-            .padding(bottom = 10.dp)
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        contentAlignment = Alignment.BottomCenter
     ) {
         Row(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(horizontal = 16.dp)
                 .height(64.dp)
-                .shadow(20.dp, shape, clip = false)
                 .clip(shape)
+                .shadow(20.dp, shape, clip = false)
                 .background(
                     Brush.verticalGradient(
                         listOf(
@@ -90,31 +89,24 @@ fun GlassBottomBar(
                         )
                     )
                 )
-                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)), shape),
+                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)), shape)
+                .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             navItems.forEach { item ->
                 val selected = current.isSelected(item.route)
-                // mỗi item chiếm 1/5 chiều rộng, chặn tràn/chồng
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
-                    contentAlignment = Alignment.Center
+                GlassBarItem(
+                    selected = selected,
+                    label = item.label,
+                    icon = item.icon,
+                    badge = item.badge
                 ) {
-                    GlassBarItem(
-                        selected = selected,
-                        label = item.label,
-                        icon = item.icon,
-                        badge = item.badge
-                    ) {
-                        if (!selected) {
-                            navController.navigate(item.route) {
-                                launchSingleTop = true
-                                restoreState = true
-                                popUpTo(navController.graph.startDestinationId) { saveState = true }
-                            }
+                    if (!selected) {
+                        navController.navigate(item.route) {
+                            launchSingleTop = true
+                            restoreState = true
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
                         }
                     }
                 }
@@ -122,6 +114,7 @@ fun GlassBottomBar(
         }
     }
 }
+
 
 // ===== Item (ripple API mới, tô đậm khi chọn) =====
 @SuppressLint("RememberInComposition")

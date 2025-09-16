@@ -66,6 +66,7 @@ dependencies {
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)
     implementation("androidx.compose.foundation:foundation:1.9.1")
+    implementation("androidx.compose.ui:ui:1.9.1")
     kapt(libs.hilt.compiler)
 
     implementation(libs.retrofit)

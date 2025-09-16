@@ -20,8 +20,6 @@ import com.mentorme.app.ui.components.ui.MMPrimaryButton
 import com.mentorme.app.ui.components.ui.MMTextField
 import com.mentorme.app.ui.mentors.MentorCard
 import com.mentorme.app.ui.mentors.MentorUi
-import com.mentorme.app.ui.theme.GradientPrimary
-import com.mentorme.app.ui.theme.gradientBackground
 
 @Composable
 fun HomeScreen() {
@@ -49,76 +47,127 @@ fun HomeScreen() {
             fullName = "Alice Nguyen",
             avatar = null,
             verified = true,
-            hourlyRate = 35,
+            skills = listOf("React", "Node.js", "AWS"), // Sửa từ expertise thành skills
+            experience = "5+ years",
             rating = 4.9,
-            totalReviews = 180,
-            bio = "Mobile engineer 6+ năm, chuyên Kotlin/Compose, tối ưu performance & clean architecture.",
-            skills = listOf("Kotlin", "Compose", "Clean Arch"),
-            experience = "6+ năm"
+            hourlyRate = 50,
+            totalReviews = 127, // Thêm totalReviews
+            bio = "Senior Full-stack Developer at Google. Specialized in building scalable web applications.",
+            expertise = listOf("React", "Node.js", "AWS") // Giữ lại expertise
         ),
         MentorUi(
             id = "2",
-            fullName = "Bao Tran",
+            fullName = "Bob Wilson",
             avatar = null,
             verified = true,
-            hourlyRate = 30,
+            skills = listOf("UI/UX", "Figma", "Design Systems"), // Sửa từ expertise thành skills
+            experience = "7+ years",
             rating = 4.8,
-            totalReviews = 150,
-            bio = "Backend (Node.js + Postgres). Thiết kế API, tối ưu query, triển khai CI/CD.",
-            skills = listOf("Node", "Postgres", "CI/CD"),
-            experience = "5+ năm"
-        ),
+            hourlyRate = 45,
+            totalReviews = 89, // Thêm totalReviews
+            bio = "Lead Product Designer with experience at top tech companies.",
+            expertise = listOf("UI/UX", "Figma", "Design Systems") // Giữ lại expertise
+        )
     )
 
+    // Nội dung có thể cuộn, không có nền riêng - sẽ hiển thị liquid background phía sau
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .gradientBackground(GradientPrimary)
-            .padding(16.dp),
+            .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Hero / Search
+        item { Spacer(Modifier.height(8.dp)) } // Spacer đầu để tránh header
+
+        // Hero Section
         item {
-            LiquidGlassCard(strong = true) {
-                Text("Chào mừng tới MentorMe 👋", style = MaterialTheme.typography.headlineMedium)
-                Spacer(Modifier.height(12.dp))
-
-                MMTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    placeholder = "Nhập từ khóa tìm kiếm...",
-                    leading = { Icon(Icons.Filled.Search, contentDescription = null, tint = Color.White) }
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                MMPrimaryButton(
-                    onClick = { /* TODO: xử lý search */ },
-                    modifier = Modifier.fillMaxWidth()
+            LiquidGlassCard {
+                Column(
+                    modifier = Modifier.padding(20.dp)
                 ) {
-                    Icon(Icons.Filled.Search, null, tint = Color.White)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Tìm kiếm", color = Color.White)
+                    Text(
+                        "Tìm mentor phù hợp\ncho sự nghiệp của bạn",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Kết nối với các chuyên gia hàng đầu để phát triển kỹ năng và thúc đẩy sự nghiệp",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.White.copy(alpha = 0.9f)
+                    )
+                    Spacer(Modifier.height(20.dp))
+
+                    MMTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        placeholder = "Tìm kiếm mentor theo kỹ năng...",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(Modifier.height(16.dp))
+                    MMPrimaryButton(
+                        onClick = { /* TODO */ },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Tìm kiếm ngay") // Sử dụng content thay vì text parameter
+                    }
                 }
             }
         }
 
-        // Quick stats
+        // Quick Stats
         item {
-            Text("Thống kê nhanh", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        }
-        items(quickStats.chunked(2)) { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                row.forEach { (label, value, icon) ->
-                    LiquidGlassCard(modifier = Modifier.weight(1f)) {
-                        Column(
-                            Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
+            LiquidGlassCard {
+                Column(
+                    modifier = Modifier.padding(20.dp)
+                ) {
+                    Text(
+                        "Thống kê nổi bật",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(Modifier.height(16.dp))
+
+                    quickStats.chunked(2).forEach { rowStats ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Icon(icon, null, tint = Color(0xFF93C5FD))
-                            Spacer(Modifier.height(4.dp))
-                            Text(value, fontWeight = FontWeight.Bold)
-                            Text(label, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(0.7f))
+                            rowStats.forEach { (label, value, icon) ->
+                                Row(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        icon,
+                                        contentDescription = null,
+                                        tint = Color(0xFF60A5FA),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            value,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            label,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.White.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        if (rowStats != quickStats.chunked(2).last()) {
+                            Spacer(Modifier.height(8.dp))
                         }
                     }
                 }
@@ -127,47 +176,72 @@ fun HomeScreen() {
 
         // Categories
         item {
-            Text("Khám phá theo lĩnh vực", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        }
-        items(categories.chunked(2)) { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                row.forEach { (id, name, emoji) ->
-                    LiquidGlassCard(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { /* TODO: filter by id */ }
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(emoji, style = MaterialTheme.typography.headlineMedium)
-                            Text(name, fontWeight = FontWeight.Medium)
+            LiquidGlassCard {
+                Column(
+                    modifier = Modifier.padding(20.dp)
+                ) {
+                    Text(
+                        "Lĩnh vực phổ biến",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(Modifier.height(16.dp))
+
+                    categories.chunked(3).forEach { row ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            row.forEach { (key, name, emoji) ->
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { /* TODO: navigate to category */ }
+                                        .padding(8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        emoji,
+                                        style = MaterialTheme.typography.headlineMedium
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        name,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                        if (row != categories.chunked(3).last()) {
+                            Spacer(Modifier.height(8.dp))
                         }
                     }
                 }
             }
         }
 
-        // Top rated mentors
+        // Featured Mentors
         item {
-            Text("Mentor được đánh giá cao", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        }
-        items(mentors) { m ->
-            MentorCard(
-                mentor = m,
-                onViewProfile = { /* TODO */ },
-                onBookSession = { /* TODO */ }
+            Text(
+                "Mentor nổi bật",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                modifier = Modifier.padding(vertical = 8.dp)
             )
         }
 
-        // Featured mentors
-        item {
-            Text("Mentor nổi bật", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        }
-        items(mentors) { m ->
+        items(mentors) { mentor ->
             MentorCard(
-                mentor = m,
-                onViewProfile = { /* TODO */ },
-                onBookSession = { /* TODO */ }
+                mentor = mentor,
+                onViewProfile = { mentorId -> /* TODO: navigate to profile */ },
+                onBookSession = { mentorId -> /* TODO: navigate to booking */ }
             )
         }
+
+        item { Spacer(Modifier.height(16.dp)) } // Spacer cuối để tránh bottom nav
     }
 }

@@ -17,19 +17,6 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.auto(0x00000000, 0x00000000)
         )
         super.onCreate(savedInstanceState)
-
-        // Làm trong suốt status + nav bar, nền app sẽ phủ full màn
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.light(
-                Color.Transparent.toArgb(), Color.Transparent.toArgb()
-            ),
-            navigationBarStyle = SystemBarStyle.light(
-                Color.Transparent.toArgb(), Color.Transparent.toArgb()
-            )
-        )
-
-        setContent {
-            AppNav() // Sử dụng default parameters
-        }
+        setContent { AppNav() }
     }
 }

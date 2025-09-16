@@ -10,20 +10,12 @@ import com.mentorme.app.ui.navigation.AppNav
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        // Làm trong suốt status + nav bar, nền app sẽ phủ full màn
+        // Trong suốt hoàn toàn cho status + navigation bars
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.light(
-                Color.Transparent.toArgb(), Color.Transparent.toArgb()
-            ),
-            navigationBarStyle = SystemBarStyle.light(
-                Color.Transparent.toArgb(), Color.Transparent.toArgb()
-            )
+            statusBarStyle = SystemBarStyle.auto(0x00000000, 0x00000000),
+            navigationBarStyle = SystemBarStyle.auto(0x00000000, 0x00000000)
         )
-
-        setContent {
-            AppNav() // Sử dụng default parameters
-        }
+        super.onCreate(savedInstanceState)
+        setContent { AppNav() }
     }
 }

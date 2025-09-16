@@ -10,8 +10,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -22,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.mentorme.app.ui.theme.Card
 
 /* =========================
  * Tokens map từ globals.css
@@ -35,6 +39,26 @@ private const val GLASS_STRONG      = 0.14f // --glass-backdrop
 /* ===========================================================
  * Modifiers: gradient + glass (tương đương utilities trong CSS)
  * =========================================================== */
+@Composable
+fun LiquidGlassCard(
+    modifier: Modifier = Modifier,
+    radius: Dp = 16.dp,
+    alpha: Float = GLASS_ALPHA,
+    borderAlpha: Float = GLASS_BORDER,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = modifier
+            .background(Color.Transparent)
+            .liquidGlass(radius = radius, alpha = alpha, borderAlpha = borderAlpha),
+        shape = RoundedCornerShape(radius),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        content()
+    }
+}
+
 
 /** Card "liquid glass" – tương đương `.glass` (bg mờ + border mờ). */
 fun Modifier.liquidGlass(

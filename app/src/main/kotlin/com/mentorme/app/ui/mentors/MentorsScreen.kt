@@ -1,5 +1,5 @@
-// ProfileScreen.kt
-package com.mentorme.app.ui.profile
+// MentorsScreen.kt
+package com.mentorme.app.ui.mentors
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
@@ -9,9 +9,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun ProfileScreen() {
+fun MentorsScreen() {
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Profile", style = MaterialTheme.typography.displayLarge)
+        Text("Mentors", style = MaterialTheme.typography.displayLarge)
         Spacer(Modifier.height(8.dp))
         Text("Placeholder – sẽ thay bằng UI thật.")
     }

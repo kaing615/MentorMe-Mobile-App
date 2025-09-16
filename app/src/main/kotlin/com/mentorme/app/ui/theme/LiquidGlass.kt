@@ -22,31 +22,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.mentorme.app.ui.theme.GradientPrimary
 
 /* =========================
  * Tokens map từ globals.css
  * ========================= */
 
-
 // Liquid glass (CSS: --glass-*)
-private const val GLASS_ALPHA       = 0.10f // --glass-bg
-private const val GLASS_ALPHA_HOVER = 0.20f // --glass-bg-hover
-private const val GLASS_BORDER      = 0.20f // --glass-border
-private const val GLASS_STRONG      = 0.25f // --glass-backdrop
+private const val GLASS_ALPHA       = 0.06f // --glass-bg
+private const val GLASS_BORDER      = 0.16f // --glass-border
+private const val GLASS_STRONG      = 0.14f // --glass-backdrop
 
 /* ===========================================================
  * Modifiers: gradient + glass (tương đương utilities trong CSS)
  * =========================================================== */
 
-/** Nền linear-gradient giống util `.gradient-*` bên web. */
-fun Modifier.gradientBackground(
-    colors: List<Color>,
-    start: Offset = Offset.Zero,
-    end: Offset = Offset.Infinite
-) = background(Brush.linearGradient(colors, start, end))
-
-/** Card “liquid glass” – tương đương `.glass` (bg mờ + border mờ). */
+/** Card "liquid glass" – tương đương `.glass` (bg mờ + border mờ). */
 fun Modifier.liquidGlass(
     radius: Dp = 32.dp,
     alpha: Float = GLASS_ALPHA,
@@ -68,11 +58,11 @@ fun Modifier.liquidGlassStrong(
  * ======================================================= */
 
 /**
- * Nền động “liquid motion” giống `body::before`:
+ * Nền động "liquid motion" giống `body::before`:
  *  - Lớp 1: gradient nền chính (GradientPrimary)
  *  - Lớp 2: 3 radial-gradient bán trong suốt di chuyển liên tục.
  *
- * Web tham chiếu: `body` + `@keyframes liquidMotion`. :contentReference[oaicite:2]{index=2}
+ * Web tham chiếu: `body` + `@keyframes liquidMotion`.
  */
 @Composable
 fun LiquidBackground(
@@ -96,7 +86,7 @@ fun LiquidBackground(
     Box(
         modifier
             .fillMaxSize()
-            .gradientBackground(baseGradient)
+            .background(Brush.linearGradient(baseGradient))
     ) {
         Canvas(Modifier.fillMaxSize()) {
             val w = size.width
@@ -134,20 +124,3 @@ fun LiquidBackground(
         }
     }
 }
-
-/* ==========================
- * Mẹo sử dụng nhanh trong UI
- * ==========================
- *
- * Scaffold(
- *   modifier = Modifier.gradientBackground(GradientPrimary)
- * ) { ... }
- *
- * LiquidGlassCard/Container:
- * Box(Modifier.liquidGlass().padding(16.dp)) { ... }
- *
- * Nút gradient:
- * MMPrimaryButton đã dùng GradientSecondary theo web button. :contentReference[oaicite:3]{index=3}
- * Input glass:
- * MMTextField đã map --input-background, --border. :contentReference[oaicite:4]{index=4}
- */

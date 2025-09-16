@@ -1,74 +1,59 @@
 import { Request, Response, NextFunction } from "express";
-import responseHandler from "../handlers/response.handler";
 import jwt from "jsonwebtoken";
+import redis from "../utils/redis";
+import { createHash } from "crypto";
+import responseHandler from "../handlers/response.handler";
 
-export interface AuthUser {
-  id: string;
-  email: string;
-  roles?: string[];
+const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
+
+export default function getTokenFromReq(req: Request): string | null {
+  const authz = req.headers.authorization || "";
+  if (authz.startsWith("Bearer ")) return authz.slice(7);
+  return null;
 }
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: AuthUser;
-    }
-  }
-}
+export function auth(req: Request, res: Response, next: NextFunction) {
+  const token = getTokenFromReq(req);
+  if (!token) return responseHandler.unauthorized(res, "Unauthorized");
 
-function getTokenFromReq(req: Request): string | null {
-  const auth = req.headers.authorization;
-  if (auth?.startsWith("Bearer ")) return auth.slice(7).trim();
-  const cookieToken = (req as any).cookies?.access_token;
-  return cookieToken ?? null;
-}
-
-export const auth = (options?: { required?: boolean }) => {
-  const required = options?.required ?? true;
-  return (req: Request, res: Response, next: NextFunction) => {
+  (async () => {
     try {
-      const token = getTokenFromReq(req);
-      if (!token) {
-        if (!required) return next();
-        return responseHandler.unauthorized(res, null, "Unauthorized");
-      }
+      const payload = jwt.verify(token, process.env.JWT_SECRET!, {
+        issuer: "mentorme",
+        audience: "mentorme-mobile",
+        algorithms: ["HS256"],
+        clockTolerance: 5,
+      }) as { jti?: string; id: string; email: string; role: string };
 
-      const secret = process.env.JWT_SECRET;
-      if (!secret) {
-        return responseHandler.internalServerError(
-          res,
-          null,
-          "JWT secret is not configured"
-        );
-      }
+      const jtiKey = payload.jti ? `bl:jwt:jti:${payload.jti}` : null;
+      const hashKey = `bl:jwt:${hashToken(token)}`;
+      const [jtiHit, hashHit] = await Promise.all([
+        jtiKey ? redis.get(jtiKey) : null,
+        redis.get(hashKey),
+      ]);
 
-      const payload = jwt.verify(token, secret) as AuthUser & {
-        iat: number;
-        exp: number;
-      };
-      req.user = {
+      if (jtiHit || hashHit) {
+        return responseHandler.unauthorized(res, "Token revoked");
+      }
+      (req as any).user = {
         id: payload.id,
         email: payload.email,
-        roles: payload.roles ?? [],
+        role: payload.role,
       };
-      next();
+      return next();
     } catch {
-      return responseHandler.unauthorized(
-        res,
-        null,
-        "Invalid or expired token"
-      );
+      return responseHandler.unauthorized(res, "Unauthorized");
     }
-  };
-};
+  })();
+}
 
-export const requireRoles = (...roles: string[]) => {
+export function requireRoles(...roles: string[]) {
   return (req: Request, res: Response, next: NextFunction) => {
-    const user = req.user;
-    if (!user) return responseHandler.unauthorized(res, null, "Unauthorized");
-    const userRoles = new Set(user.roles ?? []);
-    const ok = roles.some((r) => userRoles.has(r));
-    if (!ok) return responseHandler.forbidden(res, null, "Forbidden");
+    const user = (req as any).user;
+    if (!user) return responseHandler.unauthorized(res, "Unauthorized");
+    if (!roles.includes(user.role)) {
+      return responseHandler.forbidden(res, "Forbidden");
+    }
     next();
   };
-};
+}

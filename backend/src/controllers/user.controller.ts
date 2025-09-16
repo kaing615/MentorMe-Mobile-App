@@ -5,8 +5,9 @@ import redis from "../utils/redis";
 import { asyncHandler } from "../handlers/async.handler";
 import responseHandler from "../handlers/response.handler";
 import { User } from "../models/user.model";
-import { randomInt, randomBytes } from "crypto";
-import jwt from "jsonwebtoken";
+import { randomInt, randomBytes, createHash, randomUUID } from "crypto";
+import jwt, { SignOptions } from "jsonwebtoken";
+import getTokenFromReq from "../middlewares/auth.middleware";
 
 const OTP_TTL_SEC = 10 * 60;
 const OTP_MAX_ATTEMPTS = 5;
@@ -16,82 +17,35 @@ const genNumericOtp = (len = 6) =>
     .toString()
     .padStart(len, "0");
 
-export const signUpMentee = asyncHandler(
-  async (req: Request, res: Response) => {
-    const rawEmail = String(req.body?.email ?? "").trim();
-    const email = rawEmail.toLowerCase();
-    const userName = String(req.body?.userName ?? "").trim();
-    const password = String(req.body?.password ?? "").trim();
+const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
+const hashToken = (t: string) => sha256(t);
 
-    console.log("CT:", req.headers["content-type"], "BODY:", req.body);
+const jwtOpts = (): SignOptions => ({
+  expiresIn: 60 * 60 * 24 * 7,
+  jwtid: randomUUID(),
+  issuer: "mentorme",
+  audience: "mentorme-mobile",
+});
 
-    if (!email || !userName || !password) {
-      return responseHandler.badRequest(
-        res,
-        null,
-        "Email, userName, and password are required"
-      );
-    }
-
-    const existing = await User.findOne({ email }).lean();
-    if (existing && existing.status === "active") {
-      return responseHandler.conflict(res, null, "Email is already registered");
-    }
-
-    let userId: string | null = null;
-    if (existing) {
-      userId = String(existing._id);
-    } else {
-      const hashed = await bcrypt.hash(password, 10);
-      try {
-        const doc = await User.create({
-          email,
-          userName,
-          passwordHash: hashed,
-          role: "mentee",
-          status: "pending",
-        });
-        userId = doc.id;
-      } catch (e: any) {
-        if (e?.code === 11000) {
-          return responseHandler.conflict(
-            res,
-            null,
-            "Email is already registered"
-          );
-        } else {
-          return responseHandler.internalServerError(
-            res,
-            null,
-            "Failed to create user"
-          );
-        }
-      }
-    }
-
-    const code = genNumericOtp(6);
-    const verificationId = randomBytes(16).toString("hex");
-    await redis.setEx(
-      `otp:verify:${verificationId}`,
-      OTP_TTL_SEC,
-      JSON.stringify({ userId, verificationId, email, code, attempts: 0 })
-    );
-    const minutes = Math.max(1, Math.floor(OTP_TTL_SEC / 60));
-    const codeSpaced = code.split("").join(" ");
-
-    try {
-      const from = "kainguyen615@gmail.com";
-      await sgMail.send({
-        to: email,
-        from,
-        subject: "MentorMe • OTP Verification",
-        text:
-          `Hi ${userName || "there"},\n\n` +
-          `Your one-time verification code is: ${code}\n` +
-          `It expires in ${minutes} minutes.\n\n` +
-          `If you didn’t request this, please ignore this email.\n\n` +
-          `— MentorMe Team`,
-        html: `
+async function sendOtpEmail(
+  to: string,
+  userName: string | undefined,
+  code: string,
+  minutes: number
+) {
+  const codeSpaced = code.split("").join(" ");
+  const from = "kainguyen615@gmail.com";
+  await sgMail.send({
+    to,
+    from,
+    subject: "MentorMe • OTP Verification",
+    text:
+      `Hi ${userName || "there"},\n\n` +
+      `Your one-time verification code is: ${code}\n` +
+      `It expires in ${minutes} minutes.\n\n` +
+      `If you didn’t request this, please ignore this email.\n\n` +
+      `— MentorMe Team`,
+    html: `
   <div style="background:#f6f8fb;padding:32px 12px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111;">
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" width="560" style="max-width:560px;background:#ffffff;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05);overflow:hidden;">
       <tr>
@@ -146,8 +100,81 @@ export const signUpMentee = asyncHandler(
     </table>
   </div>
   `,
-        categories: ["auth", "otp"],
-      });
+    categories: ["auth", "otp"],
+  });
+}
+
+export const signUpMentee = asyncHandler(
+  async (req: Request, res: Response) => {
+    const rawEmail = String(req.body?.email ?? "").trim();
+    const email = rawEmail.toLowerCase();
+    const userName = String(req.body?.userName ?? "").trim();
+    const password = String(req.body?.password ?? "").trim();
+
+    console.log("signup mentee:", { ct: req.headers["content-type"], email });
+
+    if (!email || !userName || !password) {
+      return responseHandler.badRequest(
+        res,
+        null,
+        "Email, userName, and password are required"
+      );
+    }
+
+    const existing = await User.findOne({ email }).lean();
+    if (existing && existing.status === "active") {
+      return responseHandler.conflict(res, null, "Email is already registered");
+    }
+
+    let userId: string | null = null;
+    if (existing) {
+      userId = String(existing._id);
+    } else {
+      const hashed = await bcrypt.hash(password, 12);
+      try {
+        const doc = await User.create({
+          email,
+          userName,
+          passwordHash: hashed,
+          role: "mentee",
+          status: "pending",
+        });
+        userId = doc.id;
+      } catch (e: any) {
+        if (e?.code === 11000) {
+          return responseHandler.conflict(
+            res,
+            null,
+            "Email is already registered"
+          );
+        } else {
+          return responseHandler.internalServerError(
+            res,
+            null,
+            "Failed to create user"
+          );
+        }
+      }
+    }
+
+    const code = genNumericOtp(6);
+    const verificationId = randomBytes(16).toString("hex");
+    const minutes = Math.max(1, Math.floor(OTP_TTL_SEC / 60));
+
+    await redis.setEx(
+      `otp:verify:${verificationId}`,
+      OTP_TTL_SEC,
+      JSON.stringify({
+        userId,
+        verificationId,
+        email,
+        codeHash: sha256(code),
+        attempts: 0,
+      })
+    );
+
+    try {
+      await sendOtpEmail(email, userName, code, minutes);
     } catch (e: any) {
       return responseHandler.internalServerError(
         res,
@@ -155,6 +182,7 @@ export const signUpMentee = asyncHandler(
         "Failed to send OTP email. Please try again later."
       );
     }
+
     return responseHandler.created(
       res,
       {
@@ -194,7 +222,7 @@ export const verifyEmailOtp = asyncHandler(
     }
 
     const data = JSON.parse(raw) as {
-      code: string;
+      codeHash: string;
       attempts: number;
       userId: string;
       email: string;
@@ -209,10 +237,12 @@ export const verifyEmailOtp = asyncHandler(
       );
     }
 
-    if (input !== data.code) {
+    if (sha256(input) !== data.codeHash) {
+      const ttlLeft = await redis.ttl(key);
+      const safeTtl = ttlLeft > 0 ? ttlLeft : 1;
       await redis.setEx(
         key,
-        OTP_TTL_SEC,
+        safeTtl,
         JSON.stringify({ ...data, attempts: data.attempts + 1 })
       );
       return responseHandler.badRequest(res, null, "Invalid OTP");
@@ -255,9 +285,13 @@ export const verifyEmailOtp = asyncHandler(
     let token: string | undefined;
     if (process.env.JWT_SECRET && updated.status === "active") {
       token = jwt.sign(
-        { id: data.userId, email: user.email, role: user.role ?? "mentee" },
+        {
+          id: data.userId,
+          email: user.email,
+          role: (user as any).role ?? "mentee",
+        },
         process.env.JWT_SECRET,
-        { expiresIn: "7d" }
+        jwtOpts()
       );
     }
 
@@ -298,7 +332,7 @@ export const signUpAsMentor = asyncHandler(
     if (existing) {
       userId = String(existing._id);
     } else {
-      const hashed = await bcrypt.hash(password, 10);
+      const hashed = await bcrypt.hash(password, 12);
       try {
         const doc = await User.create({
           email,
@@ -324,6 +358,32 @@ export const signUpAsMentor = asyncHandler(
       }
     }
 
+    const code = genNumericOtp(6);
+    const verificationId = randomBytes(16).toString("hex");
+    const minutes = Math.max(1, Math.floor(OTP_TTL_SEC / 60));
+
+    await redis.setEx(
+      `otp:verify:${verificationId}`,
+      OTP_TTL_SEC,
+      JSON.stringify({
+        userId,
+        verificationId,
+        email,
+        codeHash: sha256(code),
+        attempts: 0,
+      })
+    );
+
+    try {
+      await sendOtpEmail(email, userName, code, minutes);
+    } catch (e: any) {
+      return responseHandler.internalServerError(
+        res,
+        null,
+        "Failed to send OTP email. Please try again later."
+      );
+    }
+
     return responseHandler.created(
       res,
       {
@@ -332,8 +392,10 @@ export const signUpAsMentor = asyncHandler(
         userName,
         status: "pending-mentor",
         role: "mentor",
+        verificationId,
+        expiresIn: OTP_TTL_SEC,
       },
-      "Your mentor application is received and pending review."
+      "Your mentor application is received and pending review. OTP sent to email."
     );
   }
 );
@@ -370,7 +432,7 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
         role: (user as any).role ?? "mentee",
       },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" }
+      jwtOpts()
     );
   }
 
@@ -387,9 +449,36 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
   );
 });
 
+export const signOut = asyncHandler(async (req: Request, res: Response) => {
+  const token = getTokenFromReq(req);
+
+  if (token && process.env.JWT_SECRET) {
+    try {
+      const payload = jwt.verify(token, process.env.JWT_SECRET) as {
+        exp?: number;
+        jti?: string;
+      };
+
+      const now = Math.floor(Date.now() / 1000);
+      const exp = typeof payload.exp === "number" ? payload.exp : 0;
+      const ttl = Math.max(1, exp - now);
+
+      if (ttl > 1) {
+        if (payload.jti) {
+          await redis.setEx(`bl:jwt:jti:${payload.jti}`, ttl, "1");
+        }
+        await redis.setEx(`bl:jwt:${hashToken(token)}`, ttl, "1");
+      }
+    } catch {}
+  }
+
+  return responseHandler.ok(res, null, "Sign-out successful");
+});
+
 export default {
   signUpMentee,
   verifyEmailOtp,
   signUpAsMentor,
   signIn,
+  signOut,
 };

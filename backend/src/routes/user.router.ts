@@ -31,5 +31,6 @@ router.post(
   validate,
   userController.verifyEmailOtp
 );
+router.post("/signout", userController.signOut);
 
 export default router;

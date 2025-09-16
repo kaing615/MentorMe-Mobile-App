@@ -3,20 +3,18 @@ package com.mentorme.app.ui.navigation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.mentorme.app.ui.calendar.CalendarScreen
 import com.mentorme.app.ui.home.HomeScreen
-import com.mentorme.app.ui.layout.BottomNavigationBar
+import com.mentorme.app.ui.layout.GlassBottomBar
 import com.mentorme.app.ui.layout.HeaderBar
 import com.mentorme.app.ui.layout.UserUi
 import com.mentorme.app.ui.profile.ProfileScreen
@@ -48,23 +46,20 @@ fun AppNav(
         Scaffold(
             containerColor = androidx.compose.ui.graphics.Color.Transparent,
             contentWindowInsets = WindowInsets(0), // Loại bỏ padding mặc định
-            topBar = {
-                // Header bar hoàn toàn trong suốt, nổi trên nội dung
-                HeaderBar(
-                    user = user,
-                    onLoginClick = { /* TODO: open login screen */ },
-                    onRegisterClick = { /* TODO: open register screen */ },
-                    onProfileClick = { nav.navigate(Routes.Profile) },
-                    onLogout = { /* TODO: handle logout */ },
-                    modifier = androidx.compose.ui.Modifier.statusBarsPadding()
-                )
-            },
+//            topBar = {
+//                // Header bar hoàn toàn trong suốt, nổi trên nội dung
+//                HeaderBar(
+//                    user = user,
+//                    onLoginClick = { /* TODO: open login screen */ },
+//                    onRegisterClick = { /* TODO: open register screen */ },
+//                    onProfileClick = { nav.navigate(Routes.Profile) },
+//                    onLogout = { /* TODO: handle logout */ },
+//                    modifier = androidx.compose.ui.Modifier.statusBarsPadding()
+//                )
+//            },
             bottomBar = {
                 // Bottom nav hoàn toàn trong suốt, nổi trên nội dung
-                BottomNavigationBar(
-                    navController = nav,
-                    modifier = androidx.compose.ui.Modifier.navigationBarsPadding()
-                )
+                GlassBottomBar(navController = nav)
             },
             modifier = androidx.compose.ui.Modifier.fillMaxSize()
         ) { paddingValues ->

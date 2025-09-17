@@ -21,7 +21,10 @@ import androidx.compose.ui.unit.dp
 import com.mentorme.app.ui.home.Mentor
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.theme.liquidGlass
-import com.mentorme.app.ui.common.MMButton
+// Ở đầu HomeScreen.kt, MentorCard.kt, CalendarScreen.kt
+import com.mentorme.app.ui.components.ui.MMButton
+import com.mentorme.app.ui.components.ui.MMPrimaryButton
+import com.mentorme.app.ui.components.ui.MMGhostButton
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

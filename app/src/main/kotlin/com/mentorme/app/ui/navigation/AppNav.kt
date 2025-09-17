@@ -80,16 +80,21 @@ fun AppNav(
                     composable(Routes.Auth) {
                         AuthScreen(
                             onLogin = { email, pass ->
-                                // TODO: thay bằng repository thực tế
+                                // TODO: gọi repo thực tế
                                 val ok = email.isNotBlank() && pass.isNotBlank()
                                 if (ok) isLoggedIn = true
                                 ok
                             },
                             onRegister = { p: RegisterPayload ->
-                                // TODO: thay bằng API create user
+                                // TODO: gọi API tạo user
                                 val ok = p.fullName.isNotBlank() && p.email.isNotBlank() && p.password.length >= 6
                                 if (ok) isLoggedIn = true
                                 ok
+                            },
+                            onResetPassword = { email ->
+                                // TODO: gọi API gửi mail reset, ví dụ:
+                                // authRepository.sendResetLink(email)
+                                // Có thể hiện snackbar/toast ở đây
                             },
                             onAuthed = {
                                 nav.navigate(Routes.Home) {
@@ -99,6 +104,7 @@ fun AppNav(
                             }
                         )
                     }
+
                     // ---------- MAIN APP ----------
                     composable(Routes.Home) { HomeScreen() }
 

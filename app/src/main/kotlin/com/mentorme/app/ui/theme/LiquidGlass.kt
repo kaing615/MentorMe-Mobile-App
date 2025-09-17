@@ -11,9 +11,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -23,14 +25,13 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
+// Constants
+const val GLASS_ALPHA = 0.15f
+const val GLASS_BORDER = 0.3f
+
 /* =========================
  * Tokens map từ globals.css
  * ========================= */
-
-// Liquid glass (CSS: --glass-*)
-private const val GLASS_ALPHA       = 0.06f // --glass-bg
-private const val GLASS_BORDER      = 0.16f // --glass-border
-private const val GLASS_STRONG      = 0.14f // --glass-backdrop
 
 /**
  * Liquid Glass Card Component
@@ -41,16 +42,65 @@ fun LiquidGlassCard(
     radius: Dp = 16.dp,
     alpha: Float = GLASS_ALPHA,
     borderAlpha: Float = GLASS_BORDER,
+    strong: Boolean = false,
     content: @Composable BoxScope.() -> Unit
 ) {
+    val glassModifier = if (strong) {
+        modifier.liquidGlassStrong(radius, alpha, borderAlpha)
+    } else {
+        modifier.liquidGlass(radius, alpha, borderAlpha)
+    }
+
     Box(
-        modifier = modifier.liquidGlass(
-            radius = radius,
-            alpha = alpha,
-            borderAlpha = borderAlpha
-        )
-    ) {
-        content()
+        modifier = glassModifier,
+        content = content
+    )
+}
+
+/**
+ * Card-based LiquidGlassCard - Material3 Card with liquid glass effect
+ * Use this for clickable cards or when you need ColumnScope
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LiquidGlassCardColumn(
+    modifier: Modifier = Modifier,
+    radius: Dp = 22.dp,
+    alpha: Float = 0.15f,
+    borderAlpha: Float = 0.3f,
+    strong: Boolean = false,
+    elevation: Dp = if (strong) 20.dp else 8.dp,
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val glassModifier = if (strong) {
+        modifier.liquidGlassStrong(radius, alpha, borderAlpha)
+    } else {
+        modifier.liquidGlass(radius, alpha, borderAlpha)
+    }
+
+    val colors = CardDefaults.cardColors(
+        containerColor = Color.Transparent,
+        contentColor = Color.Unspecified
+    )
+
+    if (onClick != null) {
+        Card(
+            onClick = onClick,
+            modifier = glassModifier,
+            colors = colors,
+            elevation = CardDefaults.cardElevation(defaultElevation = elevation)
+        ) {
+            Column(Modifier.padding(16.dp), content = content)
+        }
+    } else {
+        Card(
+            modifier = glassModifier,
+            colors = colors,
+            elevation = CardDefaults.cardElevation(defaultElevation = elevation)
+        ) {
+            Column(Modifier.padding(16.dp), content = content)
+        }
     }
 }
 
@@ -85,9 +135,17 @@ fun Modifier.liquidGlass(
 /** Bản mạnh hơn – tương đương `.glass-strong`. */
 fun Modifier.liquidGlassStrong(
     radius: Dp = 32.dp,
-    alpha: Float = GLASS_STRONG,
-    borderAlpha: Float = 0.30f
-) = this.liquidGlass(radius = radius, alpha = alpha, borderAlpha = borderAlpha)
+    alpha: Float = 0.25f,
+    borderAlpha: Float = 0.4f
+) = this
+    .clip(RoundedCornerShape(radius))
+    .background(Color.White.copy(alpha = alpha))
+    .border(
+        width = 1.5.dp,
+        color = Color.White.copy(alpha = borderAlpha),
+        shape = RoundedCornerShape(radius)
+    )
+    .blur(radius = 1.dp)
 
 /* =======================================================
  * Liquid background: mô phỏng body::before + keyframes

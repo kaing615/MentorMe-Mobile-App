@@ -27,7 +27,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.mentorme.app.ui.common.MMButton
+// Ở đầu HomeScreen.kt, MentorCard.kt, CalendarScreen.kt
+import com.mentorme.app.ui.components.ui.MMButton
+import com.mentorme.app.ui.components.ui.MMPrimaryButton
+import com.mentorme.app.ui.components.ui.MMGhostButton
 import com.mentorme.app.ui.mentors.MentorCard
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.theme.liquidGlass

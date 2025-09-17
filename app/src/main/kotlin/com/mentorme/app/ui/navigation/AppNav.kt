@@ -4,8 +4,12 @@ import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
@@ -21,6 +25,13 @@ import com.mentorme.app.ui.home.HomeScreen
 import com.mentorme.app.ui.layout.GlassBottomBar
 import com.mentorme.app.ui.layout.UserUi
 import com.mentorme.app.ui.theme.LiquidBackground
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.navigation.compose.currentBackStackEntryAsState
+import com.mentorme.app.ui.auth.AuthScreen
+import com.mentorme.app.ui.auth.RegisterPayload
+import com.mentorme.app.data.model.UserRole
+
 
 object Routes {
     const val Auth = "auth"
@@ -37,6 +48,10 @@ fun AppNav(
     nav: NavHostController = rememberNavController(),
     user: UserUi? = UserUi("Alice", avatar = null, role = "mentee")
 ) {
+    val backstack by nav.currentBackStackEntryAsState()
+    val currentRoute = backstack?.destination?.route
+    var isLoggedIn by rememberSaveable { mutableStateOf(false) }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // Nền liquid
         LiquidBackground(
@@ -48,15 +63,43 @@ fun AppNav(
         Scaffold(
             containerColor = androidx.compose.ui.graphics.Color.Transparent,
             contentWindowInsets = WindowInsets(0),
-            bottomBar = { GlassBottomBar(navController = nav) },
+            bottomBar = {
+                if (isLoggedIn && currentRoute != Routes.Auth) {
+                    GlassBottomBar(navController = nav)
+                }
+            },
             modifier = Modifier.fillMaxSize()
         ) { _ ->
             Box(modifier = Modifier.fillMaxSize()) {
                 NavHost(
                     navController = nav,
-                    startDestination = Routes.Home,
+                    startDestination = if (isLoggedIn) Routes.Home else Routes.Auth,
                     modifier = Modifier.fillMaxSize()
                 ) {
+                    // ---------- AUTH ----------
+                    composable(Routes.Auth) {
+                        AuthScreen(
+                            onLogin = { email, pass ->
+                                // TODO: thay bằng repository thực tế
+                                val ok = email.isNotBlank() && pass.isNotBlank()
+                                if (ok) isLoggedIn = true
+                                ok
+                            },
+                            onRegister = { p: RegisterPayload ->
+                                // TODO: thay bằng API create user
+                                val ok = p.fullName.isNotBlank() && p.email.isNotBlank() && p.password.length >= 6
+                                if (ok) isLoggedIn = true
+                                ok
+                            },
+                            onAuthed = {
+                                nav.navigate(Routes.Home) {
+                                    popUpTo(Routes.Auth) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                        )
+                    }
+                    // ---------- MAIN APP ----------
                     composable(Routes.Home) { HomeScreen() }
 
                     composable(Routes.Calendar) {

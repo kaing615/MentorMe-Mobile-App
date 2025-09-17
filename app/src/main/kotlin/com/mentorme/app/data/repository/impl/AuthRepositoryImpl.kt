@@ -2,7 +2,9 @@ package com.mentorme.app.data.repository.impl
 
 import com.mentorme.app.core.datastore.DataStoreManager
 import com.mentorme.app.core.utils.Result
-import com.mentorme.app.data.dto.*
+import com.mentorme.app.data.dto.AuthResponse
+import com.mentorme.app.data.dto.LoginRequest
+import com.mentorme.app.data.dto.RegisterRequest
 import com.mentorme.app.data.model.User
 import com.mentorme.app.data.remote.MentorMeApi
 import com.mentorme.app.data.repository.AuthRepository
@@ -25,7 +27,7 @@ class AuthRepositoryImpl @Inject constructor(
                 dataStoreManager.saveUserInfo(
                     userId = authResponse.user.id,
                     email = authResponse.user.email,
-                    name = authResponse.user.name,
+                    name = authResponse.user.fullName,
                     role = authResponse.user.role.name
                 )
                 Result.Success(authResponse)
@@ -46,7 +48,7 @@ class AuthRepositoryImpl @Inject constructor(
                 dataStoreManager.saveUserInfo(
                     userId = authResponse.user.id,
                     email = authResponse.user.email,
-                    name = authResponse.user.name,
+                    name = authResponse.user.fullName,
                     role = authResponse.user.role.name
                 )
                 Result.Success(authResponse)

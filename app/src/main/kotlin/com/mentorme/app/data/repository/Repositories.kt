@@ -1,10 +1,17 @@
 package com.mentorme.app.data.repository
 
 import com.mentorme.app.core.utils.Result
-import com.mentorme.app.data.dto.*
-import com.mentorme.app.data.model.*
-import kotlinx.coroutines.flow.Flow
+// Specific imports for DTOs (used for API requests/responses)
+import com.mentorme.app.data.dto.AuthResponse
+import com.mentorme.app.data.dto.AvailabilitySlot as ApiAvailabilitySlot
+import com.mentorme.app.data.dto.BookingListResponse
+import com.mentorme.app.data.dto.MentorListResponse
 
+// Specific imports for Models (used for business entities)
+import com.mentorme.app.data.model.Booking
+import com.mentorme.app.data.model.Mentor
+import com.mentorme.app.data.model.User
+import kotlinx.coroutines.flow.Flow
 interface AuthRepository {
     suspend fun login(email: String, password: String): Result<AuthResponse>
     suspend fun register(email: String, password: String, name: String, role: String): Result<AuthResponse>
@@ -26,7 +33,7 @@ interface MentorRepository {
     ): Result<MentorListResponse>
 
     suspend fun getMentorById(mentorId: String): Result<Mentor>
-    suspend fun getMentorAvailability(mentorId: String): Result<List<AvailabilitySlot>>
+    suspend fun getMentorAvailability(mentorId: String): Result<List<ApiAvailabilitySlot>>
 }
 
 interface BookingRepository {

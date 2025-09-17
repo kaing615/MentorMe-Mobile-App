@@ -1,108 +1,166 @@
+// app/src/main/java/com/mentorme/app/data/model/Models.kt
 package com.mentorme.app.data.model
 
 import com.google.gson.annotations.SerializedName
 
+// -------- Roles từ web: 'mentee' | 'mentor'
+enum class UserRole {
+    @SerializedName("mentee")
+    MENTEE,
+
+    @SerializedName("mentor")
+    MENTOR
+}
+
+// -------- User (map từ web: id, email, fullName, avatar?, role, createdAt)
 data class User(
     @SerializedName("id")
     val id: String,
     @SerializedName("email")
     val email: String,
-    @SerializedName("name")
-    val name: String,
-    @SerializedName("role")
-    val role: UserRole,
+    @SerializedName("fullName")
+    val fullName: String,
     @SerializedName("avatar")
     val avatar: String? = null,
-    @SerializedName("phone")
-    val phone: String? = null,
-    @SerializedName("bio")
-    val bio: String? = null,
+    @SerializedName("role")
+    val role: UserRole,
     @SerializedName("createdAt")
-    val createdAt: String,
-    @SerializedName("updatedAt")
-    val updatedAt: String
+    val createdAt: String // ISO-8601 string (map từ Date bên web)
 )
 
-enum class UserRole {
-    @SerializedName("student")
-    STUDENT,
-    @SerializedName("mentor")
-    MENTOR,
-    @SerializedName("admin")
-    ADMIN
-}
-
+// -------- Mentor extends User (web): thêm bio, skills, hourlyRate,...
+// Kotlin không kế thừa data class thuận tiện => nhân bản các trường chung cho dễ dùng API
 data class Mentor(
+    // Trường chung từ User
     @SerializedName("id")
     val id: String,
-    @SerializedName("userId")
-    val userId: String,
-    @SerializedName("user")
-    val user: User,
-    @SerializedName("expertise")
-    val expertise: List<String>,
-    @SerializedName("experience")
-    val experience: String,
+    @SerializedName("email")
+    val email: String,
+    @SerializedName("fullName")
+    val fullName: String,
+    @SerializedName("avatar")
+    val avatar: String? = null,
+    @SerializedName("role")
+    val role: UserRole = UserRole.MENTOR,
+    @SerializedName("createdAt")
+    val createdAt: String,
+
+    // Trường mở rộng của Mentor
+    @SerializedName("bio")
+    val bio: String,
+    @SerializedName("skills")
+    val skills: List<String>,
     @SerializedName("hourlyRate")
     val hourlyRate: Double,
     @SerializedName("rating")
     val rating: Double,
-    @SerializedName("totalBookings")
-    val totalBookings: Int,
-    @SerializedName("isAvailable")
-    val isAvailable: Boolean,
+    @SerializedName("totalReviews")
+    val totalReviews: Int,
+    @SerializedName("availability")
+    val availability: List<AvailabilitySlot>,
+    @SerializedName("verified")
+    val verified: Boolean,
+    @SerializedName("experience")
+    val experience: String,
+    @SerializedName("education")
+    val education: String,
     @SerializedName("languages")
-    val languages: List<String>,
-    @SerializedName("timezone")
-    val timezone: String,
-    @SerializedName("createdAt")
-    val createdAt: String,
-    @SerializedName("updatedAt")
-    val updatedAt: String
+    val languages: List<String>
 )
 
-data class Booking(
+// -------- AvailabilitySlot
+data class AvailabilitySlot(
     @SerializedName("id")
     val id: String,
     @SerializedName("mentorId")
     val mentorId: String,
-    @SerializedName("studentId")
-    val studentId: String,
-    @SerializedName("mentor")
-    val mentor: Mentor? = null,
-    @SerializedName("student")
-    val student: User? = null,
-    @SerializedName("scheduledAt")
-    val scheduledAt: String,
-    @SerializedName("duration")
-    val duration: Int, // minutes
-    @SerializedName("status")
-    val status: BookingStatus,
-    @SerializedName("topic")
-    val topic: String,
-    @SerializedName("notes")
-    val notes: String? = null,
-    @SerializedName("meetingUrl")
-    val meetingUrl: String? = null,
-    @SerializedName("rating")
-    val rating: Int? = null,
-    @SerializedName("feedback")
-    val feedback: String? = null,
-    @SerializedName("createdAt")
-    val createdAt: String,
-    @SerializedName("updatedAt")
-    val updatedAt: String
+    @SerializedName("date")
+    val date: String,        // "YYYY-MM-DD"
+    @SerializedName("startTime")
+    val startTime: String,   // "HH:mm"
+    @SerializedName("endTime")
+    val endTime: String,     // "HH:mm"
+    @SerializedName("isBooked")
+    val isBooked: Boolean
 )
 
+// -------- Booking status từ web: 'pending' | 'confirmed' | 'completed' | 'cancelled'
 enum class BookingStatus {
     @SerializedName("pending")
     PENDING,
     @SerializedName("confirmed")
     CONFIRMED,
-    @SerializedName("in_progress")
-    IN_PROGRESS,
     @SerializedName("completed")
     COMPLETED,
     @SerializedName("cancelled")
     CANCELLED
 }
+
+// -------- Booking (web: menteeId/mentorId, date, startTime, endTime, price, notes?, createdAt)
+data class Booking(
+    @SerializedName("id")
+    val id: String,
+    @SerializedName("menteeId")
+    val menteeId: String,
+    @SerializedName("mentorId")
+    val mentorId: String,
+    @SerializedName("date")
+    val date: String,          // "YYYY-MM-DD"
+    @SerializedName("startTime")
+    val startTime: String,     // "HH:mm"
+    @SerializedName("endTime")
+    val endTime: String,       // "HH:mm"
+    @SerializedName("status")
+    val status: BookingStatus,
+    @SerializedName("price")
+    val price: Double,
+    @SerializedName("notes")
+    val notes: String? = null,
+    @SerializedName("createdAt")
+    val createdAt: String      // ISO-8601 string
+)
+
+// -------- Review
+data class Review(
+    @SerializedName("id")
+    val id: String,
+    @SerializedName("bookingId")
+    val bookingId: String,
+    @SerializedName("menteeId")
+    val menteeId: String,
+    @SerializedName("mentorId")
+    val mentorId: String,
+    @SerializedName("rating")
+    val rating: Int,
+    @SerializedName("comment")
+    val comment: String,
+    @SerializedName("createdAt")
+    val createdAt: String
+)
+
+// -------- Message
+enum class MessageType {
+    @SerializedName("text")
+    TEXT,
+    @SerializedName("file")
+    FILE,
+    @SerializedName("image")
+    IMAGE
+}
+
+data class Message(
+    @SerializedName("id")
+    val id: String,
+    @SerializedName("senderId")
+    val senderId: String,
+    @SerializedName("receiverId")
+    val receiverId: String,
+    @SerializedName("content")
+    val content: String,
+    @SerializedName("type")
+    val type: MessageType,
+    @SerializedName("createdAt")
+    val createdAt: String,
+    @SerializedName("read")
+    val read: Boolean
+)

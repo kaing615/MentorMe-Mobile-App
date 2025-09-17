@@ -9,12 +9,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -22,10 +18,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.mentorme.app.ui.theme.Card
 
 /* =========================
  * Tokens map từ globals.css
@@ -36,39 +32,55 @@ private const val GLASS_ALPHA       = 0.06f // --glass-bg
 private const val GLASS_BORDER      = 0.16f // --glass-border
 private const val GLASS_STRONG      = 0.14f // --glass-backdrop
 
-/* ===========================================================
- * Modifiers: gradient + glass (tương đương utilities trong CSS)
- * =========================================================== */
+/**
+ * Liquid Glass Card Component
+ */
 @Composable
 fun LiquidGlassCard(
     modifier: Modifier = Modifier,
     radius: Dp = 16.dp,
     alpha: Float = GLASS_ALPHA,
     borderAlpha: Float = GLASS_BORDER,
-    content: @Composable ColumnScope.() -> Unit
+    content: @Composable BoxScope.() -> Unit
 ) {
-    Card(
-        modifier = modifier
-            .background(Color.Transparent)
-            .liquidGlass(radius = radius, alpha = alpha, borderAlpha = borderAlpha),
-        shape = RoundedCornerShape(radius),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    Box(
+        modifier = modifier.liquidGlass(
+            radius = radius,
+            alpha = alpha,
+            borderAlpha = borderAlpha
+        )
     ) {
         content()
     }
 }
 
-
-/** Card "liquid glass" – tương đương `.glass` (bg mờ + border mờ). */
+/**
+ * Liquid Glass modifier effect
+ */
 fun Modifier.liquidGlass(
-    radius: Dp = 32.dp,
-    alpha: Float = GLASS_ALPHA,
-    borderAlpha: Float = GLASS_BORDER
+    radius: Dp = 16.dp,
+    alpha: Float = 0.15f,
+    borderAlpha: Float = 0.3f
 ) = this
-    .background(Color.White.copy(alpha = alpha), RoundedCornerShape(radius))
-    .border(1.dp, Color.White.copy(alpha = borderAlpha), RoundedCornerShape(radius))
     .clip(RoundedCornerShape(radius))
+    .background(
+        brush = Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = alpha),
+                Color.White.copy(alpha = alpha * 0.7f)
+            )
+        )
+    )
+    .border(
+        width = 1.dp,
+        brush = Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = borderAlpha),
+                Color.White.copy(alpha = borderAlpha * 0.5f)
+            )
+        ),
+        shape = RoundedCornerShape(radius)
+    )
 
 /** Bản mạnh hơn – tương đương `.glass-strong`. */
 fun Modifier.liquidGlassStrong(
@@ -122,28 +134,27 @@ fun LiquidBackground(
             val dy = (t - 0.5f) * 20f
             val rot = t * 360f
 
-            withTransform({
-                rotate(degrees = rot, pivot = center)
-                translate(left = dx, top = dy)
-            }) {
-                // blob 1: ở ~20% 80%
-                drawCircle(
-                    color = blob1,
-                    radius = maxOf(w, h) * 0.35f,
-                    center = Offset(w * 0.20f, h * 0.80f)
-                )
-                // blob 2: ở ~80% 20%
-                drawCircle(
-                    color = blob2,
-                    radius = maxOf(w, h) * 0.35f,
-                    center = Offset(w * 0.80f, h * 0.20f)
-                )
-                // blob 3: ở ~40% 40%
-                drawCircle(
-                    color = blob3,
-                    radius = maxOf(w, h) * 0.28f,
-                    center = Offset(w * 0.40f, h * 0.40f)
-                )
+            rotate(degrees = rot, pivot = center) {
+                translate(left = dx, top = dy) {
+                    // blob 1: ở ~20% 80%
+                    drawCircle(
+                        color = blob1,
+                        radius = maxOf(w, h) * 0.35f,
+                        center = Offset(w * 0.20f, h * 0.80f)
+                    )
+                    // blob 2: ở ~80% 20%
+                    drawCircle(
+                        color = blob2,
+                        radius = maxOf(w, h) * 0.35f,
+                        center = Offset(w * 0.80f, h * 0.20f)
+                    )
+                    // blob 3: ở ~40% 40%
+                    drawCircle(
+                        color = blob3,
+                        radius = maxOf(w, h) * 0.28f,
+                        center = Offset(w * 0.40f, h * 0.40f)
+                    )
+                }
             }
         }
     }

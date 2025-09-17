@@ -26,15 +26,22 @@ import com.mentorme.app.ui.theme.liquidGlassStrong
 @Composable
 fun LiquidGlassCard(
     modifier: Modifier = Modifier,
+    radius: Dp = 22.dp,
+    alpha: Float = 0.15f,
+    borderAlpha: Float = 0.3f,
     strong: Boolean = false,
     elevation: Dp = if (strong) 20.dp else 8.dp,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val glassModifier = if (strong) modifier.liquidGlassStrong() else modifier.liquidGlass()
+    val glassModifier = if (strong) {
+        modifier.liquidGlassStrong(radius, alpha, borderAlpha)
+    } else {
+        modifier.liquidGlass(radius, alpha, borderAlpha)
+    }
 
     val colors = CardDefaults.cardColors(
-        containerColor = Color.Transparent, // để nhìn thấy lớp glass phía dưới
+        containerColor = Color.Transparent,
         contentColor = Color.Unspecified
     )
 

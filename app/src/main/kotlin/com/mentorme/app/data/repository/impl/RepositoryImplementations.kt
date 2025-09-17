@@ -1,8 +1,17 @@
 package com.mentorme.app.data.repository.impl
 
 import com.mentorme.app.core.utils.Result
-import com.mentorme.app.data.dto.*
-import com.mentorme.app.data.model.*
+// Specific imports for DTOs (API responses)
+import com.mentorme.app.data.dto.BookingListResponse
+import com.mentorme.app.data.dto.CreateBookingRequest
+import com.mentorme.app.data.dto.MentorListResponse
+import com.mentorme.app.data.dto.RatingRequest
+import com.mentorme.app.data.dto.UpdateBookingRequest
+import com.mentorme.app.data.dto.AvailabilitySlot as ApiAvailabilitySlot
+
+// Specific imports for Models (business entities)
+import com.mentorme.app.data.model.Booking
+import com.mentorme.app.data.model.Mentor
 import com.mentorme.app.data.remote.MentorMeApi
 import com.mentorme.app.data.repository.BookingRepository
 import com.mentorme.app.data.repository.MentorRepository
@@ -47,7 +56,7 @@ class MentorRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getMentorAvailability(mentorId: String): Result<List<AvailabilitySlot>> {
+    override suspend fun getMentorAvailability(mentorId: String): Result<List<ApiAvailabilitySlot>> {
         return try {
             val response = api.getMentorAvailability(mentorId)
             if (response.isSuccessful && response.body() != null) {

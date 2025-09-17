@@ -5,27 +5,27 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import com.mentorme.app.ui.components.ui.LiquidGlassCard
-import com.mentorme.app.ui.components.ui.MMPrimaryButton
-import com.mentorme.app.ui.components.ui.MMTextField
-import com.mentorme.app.ui.theme.liquidGlass
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
+import com.mentorme.app.ui.theme.LiquidGlassCard
+import com.mentorme.app.ui.theme.liquidGlass
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HeroSection(
     onSearch: (String) -> Unit
@@ -80,19 +80,37 @@ fun HeroSection(
                     color = Color.White.copy(alpha = 0.9f)
                 )
 
-                MMTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    placeholder = "Tìm kiếm mentor theo kỹ năng...",
+                // Search Bar
+                LiquidGlassCard(
                     modifier = Modifier.fillMaxWidth(),
-                    leading = { Icon(Icons.Filled.Search, null, tint = Color.White.copy(alpha = 0.7f)) }
-                )
-
-                MMPrimaryButton(
-                    onClick = { if (query.isNotBlank()) onSearch(query) },
-                    modifier = Modifier.fillMaxWidth()
+                    radius = 16.dp
                 ) {
-                    Text("Tìm kiếm ngay")
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        placeholder = {
+                            Text(
+                                "Tìm kiếm mentor theo kỹ năng, lĩnh vực...",
+                                color = Color.White.copy(alpha = 0.6f)
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, null, tint = Color.White.copy(alpha = 0.7f))
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            cursorColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(16.dp),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(
+                            onSearch = { onSearch(query) }
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
 
                 // Skills phổ biến

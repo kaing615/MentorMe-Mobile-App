@@ -1,7 +1,22 @@
 package com.mentorme.app.data.remote
 
-import com.mentorme.app.data.dto.*
-import com.mentorme.app.data.model.*
+// Specific imports for DTOs (used for API requests/responses)
+import com.mentorme.app.data.dto.AuthResponse
+import com.mentorme.app.data.dto.AvailabilitySlot as ApiAvailabilitySlot
+import com.mentorme.app.data.dto.BookingListResponse
+import com.mentorme.app.data.dto.CreateBookingRequest
+import com.mentorme.app.data.dto.LoginRequest
+import com.mentorme.app.data.dto.MentorListResponse
+import com.mentorme.app.data.dto.Message as ApiMessage
+import com.mentorme.app.data.dto.RatingRequest
+import com.mentorme.app.data.dto.RegisterRequest
+import com.mentorme.app.data.dto.SendMessageRequest
+import com.mentorme.app.data.dto.UpdateBookingRequest
+
+// Specific imports for Models (used for business entities)
+import com.mentorme.app.data.model.Booking
+import com.mentorme.app.data.model.Mentor
+import com.mentorme.app.data.model.User
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -35,7 +50,7 @@ interface MentorMeApi {
     suspend fun getMentorById(@Path("id") mentorId: String): Response<Mentor>
 
     @GET("mentors/{id}/availability")
-    suspend fun getMentorAvailability(@Path("id") mentorId: String): Response<List<AvailabilitySlot>>
+    suspend fun getMentorAvailability(@Path("id") mentorId: String): Response<List<ApiAvailabilitySlot>>
 
     // Booking endpoints
     @POST("bookings")
@@ -65,8 +80,8 @@ interface MentorMeApi {
 
     // Messages endpoints
     @GET("messages/{bookingId}")
-    suspend fun getMessages(@Path("bookingId") bookingId: String): Response<List<Message>>
+    suspend fun getMessages(@Path("bookingId") bookingId: String): Response<List<ApiMessage>>
 
     @POST("messages")
-    suspend fun sendMessage(@Body messageRequest: SendMessageRequest): Response<Message>
+    suspend fun sendMessage(@Body messageRequest: SendMessageRequest): Response<ApiMessage>
 }

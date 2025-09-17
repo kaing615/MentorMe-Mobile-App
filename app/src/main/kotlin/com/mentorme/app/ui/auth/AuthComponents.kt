@@ -88,8 +88,6 @@ fun GlassInput(
         singleLine = true,
         shape = RoundedCornerShape(20.dp),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = Color.White,          // ✅ text khi focus
-            unfocusedTextColor = Color.White,        // ✅ text khi blur
             focusedContainerColor = Color.White.copy(alpha = 0.08f),
             unfocusedContainerColor = Color.White.copy(alpha = 0.05f),
             focusedBorderColor = Color.White.copy(alpha = 0.35f),

@@ -68,6 +68,7 @@ dependencies {
     implementation("androidx.compose.foundation:foundation:1.9.1")
     implementation("androidx.compose.ui:ui:1.9.1")
     implementation("androidx.compose.ui:ui-graphics:1.9.1")
+    implementation("androidx.compose.ui:ui-unit:1.9.1")
     kapt(libs.hilt.compiler)
 
     implementation(libs.retrofit)

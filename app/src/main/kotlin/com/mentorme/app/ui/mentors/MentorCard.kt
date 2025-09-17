@@ -1,213 +1,243 @@
 package com.mentorme.app.ui.mentors
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.VideoCall
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import com.mentorme.app.ui.components.ui.LiquidGlassCard
+import com.mentorme.app.ui.home.Mentor
+import com.mentorme.app.ui.theme.LiquidGlassCard
+import com.mentorme.app.ui.theme.liquidGlass
+import com.mentorme.app.ui.common.MMButton
 
-data class MentorUi(
-    val id: String,
-    val fullName: String,
-    val avatar: String?,
-    val verified: Boolean,
-    val hourlyRate: Int,
-    val rating: Double,
-    val totalReviews: Int,
-    val bio: String,
-    val skills: List<String>,
-    val experience: String,
-    val expertise: List<String>
-)
-
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MentorCard(
-    mentor: MentorUi,
-    onViewProfile: (String) -> Unit,
-    onBookSession: (String) -> Unit
+    mentor: Mentor,
+    onViewProfile: () -> Unit = {},
+    onBookSession: () -> Unit = {},
+    onFavoriteClick: () -> Unit = {}
 ) {
+    var isFavorite by remember { mutableStateOf(false) }
+
     LiquidGlassCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
+        modifier = Modifier.fillMaxWidth(),
+        radius = 20.dp
     ) {
-        Column(Modifier.fillMaxWidth()) {
-
-            // Profile header
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Header with avatar and basic info
             Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-                Box {
-                    if (mentor.avatar != null) {
-                        AsyncImage(
-                            model = mentor.avatar,
-                            contentDescription = mentor.fullName,
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(CircleShape)
-                                .background(Color.Gray),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Box(
-                            Modifier
-                                .size(56.dp)
-                                .clip(CircleShape)
-                                .background(Color.LightGray),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                mentor.fullName.split(" ").map { it[0] }.joinToString(""),
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                    // online indicator
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    // Avatar placeholder
                     Box(
-                        Modifier
-                            .size(12.dp)
-                            .align(Alignment.BottomEnd)
+                        modifier = Modifier
+                            .size(56.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF22C55E))
-                            .border(2.dp, Color.White, CircleShape)
-                    )
-                }
-
-                Column(Modifier.weight(1f)) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF667eea), Color(0xFF764ba2))
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Column {
-                            Text(
-                                mentor.fullName,
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            if (mentor.verified) {
-                                AssistChip(
-                                    onClick = {},
-                                    label = { Text("✓ Đã xác minh") },
-                                    colors = AssistChipDefaults.assistChipColors(
-                                        containerColor = Color(0xFF10B981),
-                                        labelColor = Color.White
-                                    )
-                                )
-                            }
-                        }
                         Text(
-                            "${mentor.hourlyRate}$/h",
-                            modifier = Modifier
-                                .background(
-                                    Color(0xFFF59E0B),
-                                    shape = RoundedCornerShape(50)
-                                )
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            text = mentor.name.split(" ").map { it.first() }.take(2).joinToString(""),
                             color = Color.White,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                     }
 
-                    // Rating
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Row(
-                            Modifier
-                                .background(Color.White.copy(0.2f), RoundedCornerShape(50))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            repeat(5) { i ->
-                                Icon(
-                                    imageVector = Icons.Default.Star,
-                                    contentDescription = null,
-                                    tint = if (i < mentor.rating.toInt()) Color(0xFFFFD54F) else Color.White.copy(0.3f),
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                        }
+                    Column {
                         Text(
-                            "${mentor.rating} (${mentor.totalReviews})",
+                            text = mentor.name,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = mentor.role,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                        Text(
+                            text = mentor.company,
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(0.8f)
+                            color = Color.White.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+
+                // Favorite button
+                IconButton(
+                    onClick = {
+                        isFavorite = !isFavorite
+                        onFavoriteClick()
+                    }
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = "Favorite",
+                        tint = if (isFavorite) Color.Red else Color.White.copy(alpha = 0.7f)
+                    )
+                }
+            }
+
+            // Rating and reviews
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .liquidGlass(radius = 12.dp)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = null,
+                            tint = Color(0xFFFFD700),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = "${mentor.rating}",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Text(
+                    text = "(${mentor.totalReviews} đánh giá)",
+                    color = Color.White.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                Spacer(Modifier.weight(1f))
+
+                // Availability status
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            if (mentor.isAvailable) Color(0xFF22C55E).copy(alpha = 0.2f)
+                            else Color(0xFFEF4444).copy(alpha = 0.2f)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = if (mentor.isAvailable) "Có thể đặt lịch" else "Bận",
+                        color = if (mentor.isAvailable) Color(0xFF22C55E) else Color(0xFFEF4444),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            // Skills
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                mentor.skills.take(3).forEach { skill ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White.copy(alpha = 0.1f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = skill,
+                            color = Color.White.copy(alpha = 0.9f),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+                if (mentor.skills.size > 3) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White.copy(alpha = 0.1f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "+${mentor.skills.size - 3}",
+                            color = Color.White.copy(alpha = 0.7f),
+                            style = MaterialTheme.typography.bodySmall
                         )
                     }
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
-
-            // Bio
-            Text(
-                mentor.bio,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(0.7f),
-                maxLines = 2
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            // Skills
+            // Price and action buttons
             Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                mentor.skills.take(2).forEach {
-                    AssistChip(onClick = {}, label = { Text(it) })
-                }
-                if (mentor.skills.size > 2) {
-                    AssistChip(onClick = {}, label = { Text("+${mentor.skills.size - 2}") })
-                }
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            // Experience & language
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                AssistChip(onClick = {}, label = { Text(mentor.experience) })
-                AssistChip(
-                    onClick = {},
-                    label = { Text("Online") },
-                    colors = AssistChipDefaults.assistChipColors(
-                        containerColor = Color.White.copy(0.1f),
-                        labelColor = Color(0xFF4ADE80)
+                Column {
+                    Text(
+                        text = "${mentor.hourlyRate}K VNĐ/giờ",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
-                )
-            }
+                    Text(
+                        text = "Giá tư vấn",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                }
 
-            Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MMButton(
+                        text = "Xem hồ sơ",
+                        onClick = onViewProfile,
+                        modifier = Modifier.height(36.dp)
+                    )
 
-            // Footer buttons
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedButton(
-                    onClick = { onViewProfile(mentor.id) },
-                    modifier = Modifier.weight(1f)
-                ) { Text("Xem chi tiết") }
-                Button(
-                    onClick = { onBookSession(mentor.id) },
-                    modifier = Modifier.weight(1f)
-                ) { Text("Đặt lịch") }
+                    if (mentor.isAvailable) {
+                        MMButton(
+                            text = "Đặt lịch",
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.VideoCall,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            onClick = onBookSession,
+                            modifier = Modifier.height(36.dp)
+                        )
+                    }
+                }
             }
         }
     }

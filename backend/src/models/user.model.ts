@@ -36,5 +36,9 @@ const userSchema: Schema<IUser> = new Schema(
   { timestamps: true }
 );
 
+userSchema.index({ email: 1 }, { unique: true });
+userSchema.index({ userName: 1 }, { unique: true });
+
 export type UserDoc = HydratedDocument<IUser>;
-export const User = model<IUser>("User", userSchema);
+const User = model<IUser>("User", userSchema);
+export default User;

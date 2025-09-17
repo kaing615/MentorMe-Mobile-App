@@ -4,10 +4,11 @@ import sgMail from "../utils/sendGrid";
 import redis from "../utils/redis";
 import { asyncHandler } from "../handlers/async.handler";
 import responseHandler from "../handlers/response.handler";
-import { User } from "../models/user.model";
+import User from "../models/user.model";
 import { randomInt, randomBytes, createHash, randomUUID } from "crypto";
 import jwt, { SignOptions } from "jsonwebtoken";
 import getTokenFromReq from "../middlewares/auth.middleware";
+import Profile from "../models/profile.model";
 
 const OTP_TTL_SEC = 10 * 60;
 const OTP_MAX_ATTEMPTS = 5;
@@ -436,6 +437,12 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
     );
   }
 
+  const profileDoc = await Profile.findOne({ user: user._id }).lean();
+  const profileCompleted = !!profileDoc?.profileCompleted;
+  const requiresOnboarding = !profileCompleted;
+
+  const next = requiresOnboarding ? "/onboarding" : "/home";
+
   return responseHandler.ok(
     res,
     {
@@ -444,6 +451,12 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
       userId: String(user._id),
       status: "active",
       token,
+      profileCompleted,
+      requiresOnboarding,
+      next,
+      profile: profileDoc
+        ? { id: String(profileDoc._id), avatarUrl: profileDoc.avatarUrl || "" }
+        : null,
     },
     "Sign-in successful"
   );
@@ -475,10 +488,80 @@ export const signOut = asyncHandler(async (req: Request, res: Response) => {
   return responseHandler.ok(res, null, "Sign-out successful");
 });
 
+export const getCurrentUser = asyncHandler(
+  async (req: Request, res: Response) => {
+    const authUser = (req as any).user;
+    if (!authUser) {
+      return responseHandler.unauthorized(res, null, "Unauthorized");
+    }
+
+    const [dbUser, profile] = await Promise.all([
+      User.findById(authUser.id)
+        .select("email userName role status createdAt updatedAt")
+        .lean(),
+      Profile.findOne({ user: authUser.id })
+        .select("profileCompleted avatarUrl avatarPublicId")
+        .lean(),
+    ]);
+
+    if (!dbUser) return responseHandler.notFound(res, null, "User not found");
+
+    const profileCompleted = !!profile?.profileCompleted;
+
+    const next = !profileCompleted
+      ? "/onboarding"
+      : dbUser.status !== "active"
+      ? "/onboarding/review"
+      : "/home";
+
+    const requiresOnboarding = next === "/onboarding";
+
+    return responseHandler.ok(
+      res,
+      {
+        userId: String(dbUser._id),
+        email: dbUser.email,
+        userName: dbUser.userName,
+        role: (dbUser as any).role ?? "mentee",
+        createdAt: dbUser.createdAt,
+        updatedAt: dbUser.updatedAt,
+        profile: profile
+          ? {
+              profileCompleted,
+              avatarUrl: profile.avatarUrl || "",
+              avatarPublicId: profile.avatarPublicId || "",
+            }
+          : { profileCompleted: false, avatarUrl: "" },
+        profileCompleted,
+        requiresOnboarding,
+        next,
+      },
+      "Current user fetched"
+    );
+  }
+);
+
+export const getUserByUserName = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userName = req.params.userName;
+    if (!userName)
+      return responseHandler.badRequest(res, null, "userName is required");
+
+    const user = await User.findOne({ userName })
+      .select("email userName role status createdAt updatedAt")
+      .lean();
+    if (!user) return responseHandler.notFound(res, null, "User not found");
+
+    return responseHandler.ok(res, user, "User fetched");
+  }
+);
+
 export default {
   signUpMentee,
   verifyEmailOtp,
   signUpAsMentor,
   signIn,
   signOut,
+  getCurrentUser,
+  getUserByUserName,
 };

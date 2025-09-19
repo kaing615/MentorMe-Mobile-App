@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -75,15 +76,19 @@ fun MMButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    leadingIcon: @Composable (() -> Unit)? = null
+    leadingIcon: @Composable (() -> Unit)? = null,
+    useGlass: Boolean = true,
+    colors: ButtonColors = ButtonDefaults.buttonColors(
+        containerColor = Color.Transparent,
+        contentColor = Color.White
+    )
 ) {
+    val appliedModifier = if (useGlass) modifier.liquidGlass(radius = 16.dp) else modifier
+
     Button(
         onClick = onClick,
-        modifier = modifier.liquidGlass(radius = 16.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = Color.Transparent,
-            contentColor = Color.White
-        ),
+        modifier = appliedModifier,
+        colors = colors,
         shape = RoundedCornerShape(16.dp),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
     ) {

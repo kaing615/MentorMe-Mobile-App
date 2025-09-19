@@ -6,6 +6,14 @@ MentorMe là một ứng dụng di động kết nối mentor và mentee, đư�
 
 ---
 
+## 🆕 Cập nhật gần đây (doc sync với mã nguồn hiện tại)
+
+- Thêm: `ui/auth/AuthComponents.kt` — Tập hợp các composable dùng chung cho màn hình Auth (FloatingLogo, GlassFormContainer, GlassInput, BigGlassButton, SmallGlassPillButton, RoleSelector).
+- Điều chỉnh: Không có file `ui/components/ui/LiquidGlassCard.kt`. Thành phần `LiquidGlassCard` được định nghĩa trong `ui/theme/LiquidGlass.kt` cùng với các hiệu ứng liquid glass và modifiers liên quan.
+- Làm rõ: Các màn hình/feature chính như `AuthScreens.kt`, `HomeScreen.kt`, `HeroSection.kt`, `CalendarScreen.kt`, `BookingScreens.kt`, `MentorCard.kt` vẫn giữ nguyên vị trí như trong mã nguồn hiện tại.
+
+---
+
 ## 🏗️ Cấu trúc thư mục chính
 
 ```
@@ -70,7 +78,7 @@ src/main/
 ui/
 ├── 🎨 theme/                    # Design system & theming
 │   ├── 🌈 Color.kt             # Color definitions & gradients
-│   ├── ✨ LiquidGlass.kt       # Liquid glass UI effects & animated backgrounds
+│   ├── ✨ LiquidGlass.kt       # Liquid glass effects, animated backgrounds, and composables like LiquidGlassCard
 │   ├── 🔤 Typography.kt        # Font styles & text themes
 │   ├── 📝 Type.kt              # Additional typography definitions
 │   ├── 🎯 Tokens.kt            # Design tokens & constants
@@ -82,7 +90,6 @@ ui/
 ├── 🎭 components/               # Shared UI components
 │   └── 🎨 ui/                  # UI component implementations
 │       ├── 💬 GlassDialog.kt    # Glass-themed dialog component
-│       ├── 🎴 LiquidGlassCard.kt # Liquid glass card component
 │       ├── 🔘 MMButton.kt       # Custom button implementation
 │       └── 📝 MMTextField.kt    # Custom text field implementation
 ├── 🧭 navigation/               # App navigation logic
@@ -95,7 +102,8 @@ ui/
 │   └── 📚 README.md            # Layout components documentation
 └── 🎭 [Feature Modules]/       # Feature-specific UI screens
     ├── 🔐 auth/                 # Authentication screens
-    │   ├── 🔑 AuthScreens.kt    # Login/Register screens
+    │   ├── 🔑 AuthScreens.kt    # Login/Register/Forgot/Reset screens
+    │   ├── 🧩 AuthComponents.kt # Shared auth UI components (logo, inputs, glass buttons, role selector)
     │   └── 📚 README.md        # Auth module documentation
     ├── 🏠 home/                 # Home dashboard
     │   ├── 🏠 HomeScreen.kt     # Main home screen with mentor discovery
@@ -227,68 +235,6 @@ backend/
 
 ---
 
-## 📚 Documentation (`/docs`)
-
-```
-docs/
-└── 🏗️ architecture/
-    └── 📊 mentor-me-mobile-architecture.png  # System architecture diagram
-```
-
----
-
-## ⚙️ Configuration Files
-
-### 🔨 Build System
-```
-├── 🔧 build.gradle.kts         # Root project configuration
-├── 📄 settings.gradle.kts      # Project structure settings
-├── 📋 gradle.properties        # Gradle properties & JVM settings
-├── 🐧 gradlew                 # Gradle wrapper script (Unix)
-├── 🪟 gradlew.bat             # Gradle wrapper script (Windows)
-└── 📁 gradle/
-    ├── 📚 libs.versions.toml   # Version catalog for dependencies
-    └── 🔧 wrapper/             # Gradle wrapper files
-        ├── 📦 gradle-wrapper.jar       # Gradle wrapper JAR
-        └── ⚙️ gradle-wrapper.properties # Wrapper configuration
-```
-
-### 🔐 Local Configuration
-```
-├── 🔐 local.properties        # Local SDK paths (not in VCS)
-└── 🚫 .gitignore             # Git ignore rules
-```
-
----
-
-## 🛠️ Tech Stack
-
-### 📱 Android
-- **Language**: Kotlin 2.0.20
-- **UI Framework**: Jetpack Compose
-- **Architecture**: Clean Architecture + MVVM
-- **Dependency Injection**: Hilt/Dagger
-- **Navigation**: Compose Navigation
-- **Networking**: Retrofit + OkHttp
-- **Local Storage**: DataStore Preferences
-- **Build System**: Gradle 8.6.0
-- **Min SDK**: 24 (Android 7.0)
-- **Target SDK**: 36 (Android 14+)
-
-### 🖥️ Backend
-- **Runtime**: Node.js
-- **Language**: TypeScript
-- **Framework**: Express.js
-- **Database**: PostgreSQL (Neon serverless)
-- **Real-time**: Socket.IO
-- **File Storage**: Cloudinary
-- **Authentication**: JWT + bcryptjs
-- **API Docs**: Swagger/OpenAPI 3.0
-- **HTTP Client**: Axios
-- **Process Manager**: tsx (development)
-
----
-
 ## 🎨 Design System
 
 ### 🌈 Theme Architecture
@@ -306,11 +252,11 @@ docs/
 - **Accessibility**: WCAG compliant components
 
 ### 🎨 Design Components
-- **MMButton**: Custom liquid glass buttons with gradients
-- **MMTextField**: Glass-styled input fields
-- **LiquidGlassCard**: Card components with glass effects
-- **GlassDialog**: Modal dialogs with glass styling
-- **Animated Backgrounds**: Moving gradient blob animations
+- **MMButton**: Custom liquid glass buttons with gradients (file: `ui/components/ui/MMButton.kt`)
+- **MMTextField**: Glass-styled input fields (file: `ui/components/ui/MMTextField.kt`)
+- **LiquidGlassCard**: Card composable with glass effects (được triển khai trong `ui/theme/LiquidGlass.kt` — không có file riêng trong `components/ui`)
+- **GlassDialog**: Modal dialogs with glass styling (file: `ui/components/ui/GlassDialog.kt`)
+- **Animated Backgrounds**: Moving gradient blob animations (trong `ui/theme/LiquidGlass.kt`)
 
 ---
 
@@ -355,21 +301,22 @@ docs/
 
 **Theme System:**
 - `Color.kt`: Primary/Secondary gradients, status colors
-- `LiquidGlass.kt`: Glass effects, animated backgrounds, blur modifiers
+- `LiquidGlass.kt`: Glass effects, animated backgrounds, blur modifiers, và các composable như `LiquidGlassCard`
 - `Typography.kt`: Font scales, text styles, Material 3 typography
 - `MentorMeTheme.kt`: Theme composition, dark/light variants
 
-**Common Components:**
+**Common/Shared Components:**
 - `MMButton.kt`: Liquid glass button with gradient backgrounds
 - `MMTextField.kt`: Glass-styled input fields with validation
-- `LiquidGlassCard.kt`: Reusable card component with glass effects
 - `GlassDialog.kt`: Modal dialogs with glassmorphism styling
+- `AuthComponents.kt`: Các thành phần dùng chung cho Auth (logo, inputs, glass buttons, role selector) — nằm trong `ui/auth/`
 
 **Feature Screens:**
 - `HomeScreen.kt`: Dashboard with mentor discovery, statistics
-- `AuthScreens.kt`: Login/register with form validation
+- `AuthScreens.kt`: Login/Register/Forgot/Reset with form validation
 - `MentorCard.kt`: Mentor profile cards with ratings, skills
 - `BookingScreens.kt`: Session booking flow with calendar
+- `CalendarScreen.kt`: Calendar view and interactions
 - `ProfileScreen.kt`: User profile management interface
 
 ### 🏗️ Architecture Components

@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalLayoutApi::class)
+
 package com.mentorme.app.ui.booking
 
 import androidx.compose.foundation.background
@@ -26,6 +28,8 @@ import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.theme.liquidGlass
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 
 /* ---------- Models & Helpers ---------- */
 

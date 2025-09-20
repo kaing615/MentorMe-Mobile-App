@@ -13,3 +13,4 @@ backend/.env.*
 *.iml
 # Giữ Gradle wrapper trong repo
 !gradle/wrapper/gradle-wrapper.jar
+local.properties

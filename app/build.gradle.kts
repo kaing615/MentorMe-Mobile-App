@@ -9,12 +9,12 @@ plugins {
 
 android {
     namespace = "com.mentorme.app"
-    compileSdk = 34   // <-- nên dùng stable, không phải 36 preview
+    compileSdk = 35   // <-- nên dùng stable, không phải 36 preview
 
     defaultConfig {
         applicationId = "com.mentorme.app"
         minSdk = 26
-        targetSdk = 34   // match compileSdk stable
+        targetSdk = 35   // match compileSdk stable
         versionCode = 1
         versionName = "1.0"
 
@@ -64,7 +64,9 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)
-    implementation(libs.firebase.database.ktx)
+    implementation(libs.androidx.compose.runtime.saveable)
+    implementation(libs.androidx.room.ktx)
+    implementation(libs.androidx.compose.foundation)
     kapt(libs.hilt.compiler)
 
     implementation(libs.retrofit)

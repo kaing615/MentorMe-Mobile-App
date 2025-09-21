@@ -204,7 +204,14 @@ fun BookingChooseTimeScreen(
     val price = remember(duration, mentor.hourlyRate) { calcPrice(mentor.hourlyRate, duration) }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .windowInsetsPadding(
+            WindowInsets.safeDrawing.only(
+                WindowInsetsSides.Top + WindowInsetsSides.Horizontal
+            )
+        ),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(top = 12.dp)
     ) {

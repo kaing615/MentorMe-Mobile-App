@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mentorme.app.data.model.UserRole
 import kotlinx.coroutines.delay
+import androidx.compose.foundation.lazy.LazyColumn
 
 /* ---------------- Data ---------------- */
 
@@ -76,7 +77,7 @@ fun AuthScreen(
                         }
                         LaunchedEffect(pressed) { if (pressed) { delay(160); pressed = false } }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 )
             }
         },
@@ -113,7 +114,7 @@ fun AuthScreen(
                             if (onRegister(RegisterPayload(name, email, pass, role))) onAuthed()
                         },
                         onGotoLogin = { mode = AuthMode.Login },
-                        onBack = { mode = AuthMode.Welcome }
+                        onBack = { mode = AuthMode.Welcome },
                     )
                     AuthMode.Forgot -> ForgotPasswordSection(
                         onSubmit = { email -> onResetPassword(email); mode = AuthMode.Login },
@@ -259,7 +260,7 @@ private fun LoginSection(
 private fun RegisterSection(
     onSubmit: (fullName: String, email: String, password: String, role: UserRole) -> Unit,
     onGotoLogin: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -280,50 +281,95 @@ private fun RegisterSection(
         errors = e; return e.isEmpty()
     }
 
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding()                 // mở bàn phím vẫn đẩy footer lên
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // HEADER (không cuộn)
+        Spacer(Modifier.height(8.dp))
         FloatingLogo(size = 80.dp)
         Spacer(Modifier.height(12.dp))
-
         Text("Đăng ký", fontWeight = FontWeight.ExtraBold, fontSize = 28.sp, color = Color.White)
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(8.dp))
 
-        GlassFormContainer {
-            Text("Bạn muốn trở thành:", color = Color.White.copy(0.9f))
-            RoleSelector(role = role, onRoleChange = { role = it })
+        // BOX KÍNH (đứng yên) + FORM BÊN TRONG (cuộn)
+        GlassFormContainer(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)               // khung ngoài chiếm phần còn lại, KHÔNG cuộn
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),          // cuộn bên trong khung
+                contentPadding = PaddingValues(vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item { Text("Bạn muốn trở thành:", color = Color.White.copy(0.9f)) }
+                item { RoleSelector(role = role, onRoleChange = { role = it }) }
 
-            GlassInput(name, { name = it }, "Họ và tên", "Nguyễn Văn A", leading = { Icon(Icons.Outlined.Person, null, tint = Color.White) })
-            errors["name"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                item {
+                    GlassInput(
+                        value = name, onValueChange = { name = it },
+                        label = "Họ và tên", placeholder = "Nguyễn Văn A",
+                        leading = { Icon(Icons.Outlined.Person, null, tint = Color.White) }
+                    )
+                    errors["name"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
 
-            GlassInput(email, { email = it }, "Email", "you@domain.com", leading = { Icon(Icons.Default.Email, null, tint = Color.White) })
-            errors["email"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                item {
+                    GlassInput(
+                        value = email, onValueChange = { email = it },
+                        label = "Email", placeholder = "you@domain.com",
+                        leading = { Icon(Icons.Default.Email, null, tint = Color.White) }
+                    )
+                    errors["email"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
 
-            GlassInput(
-                pass, { pass = it }, "Mật khẩu", "••••••••",
-                leading = { Icon(Icons.Default.Lock, null, tint = Color.White) },
-                trailing = { TextButton(onClick = { show = !show }) { Text(if (show) "Ẩn" else "Hiện", color = Color.White) } },
-                visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation()
-            )
-            errors["pass"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                item {
+                    GlassInput(
+                        value = pass, onValueChange = { pass = it },
+                        label = "Mật khẩu", placeholder = "••••••••",
+                        leading = { Icon(Icons.Default.Lock, null, tint = Color.White) },
+                        trailing = { TextButton(onClick = { show = !show }) { Text(if (show) "Ẩn" else "Hiện", color = Color.White) } },
+                        visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation()
+                    )
+                    errors["pass"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
 
-            GlassInput(
-                confirm, { confirm = it }, "Xác nhận mật khẩu", "••••••••",
-                leading = { Icon(Icons.Default.Lock, null, tint = Color.White) },
-                trailing = { TextButton(onClick = { show2 = !show2 }) { Text(if (show2) "Ẩn" else "Hiện", color = Color.White) } },
-                visualTransformation = if (show2) VisualTransformation.None else PasswordVisualTransformation()
-            )
-            errors["confirm"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                item {
+                    GlassInput(
+                        value = confirm, onValueChange = { confirm = it },
+                        label = "Xác nhận mật khẩu", placeholder = "••••••••",
+                        leading = { Icon(Icons.Default.Lock, null, tint = Color.White) },
+                        trailing = { TextButton(onClick = { show2 = !show2 }) { Text(if (show2) "Ẩn" else "Hiện", color = Color.White) } },
+                        visualTransformation = if (show2) VisualTransformation.None else PasswordVisualTransformation()
+                    )
+                    errors["confirm"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
 
-            BigGlassButton(
-                text = "Tạo tài khoản",
-                subText = null,
-                icon = { Icon(Icons.Outlined.Badge, null, tint = Color.White) },
-                onClick = { if (validate()) onSubmit(name, email, pass, role) }
-            )
+                item {
+                    BigGlassButton(
+                        text = "Tạo tài khoản",
+                        subText = null,
+                        icon = { Icon(Icons.Outlined.Badge, null, tint = Color.White) },
+                        onClick = { if (validate()) onSubmit(name, email, pass, role) }
+                    )
+                }
+            }
         }
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
+        // FOOTER (không cuộn)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp, bottom = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Text("Đã có tài khoản?", color = Color.White.copy(0.85f))
-            SmallGlassPillButton(text = "Đăng nhập ngay", onClick = onGotoLogin)     // giống hệt login
+            SmallGlassPillButton(text = "Đăng nhập ngay", onClick = onGotoLogin)
             TextButton(onClick = onBack) { Text("← Quay lại", color = Color.White.copy(0.75f)) }
         }
     }

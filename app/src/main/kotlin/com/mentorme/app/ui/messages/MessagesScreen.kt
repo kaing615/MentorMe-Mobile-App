@@ -3,6 +3,7 @@ package com.mentorme.app.ui.chat
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -24,6 +25,7 @@ import com.mentorme.app.ui.theme.liquidGlass
 @Composable
 fun MessagesScreen(
     onOpenConversation: (String) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val repo = remember { ChatRepositoryImpl() }
     var query by remember { mutableStateOf("") }
@@ -31,8 +33,13 @@ fun MessagesScreen(
 
     CompositionLocalProvider(LocalContentColor provides Color.White) {
         Column(
-            Modifier
+            modifier = Modifier
                 .fillMaxSize()
+                .windowInsetsPadding(                // chừa status bar + lề ngang
+                    WindowInsets.safeDrawing.only(
+                        WindowInsetsSides.Top + WindowInsetsSides.Horizontal
+                    )
+                )
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             // Title + subtitle (giống Web)
@@ -47,7 +54,11 @@ fun MessagesScreen(
                 value = query,
                 onValueChange = { query = it },
                 placeholder = "Tìm kiếm cuộc trò chuyện…",
-                leading = { Icon(Icons.Default.Search, contentDescription = null) },
+                leading = { Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = null,
+                    tint = Color.White)
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .liquidGlass(radius = 24.dp)
@@ -61,8 +72,11 @@ fun MessagesScreen(
                 else conversations.filter { it.peerName.contains(query, ignoreCase = true) }
             }
             LazyColumn(
-                contentPadding = PaddingValues(bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentPadding = PaddingValues(bottom = 45.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(filtered) { c ->
                     ConversationCard(conversation = c, onClick = { onOpenConversation(c.id) })

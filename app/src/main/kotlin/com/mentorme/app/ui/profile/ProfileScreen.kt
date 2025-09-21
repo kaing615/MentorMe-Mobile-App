@@ -45,6 +45,12 @@ import com.mentorme.app.ui.theme.liquidGlass
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.util.Locale
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.outlined.ArrowDownward
+import androidx.compose.material.icons.outlined.ArrowUpward
+import androidx.compose.material.icons.outlined.Cached
+import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.ReceiptLong
 
 private val oneDecimalUS = DecimalFormat("#.#").apply {
     decimalFormatSymbols = DecimalFormatSymbols(Locale.US)  // dùng dấu chấm
@@ -61,6 +67,26 @@ fun formatMoneyShortVnd(amount: Long, withCurrency: Boolean = false): String {
     }
     return if (withCurrency) "$text ₫" else text
 }
+
+enum class TxType { TOP_UP, WITHDRAW, PAYMENT, REFUND }
+enum class TxStatus { PENDING, SUCCESS, FAILED }
+
+data class WalletTx(
+    val id: String,
+    val date: Date,
+    val type: TxType,
+    val amount: Long,     // + vào ví, - ra ví (VND)
+    val note: String,
+    val status: TxStatus
+)
+
+private fun mockTx(): List<WalletTx> = listOf(
+    WalletTx("t1", GregorianCalendar(2025, 8, 21, 10, 15).time, TxType.TOP_UP,   +300_000, "Nạp MoMo",           TxStatus.SUCCESS),
+    WalletTx("t2", GregorianCalendar(2025, 8, 20, 14, 0 ).time, TxType.PAYMENT,  -850_000, "Thanh toán buổi 60’", TxStatus.SUCCESS),
+    WalletTx("t3", GregorianCalendar(2025, 8, 19, 9,  30).time, TxType.WITHDRAW, -500_000, "Rút về ngân hàng",    TxStatus.PENDING),
+    WalletTx("t4", GregorianCalendar(2025, 8, 18, 16, 45).time, TxType.REFUND,   +120_000, "Hoàn tiền phí",       TxStatus.SUCCESS),
+    WalletTx("t5", GregorianCalendar(2025, 8, 17, 11, 5 ).time, TxType.PAYMENT,  -450_000, "Thanh toán buổi 30’", TxStatus.FAILED)
+)
 
 
 /* =======================
@@ -218,7 +244,7 @@ fun ProfileScreen(
                             },
                             divider = {}
                         ) {
-                            listOf("Profile", "Thống kê", "Cài đặt").forEachIndexed { i, label ->
+                            listOf("Profile", "Ví", "Thống kê", "Cài đặt").forEachIndexed { i, label ->
                                 Tab(
                                     selected = selectedTab == i,
                                     onClick = { selectedTab = i },
@@ -254,8 +280,13 @@ fun ProfileScreen(
                                 isEditing = false
                             }
                         )
-                        1 -> StatsTab(userRole = user.role, profile = profile)
-                        2 -> SettingsTab(onOpenSettings = onOpenSettings)
+                        1 -> WalletTab(                         // 👈 NEW
+                            balance = 8500000L,
+                            onTopUp = { /* TODO: nạp tiền */ },
+                            onWithdraw = { /* TODO: rút tiền */ }
+                        )
+                        2 -> StatsTab(userRole = user.role, profile = profile)
+                        3 -> SettingsTab(onOpenSettings = onOpenSettings)
                     }
                 }
             }
@@ -412,6 +443,173 @@ private fun ProfileTab(
                         MMPrimaryButton(onClick = onSave, modifier = Modifier.weight(1f)) { Text("Lưu thay đổi") }
                         MMGhostButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text("Hủy") }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterChipPill(text: String, selected: Boolean, onClick: () -> Unit) {
+    AssistChip(
+        onClick = onClick,
+        label = { Text(text) },
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = if (selected) Color.White.copy(0.22f) else Color.White.copy(0.08f),
+            labelColor = Color.White
+        ),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = if (selected) 0.5f else 0.2f))
+    )
+}
+
+@Composable
+private fun TransactionRow(tx: WalletTx) {
+    val (icon, tint) = when (tx.type) {
+        TxType.TOP_UP   -> Icons.Outlined.ArrowUpward   to Color(0xFF22C55E)
+        TxType.WITHDRAW -> Icons.Outlined.ArrowDownward to Color(0xFFEF4444)
+        TxType.PAYMENT  -> Icons.Outlined.ReceiptLong   to Color(0xFF60A5FA)
+        TxType.REFUND   -> Icons.Outlined.Cached        to Color(0xFFF59E0B)
+    }
+    val amountText = (if (tx.amount > 0) "+ " else "- ") + formatCurrencyVnd(kotlin.math.abs(tx.amount))
+    val amountColor = if (tx.amount > 0) Color(0xFF22C55E) else Color(0xFFEF4444)
+    val statusColor = when (tx.status) {
+        TxStatus.SUCCESS -> Color(0xFF10B981)
+        TxStatus.PENDING -> Color(0xFFF59E0B)
+        TxStatus.FAILED  -> Color(0xFFEF4444)
+    }
+
+    LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier.size(42.dp).clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = tint)
+            }
+
+            Column(Modifier.weight(1f)) {
+                Text(tx.note, fontWeight = FontWeight.SemiBold, color = Color.White)
+                Text(SimpleDateFormat("yyyy-MM-dd • HH:mm", Locale.getDefault()).format(tx.date),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(0.75f))
+            }
+
+            Column(horizontalAlignment = Alignment.End) {
+                Text(amountText, fontWeight = FontWeight.Bold, color = amountColor)
+                StatusDotChip(tx.status.name.lowercase().replaceFirstChar { it.titlecase() }, statusColor)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusDotChip(text: String, color: Color) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White.copy(alpha = 0.10f))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(color))
+        Spacer(Modifier.width(6.dp))
+        Text(text, style = MaterialTheme.typography.labelSmall, color = Color.White)
+    }
+}
+
+@Composable
+private fun WalletTab(
+    balance: Long,
+    onTopUp: () -> Unit,
+    onWithdraw: () -> Unit
+) {
+    var filter by remember { mutableStateOf<TxType?>(null) } // null = Tất cả
+    val txAll = remember { mockTx() }
+    val tx = remember(filter, txAll) { filter?.let { t -> txAll.filter { it.type == t } } ?: txAll }
+
+    Column(
+        Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // ---- Số dư + action ----
+        LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.AccountBalanceWallet, null, tint = Color.White)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Số dư ví", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                }
+                Text(
+                    text = formatCurrencyVnd(balance),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    MMPrimaryButton(onClick = onTopUp, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Outlined.ArrowUpward, null, tint = Color.White)
+                        Spacer(Modifier.width(8.dp)); Text("Nạp tiền")
+                    }
+                    MMGhostButton(onClick = onWithdraw, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Outlined.ArrowDownward, null, tint = Color.White)
+                        Spacer(Modifier.width(8.dp)); Text("Rút tiền")
+                    }
+                }
+            }
+        }
+
+        // ---- Phương thức thanh toán ----
+        LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+            Row(
+                Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Outlined.CreditCard, null, tint = Color.White)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("Thẻ mặc định", fontWeight = FontWeight.SemiBold, color = Color.White)
+                    Text("•••• 1234 • Visa", color = Color.White.copy(0.8f))
+                }
+                MMGhostButton(onClick = { /* TODO: đổi thẻ */ }) { Text("Thay đổi") }
+            }
+        }
+
+        // ---- Filter giao dịch ----
+        LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Lịch sử giao dịch", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                FlowRowWrap(horizontalGap = 8.dp, verticalGap = 8.dp) {
+                    FilterChipPill("Tất cả", selected = filter == null) { filter = null }
+                    FilterChipPill("Nạp",     selected = filter == TxType.TOP_UP)   { filter = TxType.TOP_UP }
+                    FilterChipPill("Rút",     selected = filter == TxType.WITHDRAW){ filter = TxType.WITHDRAW }
+                    FilterChipPill("Thanh toán", selected = filter == TxType.PAYMENT){ filter = TxType.PAYMENT }
+                    FilterChipPill("Hoàn tiền",  selected = filter == TxType.REFUND) { filter = TxType.REFUND }
+                }
+            }
+        }
+
+        // ---- Danh sách giao dịch ----
+        tx.forEach { item ->
+            TransactionRow(item)
+        }
+
+        if (tx.isEmpty()) {
+            LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+                Box(Modifier.padding(16.dp), contentAlignment = Alignment.Center) {
+                    Text("Không có giao dịch", color = Color.White.copy(0.8f))
                 }
             }
         }

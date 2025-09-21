@@ -17,12 +17,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mentorme.app.ui.theme.GradientSecondary   // --gradient-secondary
 import com.mentorme.app.ui.theme.gradientBackground  // gradient modifier
 import com.mentorme.app.ui.theme.liquidGlass
+import androidx.compose.ui.graphics.Shape
 
 /**
  * Nút primary: nền gradient (secondary), chữ màu trắng (theo --primary-foreground ~ #FFF/0.95).
@@ -38,19 +40,21 @@ enum class MMButtonSize { Compact, Medium, Large }
 fun MMPrimaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(16.dp),
     content: @Composable RowScope.() -> Unit
 ) {
     Button(
         onClick = onClick,
         modifier = modifier
+            .clip(shape)
             .background(Color.Transparent, RoundedCornerShape(16.dp))
             .gradientBackground(GradientSecondary)
-            .defaultMinSize(minHeight = 40.dp),           // ✅ đảm bảo không cắt chữ
+            .defaultMinSize(minHeight = 40.dp),
+        shape = shape,
         colors = ButtonDefaults.buttonColors(
             containerColor = Color.Transparent,
             contentColor = Color.White
         ),
-        shape = RoundedCornerShape(16.dp),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp), // dọc 10dp
         content = content
     )

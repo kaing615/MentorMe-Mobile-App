@@ -18,14 +18,6 @@ import com.mentorme.app.data.model.User
 import kotlinx.coroutines.flow.Flow
 
 interface AuthRepository {
-    // Existing methods
-    suspend fun login(email: String, password: String): AppResult<AuthResponse>
-    suspend fun register(email: String, password: String, name: String, role: String): AppResult<AuthResponse>
-    suspend fun logout(): AppResult<Unit>
-    suspend fun getCurrentUser(): AppResult<User>
-    fun getToken(): Flow<String?>
-    suspend fun saveToken(token: String)
-    suspend fun clearToken()
 
     // New methods for auth flow
     suspend fun signUp(request: SignUpRequest): AppResult<AuthResponseDto>

@@ -31,10 +31,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mentorme.app.core.utils.ErrorUtils
 import com.mentorme.app.data.model.UserRole
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.onFailure
 
 
 /* ---------------- Data ---------------- */
@@ -46,7 +48,7 @@ data class RegisterPayload(
     val role: UserRole
 )
 
-private enum class AuthMode { Welcome, Login, Register, Forgot, Reset }
+private enum class AuthMode { Welcome, Login, Register, Forgot, Reset, OtpVerification }
 
 /* ---------------- Root Screen ---------------- */
 
@@ -60,6 +62,38 @@ fun AuthScreen(
     startInReset: Boolean = false               // có thể mở thẳng màn Reset khi deeplink
 ) {
     var mode by remember { mutableStateOf(if (startInReset) AuthMode.Reset else AuthMode.Welcome) }
+
+    // Get AuthViewModel for OTP handling
+    val authViewModel: AuthViewModel? = if (LocalInspectionMode.current) {
+        null
+    } else {
+        runCatching { hiltViewModel<AuthViewModel>() }
+            .onFailure { Log.e("AuthScreens", "Failed to initialize AuthViewModel: ${it.message}") }
+            .getOrNull()
+    }
+
+    val authState by (authViewModel?.authState ?: remember { MutableStateFlow(AuthState()) }.asStateFlow())
+        .collectAsStateWithLifecycle()
+
+    // Handle OTP screen navigation
+    LaunchedEffect(authState.showOtpScreen) {
+        if (authState.showOtpScreen) {
+            mode = AuthMode.OtpVerification
+        }
+    }
+
+    // Handle verification dialog
+    OtpVerificationDialog(
+        isVisible = authState.showVerificationDialog,
+        isSuccess = authState.verificationSuccess,
+        message = authState.verificationMessage ?: "",
+        onDismiss = {
+            authViewModel?.hideVerificationDialog()
+            if (authState.verificationSuccess) {
+                mode = AuthMode.Login
+            }
+        }
+    )
 
     Scaffold(
         topBar = {
@@ -76,7 +110,13 @@ fun AuthScreen(
                                 .size(44.dp)
                                 .graphicsLayer { val s = if (pressed) .92f else 1f; scaleX = s; scaleY = s }
                         ) {
-                            IconButton(onClick = { pressed = true; mode = AuthMode.Welcome }) {
+                            IconButton(onClick = {
+                                pressed = true
+                                if (mode == AuthMode.OtpVerification) {
+                                    authViewModel?.hideOtpScreen()
+                                }
+                                mode = AuthMode.Welcome
+                            }) {
                                 Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White)
                             }
                         }
@@ -108,7 +148,7 @@ fun AuthScreen(
                     onBack = { mode = AuthMode.Welcome }
                 )
                 AuthMode.Register -> RegisterSection(
-                    onSubmit = { _, _, _, _ -> onAuthed() },
+                    onSubmit = { _, _, _, _ -> /* OTP screen will be shown via LaunchedEffect */ },
                     onGotoLogin = { mode = AuthMode.Login },
                     onBack = { mode = AuthMode.Welcome }
                 )
@@ -120,6 +160,25 @@ fun AuthScreen(
                 AuthMode.Reset -> ResetPasswordSection(
                     onSubmit = { /* TODO: call API đặt lại mật khẩu bằng token */ mode = AuthMode.Login },
                     onBack = { mode = AuthMode.Login }
+                )
+                AuthMode.OtpVerification -> OtpVerificationScreen(
+                    email = authState.userEmail ?: "",
+                    verificationId = authState.otpVerificationId ?: "",
+                    onOtpSubmit = { otp ->
+                        val verificationId = authState.otpVerificationId
+                        if (verificationId != null) {
+                            authViewModel?.verifyOtp(verificationId, otp)
+                        }
+                    },
+                    onResendOtp = {
+                        authViewModel?.resendOtp()
+                    },
+                    onBackToLogin = {
+                        authViewModel?.hideOtpScreen()
+                        mode = AuthMode.Login
+                    },
+                    isLoading = authState.isOtpVerifying,
+                    error = authState.otpError
                 )
             }
         }
@@ -236,8 +295,11 @@ private fun LoginSection(
                 visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation()
             )
 
-            // Show errors with fallback
-            (authState.error ?: localError)?.let {
+            // Show errors with fallback - apply user-friendly filtering
+            val displayError = authState.error?.let { ErrorUtils.getUserFriendlyErrorMessage(it) }
+                ?: localError?.let { ErrorUtils.getUserFriendlyErrorMessage(it) }
+
+            displayError?.let {
                 Text(it, color = MaterialTheme.colorScheme.error)
             }
 
@@ -267,16 +329,18 @@ private fun LoginSection(
 
                     // Use real authentication via ViewModel if available with error handling
                     viewModel?.let { vm ->
-                        runCatching {
+                        kotlin.runCatching {
                             vm.signIn(email, pass)
                         }.onFailure { exception ->
                             Log.e("AuthScreens", "Login error: ${exception.message}", exception)
-                            localError = "Lỗi đăng nhập: ${exception.message ?: "Vui lòng thử lại"}"
+                            localError = ErrorUtils.getUserFriendlyErrorMessage(exception.message)
                         }
                     } ?: run {
                         // Fallback for when ViewModel is not available
                         localError = "Dịch vụ xác thực không khả dụng. Vui lòng kiểm tra kết nối mạng và thử lại."
                     }
+
+
                 }
             )
 
@@ -315,7 +379,6 @@ private fun RegisterSection(
     val authState by (
             viewModel?.authState ?: remember { MutableStateFlow(AuthState()) }.asStateFlow()
             ).collectAsStateWithLifecycle()
-
 
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -378,8 +441,11 @@ private fun RegisterSection(
             )
             errors["confirm"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
-            // Show auth errors from backend with fallback
-            (authState.error ?: localError)?.let {
+            // Show auth errors from backend with fallback - apply user-friendly filtering
+            val displayError = authState.error?.let { ErrorUtils.getUserFriendlyErrorMessage(it) }
+                ?: localError?.let { ErrorUtils.getUserFriendlyErrorMessage(it) }
+
+            displayError?.let {
                 Text(it, color = MaterialTheme.colorScheme.error)
             }
 
@@ -401,7 +467,7 @@ private fun RegisterSection(
                                 }
                             }.onFailure { exception ->
                                 Log.e("AuthScreens", "Registration error: ${exception.message}", exception)
-                                localError = "Lỗi đăng ký: ${exception.message ?: "Vui lòng thử lại"}"
+                                localError = ErrorUtils.getUserFriendlyErrorMessage(exception.message)
                             }
                         } ?: run {
                             // Fallback for when ViewModel is not available
@@ -648,6 +714,103 @@ private fun ResetPasswordSection(
                     try {
                         onSubmit(newPassword)
                         success = "Mật khẩu đã được đặt lại thành công!"
+                    } catch (e: Exception) {
+                        error = "Có lỗi xảy ra: ${e.message}"
+                    } finally {
+                        isLoading = false
+                    }
+                }
+            )
+        }
+
+        // Footer
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
+            Text("Quay lại đăng nhập?", color = Color.White.copy(0.85f))
+            SmallGlassPillButton("Đăng nhập", onClick = onBack)
+        }
+    }
+}
+
+/* ---------------- OTP Verification ---------------- */
+
+@Composable
+private fun OtpVerificationSection(
+    onSubmit: (String) -> Unit,
+    onBack: () -> Unit
+) {
+    var otpCode by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var success by remember { mutableStateOf<String?>(null) }
+
+    fun validate(): String? {
+        return when {
+            otpCode.isBlank() -> "Vui lòng nhập mã OTP"
+            otpCode.length != 6 -> "Mã OTP phải có 6 ký tự"
+            else -> null
+        }
+    }
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+        FloatingLogo(size = 80.dp)
+        Spacer(Modifier.height(12.dp))
+
+        Text("Xác thực OTP", fontWeight = FontWeight.ExtraBold, fontSize = 28.sp, color = Color.White)
+        Spacer(Modifier.height(8.dp))
+
+        Text(
+            "Nhập mã OTP đã gửi đến email của bạn",
+            style = MaterialTheme.typography.bodyMedium.copy(
+                color = Color.White.copy(0.8f),
+                textAlign = TextAlign.Center
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(20.dp))
+
+        GlassFormContainer {
+            GlassInput(
+                value = otpCode,
+                onValueChange = {
+                    otpCode = it
+                    error = null
+                    success = null
+                },
+                label = "Mã OTP",
+                placeholder = "Nhập mã OTP",
+                leading = { Icon(Icons.Default.Lock, null, tint = Color.White) }
+            )
+
+            // Show error message
+            error?.let {
+                Text(it, color = MaterialTheme.colorScheme.error)
+            }
+
+            // Show success message
+            success?.let {
+                Text(it, color = Color.Green)
+            }
+
+            BigGlassButton(
+                text = if (isLoading) "Đang xác thực..." else "Xác thực OTP",
+                subText = null,
+                icon = { Icon(Icons.Default.Lock, null, tint = Color.White) },
+                onClick = {
+                    val validationError = validate()
+                    if (validationError != null) {
+                        error = validationError
+                        return@BigGlassButton
+                    }
+
+                    isLoading = true
+                    error = null
+                    success = null
+
+                    // Simulate API call
+                    try {
+                        onSubmit(otpCode)
+                        success = "Xác thực thành công! Đang chuyển hướng..."
                     } catch (e: Exception) {
                         error = "Có lỗi xảy ra: ${e.message}"
                     } finally {

@@ -2,6 +2,7 @@ package com.mentorme.app.ui.calendar
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -30,6 +31,7 @@ import com.mentorme.app.ui.components.ui.MMButton
 import java.util.Calendar
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
 import com.mentorme.app.ui.components.ui.MMGhostButton
+import androidx.compose.ui.graphics.Brush
 
 // ---------- Helpers (API 24 friendly) ----------
 private fun todayDate(): String {
@@ -161,8 +163,17 @@ fun CalendarScreen(
                                     .tabIndicatorOffset(pos)
                                     .fillMaxHeight()
                                     .padding(6.dp)
+                                    .border(
+                                        BorderStroke(
+                                            2.dp,
+                                            Brush.linearGradient(
+                                                listOf(Color(0xFF60A5FA), Color(0xFFA78BFA), Color(0xFFF472B6))
+                                            )
+                                        ),
+                                        RoundedCornerShape(14.dp)
+                                    )
                                     .clip(RoundedCornerShape(14.dp))
-                                    .background(Color.White.copy(alpha = 0.18f))
+                                    .background(Color.White.copy(alpha = 0.08f))
                             )
                         }
                     }

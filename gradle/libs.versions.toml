@@ -19,6 +19,9 @@ gson = "2.11.0"
 espresso = "3.6.1"
 junit-ext = "1.2.1"
 mockito = "5.14.2"
+runtime-saveable = "1.9.1"
+room-ktx = "2.8.0"
+foundation = "1.9.1"
 
 [plugins]
 #noinspection GradlePluginVersion
@@ -76,3 +79,6 @@ androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-mani
 mockito                           = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 mockito-inline                    = { module = "org.mockito:mockito-inline", version.ref = "mockito" }
 mockito-kotlin                    = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockito" }
+androidx-compose-runtime-saveable = { group = "androidx.compose.runtime", name = "runtime-saveable", version.ref = "runtime-saveable" }
+androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room-ktx" }
+androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundation" }

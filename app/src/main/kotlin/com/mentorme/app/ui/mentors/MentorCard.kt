@@ -26,6 +26,7 @@ import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
 import com.mentorme.app.ui.components.ui.MMGhostButton
 import com.mentorme.app.ui.components.ui.MMButtonSize
+import com.mentorme.app.ui.common.compactVnd
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -220,10 +221,11 @@ fun MentorCard(
             ) {
                 Column {
                     Text(
-                        text = "${mentor.hourlyRate}k VNĐ/giờ",
+                        text = "${mentor.hourlyRate.compactVnd()} VNĐ/giờ",   // ⬅️ rút gọn theo k/M
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = Color.White,
+                        maxLines = 1
                     )
                     Text(
                         text = "Giá tư vấn",

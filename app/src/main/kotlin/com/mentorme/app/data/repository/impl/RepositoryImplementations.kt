@@ -1,6 +1,6 @@
 package com.mentorme.app.data.repository.impl
 
-import com.mentorme.app.core.utils.Result
+import com.mentorme.app.core.utils.AppResult
 // Specific imports for DTOs (API responses)
 import com.mentorme.app.data.dto.BookingListResponse
 import com.mentorme.app.data.dto.CreateBookingRequest
@@ -30,42 +30,42 @@ class MentorRepositoryImpl @Inject constructor(
         minRate: Double?,
         maxRate: Double?,
         minRating: Double?
-    ): Result<MentorListResponse> {
+    ): AppResult<MentorListResponse> {
         return try {
             val response = api.getMentors(page, limit, expertise, minRate, maxRate, minRating)
             if (response.isSuccessful && response.body() != null) {
-                Result.Success(response.body()!!)
+                AppResult.success(response.body()!!)
             } else {
-                Result.Error(Exception("Failed to get mentors: ${response.message()}"))
+                AppResult.failure(Exception("Failed to get mentors: ${response.message()}"))
             }
         } catch (e: Exception) {
-            Result.Error(e)
+            AppResult.failure(e)
         }
     }
 
-    override suspend fun getMentorById(mentorId: String): Result<Mentor> {
+    override suspend fun getMentorById(mentorId: String): AppResult<Mentor> {
         return try {
             val response = api.getMentorById(mentorId)
             if (response.isSuccessful && response.body() != null) {
-                Result.Success(response.body()!!)
+                AppResult.success(response.body()!!)
             } else {
-                Result.Error(Exception("Failed to get mentor: ${response.message()}"))
+                AppResult.failure(Exception("Failed to get mentor: ${response.message()}"))
             }
         } catch (e: Exception) {
-            Result.Error(e)
+            AppResult.failure(e)
         }
     }
 
-    override suspend fun getMentorAvailability(mentorId: String): Result<List<ApiAvailabilitySlot>> {
+    override suspend fun getMentorAvailability(mentorId: String): AppResult<List<ApiAvailabilitySlot>> {
         return try {
             val response = api.getMentorAvailability(mentorId)
             if (response.isSuccessful && response.body() != null) {
-                Result.Success(response.body()!!)
+                AppResult.success(response.body()!!)
             } else {
-                Result.Error(Exception("Failed to get availability: ${response.message()}"))
+                AppResult.failure(Exception("Failed to get availability: ${response.message()}"))
             }
         } catch (e: Exception) {
-            Result.Error(e)
+            AppResult.failure(e)
         }
     }
 }
@@ -81,71 +81,71 @@ class BookingRepositoryImpl @Inject constructor(
         duration: Int,
         topic: String,
         notes: String?
-    ): Result<Booking> {
+    ): AppResult<Booking> {
         return try {
             val request = CreateBookingRequest(mentorId, scheduledAt, duration, topic, notes)
             val response = api.createBooking(request)
             if (response.isSuccessful && response.body() != null) {
-                Result.Success(response.body()!!)
+                AppResult.success(response.body()!!)
             } else {
-                Result.Error(Exception("Failed to create booking: ${response.message()}"))
+                AppResult.failure(Exception("Failed to create booking: ${response.message()}"))
             }
         } catch (e: Exception) {
-            Result.Error(e)
+            AppResult.failure(e)
         }
     }
 
-    override suspend fun getBookings(status: String?, page: Int, limit: Int): Result<BookingListResponse> {
+    override suspend fun getBookings(status: String?, page: Int, limit: Int): AppResult<BookingListResponse> {
         return try {
             val response = api.getBookings(status, page, limit)
             if (response.isSuccessful && response.body() != null) {
-                Result.Success(response.body()!!)
+                AppResult.success(response.body()!!)
             } else {
-                Result.Error(Exception("Failed to get bookings: ${response.message()}"))
+                AppResult.failure(Exception("Failed to get bookings: ${response.message()}"))
             }
         } catch (e: Exception) {
-            Result.Error(e)
+            AppResult.failure(e)
         }
     }
 
-    override suspend fun getBookingById(bookingId: String): Result<Booking> {
+    override suspend fun getBookingById(bookingId: String): AppResult<Booking> {
         return try {
             val response = api.getBookingById(bookingId)
             if (response.isSuccessful && response.body() != null) {
-                Result.Success(response.body()!!)
+                AppResult.success(response.body()!!)
             } else {
-                Result.Error(Exception("Failed to get booking: ${response.message()}"))
+                AppResult.failure(Exception("Failed to get booking: ${response.message()}"))
             }
         } catch (e: Exception) {
-            Result.Error(e)
+            AppResult.failure(e)
         }
     }
 
-    override suspend fun updateBooking(bookingId: String, status: String?): Result<Booking> {
+    override suspend fun updateBooking(bookingId: String, status: String?): AppResult<Booking> {
         return try {
             val request = UpdateBookingRequest(status = status)
             val response = api.updateBooking(bookingId, request)
             if (response.isSuccessful && response.body() != null) {
-                Result.Success(response.body()!!)
+                AppResult.success(response.body()!!)
             } else {
-                Result.Error(Exception("Failed to update booking: ${response.message()}"))
+                AppResult.failure(Exception("Failed to update booking: ${response.message()}"))
             }
         } catch (e: Exception) {
-            Result.Error(e)
+            AppResult.failure(e)
         }
     }
 
-    override suspend fun rateBooking(bookingId: String, rating: Int, feedback: String?): Result<Booking> {
+    override suspend fun rateBooking(bookingId: String, rating: Int, feedback: String?): AppResult<Booking> {
         return try {
             val request = RatingRequest(rating, feedback)
             val response = api.rateBooking(bookingId, request)
             if (response.isSuccessful && response.body() != null) {
-                Result.Success(response.body()!!)
+                AppResult.success(response.body()!!)
             } else {
-                Result.Error(Exception("Failed to rate booking: ${response.message()}"))
+                AppResult.failure(Exception("Failed to rate booking: ${response.message()}"))
             }
         } catch (e: Exception) {
-            Result.Error(e)
+            AppResult.failure(e)
         }
     }
 }

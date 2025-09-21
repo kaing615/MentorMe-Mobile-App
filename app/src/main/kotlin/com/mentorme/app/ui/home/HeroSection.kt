@@ -114,13 +114,13 @@ fun HeroSection(
                 }
 
                 // Skills phổ biến
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     skills.forEach { s ->
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(Color.White.copy(alpha = 0.15f))
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
                                 .clickable { onSearch(s) }
                         ) {
                             Text(s, color = Color.White, style = MaterialTheme.typography.bodySmall)

@@ -11,44 +11,30 @@ import androidx.compose.ui.unit.dp
 import com.mentorme.app.ui.components.ui.MMTextField
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.theme.liquidGlassStrong
+import com.mentorme.app.ui.components.ui.MMButtonSize
 
 @Composable
-fun ChatComposer(
-    onSend: (String) -> Unit
-) {
+fun ChatComposer(onSend: (String) -> Unit, modifier: Modifier = Modifier) {
     var text by remember { mutableStateOf("") }
-
-    Box(
-        Modifier
+    Row(
+        modifier = modifier
             .fillMaxWidth()
-            .padding(12.dp)
-            .navigationBarsPadding()
-            .imePadding()
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .liquidGlassStrong(radius = 24.dp, alpha = 0.28f)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            MMTextField(
-                value = text,
-                onValueChange = { text = it },
-                placeholder = "Type a message…",
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(Modifier.width(8.dp))
-            MMButton(
-                text = "Send",
-                onClick = {
-                    if (text.isNotBlank()) {
-                        onSend(text.trim())
-                        text = ""
-                    }
-                },
-                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) }
-            )
-        }
+        MMTextField(
+            value = text,
+            onValueChange = { text = it },
+            placeholder = "Type a message…",
+            modifier = Modifier.weight(1f),
+            singleLine = true
+        )
+        Spacer(Modifier.width(8.dp))
+        MMButton(
+            text = "Send",
+            onClick = { if (text.isNotBlank()) { onSend(text.trim()); text = "" } },
+            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Send, null) },
+            size = MMButtonSize.Compact
+        )
     }
 }

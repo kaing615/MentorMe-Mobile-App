@@ -10,11 +10,13 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -22,8 +24,21 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
+import com.mentorme.app.R
 
 // Constants
 const val GLASS_ALPHA = 0.15f
@@ -214,3 +229,74 @@ fun LiquidBackground(
         }
     }
 }
+
+@Composable
+fun LiquidGlassLogo(
+    size: Dp = 96.dp,
+    @DrawableRes logoRes: Int = R.drawable.mentormehehe,
+    logoScale: Float = 0.68f,     // ← tỉ lệ kích thước logo (so với đường kính vòng)
+) {
+    val ring = Brush.linearGradient(
+        listOf(Color(0xFF60A5FA), Color(0xFFA78BFA), Color(0xFFF472B6))
+    )
+    val shimmer = rememberInfiniteTransition(label = "shimmer")
+    val sweep by shimmer.animateFloat(
+        initialValue = -0.4f, targetValue = 1.4f,
+        animationSpec = infiniteRepeatable(animation = tween(2200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart), label = "sweep"
+    )
+
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.06f))
+            .border(width = 2.dp, brush = ring, shape = CircleShape)
+            .liquidGlass(radius = size / 2, alpha = 0.22f, borderAlpha = 0.45f)
+    ) {
+        // highlight bóng phía trên
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth(0.92f)
+                .height(size * 0.42f)
+                .clip(RoundedCornerShape(bottomStart = size/2, bottomEnd = size/2))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.White.copy(0.35f), Color.White.copy(0f))
+                    )
+                )
+                .alpha(0.22f)
+        )
+
+        // shimmer nhẹ chạy chéo
+        Box(
+            Modifier
+                .matchParentSize()
+                .graphicsLayer { rotationZ = 18f }
+                .padding(2.dp)
+                .offset(x = (size * sweep))
+                .width(size * 0.22f)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color.Transparent,
+                            Color.White.copy(0.20f),
+                            Color.Transparent
+                        )
+                    )
+                )
+                .alpha(0.20f)
+        )
+
+        // logo ở giữa (không tint)
+        Image(
+            painter = painterResource(id = logoRes),
+            contentDescription = "MentorMe",
+            modifier = Modifier
+                .align(Alignment.Center)
+                .size(size * 100)
+        )
+    }
+}
+

@@ -56,6 +56,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.outlined.Article
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.PrivacyTip
+import androidx.compose.material.icons.outlined.SupportAgent
 
 private val oneDecimalUS = DecimalFormat("#.#").apply {
     decimalFormatSymbols = DecimalFormatSymbols(Locale.US)  // dùng dấu chấm
@@ -706,7 +710,12 @@ private fun StatsTab(userRole: UserRole, profile: UserProfile) {
 }
 
 @Composable
-private fun SettingsTab(onOpenSettings: (() -> Unit)?) {
+private fun SettingsTab(
+    onOpenSettings: (() -> Unit)?,
+    onOpenCSBM: (() -> Unit)? = null,   // Chính sách bảo mật
+    onOpenDKSD: (() -> Unit)? = null,   // Điều khoản sử dụng
+    onOpenLHHT: (() -> Unit)? = null    // Liên hệ hỗ trợ
+) {
     Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
 
         // --- Card: Thông báo ---
@@ -717,21 +726,9 @@ private fun SettingsTab(onOpenSettings: (() -> Unit)?) {
                     Spacer(Modifier.width(8.dp))
                     Text("Thông báo", style = MaterialTheme.typography.titleMedium, color = Color.White)
                 }
-                SettingSwitchRow(
-                    title = "Email thông báo",
-                    subtitle = "Nhận email về booking và tin nhắn",
-                    defaultChecked = true
-                )
-                SettingSwitchRow(
-                    title = "Thông báo push",
-                    subtitle = "Nhận thông báo trên thiết bị",
-                    defaultChecked = true
-                )
-                SettingSwitchRow(
-                    title = "Tin nhắn marketing",
-                    subtitle = "Nhận thông tin khuyến mãi",
-                    defaultChecked = false
-                )
+                SettingSwitchRow("Email thông báo","Nhận email về booking và tin nhắn", true)
+                SettingSwitchRow("Thông báo push","Nhận thông báo trên thiết bị", true)
+                SettingSwitchRow("Tin nhắn marketing","Nhận thông tin khuyến mãi", false)
             }
         }
 
@@ -743,10 +740,11 @@ private fun SettingsTab(onOpenSettings: (() -> Unit)?) {
                     Spacer(Modifier.width(8.dp))
                     Text("Bảo mật", style = MaterialTheme.typography.titleMedium, color = Color.White)
                 }
-                MMGhostButton(
-                    onClick = { onOpenSettings?.invoke() },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Cài đặt nâng cao") }
+                MMGhostButton(onClick = { onOpenSettings?.invoke() }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.Settings, null, tint = Color.White)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Cài đặt nâng cao")
+                }
             }
         }
 
@@ -754,23 +752,21 @@ private fun SettingsTab(onOpenSettings: (() -> Unit)?) {
         LiquidGlassCard(modifier = Modifier.fillMaxWidth(), radius = 22.dp) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Khác", style = MaterialTheme.typography.titleMedium, color = Color.White)
-                MMGhostButton(
-                    onClick = { onOpenSettings?.invoke() },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Trợ giúp & Hỗ trợ") }
 
-                MMGhostButton(
-                    onClick = { onOpenSettings?.invoke() },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Outlined.Settings, null, tint = Color.White)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Cài đặt tài khoản")
+                SettingLinkItem(Icons.Outlined.PrivacyTip, "Chính sách bảo mật") {
+                    onOpenCSBM?.invoke()
+                }
+                SettingLinkItem(Icons.Outlined.Article, "Điều khoản sử dụng") {
+                    onOpenDKSD?.invoke()
+                }
+                SettingLinkItem(Icons.Outlined.SupportAgent, "Liên hệ hỗ trợ") {
+                    onOpenLHHT?.invoke()
                 }
             }
         }
     }
 }
+
 
 /* =======================
    Reusable UI pieces
@@ -1022,3 +1018,27 @@ private fun Preview_Mentor_Dark() {
         )
     }
 }
+
+@Composable
+private fun SettingLinkItem(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    MMGhostButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(icon, contentDescription = null, tint = Color.White)
+            Spacer(Modifier.width(10.dp))
+            Text(label, color = Color.White, modifier = Modifier.weight(1f))
+            Icon(
+                Icons.Outlined.ChevronRight,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.6f)
+            )
+        }
+    }
+}
+

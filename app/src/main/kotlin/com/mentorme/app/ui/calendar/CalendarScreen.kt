@@ -31,7 +31,6 @@ import java.util.Calendar
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
 import com.mentorme.app.ui.components.ui.MMGhostButton
 
-
 // ---------- Helpers (API 24 friendly) ----------
 private fun todayDate(): String {
     val c = Calendar.getInstance()
@@ -446,10 +445,7 @@ private fun MMGhostButton(
     OutlinedButton(
         onClick = onClick,
         modifier = modifier.liquidGlass(radius = 16.dp),
-        border = BorderStroke(
-            width = 1.dp,
-            color = Color.White.copy(alpha = 0.5f)
-        ),
+        border = null,
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = Color.Transparent,
             contentColor = Color.White

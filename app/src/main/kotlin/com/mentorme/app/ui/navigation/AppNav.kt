@@ -6,6 +6,7 @@ import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,7 +33,7 @@ import com.mentorme.app.ui.auth.AuthScreen
 import com.mentorme.app.ui.auth.RegisterPayload
 import com.mentorme.app.ui.chat.ChatScreen
 import com.mentorme.app.ui.chat.MessagesScreen
-
+import com.mentorme.app.ui.profile.*
 
 object Routes {
     const val Auth = "auth"
@@ -145,10 +146,15 @@ fun AppNav(
 
 
 
-                    composable(Routes.Profile) { /* ProfileScreen() */ }
+                    composable(Routes.Profile) {
+                        ProfileScreen(
+                            user = UserHeader(fullName = "Nguyễn Văn A", email = "a@example.com", role = UserRole.MENTEE)
+                        )
+                    }
 
 
-                        // Step 1: chọn thời gian
+
+                    // Step 1: chọn thời gian
                         composable("booking/{mentorId}") { backStackEntry ->
                             val mentorId =
                                 backStackEntry.arguments?.getString("mentorId")

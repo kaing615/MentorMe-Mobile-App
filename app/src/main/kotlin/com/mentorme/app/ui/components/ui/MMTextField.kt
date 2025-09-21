@@ -31,7 +31,7 @@ fun MMTextField(
     label: String? = null,
     placeholder: String? = null,
     modifier: Modifier = Modifier,
-    leading: @Composable (() -> Unit)? = null,
+    leading: @Composable (() -> Unit)? = null,/**/
     trailing: @Composable (() -> Unit)? = null,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     singleLine: Boolean = true
@@ -45,7 +45,6 @@ fun MMTextField(
             .fillMaxWidth()
             .background(InputBg, shape)  // --input-background
             .border(1.dp, Border, shape),// --border
-        label = { if (label != null) Text(label, color = Foreground) },
         placeholder = {
             if (placeholder != null) {
                 Text(placeholder, color = Foreground.copy(alpha = 0.6f))

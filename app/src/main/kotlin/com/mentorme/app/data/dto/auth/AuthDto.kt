@@ -24,10 +24,10 @@ data class SignInRequest(
 )
 
 data class VerifyOtpRequest(
-    @SerializedName("email")
-    val email: String,
-    @SerializedName("otp")
-    val otp: String
+    @SerializedName("verificationId")
+    val verificationId: String,
+    @SerializedName("code")
+    val code: String
 )
 
 // Response DTOs
@@ -42,9 +42,22 @@ data class AuthResponse(
 
 data class AuthData(
     @SerializedName("user")
-    val user: UserDto,
+    val user: UserDto? = null,
     @SerializedName("token")
-    val token: String? = null
+    val token: String? = null,
+    // Fields for OTP verification from signup response
+    @SerializedName("userId")
+    val userId: String? = null,
+    @SerializedName("email")
+    val email: String? = null,
+    @SerializedName("userName")
+    val userName: String? = null,
+    @SerializedName("status")
+    val status: String? = null,
+    @SerializedName("verificationId")
+    val verificationId: String? = null,
+    @SerializedName("expiresIn")
+    val expiresIn: Int? = null
 )
 
 data class UserDto(

@@ -26,12 +26,6 @@ interface AuthApiService {
         @Body request: VerifyOtpRequest
     ): Response<AuthResponse>
 
-    // Resend OTP bằng cách gọi lại signup - backend sẽ chỉ gửi lại OTP nếu user đã tồn tại
-    @POST("auth/signup")
-    suspend fun resendOtp(
-        @Body request: SignUpRequest
-    ): Response<AuthResponse>
-
     @POST("auth/signout")
     suspend fun signOut(): Response<AuthResponse>
 }

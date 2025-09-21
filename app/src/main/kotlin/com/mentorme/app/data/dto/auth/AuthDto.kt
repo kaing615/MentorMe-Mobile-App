@@ -4,12 +4,16 @@ import com.google.gson.annotations.SerializedName
 
 // Request DTOs
 data class SignUpRequest(
-    @SerializedName("userName")
-    val userName: String,
+    @SerializedName("username")
+    val username: String,
     @SerializedName("email")
     val email: String,
     @SerializedName("password")
-    val password: String
+    val password: String,
+    @SerializedName("confirmPassword")
+    val confirmPassword: String,
+    @SerializedName("displayName")
+    val displayName: String? = null
 )
 
 data class SignInRequest(
@@ -20,15 +24,10 @@ data class SignInRequest(
 )
 
 data class VerifyOtpRequest(
-    @SerializedName("verificationId")
-    val verificationId: String,
-    @SerializedName("code")
-    val code: String
-)
-
-data class ResendOtpRequest(
     @SerializedName("email")
-    val email: String
+    val email: String,
+    @SerializedName("otp")
+    val otp: String
 )
 
 // Response DTOs
@@ -43,22 +42,9 @@ data class AuthResponse(
 
 data class AuthData(
     @SerializedName("user")
-    val user: UserDto? = null,
+    val user: UserDto,
     @SerializedName("token")
-    val token: String? = null,
-    // Fields for OTP verification from signup response
-    @SerializedName("userId")
-    val userId: String? = null,
-    @SerializedName("email")
-    val email: String? = null,
-    @SerializedName("userName")
-    val userName: String? = null,
-    @SerializedName("status")
-    val status: String? = null,
-    @SerializedName("verificationId")
-    val verificationId: String? = null,
-    @SerializedName("expiresIn")
-    val expiresIn: Int? = null
+    val token: String? = null
 )
 
 data class UserDto(

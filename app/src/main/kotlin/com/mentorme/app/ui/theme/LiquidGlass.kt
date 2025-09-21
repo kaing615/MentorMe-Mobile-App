@@ -36,6 +36,7 @@ const val GLASS_BORDER = 0.3f
 /**
  * Liquid Glass Card Component
  */
+// --- LiquidGlassCard: tách LỚP NỀN (có blur) và LỚP CONTENT (không blur) ---
 @Composable
 fun LiquidGlassCard(
     modifier: Modifier = Modifier,
@@ -45,17 +46,14 @@ fun LiquidGlassCard(
     strong: Boolean = false,
     content: @Composable BoxScope.() -> Unit
 ) {
-    val glassModifier = if (strong) {
-        modifier.liquidGlassStrong(radius, alpha, borderAlpha)
-    } else {
-        modifier.liquidGlass(radius, alpha, borderAlpha)
-    }
+    val glassModifier =
+        if (strong) modifier.liquidGlassStrong(radius, alpha, borderAlpha)
+        else modifier.liquidGlass(radius, alpha, borderAlpha)
 
-    Box(
-        modifier = glassModifier,
-        content = content
-    )
+    Box(modifier = glassModifier, content = content)
 }
+
+
 
 /**
  * Card-based LiquidGlassCard - Material3 Card with liquid glass effect
@@ -145,7 +143,6 @@ fun Modifier.liquidGlassStrong(
         color = Color.White.copy(alpha = borderAlpha),
         shape = RoundedCornerShape(radius)
     )
-    .blur(radius = 1.dp)
 
 /* =======================================================
  * Liquid background: mô phỏng body::before + keyframes

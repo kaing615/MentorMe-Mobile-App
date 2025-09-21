@@ -51,6 +51,11 @@ import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Cached
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 
 private val oneDecimalUS = DecimalFormat("#.#").apply {
     decimalFormatSymbols = DecimalFormatSymbols(Locale.US)  // dùng dấu chấm
@@ -234,13 +239,26 @@ fun ProfileScreen(
                             containerColor = Color.Transparent,
                             contentColor = Color.White,
                             indicator = { positions ->
-                                TabRowDefaults.SecondaryIndicator(
-                                    Modifier
-                                        .tabIndicatorOffset(positions[selectedTab])
-                                        .padding(horizontal = 28.dp),
-                                    color = Color.White.copy(alpha = 0.85f),
-                                    height = 3.dp
-                                )
+                                if (positions.isNotEmpty()) {
+                                    val pos = positions[selectedTab.coerceIn(0, positions.lastIndex)]
+                                    Box(
+                                        Modifier
+                                            .tabIndicatorOffset(pos)
+                                            .fillMaxHeight()
+                                            .padding(6.dp)                             // tạo khoảng trống để viền không đè text
+                                            .border(
+                                                BorderStroke(
+                                                    2.dp,
+                                                    Brush.linearGradient(
+                                                        listOf(Color(0xFF60A5FA), Color(0xFFA78BFA), Color(0xFFF472B6))
+                                                    )
+                                                ),
+                                                RoundedCornerShape(14.dp)
+                                            )
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(Color.White.copy(alpha = 0.08f))
+                                    )
+                                }
                             },
                             divider = {}
                         ) {

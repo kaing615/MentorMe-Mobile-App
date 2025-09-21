@@ -85,18 +85,13 @@ fun AppNav(
                     // ---------- AUTH ----------
                     composable(Routes.Auth) {
                         AuthScreen(
-                            onLogin = { email, pass ->
-                                // TODO: gọi repo thực tế
-                                val ok = email.isNotBlank() && pass.isNotBlank()
-                                if (ok) isLoggedIn = true
-                                ok
+                            onLogin = { _, _ ->
+                                // Remove mock logic - let AuthScreen handle real authentication
+                                false
                             },
                             onRegister = { p: RegisterPayload ->
-                                // TODO: gọi API tạo user
-                                val ok =
-                                    p.fullName.isNotBlank() && p.email.isNotBlank() && p.password.length >= 6
-                                if (ok) isLoggedIn = true
-                                ok
+                                // Remove mock logic - let AuthScreen handle real registration
+                                false
                             },
                             onResetPassword = { email ->
                                 // TODO: gọi API gửi mail reset, ví dụ:
@@ -104,6 +99,7 @@ fun AppNav(
                                 // Có thể hiện snackbar/toast ở đây
                             },
                             onAuthed = {
+                                isLoggedIn = true
                                 nav.navigate(Routes.Home) {
                                     popUpTo(Routes.Auth) { inclusive = true }
                                     launchSingleTop = true
@@ -227,3 +223,4 @@ fun AppNav(
             }
         }
     }
+

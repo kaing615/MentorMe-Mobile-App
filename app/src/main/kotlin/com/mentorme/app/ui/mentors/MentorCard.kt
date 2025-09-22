@@ -25,6 +25,8 @@ import com.mentorme.app.ui.theme.liquidGlass
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
 import com.mentorme.app.ui.components.ui.MMGhostButton
+import com.mentorme.app.ui.components.ui.MMButtonSize
+import com.mentorme.app.ui.common.compactVnd
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -166,34 +168,46 @@ fun MentorCard(
 
             // Skills
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                val chipMinWidth = 96.dp
+                val chipMinHeight = 32.dp
+
+                // Các skill chính
                 mentor.skills.take(3).forEach { skill ->
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(16.dp))
-                            .background(Color.White.copy(alpha = 0.1f))
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .background(Color.White.copy(alpha = 0.12f))
+                            .defaultMinSize(minWidth = chipMinWidth, minHeight = chipMinHeight) // 👈 áp dụng ở đây
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = skill,
                             color = Color.White.copy(alpha = 0.9f),
-                            style = MaterialTheme.typography.bodySmall
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
+
+                // Chip "+x"
                 if (mentor.skills.size > 3) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(16.dp))
-                            .background(Color.White.copy(alpha = 0.1f))
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .background(Color.White.copy(alpha = 0.12f))
+                            .defaultMinSize(minWidth = chipMinWidth, minHeight = chipMinHeight) // 👈 và cả đây
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = "+${mentor.skills.size - 3}",
-                            color = Color.White.copy(alpha = 0.7f),
-                            style = MaterialTheme.typography.bodySmall
+                            color = Color.White.copy(alpha = 0.75f),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
@@ -207,10 +221,11 @@ fun MentorCard(
             ) {
                 Column {
                     Text(
-                        text = "${mentor.hourlyRate}K VNĐ/giờ",
+                        text = "${mentor.hourlyRate.compactVnd()} VNĐ/giờ",   // ⬅️ rút gọn theo k/M
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = Color.White,
+                        maxLines = 1
                     )
                     Text(
                         text = "Giá tư vấn",
@@ -223,7 +238,7 @@ fun MentorCard(
                     MMButton(
                         text = "Xem hồ sơ",
                         onClick = onViewProfile,
-                        modifier = Modifier.height(36.dp)
+                        size = MMButtonSize.Compact
                     )
 
                     if (mentor.isAvailable) {
@@ -237,7 +252,7 @@ fun MentorCard(
                                 )
                             },
                             onClick = onBookSession,
-                            modifier = Modifier.height(36.dp)
+                            size = MMButtonSize.Compact
                         )
                     }
                 }

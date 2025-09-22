@@ -2,13 +2,14 @@ package com.mentorme.app.ui.auth
 
 import android.util.Log
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
-import androidx.compose.animation.with
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
@@ -36,8 +37,6 @@ import com.mentorme.app.data.model.UserRole
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlin.onFailure
-
 
 /* ---------------- Data ---------------- */
 
@@ -75,16 +74,15 @@ fun AuthScreen(
     val authState by (authViewModel?.authState ?: remember { MutableStateFlow(AuthState()) }.asStateFlow())
         .collectAsStateWithLifecycle()
 
-    // Handle OTP screen navigation with longer delay to prevent BringIntoViewRequester crash
+    // Điều hướng sang OTP khi cần (tránh BringIntoViewRequester crash)
     LaunchedEffect(authState.showOtpScreen) {
         if (authState.showOtpScreen && mode != AuthMode.OtpVerification) {
-            // Add longer delay to ensure all layout placement is complete before navigation
             delay(300)
             mode = AuthMode.OtpVerification
         }
     }
 
-    // Handle verification dialog
+    // Popup kết quả verify
     OtpVerificationDialog(
         isVisible = authState.showVerificationDialog,
         isSuccess = authState.verificationSuccess,
@@ -92,13 +90,11 @@ fun AuthScreen(
         onDismiss = {
             authViewModel?.hideVerificationDialog()
             if (authState.verificationSuccess) {
-                // After successful OTP verification, go back to Login screen
                 mode = AuthMode.Login
             }
         },
         onLoginRedirect = if (authState.verificationSuccess) {
             {
-                // Sử dụng function mới để reset state và chuyển về màn hình đăng nhập
                 authViewModel?.goBackToLoginAfterVerification()
                 mode = AuthMode.Login
             }
@@ -111,7 +107,7 @@ fun AuthScreen(
                 TopAppBar(
                     title = {},
                     navigationIcon = {
-                        // Back liquid glass (viền đẹp, không mất)
+                        // Nút back phong cách liquid glass
                         var pressed by remember { mutableStateOf(false) }
                         com.mentorme.app.ui.theme.LiquidGlassCard(
                             strong = true,
@@ -132,7 +128,7 @@ fun AuthScreen(
                         }
                         LaunchedEffect(pressed) { if (pressed) { delay(160); pressed = false } }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 )
             }
         },
@@ -145,52 +141,57 @@ fun AuthScreen(
                 .padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
-            // Simplified content switching without AnimatedContent to avoid runtime errors
-            when (mode) {
-                AuthMode.Welcome -> WelcomeSection(
-                    onGotoLogin = { mode = AuthMode.Login },
-                    onGotoRegister = { mode = AuthMode.Register }
-                )
-                AuthMode.Login -> LoginSection(
-                    onSubmit = { _, _ -> onAuthed() },
-                    onGotoRegister = { mode = AuthMode.Register },
-                    onForgot = { mode = AuthMode.Forgot },
-                    onBack = { mode = AuthMode.Welcome }
-                )
-                AuthMode.Register -> RegisterSection(
-                    onSubmit = { _, _, _, _ -> /* OTP screen will be shown via LaunchedEffect */ },
-                    onGotoLogin = { mode = AuthMode.Login },
-                    onBack = { mode = AuthMode.Welcome }
-                )
-                AuthMode.Forgot -> ForgotPasswordSection(
-                    onSubmit = { email -> onResetPassword(email); mode = AuthMode.Login },
-                    onBack = { mode = AuthMode.Login },
-                    onHaveCode = { mode = AuthMode.Reset }
-                )
-                AuthMode.Reset -> ResetPasswordSection(
-                    onSubmit = { /* TODO: call API đặt lại mật khẩu bằng token */ mode = AuthMode.Login },
-                    onBack = { mode = AuthMode.Login }
-                )
-                AuthMode.OtpVerification -> OtpVerificationScreen(
-                    email = authState.userEmail ?: "",
-                    verificationId = authState.otpVerificationId ?: "",
-                    onOtpSubmit = { otp ->
-                        val verificationId = authState.otpVerificationId
-                        if (verificationId != null) {
-                            authViewModel?.verifyOtp(verificationId, otp)
+            // ❗ Chỉ còn MỘT AnimatedContent (đã bỏ when(mode) lặp)
+            AnimatedContent(
+                targetState = mode,
+                transitionSpec = {
+                    (fadeIn(tween(400)) + scaleIn(initialScale = 0.95f, animationSpec = tween(400)))
+                        .togetherWith(fadeOut(tween(200)))
+                },
+                label = "authContent"
+            ) { current ->
+                when (current) {
+                    AuthMode.Welcome -> WelcomeSection(
+                        onGotoLogin = { mode = AuthMode.Login },
+                        onGotoRegister = { mode = AuthMode.Register }
+                    )
+                    AuthMode.Login -> LoginSection(
+                        onSubmit = { email, pass ->
+                            if (onLogin(email, pass)) onAuthed()
+                        },
+                        onGotoRegister = { mode = AuthMode.Register },
+                        onForgot = { mode = AuthMode.Forgot },
+                        onBack = { mode = AuthMode.Welcome }
+                    )
+                    AuthMode.Register -> RegisterSection(
+                        onSubmit = { name, email, pass, role ->
+                            if (onRegister(RegisterPayload(name, email, pass, role))) onAuthed()
+                        },
+                        onGotoLogin = { mode = AuthMode.Login },
+                        onBack = { mode = AuthMode.Welcome },
+                    )
+                    AuthMode.Forgot -> ForgotPasswordSection(
+                        onSubmit = { email -> onResetPassword(email); mode = AuthMode.Login },
+                        onBack = { mode = AuthMode.Login },
+                        onHaveCode = { mode = AuthMode.Reset }
+                    )
+                    AuthMode.Reset -> ResetPasswordSection(
+                        onSubmit = { /* TODO: call API đặt lại mật khẩu bằng token */ mode = AuthMode.Login },
+                        onBack = { mode = AuthMode.Login }
+                    )
+                    AuthMode.OtpVerification -> OtpVerificationSection(
+                        onSubmit = { otp ->
+                            val verificationId = authState.otpVerificationId
+                            if (verificationId != null) {
+                                authViewModel?.verifyOtp(verificationId, otp)
+                            }
+                        },
+                        onBack = {
+                            authViewModel?.hideOtpScreen()
+                            mode = AuthMode.Login
                         }
-                    },
-                    onResendOtp = {
-                        authViewModel?.resendOtp()
-                    },
-                    onBackToLogin = {
-                        authViewModel?.hideOtpScreen()
-                        mode = AuthMode.Login
-                    },
-                    isLoading = authState.isOtpVerifying,
-                    error = authState.otpError,
-                    showVerificationDialog = authState.showVerificationDialog // Truyền parameter để ẩn nút gửi lại mã khi popup hiện
-                )
+                    )
+                }
             }
         }
     }
@@ -257,31 +258,11 @@ private fun LoginSection(
     onForgot: () -> Unit,
     onBack: () -> Unit
 ) {
-    // Safe ViewModel initialization with error handling
-    val viewModel: AuthViewModel? = if (LocalInspectionMode.current) {
-        null
-    } else {
-        runCatching { hiltViewModel<AuthViewModel>() }
-            .onFailure { Log.e("AuthScreens", "Failed to initialize AuthViewModel: ${it.message}") }
-            .getOrNull()
-    }
-
-    val authState by (
-            viewModel?.authState ?: remember { MutableStateFlow(AuthState()) }.asStateFlow()
-            ).collectAsStateWithLifecycle()
-
     var email by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
     var show by remember { mutableStateOf(false) }
-    var localError by remember { mutableStateOf<String?>(null) }
-
-    // Handle authentication success
-    LaunchedEffect(authState.isAuthenticated) {
-        if (authState.isAuthenticated) {
-            // Call the success callback when authentication succeeds
-            onSubmit(email, pass)
-        }
-    }
+    var loading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
 
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         FloatingLogo(size = 80.dp)
@@ -306,63 +287,36 @@ private fun LoginSection(
                 visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation()
             )
 
-            // Show errors with fallback - apply user-friendly filtering
-            val displayError = authState.error?.let { ErrorUtils.getUserFriendlyErrorMessage(it) }
-                ?: localError?.let { ErrorUtils.getUserFriendlyErrorMessage(it) }
-
-            displayError?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
-            }
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
             BigGlassButton(
-                text = if (authState.isLoading) "Đang đăng nhập..." else "Đăng nhập",
+                text = if (loading) "Đang đăng nhập..." else "Đăng nhập",
                 subText = null,
                 icon = { Icon(Icons.Default.Lock, null, tint = Color.White) },
                 onClick = {
-                    // Clear previous errors
-                    localError = null
-
-                    // Validate input
-                    when {
-                        email.isBlank() -> {
-                            localError = "Vui lòng nhập email"
-                            return@BigGlassButton
-                        }
-                        !email.contains("@") -> {
-                            localError = "Email không hợp lệ"
-                            return@BigGlassButton
-                        }
-                        pass.isBlank() -> {
-                            localError = "Vui lòng nhập mật khẩu"
-                            return@BigGlassButton
-                        }
+                    if (email.isBlank() || pass.isBlank()) {
+                        error = "Vui lòng nhập đầy đủ email và mật khẩu"
+                        return@BigGlassButton
                     }
-
-                    // Use real authentication via ViewModel if available with error handling
-                    viewModel?.let { vm ->
-                        kotlin.runCatching {
-                            vm.signIn(email, pass)
-                        }.onFailure { exception ->
-                            Log.e("AuthScreens", "Login error: ${exception.message}", exception)
-                            localError = ErrorUtils.getUserFriendlyErrorMessage(exception.message)
-                        }
-                    } ?: run {
-                        // Fallback for when ViewModel is not available
-                        localError = "Dịch vụ xác thực không khả dụng. Vui lòng kiểm tra kết nối mạng và thử lại."
+                    loading = true
+                    try {
+                        onSubmit(email, pass)
+                        error = null
+                    } finally {
+                        loading = false
                     }
-
-
                 }
             )
 
-            // Link quên mật khẩu
             TextButton(onClick = onForgot, modifier = Modifier.align(Alignment.End)) {
                 Text("Quên mật khẩu?", color = Color.White.copy(0.85f))
             }
         }
 
-        // Footer CTA
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth().padding(top = 20.dp)
+        ) {
             Text("Chưa có tài khoản?", color = Color.White.copy(0.85f))
             SmallGlassPillButton("Đăng ký ngay", onClick = onGotoRegister)
             TextButton(onClick = onBack) { Text("← Quay lại", color = Color.White.copy(0.75f)) }
@@ -376,7 +330,7 @@ private fun LoginSection(
 private fun RegisterSection(
     onSubmit: (fullName: String, email: String, password: String, role: UserRole) -> Unit,
     onGotoLogin: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
 ) {
     // Safe initialization of AuthViewModel with error handling
     val viewModel: AuthViewModel? = if (LocalInspectionMode.current) {
@@ -401,14 +355,6 @@ private fun RegisterSection(
     var errors by remember { mutableStateOf(mapOf<String, String>()) }
     var localError by remember { mutableStateOf<String?>(null) }
 
-    // Handle authentication success
-    LaunchedEffect(authState.isAuthenticated) {
-        if (authState.isAuthenticated) {
-            // Call the success callback when registration succeeds
-            onSubmit(name, email, pass, role)
-        }
-    }
-
     fun validate(): Boolean {
         val e = buildMap {
             if (name.isBlank()) put("name", "Vui lòng nhập họ và tên")
@@ -419,77 +365,122 @@ private fun RegisterSection(
         errors = e; return e.isEmpty()
     }
 
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(Modifier.height(8.dp))
         FloatingLogo(size = 80.dp)
         Spacer(Modifier.height(12.dp))
-
         Text("Đăng ký", fontWeight = FontWeight.ExtraBold, fontSize = 28.sp, color = Color.White)
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(8.dp))
 
-        GlassFormContainer {
-            Text("Bạn muốn trở thành:", color = Color.White.copy(0.9f))
-            RoleSelector(role = role, onRoleChange = { role = it })
+        GlassFormContainer(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item { Text("Bạn muốn trở thành:", color = Color.White.copy(0.9f)) }
+                item { RoleSelector(role = role, onRoleChange = { role = it }) }
 
-            GlassInput(name, { name = it }, "Họ và tên", "Nguyễn Văn A", leading = { Icon(Icons.Outlined.Person, null, tint = Color.White) })
-            errors["name"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                item {
+                    GlassInput(
+                        value = name, onValueChange = { name = it },
+                        label = "Họ và tên", placeholder = "Nguyễn Văn A",
+                        leading = { Icon(Icons.Outlined.Person, null, tint = Color.White) }
+                    )
+                    errors["name"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
 
-            GlassInput(email, { email = it }, "Email", "you@domain.com", leading = { Icon(Icons.Default.Email, null, tint = Color.White) })
-            errors["email"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                item {
+                    GlassInput(
+                        value = email, onValueChange = { email = it },
+                        label = "Email", placeholder = "you@domain.com",
+                        leading = { Icon(Icons.Default.Email, null, tint = Color.White) }
+                    )
+                    errors["email"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
 
-            GlassInput(
-                pass, { pass = it }, "Mật khẩu", "••••••••",
-                leading = { Icon(Icons.Default.Lock, null, tint = Color.White) },
-                trailing = { TextButton(onClick = { show = !show }) { Text(if (show) "Ẩn" else "Hiện", color = Color.White) } },
-                visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation()
-            )
-            errors["pass"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                item {
+                    GlassInput(
+                        value = pass, onValueChange = { pass = it },
+                        label = "Mật khẩu", placeholder = "••••••••",
+                        leading = { Icon(Icons.Default.Lock, null, tint = Color.White) },
+                        trailing = {
+                            TextButton(onClick = { show = !show }) {
+                                Text(if (show) "Ẩn" else "Hiện", color = Color.White)
+                            }
+                        },
+                        visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation()
+                    )
+                    errors["pass"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
 
-            GlassInput(
-                confirm, { confirm = it }, "Xác nhận mật khẩu", "••••••••",
-                leading = { Icon(Icons.Default.Lock, null, tint = Color.White) },
-                trailing = { TextButton(onClick = { show2 = !show2 }) { Text(if (show2) "Ẩn" else "Hiện", color = Color.White) } },
-                visualTransformation = if (show2) VisualTransformation.None else PasswordVisualTransformation()
-            )
-            errors["confirm"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                item {
+                    GlassInput(
+                        value = confirm, onValueChange = { confirm = it },
+                        label = "Xác nhận mật khẩu", placeholder = "••••••••",
+                        leading = { Icon(Icons.Default.Lock, null, tint = Color.White) },
+                        trailing = {
+                            TextButton(onClick = { show2 = !show2 }) {
+                                Text(if (show2) "Ẩn" else "Hiện", color = Color.White)
+                            }
+                        },
+                        visualTransformation = if (show2) VisualTransformation.None else PasswordVisualTransformation()
+                    )
+                    errors["confirm"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
 
-            // Show auth errors from backend with fallback - apply user-friendly filtering
+                item {
+                    // 1 nút duy nhất — tránh trùng nút như bản cũ
+                    BigGlassButton(
+                        text = if (authState.isLoading) "Đang tạo tài khoản..." else "Tạo tài khoản",
+                        subText = null,
+                        icon = { Icon(Icons.Outlined.Badge, null, tint = Color.White) },
+                        onClick = {
+                            if (!validate()) return@BigGlassButton
+                            localError = null
+                            viewModel?.let { vm ->
+                                runCatching {
+                                    if (role == UserRole.MENTOR) {
+                                        vm.signUpMentor(name, email, pass, confirm, name)
+                                    } else {
+                                        vm.signUp(name, email, pass, confirm, name)
+                                    }
+                                }.onFailure { ex ->
+                                    Log.e("AuthScreens", "Registration error: ${ex.message}", ex)
+                                    localError = ErrorUtils.getUserFriendlyErrorMessage(ex.message)
+                                }
+                            } ?: run {
+                                // Fallback: gọi onSubmit nếu ko có VM (preview)
+                                onSubmit(name, email, pass, role)
+                            }
+                        }
+                    )
+                }
+            }
+
             val displayError = authState.error?.let { ErrorUtils.getUserFriendlyErrorMessage(it) }
                 ?: localError?.let { ErrorUtils.getUserFriendlyErrorMessage(it) }
 
-            displayError?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
-            }
-
-            BigGlassButton(
-                text = if (authState.isLoading) "Đang tạo tài khoản..." else "Tạo tài khoản",
-                subText = null,
-                icon = { Icon(Icons.Outlined.Badge, null, tint = Color.White) },
-                onClick = {
-                    if (validate()) {
-                        localError = null
-
-                        // Use real registration via ViewModel if available with proper error handling
-                        viewModel?.let { vm ->
-                            runCatching {
-                                if (role == UserRole.MENTOR) {
-                                    vm.signUpMentor(name, email, pass, confirm, name)
-                                } else {
-                                    vm.signUp(name, email, pass, confirm, name)
-                                }
-                            }.onFailure { exception ->
-                                Log.e("AuthScreens", "Registration error: ${exception.message}", exception)
-                                localError = ErrorUtils.getUserFriendlyErrorMessage(exception.message)
-                            }
-                        } ?: run {
-                            // Fallback for when ViewModel is not available
-                            localError = "Dịch vụ xác thực không khả dụng. Vui lòng kiểm tra kết nối mạng và thử lại."
-                        }
-                    }
-                }
-            )
+            displayError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp, bottom = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Text("Đã có tài khoản?", color = Color.White.copy(0.85f))
             SmallGlassPillButton(text = "Đăng nhập ngay", onClick = onGotoLogin)
             TextButton(onClick = onBack) { Text("← Quay lại", color = Color.White.copy(0.75f)) }
@@ -541,15 +532,8 @@ private fun ForgotPasswordSection(
                 leading = { Icon(Icons.Default.Email, null, tint = Color.White) }
             )
 
-            // Show error message
-            error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
-            }
-
-            // Show success message
-            success?.let {
-                Text(it, color = Color.Green)
-            }
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            success?.let { Text(it, color = Color.Green) }
 
             BigGlassButton(
                 text = if (isLoading) "Đang gửi..." else "Gửi liên kết đặt lại",
@@ -557,20 +541,15 @@ private fun ForgotPasswordSection(
                 icon = { Icon(Icons.Default.Email, null, tint = Color.White) },
                 onClick = {
                     if (email.isBlank()) {
-                        error = "Vui lòng nhập email"
-                        return@BigGlassButton
+                        error = "Vui lòng nhập email"; return@BigGlassButton
                     }
-
                     if (!email.contains("@")) {
-                        error = "Email không hợp lệ"
-                        return@BigGlassButton
+                        error = "Email không hợp lệ"; return@BigGlassButton
                     }
 
                     isLoading = true
                     error = null
                     success = null
-
-                    // Simulate API call
                     try {
                         onSubmit(email)
                         success = "Liên kết đặt lại mật khẩu đã được gửi đến email của bạn"
@@ -582,7 +561,6 @@ private fun ForgotPasswordSection(
                 }
             )
 
-            // Link đến màn Reset (nếu đã có mã)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
@@ -593,7 +571,6 @@ private fun ForgotPasswordSection(
             }
         }
 
-        // Footer
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
             Text("Nhớ lại mật khẩu?", color = Color.White.copy(0.85f))
             SmallGlassPillButton("Đăng nhập ngay", onClick = onBack)
@@ -696,15 +673,8 @@ private fun ResetPasswordSection(
                 visualTransformation = if (showConfirmPassword) VisualTransformation.None else PasswordVisualTransformation()
             )
 
-            // Show error message
-            error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
-            }
-
-            // Show success message
-            success?.let {
-                Text(it, color = Color.Green)
-            }
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            success?.let { Text(it, color = Color.Green) }
 
             BigGlassButton(
                 text = if (isLoading) "Đang đặt lại..." else "Đặt lại mật khẩu",
@@ -720,8 +690,6 @@ private fun ResetPasswordSection(
                     isLoading = true
                     error = null
                     success = null
-
-                    // Simulate API call
                     try {
                         onSubmit(newPassword)
                         success = "Mật khẩu đã được đặt lại thành công!"
@@ -734,7 +702,6 @@ private fun ResetPasswordSection(
             )
         }
 
-        // Footer
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
             Text("Quay lại đăng nhập?", color = Color.White.copy(0.85f))
             SmallGlassPillButton("Đăng nhập", onClick = onBack)
@@ -793,15 +760,8 @@ private fun OtpVerificationSection(
                 leading = { Icon(Icons.Default.Lock, null, tint = Color.White) }
             )
 
-            // Show error message
-            error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
-            }
-
-            // Show success message
-            success?.let {
-                Text(it, color = Color.Green)
-            }
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            success?.let { Text(it, color = Color.Green) }
 
             BigGlassButton(
                 text = if (isLoading) "Đang xác thực..." else "Xác thực OTP",
@@ -817,8 +777,6 @@ private fun OtpVerificationSection(
                     isLoading = true
                     error = null
                     success = null
-
-                    // Simulate API call
                     try {
                         onSubmit(otpCode)
                         success = "Xác thực thành công! Đang chuyển hướng..."
@@ -831,7 +789,6 @@ private fun OtpVerificationSection(
             )
         }
 
-        // Footer
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
             Text("Quay lại đăng nhập?", color = Color.White.copy(0.85f))
             SmallGlassPillButton("Đăng nhập", onClick = onBack)

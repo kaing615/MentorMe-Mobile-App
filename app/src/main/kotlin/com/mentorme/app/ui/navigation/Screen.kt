@@ -15,6 +15,7 @@ sealed class Screen(
     object Bookings : Screen("bookings", "Bookings", Icons.Default.DateRange)
     object Messages : Screen("messages", "Messages", Icons.Default.Message)
     object Profile : Screen("profile", "Profile", Icons.Default.AccountCircle)
+    object Search : Screen("search", "Search", Icons.Filled.Search)
 
     // Auth screens
     object Login : Screen("login", "Login")
@@ -42,6 +43,10 @@ sealed class Screen(
     object Notifications : Screen("notifications", "Notifications")
     object Settings : Screen("settings", "Settings")
     object Dashboard : Screen("dashboard", "Dashboard")
+
+    // Wallet screens
+    object TopUp : Screen("wallet/topup", "Top Up")
+    object Withdraw : Screen("wallet/withdraw", "Withdraw")
 }
 
 val bottomNavigationItems = listOf(
@@ -49,5 +54,6 @@ val bottomNavigationItems = listOf(
     Screen.Mentors,
     Screen.Bookings,
     Screen.Messages,
-    Screen.Profile
+    Screen.Profile,
+    Screen.Search
 )

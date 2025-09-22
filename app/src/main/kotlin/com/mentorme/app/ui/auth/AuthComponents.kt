@@ -23,9 +23,12 @@ import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.theme.liquidGlass
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import com.mentorme.app.R
+import com.mentorme.app.ui.theme.LiquidGlassLogo
 
 /* ---------------- Shared Components ---------------- */
-
 @Composable
 fun FloatingLogo(size: Dp = 80.dp) {
     val infinite = rememberInfiniteTransition(label = "float-heart")
@@ -35,16 +38,8 @@ fun FloatingLogo(size: Dp = 80.dp) {
         animationSpec = infiniteRepeatable(animation = tween(2000, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
         label = "y"
     )
-    LiquidGlassCard(
-        strong = true,
-        modifier = Modifier
-            .size(size)
-            .offset(y = offsetY.dp),
-        radius = size / 2
-    ) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Icon(Icons.Filled.Favorite, null, tint = Color.White, modifier = Modifier.size(size / 2))
-        }
+    Box(Modifier.size(size).offset(y = offsetY.dp), contentAlignment = Alignment.Center) {
+        LiquidGlassLogo(size = size)
     }
 }
 

@@ -6,7 +6,12 @@ import androidx.lifecycle.viewModelScope
 import com.mentorme.app.core.utils.AppResult
 import com.mentorme.app.core.utils.ErrorUtils
 import com.mentorme.app.data.dto.auth.AuthResponse
-import com.mentorme.app.domain.usecase.auth.*
+import com.mentorme.app.domain.usecase.auth.SignInUseCase
+import com.mentorme.app.domain.usecase.auth.SignOutUseCase
+import com.mentorme.app.domain.usecase.auth.SignUpMentorUseCase
+import com.mentorme.app.domain.usecase.auth.SignUpUseCase
+import com.mentorme.app.domain.usecase.auth.VerifyOtpUseCase
+import com.mentorme.app.domain.usecase.auth.ResendOtpUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +25,7 @@ class AuthViewModel @Inject constructor(
     private val signUpMentorUseCase: SignUpMentorUseCase,
     private val signInUseCase: SignInUseCase,
     private val verifyOtpUseCase: VerifyOtpUseCase,
+    private val resendOtpUseCase: ResendOtpUseCase,
     private val signOutUseCase: SignOutUseCase
 ) : ViewModel() {
 
@@ -36,39 +42,34 @@ class AuthViewModel @Inject constructor(
         displayName: String? = null
     ) {
         viewModelScope.launch {
-            Log.d(TAG, "🔥🔥🔥 SIGNUP CALLED - EMAIL: $email 🔥🔥🔥")
+            Log.d(TAG, "🔥 SIGNUP CALLED - EMAIL: $email")
             _authState.value = _authState.value.copy(isLoading = true, error = null)
 
-            when (val result = signUpUseCase(username, email, password, confirmPassword, displayName)) {
+            when (val result = signUpUseCase(username, email, password, confirmPassword)) {
                 is AppResult.Success -> {
-                    Log.d(TAG, "SignUp success: ${result.data.message}")
+                    Log.d(TAG, "SignUp success: ${result.data}")
 
-                    // Extract verificationId from response data
-                    val verificationId = result.data.data?.let {
-                        // Assuming the response contains verificationId in data field
-                        extractVerificationId(it)
-                    }
+                    val verificationId = result.data.data?.let { extractVerificationId(it) }
 
                     _authState.value = _authState.value.copy(
                         isLoading = false,
                         authResponse = result.data,
-                        // Show OTP screen after successful signup
                         showOtpScreen = true,
                         otpVerificationId = verificationId,
                         userEmail = email,
-                        otpError = null
+                        otpError = null,
+                        originalSignUpData = OriginalSignUpData(username, email, password, false)
                     )
                 }
                 is AppResult.Error -> {
-                    Log.e(TAG, "SignUp failed: ${result.throwable.message}", result.throwable)
+                    val errMsg: String = result.throwable ?: "Unknown error"
+                    Log.e(TAG, "SignUp failed: $errMsg")
                     _authState.value = _authState.value.copy(
                         isLoading = false,
-                        error = ErrorUtils.getUserFriendlyErrorMessage(result.throwable.message)
+                        error = ErrorUtils.getUserFriendlyErrorMessage(errMsg)
                     )
                 }
-                AppResult.Loading -> {
-                    // Already set loading state above
-                }
+                AppResult.Loading -> Unit
             }
         }
     }
@@ -81,50 +82,46 @@ class AuthViewModel @Inject constructor(
         displayName: String? = null
     ) {
         viewModelScope.launch {
-            Log.d(TAG, "🔥🔥🔥 SIGNUP MENTOR CALLED - EMAIL: $email 🔥🔥🔥")
+            Log.d(TAG, "🔥 SIGNUP MENTOR CALLED - EMAIL: $email")
             _authState.value = _authState.value.copy(isLoading = true, error = null)
 
-            when (val result = signUpMentorUseCase(username, email, password, confirmPassword, displayName)) {
+            when (val result = signUpMentorUseCase(username, email, password, confirmPassword)) {
                 is AppResult.Success -> {
-                    Log.d(TAG, "SignUpMentor success: ${result.data.message}")
+                    Log.d(TAG, "SignUpMentor success: ${result.data}")
 
-                    // Extract verificationId from response data
-                    val verificationId = result.data.data?.let {
-                        extractVerificationId(it)
-                    }
+                    val verificationId = result.data.data?.let { extractVerificationId(it) }
 
                     _authState.value = _authState.value.copy(
                         isLoading = false,
                         authResponse = result.data,
-                        // Show OTP screen after successful mentor signup
                         showOtpScreen = true,
                         otpVerificationId = verificationId,
                         userEmail = email,
-                        otpError = null
+                        otpError = null,
+                        originalSignUpData = OriginalSignUpData(username, email, password, true)
                     )
                 }
                 is AppResult.Error -> {
-                    Log.e(TAG, "SignUpMentor failed: ${result.throwable.message}", result.throwable)
+                    val errMsg: String = result.throwable ?: "Unknown error"
+                    Log.e(TAG, "SignUpMentor failed: $errMsg")
                     _authState.value = _authState.value.copy(
                         isLoading = false,
-                        error = ErrorUtils.getUserFriendlyErrorMessage(result.throwable.message)
+                        error = ErrorUtils.getUserFriendlyErrorMessage(errMsg)
                     )
                 }
-                AppResult.Loading -> {
-                    // Already set loading state above
-                }
+                AppResult.Loading -> Unit
             }
         }
     }
 
     fun signIn(email: String, password: String) {
         viewModelScope.launch {
-            Log.d(TAG, "🔥🔥🔥 SIGNIN CALLED - EMAIL: $email 🔥🔥🔥")
+            Log.d(TAG, "🔥 SIGNIN CALLED - EMAIL: $email")
             _authState.value = _authState.value.copy(isLoading = true, error = null)
 
             when (val result = signInUseCase.invoke(email, password)) {
                 is AppResult.Success -> {
-                    Log.d(TAG, "SignIn success: ${result.data.message}")
+                    Log.d(TAG, "SignIn success: ${result.data}")
                     _authState.value = _authState.value.copy(
                         isLoading = false,
                         authResponse = result.data,
@@ -132,23 +129,21 @@ class AuthViewModel @Inject constructor(
                     )
                 }
                 is AppResult.Error -> {
-                    Log.e(TAG, "SignIn failed: ${result.throwable.message}", result.throwable)
+                    val errMsg: String = result.throwable ?: "Unknown error"
+                    Log.e(TAG, "SignIn failed: $errMsg")
                     _authState.value = _authState.value.copy(
                         isLoading = false,
-                        error = ErrorUtils.getUserFriendlyErrorMessage(result.throwable.message)
+                        error = ErrorUtils.getUserFriendlyErrorMessage(errMsg)
                     )
                 }
-                AppResult.Loading -> {
-                    // Already set loading state above
-                }
+                AppResult.Loading -> Unit
             }
         }
     }
 
-    // OTP Verification Functions
     fun verifyOtp(verificationId: String, otp: String) {
         viewModelScope.launch {
-            Log.d(TAG, "🔥🔥🔥 VERIFY OTP CALLED - ID: $verificationId, OTP: $otp 🔥🔥🔥")
+            Log.d(TAG, "🔥 VERIFY OTP CALLED - ID: $verificationId, OTP: $otp")
             _authState.value = _authState.value.copy(
                 isOtpVerifying = true,
                 otpError = null
@@ -156,7 +151,7 @@ class AuthViewModel @Inject constructor(
 
             when (val result = verifyOtpUseCase.invoke(verificationId, otp)) {
                 is AppResult.Success -> {
-                    Log.d(TAG, "OTP verification success: ${result.data.message}")
+                    Log.d(TAG, "OTP verification success: ${result.data}")
                     _authState.value = _authState.value.copy(
                         isOtpVerifying = false,
                         authResponse = result.data,
@@ -164,37 +159,92 @@ class AuthViewModel @Inject constructor(
                         showVerificationDialog = true,
                         verificationSuccess = true,
                         verificationMessage = "Email đã được xác minh thành công! Bạn có thể đăng nhập ngay bây giờ.",
-                        isAuthenticated = result.data.success
+                        // Không set isAuthenticated = true vì người dùng chỉ mới xác minh email, chưa đăng nhập
+                        isAuthenticated = false
                     )
                 }
                 is AppResult.Error -> {
-                    Log.e(TAG, "OTP verification failed: ${result.throwable.message}", result.throwable)
+                    val errMsg: String = result.throwable ?: "OTP verification failed"
+                    Log.e(TAG, "OTP verification failed: $errMsg")
                     _authState.value = _authState.value.copy(
                         isOtpVerifying = false,
-                        otpError = ErrorUtils.getUserFriendlyErrorMessage(result.throwable.message),
+                        otpError = ErrorUtils.getUserFriendlyErrorMessage(errMsg),
                         showVerificationDialog = true,
                         verificationSuccess = false,
-                        verificationMessage = ErrorUtils.getUserFriendlyErrorMessage(result.throwable.message)
+                        verificationMessage = ErrorUtils.getUserFriendlyErrorMessage(errMsg)
                     )
                 }
-                AppResult.Loading -> {
-                    // Already set loading state above
-                }
+                AppResult.Loading -> Unit
             }
         }
     }
 
     fun resendOtp() {
+        val originalData = _authState.value.originalSignUpData
         val currentEmail = _authState.value.userEmail
-        if (currentEmail != null) {
-            // Re-trigger signup to get new OTP
-            // This assumes we store the signup data, or we need a separate resend API
-            Log.d(TAG, "Resending OTP for email: $currentEmail")
+
+        if (originalData != null) {
+            Log.d(TAG, "Resending OTP using original signup data for email: ${originalData.email}")
             _authState.value = _authState.value.copy(
                 otpError = null,
                 isOtpVerifying = false
             )
-            // Note: You might need to implement a separate resend OTP API call here
+
+            viewModelScope.launch {
+                // Gọi lại chính xác endpoint signup/signup-mentor với thông tin gốc
+                val result = if (originalData.isMentor) {
+                    signUpMentorUseCase(originalData.userName, originalData.email, originalData.password, originalData.password)
+                } else {
+                    signUpUseCase(originalData.userName, originalData.email, originalData.password, originalData.password)
+                }
+
+                when (result) {
+                    is AppResult.Success -> {
+                        Log.d(TAG, "Resend OTP success: ${result.data}")
+                        // Update verification ID if backend returns a new one
+                        val newVerificationId = result.data.data?.let { extractVerificationId(it) }
+                        if (newVerificationId != null) {
+                            _authState.value = _authState.value.copy(otpVerificationId = newVerificationId)
+                        }
+                    }
+                    is AppResult.Error -> {
+                        val errMsg: String = result.throwable ?: "Unknown error"
+                        Log.e(TAG, "Resend OTP failed: $errMsg")
+                        _authState.value = _authState.value.copy(
+                            otpError = ErrorUtils.getUserFriendlyErrorMessage(errMsg)
+                        )
+                    }
+                    AppResult.Loading -> Unit
+                }
+            }
+        } else if (currentEmail != null) {
+            // Fallback: nếu không có originalSignUpData, sử dụng ResendOtpUseCase
+            Log.d(TAG, "Resending OTP using fallback method for email: $currentEmail")
+            _authState.value = _authState.value.copy(
+                otpError = null,
+                isOtpVerifying = false
+            )
+
+            viewModelScope.launch {
+                when (val result = resendOtpUseCase(currentEmail)) {
+                    is AppResult.Success -> {
+                        Log.d(TAG, "Resend OTP success: ${result.data}")
+                    }
+                    is AppResult.Error -> {
+                        val errMsg: String = result.throwable ?: "Unknown error"
+                        Log.e(TAG, "Resend OTP failed: $errMsg")
+                        _authState.value = _authState.value.copy(
+                            otpError = ErrorUtils.getUserFriendlyErrorMessage(errMsg)
+                        )
+                    }
+                    AppResult.Loading -> Unit
+                }
+            }
+        } else {
+            Log.e(TAG, "Cannot resend OTP: No signup data or email found")
+            _authState.value = _authState.value.copy(
+                otpError = "Không thể gửi lại mã OTP. Vui lòng thử đăng ký lại."
+            )
         }
     }
 
@@ -214,11 +264,30 @@ class AuthViewModel @Inject constructor(
         )
     }
 
+    fun goBackToLoginAfterVerification() {
+        // Reset toàn bộ auth state về trạng thái ban đầu để người dùng có thể đăng nhập
+        _authState.value = _authState.value.copy(
+            showVerificationDialog = false,
+            verificationMessage = null,
+            showOtpScreen = false,
+            otpVerificationId = null,
+            userEmail = null,
+            otpError = null,
+            isOtpVerifying = false,
+            verificationSuccess = false,
+            isAuthenticated = false,
+            authResponse = null,
+            error = null,
+            isLoading = false
+        )
+        Log.d(TAG, "User redirected to login screen after successful email verification")
+    }
+
     fun clearOtpError() {
         _authState.value = _authState.value.copy(otpError = null)
     }
 
-    // Helper function to extract verificationId from AuthData
+    // Helper to extract verificationId from AuthData
     private fun extractVerificationId(authData: com.mentorme.app.data.dto.auth.AuthData): String? {
         return authData.verificationId
     }
@@ -237,5 +306,15 @@ data class AuthState(
     val isOtpVerifying: Boolean = false,
     val showVerificationDialog: Boolean = false,
     val verificationSuccess: Boolean = false,
-    val verificationMessage: String? = null
+    val verificationMessage: String? = null,
+    // Original signup data
+    val originalSignUpData: OriginalSignUpData? = null
+)
+
+// Data class to hold original signup data
+data class OriginalSignUpData(
+    val userName: String,
+    val email: String,
+    val password: String,
+    val isMentor: Boolean
 )

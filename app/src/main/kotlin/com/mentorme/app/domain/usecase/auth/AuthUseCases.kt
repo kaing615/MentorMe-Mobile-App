@@ -1,9 +1,11 @@
 package com.mentorme.app.domain.usecase.auth
 
 import com.mentorme.app.core.utils.AppResult
+import com.mentorme.app.core.validation.AuthValidator
 import com.mentorme.app.data.dto.auth.SignUpRequest
 import com.mentorme.app.data.dto.auth.SignInRequest
 import com.mentorme.app.data.dto.auth.VerifyOtpRequest
+import com.mentorme.app.data.dto.auth.ResendOtpRequest
 import com.mentorme.app.data.dto.auth.AuthResponse
 import com.mentorme.app.data.repository.AuthRepository
 import javax.inject.Inject
@@ -12,19 +14,22 @@ class SignUpUseCase @Inject constructor(
     private val authRepository: AuthRepository
 ) {
     suspend operator fun invoke(
-        username: String,
+        userName: String,
         email: String,
         password: String,
-        confirmPassword: String,
-        displayName: String? = null
+        confirmPassword: String
     ): AppResult<AuthResponse> {
+        // Validate input data using Konform AuthValidator
+        val validationResult = AuthValidator.validateSignUpData(userName, email, password, confirmPassword)
+        if (validationResult != null) {
+            return AppResult.Error(validationResult)
+        }
+
         return authRepository.signUp(
             SignUpRequest(
-                username = username,
+                userName = userName,
                 email = email,
-                password = password,
-                confirmPassword = confirmPassword,
-                displayName = displayName
+                password = password
             )
         )
     }
@@ -34,19 +39,22 @@ class SignUpMentorUseCase @Inject constructor(
     private val authRepository: AuthRepository
 ) {
     suspend operator fun invoke(
-        username: String,
+        userName: String,
         email: String,
         password: String,
-        confirmPassword: String,
-        displayName: String? = null
+        confirmPassword: String
     ): AppResult<AuthResponse> {
+        // Validate input data using Konform AuthValidator
+        val validationResult = AuthValidator.validateSignUpData(userName, email, password, confirmPassword)
+        if (validationResult != null) {
+            return AppResult.Error(validationResult)
+        }
+
         return authRepository.signUpMentor(
             SignUpRequest(
-                username = username,
+                userName = userName,
                 email = email,
-                password = password,
-                confirmPassword = confirmPassword,
-                displayName = displayName
+                password = password
             )
         )
     }
@@ -59,6 +67,12 @@ class SignInUseCase @Inject constructor(
         email: String,
         password: String
     ): AppResult<AuthResponse> {
+        // Validate input data using Konform AuthValidator
+        val validationResult = AuthValidator.validateSignInData(email, password)
+        if (validationResult != null) {
+            return AppResult.Error(validationResult)
+        }
+
         return authRepository.signIn(
             SignInRequest(
                 email = email,
@@ -75,10 +89,36 @@ class VerifyOtpUseCase @Inject constructor(
         verificationId: String,
         otp: String
     ): AppResult<AuthResponse> {
+        // Validate input data using Konform AuthValidator
+        val validationResult = AuthValidator.validateOtpData(verificationId, otp)
+        if (validationResult != null) {
+            return AppResult.Error(validationResult)
+        }
+
         return authRepository.verifyOtp(
             VerifyOtpRequest(
                 verificationId = verificationId,
-                code = otp  // Backend expects 'code' field, not 'otp'
+                code = otp
+            )
+        )
+    }
+}
+
+class ResendOtpUseCase @Inject constructor(
+    private val authRepository: AuthRepository
+) {
+    suspend operator fun invoke(
+        email: String
+    ): AppResult<AuthResponse> {
+        // Validate input data using Konform AuthValidator
+        val validationResult = AuthValidator.validateEmail(email)
+        if (validationResult != null) {
+            return AppResult.Error(validationResult)
+        }
+
+        return authRepository.resendOtp(
+            ResendOtpRequest(
+                email = email
             )
         )
     }

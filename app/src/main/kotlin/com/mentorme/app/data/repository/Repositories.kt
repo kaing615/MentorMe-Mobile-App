@@ -10,6 +10,7 @@ import com.mentorme.app.data.dto.auth.SignInRequest
 import com.mentorme.app.data.dto.auth.SignUpRequest
 import com.mentorme.app.data.dto.auth.VerifyOtpRequest
 import com.mentorme.app.data.dto.auth.AuthResponse as AuthResponseDto
+import com.mentorme.app.data.dto.auth.ResendOtpRequest
 
 // Specific imports for Models (used for business entities)
 import com.mentorme.app.data.model.Booking
@@ -24,6 +25,7 @@ interface AuthRepository {
     suspend fun signUpMentor(request: SignUpRequest): AppResult<AuthResponseDto>
     suspend fun signIn(request: SignInRequest): AppResult<AuthResponseDto>
     suspend fun verifyOtp(request: VerifyOtpRequest): AppResult<AuthResponseDto>
+    suspend fun resendOtp(request: ResendOtpRequest): AppResult<AuthResponseDto>
     suspend fun signOut(): AppResult<AuthResponseDto>
 }
 

@@ -1,5 +1,6 @@
 package com.mentorme.app.ui.auth
 
+import android.util.Log
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,8 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -32,6 +32,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun OtpVerificationScreen(
@@ -42,17 +43,28 @@ fun OtpVerificationScreen(
     onBackToLogin: () -> Unit,
     isLoading: Boolean = false,
     error: String? = null,
+    showVerificationDialog: Boolean = false, // Thêm parameter để biết khi nào popup hiện
     modifier: Modifier = Modifier
 ) {
     var otpValue by remember { mutableStateOf("") }
-    var timeLeft by remember { mutableIntStateOf(600) } // 10 minutes in seconds
+    var timeLeft by remember { mutableIntStateOf(600) } // 10 minutes in seconds for OTP expiry
+    var resendTimeLeft by remember { mutableIntStateOf(0) } // Countdown for resend button (5 minutes = 300 seconds)
+    var isResending by remember { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    // Countdown timer
+    // Countdown timer for OTP expiry
     LaunchedEffect(timeLeft) {
         if (timeLeft > 0) {
             delay(1000)
             timeLeft--
+        }
+    }
+
+    // Countdown timer for resend button
+    LaunchedEffect(resendTimeLeft) {
+        if (resendTimeLeft > 0) {
+            delay(1000)
+            resendTimeLeft--
         }
     }
 
@@ -66,6 +78,8 @@ fun OtpVerificationScreen(
 
     val minutes = timeLeft / 60
     val seconds = timeLeft % 60
+    val resendMinutes = resendTimeLeft / 60
+    val resendSeconds = resendTimeLeft % 60
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -134,15 +148,15 @@ fun OtpVerificationScreen(
                             otpValue = it
                         }
                     },
-                    isError = error != null && !isLoading
+                    isError = error != null && !isLoading && !showVerificationDialog // Ẩn error state khi popup hiện
                 )
 
                 Spacer(Modifier.height(16.dp))
 
-                // Timer
+                // Timer for OTP expiry
                 if (timeLeft > 0) {
                     Text(
-                        text = "Mã hết hạn sau: ${String.format("%02d:%02d", minutes, seconds)}",
+                        text = "Mã hết hạn sau: ${String.format(java.util.Locale.getDefault(), "%02d:%02d", minutes, seconds)}",
                         fontSize = 14.sp,
                         color = Color.White.copy(0.7f)
                     )
@@ -151,17 +165,6 @@ fun OtpVerificationScreen(
                         text = "Mã đã hết hạn",
                         fontSize = 14.sp,
                         color = Color.Red.copy(0.8f)
-                    )
-                }
-
-                // Error message
-                error?.let {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        fontSize = 14.sp,
-                        textAlign = TextAlign.Center
                     )
                 }
 
@@ -190,26 +193,53 @@ fun OtpVerificationScreen(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Resend OTP
-                if (timeLeft <= 0) {
-                    SmallGlassPillButton(
-                        text = "Gửi lại mã",
-                        onClick = {
-                            otpValue = ""
-                            timeLeft = 600
-                            onResendOtp()
+                // Resend OTP section - Ẩn khi popup hiện
+                if (!showVerificationDialog) {
+                    if (resendTimeLeft > 0) {
+                        // Show countdown timer for resend
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Gửi lại mã sau:",
+                                fontSize = 14.sp,
+                                color = Color.White.copy(0.6f)
+                            )
+                            Text(
+                                text = "${String.format(java.util.Locale.getDefault(), "%02d:%02d", resendMinutes, resendSeconds)}",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White.copy(0.8f)
+                            )
                         }
-                    )
-                } else {
-                    TextButton(
-                        onClick = { /* Disabled */ },
-                        enabled = false
-                    ) {
-                        Text(
-                            "Gửi lại mã",
-                            color = Color.White.copy(0.5f),
-                            fontSize = 14.sp
+                    } else {
+                        // Show resend button when countdown is finished
+                        SmallGlassPillButton(
+                            text = if (isResending) "Đang gửi..." else "Gửi lại mã",
+                            onClick = {
+                                if (!isResending) {
+                                    isResending = true
+                                    otpValue = ""
+                                    resendTimeLeft = 300 // 5 minutes countdown
+                                    timeLeft = 600 // Reset OTP expiry timer
+                                    onResendOtp()
+                                    // Reset isResending after a short delay to simulate API call
+                                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                                        delay(2000) // 2 seconds delay to simulate API call
+                                        isResending = false
+                                    }
+                                }
+                            }
                         )
+
+                        if (!isResending) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = "Chưa nhận được mã?",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(0.6f)
+                            )
+                        }
                     }
                 }
             }
@@ -246,42 +276,47 @@ private fun OtpInputField(
     onValueChange: (String) -> Unit,
     isError: Boolean = false
 ) {
-    val focusRequester = remember { FocusRequester() }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        // OTP digit boxes - ensure all 6 boxes are visible
+        Row(
+            horizontalArrangement = Arrangement.SpaceEvenly, // Changed from spacedBy to SpaceEvenly
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            repeat(6) { index ->
+                val char = value.getOrNull(index)?.toString() ?: ""
+                val isFilled = char.isNotEmpty()
+                val isCurrent = index == value.length
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        repeat(6) { index ->
-            val char = value.getOrNull(index)?.toString() ?: ""
-            val isFilled = char.isNotEmpty()
-            val isCurrent = index == value.length
-
-            OtpDigitBox(
-                digit = char,
-                isFilled = isFilled,
-                isCurrent = isCurrent,
-                isError = isError
-            )
+                OtpDigitBox(
+                    digit = char,
+                    isFilled = isFilled,
+                    isCurrent = isCurrent,
+                    isError = isError,
+                    onClick = { /* Handle click if needed */ },
+                    modifier = Modifier.weight(1f) // Add weight to ensure equal distribution
+                )
+            }
         }
-    }
 
-    // Hidden TextField for input handling
-    BasicTextField(
-        value = value,
-        onValueChange = onValueChange,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-        textStyle = TextStyle(color = Color.Transparent),
-        cursorBrush = SolidColor(Color.Transparent),
-        modifier = Modifier
-            .size(0.dp)
-            .focusRequester(focusRequester)
-    )
+        // Invisible TextField that covers the entire row for input
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+            textStyle = TextStyle(color = Color.Transparent),
+            cursorBrush = SolidColor(Color.Transparent),
+            decorationBox = { innerTextField ->
+                // Transparent decoration box
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    innerTextField()
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp) // Match the height of digit boxes
+        )
+    }
 }
 
 @Composable
@@ -289,7 +324,9 @@ private fun OtpDigitBox(
     digit: String,
     isFilled: Boolean,
     isCurrent: Boolean,
-    isError: Boolean
+    isError: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val animatedScale by animateFloatAsState(
         targetValue = if (isCurrent) 1.1f else 1f,
@@ -306,7 +343,7 @@ private fun OtpDigitBox(
 
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier
+        modifier = modifier
             .size(48.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(Color.White.copy(0.1f))
@@ -316,6 +353,7 @@ private fun OtpDigitBox(
                 RoundedCornerShape(12.dp)
             )
             .scale(animatedScale)
+            .clickable(onClick = onClick) // Handle click
     ) {
         Text(
             text = digit,
@@ -393,7 +431,8 @@ fun OtpVerificationDialog(
     isVisible: Boolean,
     isSuccess: Boolean,
     message: String,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onLoginRedirect: (() -> Unit)? = null // Thêm callback riêng cho nút "Đăng nhập ngay"
 ) {
     if (isVisible) {
         Dialog(
@@ -412,57 +451,161 @@ fun OtpVerificationDialog(
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(24.dp)
+                    modifier = Modifier.padding(32.dp)
                 ) {
-                    // Icon
-                    val icon = if (isSuccess) Icons.Default.CheckCircle else Icons.Default.Error
-                    val iconColor = if (isSuccess) Color.Green else Color.Red
+                    // Animated Icon
+                    if (isSuccess) {
+                        AnimatedSuccessIcon()
+                    } else {
+                        AnimatedErrorIcon()
+                    }
 
-                    Icon(
-                        icon,
-                        contentDescription = null,
-                        tint = iconColor,
-                        modifier = Modifier.size(64.dp)
-                    )
+                    Spacer(Modifier.height(20.dp))
 
-                    Spacer(Modifier.height(16.dp))
-
-                    // Title
+                    // Title với màu sắc phù hợp
                     Text(
-                        text = if (isSuccess) "Xác minh thành công!" else "Xác minh thất bại",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        text = if (isSuccess) "Đăng ký thành công!" else "Xác minh thất bại",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (isSuccess) Color.Green.copy(0.9f) else Color.Red.copy(0.9f),
                         textAlign = TextAlign.Center
                     )
 
                     Spacer(Modifier.height(12.dp))
 
-                    // Message
+                    // Message với nội dung cải thiện
+                    val displayMessage = if (isSuccess) {
+                        "Tài khoản của bạn đã được tạo thành công!\nVui lòng đăng nhập để tiếp tục sử dụng dịch vụ."
+                    } else {
+                        if (message.contains("OTP") || message.contains("code") || message.contains("mã")) {
+                            "Mã OTP không đúng hoặc đã hết hạn.\nVui lòng kiểm tra lại email và nhập mã OTP mới."
+                        } else {
+                            "Không thể xác minh tài khoản.\nVui lòng thử lại sau hoặc liên hệ hỗ trợ."
+                        }
+                    }
+
                     Text(
-                        text = message,
+                        text = displayMessage,
                         fontSize = 16.sp,
-                        color = Color.White.copy(0.8f),
+                        color = Color.White.copy(0.85f),
                         textAlign = TextAlign.Center,
-                        lineHeight = 24.sp
+                        lineHeight = 22.sp
                     )
 
-                    Spacer(Modifier.height(24.dp))
+                    Spacer(Modifier.height(28.dp))
 
-                    // Button
+                    // Button với logic khác nhau cho success và failure
                     BigGlassButton(
-                        text = if (isSuccess) "Tiếp tục" else "Thử lại",
-                        onClick = onDismiss,
+                        text = if (isSuccess) "Đăng nhập ngay" else "Nhập lại OTP",
+                        onClick = {
+                            if (isSuccess && onLoginRedirect != null) {
+                                // Gọi callback đặc biệt để chuyển về màn hình đăng nhập
+                                onLoginRedirect()
+                            } else {
+                                // Trường hợp thất bại, chỉ đóng dialog để quay lại màn hình nhập OTP
+                                onDismiss()
+                            }
+                        },
                         icon = {
                             Icon(
-                                if (isSuccess) Icons.Default.ArrowForward else Icons.Default.Refresh,
-                                null,
+                                if (isSuccess) Icons.Default.Login else Icons.Default.Refresh,
+                                contentDescription = null,
                                 tint = Color.White
                             )
                         }
                     )
+
+                    // Bỏ nút "Gửi lại mã OTP" trong popup thất bai - user sẽ sử dụng nút gửi lại ở màn hình OTP
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AnimatedSuccessIcon() {
+    val infiniteTransition = rememberInfiniteTransition(label = "success")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1.1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(80.dp)
+            .scale(scale)
+    ) {
+        // Background circle
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .clip(RoundedCornerShape(50))
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            Color.Green.copy(0.3f),
+                            Color.Green.copy(0.1f)
+                        )
+                    )
+                )
+        )
+
+        // Checkmark icon
+        Icon(
+            Icons.Default.CheckCircle,
+            contentDescription = null,
+            tint = Color.Green,
+            modifier = Modifier.size(50.dp)
+        )
+    }
+}
+
+@Composable
+private fun AnimatedErrorIcon() {
+    val infiniteTransition = rememberInfiniteTransition(label = "error")
+    val shake by infiniteTransition.animateFloat(
+        initialValue = -2f,
+        targetValue = 2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(100),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "shake"
+    )
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(80.dp)
+            .offset(x = shake.dp)
+    ) {
+        // Background circle
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .clip(RoundedCornerShape(50))
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            Color.Red.copy(0.3f),
+                            Color.Red.copy(0.1f)
+                        )
+                    )
+                )
+        )
+
+        // Error icon
+        Icon(
+            Icons.Default.Error,
+            contentDescription = null,
+            tint = Color.Red,
+            modifier = Modifier.size(50.dp)
+        )
     }
 }

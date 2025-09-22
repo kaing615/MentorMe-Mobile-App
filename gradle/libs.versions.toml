@@ -25,6 +25,7 @@ runtime-saveable = "1.9.1"
 room-ktx = "2.8.0"
 foundation = "1.9.1"
 ui-text = "1.9.1"
+ui = "1.9.1"
 
 [plugins]
 #noinspection GradlePluginVersion
@@ -83,3 +84,4 @@ androidx-compose-runtime-saveable = { group = "androidx.compose.runtime", name =
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room-ktx" }
 androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundation" }
 androidx-compose-ui-text = { group = "androidx.compose.ui", name = "ui-text", version.ref = "ui-text" }
+androidx-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "ui" }

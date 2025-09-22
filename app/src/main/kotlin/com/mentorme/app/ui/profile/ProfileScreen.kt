@@ -68,6 +68,14 @@ import com.mentorme.app.ui.wallet.PayProvider
 import com.mentorme.app.ui.wallet.initialPaymentMethods
 import com.mentorme.app.ui.wallet.mockPaymentMethods
 import androidx.compose.material.icons.outlined.Logout
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 
 private val oneDecimalUS = DecimalFormat("#.#").apply {
     decimalFormatSymbols = DecimalFormatSymbols(Locale.US)  // dùng dấu chấm
@@ -316,7 +324,7 @@ fun ProfileScreen(
                                 isEditing = false
                             }
                         )
-                        1 -> WalletTab(                         // 👈 NEW
+                        1 -> WalletTab(
                             balance = 8500000L,
                             onTopUp = onOpenTopUp,
                             onWithdraw = onOpenWithdraw,
@@ -397,7 +405,14 @@ private fun ProfileTab(
 
                 // Avatar + header
                 Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    AvatarCircle(initial = profile.fullName.firstOrNull()?.uppercaseChar() ?: 'U', size = 96.dp)
+                    AvatarPicker(
+                        avatarUrl = if (isEditing) edited.avatar else profile.avatar,
+                        initial = profile.fullName.firstOrNull()?.uppercaseChar() ?: 'U',
+                        size = 96.dp,
+                        enabled = isEditing,
+                        onPick = { uri -> onChange(edited.copy(avatar = uri)) }
+                    )
+
                     AnimatedVisibility(visible = !isEditing) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Spacer(Modifier.height(8.dp))
@@ -1059,6 +1074,72 @@ private fun AvatarCircle(initial: Char, size: Dp) {
             fontWeight = FontWeight.Black,
             color = Color.White
         )
+    }
+}
+
+@Composable
+private fun AvatarPicker(
+    avatarUrl: String?,
+    initial: Char,
+    size: Dp,
+    enabled: Boolean = true,
+    onPick: (String) -> Unit
+) {
+    val pickImageLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.toString()?.let(onPick)
+    }
+
+    val ring = Brush.linearGradient(
+        listOf(Color(0xFF60A5FA), Color(0xFFA78BFA), Color(0xFFF472B6))
+    )
+
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.06f))
+            .border(BorderStroke(2.dp, ring), CircleShape)
+            .liquidGlass(radius = size / 2, alpha = 0.22f, borderAlpha = 0.45f)
+            .clickable(enabled = enabled) { pickImageLauncher.launch("image/*") },
+        contentAlignment = Alignment.Center
+    ) {
+        if (!avatarUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(avatarUrl)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = "Avatar",
+                modifier = Modifier.matchParentSize().clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Text(
+                initial.toString(),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Black,
+                color = Color.White
+            )
+        }
+
+        if (enabled) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 6.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.Black.copy(alpha = 0.35f))
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.Edit, null, modifier = Modifier.size(14.dp), tint = Color.White)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Đổi ảnh", style = MaterialTheme.typography.labelSmall, color = Color.White)
+                }
+            }
+        }
     }
 }
 

@@ -16,9 +16,14 @@ datastore = "1.1.1"
 coil = "2.7.0"
 coroutines = "1.9.0"
 gson = "2.11.0"
+konform = "0.4.0"
+valiktor = "0.12.0"
 espresso = "3.6.1"
 junit-ext = "1.2.1"
 mockito = "5.14.2"
+firebase-database-ktx = "22.0.1"
+firebase-bom = "33.4.0" # hoặc 33.+
+
 
 [plugins]
 #noinspection GradlePluginVersion
@@ -47,9 +52,6 @@ androidx-compose-material3        = { module = "androidx.compose.material3:mater
 
 androidx-navigation-compose       = { module = "androidx.navigation:navigation-compose", version.ref = "navigation-compose" }
 
-hilt-android                      = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
-hilt-compiler                     = { module = "com.google.dagger:hilt-compiler", version.ref = "hilt" }
-hilt-navigation-compose           = { module = "androidx.hilt:hilt-navigation-compose", version = "1.2.0" }
 
 retrofit                          = { module = "com.squareup.retrofit2:retrofit", version.ref = "retrofit" }
 retrofit-gson                     = { module = "com.squareup.retrofit2:converter-gson", version.ref = "retrofit" }
@@ -76,3 +78,11 @@ androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-mani
 mockito                           = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 mockito-inline                    = { module = "org.mockito:mockito-inline", version.ref = "mockito" }
 mockito-kotlin                    = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockito" }
+
+konform                           = { module = "com.github.zachklipp:konform", version.ref = "konform" }
+valiktor                          = { module = "org.valiktor:valiktor-core", version.ref = "valiktor" }
+firebase-database-ktx = { module = "com.google.firebase:firebase-database-ktx" }
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
+hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
+hilt-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hilt" }
+hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version = "1.2.0" }

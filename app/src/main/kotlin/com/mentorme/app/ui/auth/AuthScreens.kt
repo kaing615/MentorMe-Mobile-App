@@ -75,9 +75,11 @@ fun AuthScreen(
     val authState by (authViewModel?.authState ?: remember { MutableStateFlow(AuthState()) }.asStateFlow())
         .collectAsStateWithLifecycle()
 
-    // Handle OTP screen navigation
+    // Handle OTP screen navigation with longer delay to prevent BringIntoViewRequester crash
     LaunchedEffect(authState.showOtpScreen) {
-        if (authState.showOtpScreen) {
+        if (authState.showOtpScreen && mode != AuthMode.OtpVerification) {
+            // Add longer delay to ensure all layout placement is complete before navigation
+            delay(300)
             mode = AuthMode.OtpVerification
         }
     }
@@ -90,9 +92,17 @@ fun AuthScreen(
         onDismiss = {
             authViewModel?.hideVerificationDialog()
             if (authState.verificationSuccess) {
+                // After successful OTP verification, go back to Login screen
                 mode = AuthMode.Login
             }
-        }
+        },
+        onLoginRedirect = if (authState.verificationSuccess) {
+            {
+                // Sử dụng function mới để reset state và chuyển về màn hình đăng nhập
+                authViewModel?.goBackToLoginAfterVerification()
+                mode = AuthMode.Login
+            }
+        } else null
     )
 
     Scaffold(
@@ -178,7 +188,8 @@ fun AuthScreen(
                         mode = AuthMode.Login
                     },
                     isLoading = authState.isOtpVerifying,
-                    error = authState.otpError
+                    error = authState.otpError,
+                    showVerificationDialog = authState.showVerificationDialog // Truyền parameter để ẩn nút gửi lại mã khi popup hiện
                 )
             }
         }

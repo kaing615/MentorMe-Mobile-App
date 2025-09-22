@@ -31,6 +31,16 @@ import com.mentorme.app.ui.booking.BookingSummaryScreen
 import com.mentorme.app.ui.chat.ChatScreen
 import com.mentorme.app.ui.chat.MessagesScreen
 import com.mentorme.app.ui.profile.*
+import androidx.navigation.compose.composable
+import com.mentorme.app.ui.wallet.TopUpScreen
+import com.mentorme.app.ui.wallet.WithdrawScreen
+import com.mentorme.app.ui.wallet.BankInfo
+import com.mentorme.app.ui.wallet.PaymentMethod
+import com.mentorme.app.ui.wallet.mockPaymentMethods
+import com.mentorme.app.ui.wallet.initialPaymentMethods
+import com.mentorme.app.ui.wallet.PaymentMethodScreen
+import com.mentorme.app.ui.wallet.AddPaymentMethodScreen
+import com.mentorme.app.ui.wallet.EditPaymentMethodScreen
 
 private fun goToSearch(nav: NavHostController) {
     if (nav.currentDestination?.route != Routes.search) {
@@ -63,6 +73,11 @@ object Routes {
     const val Profile = "profile"
     const val Chat = "chat"
     const val search = "search"
+    const val TopUp = "wallet/topup"
+    const val Withdraw = "wallet/withdraw"
+    const val PaymentMethods = "wallet/payment_methods"
+    const val AddPaymentMethod = "wallet/add_method"
+    const val EditPaymentMethod = "wallet/edit_method"
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -75,6 +90,45 @@ fun AppNav(
     val backstack by nav.currentBackStackEntryAsState()
     val currentRoute = backstack?.destination?.route
     var isLoggedIn by rememberSaveable { mutableStateOf(false) }
+    var payMethods by remember { mutableStateOf(initialPaymentMethods()) }
+
+    val selMethodId = nav.currentBackStackEntry
+        ?.savedStateHandle
+        ?.getStateFlow<String?>("payment_method_id", null)
+        ?.collectAsState(initial = null)?.value
+
+    LaunchedEffect(selMethodId) {
+        selMethodId?.let { id ->
+            payMethods = payMethods.map { it.copy(isDefault = it.id == id) }
+            nav.currentBackStackEntry?.savedStateHandle?.set("payment_method_id", null)
+        }
+    }
+
+    val newMethod = nav.currentBackStackEntry
+        ?.savedStateHandle
+        ?.getStateFlow<PaymentMethod?>("new_payment_method", null)
+        ?.collectAsState(initial = null)?.value
+
+    LaunchedEffect(newMethod) {
+        newMethod?.let { m ->
+            // nếu là phương thức đầu tiên → set mặc định luôn
+            val toAdd = if (payMethods.isEmpty()) m.copy(isDefault = true) else m
+            payMethods = payMethods + toAdd
+            nav.currentBackStackEntry?.savedStateHandle?.set("new_payment_method", null)
+        }
+    }
+
+    val editedMethod = nav.currentBackStackEntry
+        ?.savedStateHandle
+        ?.getStateFlow<PaymentMethod?>("edited_payment_method", null)
+        ?.collectAsState(initial = null)?.value
+
+    LaunchedEffect(editedMethod) {
+        editedMethod?.let { m ->
+            payMethods = payMethods.map { if (it.id == m.id) m.copy(isDefault = it.isDefault) else it }
+            nav.currentBackStackEntry?.savedStateHandle?.set("edited_payment_method", null)
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         // nền liquid
@@ -93,8 +147,15 @@ fun AppNav(
                 val hideForBooking =
                     currentRoute?.startsWith("booking/") == true ||
                             currentRoute?.startsWith("bookingSummary/") == true
+                val hideForWallet = currentRoute?.startsWith("wallet/") == true
 
-                if (isLoggedIn && currentRoute != Routes.Auth && !hideForChat && !hideForBooking) {
+                if (
+                    isLoggedIn &&
+                    currentRoute != Routes.Auth &&
+                    !hideForChat &&
+                    !hideForBooking &&
+                    !hideForWallet
+                ){
                     GlassBottomBar(navController = nav)
                 }
             },
@@ -172,11 +233,19 @@ fun AppNav(
 
                     composable(Routes.Profile) {
                         ProfileScreen(
-                            user = UserHeader(
-                                fullName = "Nguyễn Văn A",
-                                email = "a@example.com",
-                                role = UserRole.MENTEE
-                            )
+                            user = UserHeader(fullName = "Nguyễn Văn A", email = "a@example.com", role = UserRole.MENTEE),
+                            onOpenTopUp = { nav.navigate(Routes.TopUp) },
+                            onOpenWithdraw = { nav.navigate(Routes.Withdraw) },
+                            onOpenChangeMethod = { nav.navigate(Routes.PaymentMethods) },
+                            onAddMethod = { nav.navigate(Routes.AddPaymentMethod) },
+                            methods = payMethods,
+                            onLogout = {
+                                isLoggedIn = false
+                                nav.navigate(Routes.Auth) {
+                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                    launchSingleTop = true
+                                }
+                            }
                         )
                     }
 
@@ -192,7 +261,7 @@ fun AppNav(
                                 onNext = { d: BookingDraft ->
                                     nav.navigate("bookingSummary/${m.id}/${d.date}/${d.time}/${d.durationMin}")
                                 },
-                                onClose = { nav.popBackStack() } // quay lại Search vẫn còn nguyên state
+                                onClose = { nav.popBackStack() }
                             )
                         }
                     }
@@ -215,10 +284,80 @@ fun AppNav(
                                 ),
                                 currentUserId = "current-user-id",
                                 onConfirmed = {
-                                    // hoàn tất -> về Home; Search vẫn nằm trong backstack nếu user vào từ đó
                                     nav.popBackStack(route = Routes.Home, inclusive = false)
                                 },
                                 onBack = { nav.popBackStack() }
+                            )
+                        }
+                    }
+
+                    // ---------- WALLET ----------
+                    composable(Routes.TopUp) {
+                        TopUpScreen(
+                            balance = 8_500_000L,
+                            onBack = { nav.popBackStack() },
+                            onSubmit = { amount, method ->
+                                nav.popBackStack()
+                            }
+                        )
+                    }
+
+                    composable(Routes.Withdraw) {
+                        WithdrawScreen(
+                            balance = 8_500_000L,
+                            bankInfo = BankInfo(
+                                bankName = "Vietcombank",
+                                accountNumber = "0123456789",
+                                accountName = "NGUYEN VAN A"
+                            ),
+                            onBack = { nav.popBackStack() },
+                            onSubmit = { amount, bank ->
+                                nav.popBackStack()
+                            }
+                        )
+                    }
+
+                    composable(Routes.PaymentMethods) {
+                        PaymentMethodScreen(
+                            methods = payMethods,
+                            onBack = { nav.popBackStack() },
+                            onChosen = { chosen ->
+                                nav.previousBackStackEntry?.savedStateHandle?.set("payment_method_id", chosen.id)
+                                nav.popBackStack()
+                            },
+                            onAddNew = { nav.navigate(Routes.AddPaymentMethod) },
+                            onEditSelected = { toEdit ->
+                                nav.currentBackStackEntry?.savedStateHandle?.set("editing_method", toEdit)
+                                nav.navigate(Routes.EditPaymentMethod)
+                            }
+                        )
+                    }
+
+                    composable(Routes.AddPaymentMethod) {
+                        AddPaymentMethodScreen(
+                            onBack = { nav.popBackStack() },
+                            onSaved = { method ->
+                                nav.previousBackStackEntry
+                                    ?.savedStateHandle
+                                    ?.set("new_payment_method", method)
+                                nav.popBackStack()
+                            }
+                        )
+                    }
+
+                    composable(Routes.EditPaymentMethod) {
+                        val toEdit = nav.previousBackStackEntry
+                            ?.savedStateHandle?.get<PaymentMethod>("editing_method")
+                        if (toEdit == null) {
+                            LaunchedEffect(Unit) { nav.popBackStack() }
+                        } else {
+                            EditPaymentMethodScreen(
+                                method = toEdit,
+                                onBack = { nav.popBackStack() },
+                                onSaved = { updated ->
+                                    nav.previousBackStackEntry?.savedStateHandle?.set("edited_payment_method", updated)
+                                    nav.popBackStack()
+                                }
                             )
                         }
                     }

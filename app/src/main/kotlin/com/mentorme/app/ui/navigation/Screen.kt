@@ -43,6 +43,10 @@ sealed class Screen(
     object Notifications : Screen("notifications", "Notifications")
     object Settings : Screen("settings", "Settings")
     object Dashboard : Screen("dashboard", "Dashboard")
+
+    // Wallet screens
+    object TopUp : Screen("wallet/topup", "Top Up")
+    object Withdraw : Screen("wallet/withdraw", "Withdraw")
 }
 
 val bottomNavigationItems = listOf(

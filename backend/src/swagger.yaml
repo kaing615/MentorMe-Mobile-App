@@ -14,6 +14,8 @@ servers:
 tags:
   - name: Auth
     description: Xác thực người dùng (đăng ký, đăng nhập, đăng xuất)
+  - name: Profile
+    description: Onboarding hồ sơ người dùng (tạo hồ sơ bắt buộc theo role + upload avatar) - Chỉnh sửa, xem hồ sơ sẽ có sau
 
 components:
   securitySchemes:
@@ -90,6 +92,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/SignUpMenteeRequest"
       description: Same fields as mentee signup
+
     SignUpMentorResponseData:
       type: object
       properties:
@@ -172,6 +175,190 @@ components:
           nullable: true
           description: Present only when status becomes active (mentee flow)
       required: [email, userId, status]
+
+    ProfileLinks:
+      type: object
+      properties:
+        website: { type: string, format: uri }
+        twitter: { type: string, format: uri }
+        linkedin: { type: string, format: uri }
+        github: { type: string, format: uri }
+        youtube: { type: string, format: uri }
+        facebook: { type: string, format: uri }
+
+    Profile:
+      type: object
+      properties:
+        _id: { type: string, example: "66e0c2...abc" }
+        user: { type: string, example: "66e0c2...def" }
+        # common
+        location: { type: string, example: "Hồ Chí Minh" }
+        category: { type: string, example: "Backend" }
+        languages:
+          type: array
+          items: { type: string }
+          example: ["vi", "en"]
+        avatarUrl: { type: string, format: uri }
+        avatarPublicId: { type: string }
+        links:
+          $ref: "#/components/schemas/ProfileLinks"
+        profileCompleted: { type: boolean, example: true }
+        # mentor
+        jobTitle: { type: string, example: "Senior Software Engineer" }
+        experience: { type: string, example: "5+ years" }
+        headline: { type: string, example: "Mentor Node.js/MongoDB" }
+        mentorReason: { type: string }
+        greatestAchievement: { type: string }
+        introVideo: { type: string, format: uri, nullable: true }
+        bio: { type: string }
+        # mentee
+        description: { type: string }
+        goal: { type: string }
+        education: { type: string }
+        # shared business
+        skills:
+          type: array
+          items: { type: string }
+          example: ["Node.js", "MongoDB"]
+        rating:
+          type: object
+          properties:
+            average: { type: number, format: float }
+            count: { type: integer }
+      required:
+        [user, location, category, languages, avatarUrl, profileCompleted]
+
+    CreateProfileCommonJSON:
+      type: object
+      properties:
+        location: { type: string }
+        category: { type: string }
+        languages:
+          oneOf:
+            - type: array
+              items: { type: string }
+            - type: string
+          description: "Mảng hoặc chuỗi CSV: 'vi,en'"
+        avatarUrl:
+          type: string
+          format: uri
+          description: "Link ảnh; server sẽ tải lên Cloudinary"
+        links:
+          $ref: "#/components/schemas/ProfileLinks"
+      required: [location, category, languages, avatarUrl]
+
+    CreateProfileMentorJSON:
+      allOf:
+        - $ref: "#/components/schemas/CreateProfileCommonJSON"
+        - type: object
+          properties:
+            jobTitle: { type: string }
+            experience: { type: string }
+            headline: { type: string }
+            mentorReason: { type: string }
+            greatestAchievement: { type: string }
+            skills:
+              oneOf:
+                - type: array
+                  items: { type: string }
+                - type: string
+              description: "Mảng hoặc chuỗi CSV"
+            bio: { type: string }
+            introVideo: { type: string, format: uri, nullable: true }
+          required:
+            [
+              jobTitle,
+              experience,
+              headline,
+              mentorReason,
+              greatestAchievement,
+              skills,
+            ]
+
+    CreateProfileMenteeJSON:
+      allOf:
+        - $ref: "#/components/schemas/CreateProfileCommonJSON"
+        - type: object
+          properties:
+            description: { type: string }
+            goal: { type: string }
+            education: { type: string }
+            skills:
+              oneOf:
+                - type: array
+                  items: { type: string }
+                - type: string
+              description: "Mảng hoặc chuỗi CSV"
+          required: [description, goal, education, skills]
+
+    CreateProfileCommonMultipart:
+      type: object
+      properties:
+        avatar:
+          type: string
+          format: binary
+          description: "File ảnh avatar (thay vì avatarUrl); có thể gửi cùng các field text"
+        avatarUrl:
+          type: string
+          format: uri
+          description: "Tuỳ chọn: nếu không upload file, có thể gửi URL"
+        location: { type: string }
+        category: { type: string }
+        languages:
+          type: string
+          description: "Chuỗi CSV: 'vi,en' hoặc lặp key nhiều lần"
+        links:
+          $ref: "#/components/schemas/ProfileLinks"
+      required: [location, category, languages] # cần avatar hoặc avatarUrl (ít nhất một)
+
+    CreateProfileMentorMultipart:
+      allOf:
+        - $ref: "#/components/schemas/CreateProfileCommonMultipart"
+        - type: object
+          properties:
+            jobTitle: { type: string }
+            experience: { type: string }
+            headline: { type: string }
+            mentorReason: { type: string }
+            greatestAchievement: { type: string }
+            skills: { type: string, description: "CSV hoặc lặp key" }
+            bio: { type: string }
+            introVideo: { type: string, format: uri, nullable: true }
+          required:
+            [
+              jobTitle,
+              experience,
+              headline,
+              mentorReason,
+              greatestAchievement,
+              skills,
+            ]
+
+    CreateProfileMenteeMultipart:
+      allOf:
+        - $ref: "#/components/schemas/CreateProfileCommonMultipart"
+        - type: object
+          properties:
+            description: { type: string }
+            goal: { type: string }
+            education: { type: string }
+            skills: { type: string, description: "CSV hoặc lặp key" }
+          required: [description, goal, education, skills]
+
+    ValidationErrorWithMissing:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Missing required fields for mentee: description, goal, education, skills"
+        data:
+          type: object
+          properties:
+            missing:
+              type: array
+              items: { type: string }
+              example: ["description", "goal", "education", "skills"]
+      required: [message]
 
 paths:
   /auth/signup:
@@ -395,6 +582,114 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  # ====== PROFILE ENDPOINT ======
+  /profile/required:
+    post:
+      tags: [Profile]
+      summary: Tạo hồ sơ bắt buộc (onboarding) theo role của user trong JWT
+      description: |
+        - **Yêu cầu Bearer JWT**. Role được lấy từ token (`mentee`/`mentor`).
+        - **Bắt buộc chung**: `location`, `category`, `languages`, và **avatar** (gửi **file** `avatar` *hoặc* **URL** `avatarUrl`).
+        - **Mentor bắt buộc**: `jobTitle`, `experience`, `headline`, `mentorReason`, `greatestAchievement`, `skills`.
+        - **Mentee bắt buộc**: `description`, `goal`, `education`, `skills`.
+        - `skills`/`languages` có thể gửi **mảng** hoặc **chuỗi CSV** (ví dụ: `"Node.js, MongoDB"` / `"vi,en"`).
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/CreateProfileMentorJSON"
+                - $ref: "#/components/schemas/CreateProfileMenteeJSON"
+            examples:
+              mentor_json:
+                summary: Mentor (JSON + avatarUrl)
+                value:
+                  location: "Hồ Chí Minh"
+                  category: "Backend"
+                  languages: "vi,en"
+                  avatarUrl: "https://picsum.photos/512"
+                  jobTitle: "Senior Backend Engineer"
+                  experience: "5+ years"
+                  headline: "Mentor Node.js/MongoDB"
+                  mentorReason: "Muốn chia sẻ kinh nghiệm"
+                  greatestAchievement: "Scale API cho 1M users"
+                  skills: "Node.js, MongoDB"
+                  bio: "Từng dẫn dắt team..."
+              mentee_json:
+                summary: Mentee (JSON + avatarUrl)
+                value:
+                  location: "Hồ Chí Minh"
+                  category: "Backend"
+                  languages: ["vi", "en"]
+                  avatarUrl: "https://picsum.photos/512"
+                  description: "Sinh viên năm 3 CNTT"
+                  goal: "Pass phỏng vấn Backend"
+                  education: "UIT"
+                  skills: ["Node.js", "MongoDB"]
+          multipart/form-data:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/CreateProfileMentorMultipart"
+                - $ref: "#/components/schemas/CreateProfileMenteeMultipart"
+            examples:
+              mentor_multipart:
+                summary: Mentor (multipart + file avatar)
+                value:
+                  avatar: (file)
+                  location: "Hồ Chí Minh"
+                  category: "Backend"
+                  languages: "vi,en"
+                  jobTitle: "Senior Backend Engineer"
+                  experience: "5+ years"
+                  headline: "Mentor Node.js/MongoDB"
+                  mentorReason: "Muốn chia sẻ kinh nghiệm"
+                  greatestAchievement: "Scale API cho 1M users"
+                  skills: "Node.js, MongoDB"
+              mentee_multipart:
+                summary: Mentee (multipart + file avatar)
+                value:
+                  avatar: (file)
+                  location: "Hồ Chí Minh"
+                  category: "Backend"
+                  languages: "vi,en"
+                  description: "Sinh viên năm 3 CNTT"
+                  goal: "Pass phỏng vấn Backend"
+                  education: "UIT"
+                  skills: "Node.js, MongoDB"
+      responses:
+        "201":
+          description: Tạo hồ sơ thành công
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Profile"
+        "400":
+          description: Thiếu/không hợp lệ (bao gồm thiếu avatar, thiếu field theo role, introVideo URL không hợp lệ)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ValidationErrorWithMissing"
+                  - $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Chưa đăng nhập / token không hợp lệ
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "409":
+          description: Hồ sơ đã tồn tại
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
 
 security:
   - BearerAuth: []

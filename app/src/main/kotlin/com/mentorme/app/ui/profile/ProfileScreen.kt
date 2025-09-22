@@ -13,7 +13,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -56,10 +55,19 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material.icons.outlined.SupportAgent
+import com.mentorme.app.ui.components.ui.MMGhostButton
+import com.mentorme.app.ui.components.ui.MMPrimaryButton
+import com.mentorme.app.ui.wallet.PaymentMethod
+import com.mentorme.app.ui.wallet.PayProvider
+import com.mentorme.app.ui.wallet.initialPaymentMethods
+import com.mentorme.app.ui.wallet.mockPaymentMethods
+import androidx.compose.material.icons.outlined.Logout
 
 private val oneDecimalUS = DecimalFormat("#.#").apply {
     decimalFormatSymbols = DecimalFormatSymbols(Locale.US)  // dùng dấu chấm
@@ -178,7 +186,13 @@ fun mockProfile(user: UserHeader): UserProfile {
 @Composable
 fun ProfileScreen(
     user: UserHeader,
-    onOpenSettings: (() -> Unit)? = null
+    onOpenSettings: (() -> Unit)? = null,
+    onOpenTopUp: () -> Unit = {},
+    onOpenWithdraw: () -> Unit = {},
+    onOpenChangeMethod: () -> Unit = {},
+    onAddMethod: () -> Unit = {},
+    methods: List<PaymentMethod> = initialPaymentMethods(),
+    onLogout: () -> Unit = {}
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -304,11 +318,20 @@ fun ProfileScreen(
                         )
                         1 -> WalletTab(                         // 👈 NEW
                             balance = 8500000L,
-                            onTopUp = { /* TODO: nạp tiền */ },
-                            onWithdraw = { /* TODO: rút tiền */ }
+                            onTopUp = onOpenTopUp,
+                            onWithdraw = onOpenWithdraw,
+                            onChangeMethod = onOpenChangeMethod,
+                            onAddMethod = onAddMethod,
+                            methods = methods
                         )
                         2 -> StatsTab(userRole = user.role, profile = profile)
-                        3 -> SettingsTab(onOpenSettings = onOpenSettings)
+                        3 -> SettingsTab(
+                            onOpenSettings = onOpenSettings,
+                            onOpenCSBM = null,
+                            onOpenDKSD = null,
+                            onOpenLHHT = null,
+                            onLogout = onLogout
+                        )
                     }
                 }
             }
@@ -548,11 +571,16 @@ private fun StatusDotChip(text: String, color: Color) {
 private fun WalletTab(
     balance: Long,
     onTopUp: () -> Unit,
-    onWithdraw: () -> Unit
+    onWithdraw: () -> Unit,
+    onChangeMethod: () -> Unit,
+    onAddMethod: () -> Unit,
+    methods: List<PaymentMethod>
 ) {
     var filter by remember { mutableStateOf<TxType?>(null) } // null = Tất cả
     val txAll = remember { mockTx() }
     val tx = remember(filter, txAll) { filter?.let { t -> txAll.filter { it.type == t } } ?: txAll }
+
+    val defaultMethod = methods.firstOrNull { it.isDefault }
 
     Column(
         Modifier.verticalScroll(rememberScrollState()),
@@ -586,26 +614,45 @@ private fun WalletTab(
         }
 
         // ---- Phương thức thanh toán ----
-        LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
-            Row(
-                Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center
+        if (defaultMethod == null) {
+            // EMPTY STATE
+            LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Phương thức thanh toán", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Bạn chưa thêm phương thức nào. Thêm một phương thức để sử dụng nhanh khi thanh toán.",
+                        color = Color.White.copy(0.8f)
+                    )
+                    MMPrimaryButton(onClick = onAddMethod, modifier = Modifier.fillMaxWidth()) {
+                        Text("Thêm phương thức")
+                    }
+                }
+            }
+        } else {
+            // ĐÃ CÓ — show thẻ mặc định + nút Thay đổi
+            val icon = when (defaultMethod.provider) {
+                PayProvider.MOMO    -> Icons.Outlined.Payments
+                PayProvider.ZALOPAY -> Icons.Outlined.CreditCard
+                PayProvider.BANK    -> Icons.Outlined.AccountBalance
+            }
+            LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(Icons.Outlined.CreditCard, null, tint = Color.White)
+                    Box(
+                        modifier = Modifier.size(42.dp).clip(CircleShape)
+                            .background(Color.White.copy(alpha = .12f)),
+                        contentAlignment = Alignment.Center
+                    ) { Icon(icon, null, tint = Color.White) }
+
+                    Column(Modifier.weight(1f)) {
+                        Text("Thẻ mặc định", fontWeight = FontWeight.SemiBold)
+                        Text("${defaultMethod.label} • ${defaultMethod.detail}", color = Color.White.copy(.85f))
+                    }
+                    MMGhostButton(onClick = onChangeMethod) { Text("Thay đổi") }
                 }
-                Column(Modifier.weight(1f)) {
-                    Text("Thẻ mặc định", fontWeight = FontWeight.SemiBold, color = Color.White)
-                    Text("•••• 1234 • Visa", color = Color.White.copy(0.8f))
-                }
-                MMGhostButton(onClick = { /* TODO: đổi thẻ */ }) { Text("Thay đổi") }
             }
         }
 
@@ -714,7 +761,8 @@ private fun SettingsTab(
     onOpenSettings: (() -> Unit)?,
     onOpenCSBM: (() -> Unit)? = null,   // Chính sách bảo mật
     onOpenDKSD: (() -> Unit)? = null,   // Điều khoản sử dụng
-    onOpenLHHT: (() -> Unit)? = null    // Liên hệ hỗ trợ
+    onOpenLHHT: (() -> Unit)? = null,   // Liên hệ hỗ trợ
+    onLogout: (() -> Unit)? = null
 ) {
     Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
 
@@ -740,7 +788,7 @@ private fun SettingsTab(
                     Spacer(Modifier.width(8.dp))
                     Text("Bảo mật", style = MaterialTheme.typography.titleMedium, color = Color.White)
                 }
-                MMGhostButton(onClick = { onOpenSettings?.invoke() }, modifier = Modifier.fillMaxWidth()) {
+                MMPrimaryButton (onClick = { onOpenSettings?.invoke() }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Outlined.Settings, null, tint = Color.White)
                     Spacer(Modifier.width(8.dp))
                     Text("Cài đặt nâng cao")
@@ -751,16 +799,51 @@ private fun SettingsTab(
         // --- Card: Khác ---
         LiquidGlassCard(modifier = Modifier.fillMaxWidth(), radius = 22.dp) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Khác", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.MoreHoriz, contentDescription = null, tint = Color.White)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Khác", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                }
 
                 SettingLinkItem(Icons.Outlined.PrivacyTip, "Chính sách bảo mật") {
                     onOpenCSBM?.invoke()
                 }
-                SettingLinkItem(Icons.Outlined.Article, "Điều khoản sử dụng") {
+                SettingLinkItem(Icons.AutoMirrored.Outlined.Article, "Điều khoản sử dụng") {
                     onOpenDKSD?.invoke()
                 }
                 SettingLinkItem(Icons.Outlined.SupportAgent, "Liên hệ hỗ trợ") {
                     onOpenLHHT?.invoke()
+                }
+            }
+        }
+
+        // --- Card: Đăng xuất ---
+        LiquidGlassCard(modifier = Modifier.fillMaxWidth(), radius = 22.dp) {
+            Column(
+                Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Outlined.AccountCircle,
+                        contentDescription = null,
+                        tint = Color.White
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Tài khoản",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White
+                    )
+                }
+
+                MMPrimaryButton (
+                    onClick = { onLogout?.invoke() },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                ) {
+                    Icon(Icons.Outlined.Logout, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Đăng xuất")
                 }
             }
         }
@@ -1041,4 +1124,5 @@ private fun SettingLinkItem(
         }
     }
 }
+
 

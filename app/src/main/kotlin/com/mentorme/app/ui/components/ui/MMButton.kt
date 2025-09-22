@@ -41,21 +41,26 @@ fun MMPrimaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(16.dp),
+    enabled: Boolean = true,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
     content: @Composable RowScope.() -> Unit
 ) {
     Button(
         onClick = onClick,
+        enabled = enabled,
         modifier = modifier
             .clip(shape)
-            .background(Color.Transparent, RoundedCornerShape(16.dp))
+            .background(Color.Transparent, shape)
             .gradientBackground(GradientSecondary)
             .defaultMinSize(minHeight = 40.dp),
         shape = shape,
         colors = ButtonDefaults.buttonColors(
             containerColor = Color.Transparent,
-            contentColor = Color.White
+            contentColor = Color.White,
+            disabledContainerColor = Color.Transparent,
+            disabledContentColor = Color.White.copy(alpha = 0.5f)
         ),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp), // dọc 10dp
+        contentPadding = contentPadding,
         content = content
     )
 }
@@ -64,18 +69,23 @@ fun MMPrimaryButton(
 fun MMGhostButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(16.dp),
+    enabled: Boolean = true,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
     content: @Composable RowScope.() -> Unit
 ) {
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.defaultMinSize(minHeight = 40.dp), // ✅
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f)),
+        enabled = enabled,
+        modifier = modifier.defaultMinSize(minHeight = 40.dp),
+        shape = shape,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.35f)),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = Color.Transparent,
-            contentColor = Color.White
+            contentColor = Color.White,
+            disabledContentColor = Color.White.copy(alpha = 0.5f)
         ),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+        contentPadding = contentPadding,
         content = content
     )
 }

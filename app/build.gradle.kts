@@ -6,6 +6,7 @@ plugins {
     id("com.google.dagger.hilt.android")
 }
 
+
 android {
     namespace = "com.mentorme.app"
     compileSdk = 34   // <-- nên dùng stable, không phải 36 preview
@@ -46,7 +47,8 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
-
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.database.ktx)
     // Icon set
     implementation("androidx.compose.material:material-icons-extended")
 
@@ -62,6 +64,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)
+    implementation(libs.firebase.database.ktx)
     kapt(libs.hilt.compiler)
 
     implementation(libs.retrofit)
@@ -74,11 +77,11 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.gson)
-
+    implementation("io.konform:konform-jvm:0.4.0")
+// Use the correct version
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.mockito)
-
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

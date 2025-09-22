@@ -4,16 +4,12 @@ import com.google.gson.annotations.SerializedName
 
 // Request DTOs
 data class SignUpRequest(
-    @SerializedName("username")
-    val username: String,
+    @SerializedName("userName")
+    val userName: String,
     @SerializedName("email")
     val email: String,
     @SerializedName("password")
-    val password: String,
-    @SerializedName("confirmPassword")
-    val confirmPassword: String,
-    @SerializedName("displayName")
-    val displayName: String? = null
+    val password: String
 )
 
 data class SignInRequest(
@@ -28,6 +24,11 @@ data class VerifyOtpRequest(
     val verificationId: String,
     @SerializedName("code")
     val code: String
+)
+
+data class ResendOtpRequest(
+    @SerializedName("email")
+    val email: String
 )
 
 // Response DTOs

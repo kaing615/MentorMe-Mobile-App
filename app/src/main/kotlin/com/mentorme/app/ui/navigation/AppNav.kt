@@ -181,8 +181,16 @@ fun AppNav(
                                 ok
                             },
                             onResetPassword = { /* TODO */ },
-                            onAuthed = {
+                            onNavigateToMenteeHome = {
                                 isLoggedIn = true
+                                nav.navigate(Routes.Home) {
+                                    popUpTo(Routes.Auth) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            },
+                            onNavigateToMentorHome = {
+                                isLoggedIn = true
+                                // TODO: Điều hướng đến MentorHome khi đã tạo route cho mentor
                                 nav.navigate(Routes.Home) {
                                     popUpTo(Routes.Auth) { inclusive = true }
                                     launchSingleTop = true

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.mentorme.app.core.utils.AppResult
 import com.mentorme.app.core.utils.ErrorUtils
 import com.mentorme.app.data.dto.auth.AuthResponse
+import com.mentorme.app.data.model.UserRole
 import com.mentorme.app.domain.usecase.auth.SignInUseCase
 import com.mentorme.app.domain.usecase.auth.SignOutUseCase
 import com.mentorme.app.domain.usecase.auth.SignUpMentorUseCase
@@ -122,18 +123,42 @@ class AuthViewModel @Inject constructor(
             when (val result = signInUseCase.invoke(email, password)) {
                 is AppResult.Success -> {
                     Log.d(TAG, "SignIn success: ${result.data}")
+
+                    // Extract user role từ response data
+                    val userRole = try {
+                        result.data.data?.let { data ->
+                            when (data.role) {
+                                "mentor" -> UserRole.MENTOR
+                                "mentee" -> UserRole.MENTEE
+                                else -> UserRole.MENTEE
+                            }
+                        } ?: UserRole.MENTEE
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to extract user role: ${e.message}")
+                        UserRole.MENTEE
+                    }
+
                     _authState.value = _authState.value.copy(
                         isLoading = false,
                         authResponse = result.data,
-                        isAuthenticated = result.data.success
+                        isAuthenticated = result.data.success,
+                        userRole = userRole
                     )
                 }
                 is AppResult.Error -> {
                     val errMsg: String = result.throwable ?: "Unknown error"
                     Log.e(TAG, "SignIn failed: $errMsg")
+
+                    // Xử lý đặc biệt cho pending approval - không qua ErrorUtils
+                    val finalError = if (errMsg.contains("Account pending approval", ignoreCase = true)) {
+                        "pending_approval"
+                    } else {
+                        ErrorUtils.getUserFriendlyErrorMessage(errMsg)
+                    }
+
                     _authState.value = _authState.value.copy(
                         isLoading = false,
-                        error = ErrorUtils.getUserFriendlyErrorMessage(errMsg)
+                        error = finalError
                     )
                 }
                 AppResult.Loading -> Unit
@@ -305,6 +330,11 @@ class AuthViewModel @Inject constructor(
         _authState.value = _authState.value.copy(otpError = null)
     }
 
+    // Thêm method clearError
+    fun clearError() {
+        _authState.value = _authState.value.copy(error = null)
+    }
+
     // Helper to extract verificationId from AuthData
     private fun extractVerificationId(authData: com.mentorme.app.data.dto.auth.AuthData): String? {
         return authData.verificationId
@@ -316,6 +346,7 @@ data class AuthState(
     val isAuthenticated: Boolean = false,
     val authResponse: AuthResponse? = null,
     val error: String? = null,
+    val userRole: UserRole? = null, // Thêm userRole
     // OTP verification states
     val showOtpScreen: Boolean = false,
     val otpVerificationId: String? = null,

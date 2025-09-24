@@ -61,8 +61,40 @@ object ErrorUtils {
             // HTTP status codes
             errorMessage.contains("HTTP", ignoreCase = true) ->
                 "Lỗi máy chủ. Vui lòng thử lại sau."
+
+            // HTTP 400 - Bad Request specific errors
+            errorMessage.contains("400") && errorMessage.contains("Email and password are required", ignoreCase = true) ->
+                "Vui lòng nhập đầy đủ email và mật khẩu"
+            errorMessage.contains("\"message\":\"Email and password are required\"", ignoreCase = true) ->
+                "Vui lòng nhập đầy đủ email và mật khẩu"
+            errorMessage.contains("Email and password are required", ignoreCase = true) ->
+                "Vui lòng nhập đầy đủ email và mật khẩu"
+            errorMessage.contains("400") ->
+                "Thông tin nhập vào không hợp lệ. Vui lòng kiểm tra lại."
+
+            // HTTP 401 - Unauthorized specific errors - Kiểm tra JSON response trước
+            errorMessage.contains("\"message\":\"Account pending approval\"", ignoreCase = true) ->
+                "pending_approval" // Trả về key đặc biệt để LoginSection xử lý
+            errorMessage.contains("Account pending approval", ignoreCase = true) ->
+                "pending_approval" // Trả về key đặc biệt để LoginSection xử lý
+
+            // Kiểm tra các pattern khác của pending approval
+            errorMessage.contains("pending approval", ignoreCase = true) ->
+                "pending_approval"
+            errorMessage.contains("pending-mentor", ignoreCase = true) ->
+                "pending_approval"
+
+            // Invalid email/password patterns
+            errorMessage.contains("401") && errorMessage.contains("Invalid email or password", ignoreCase = true) ->
+                "Email hoặc mật khẩu không đúng. Vui lòng kiểm tra lại."
+            errorMessage.contains("\"message\":\"Invalid email or password\"", ignoreCase = true) ->
+                "Email hoặc mật khẩu không đúng. Vui lòng kiểm tra lại."
+            errorMessage.contains("Invalid email or password", ignoreCase = true) ->
+                "Email hoặc mật khẩu không đúng. Vui lòng kiểm tra lại."
             errorMessage.contains("401") ->
                 "Thông tin đăng nhập không đúng"
+
+            // Other HTTP status codes
             errorMessage.contains("403") ->
                 "Bạn không có quyền truy cập"
             errorMessage.contains("404") ->

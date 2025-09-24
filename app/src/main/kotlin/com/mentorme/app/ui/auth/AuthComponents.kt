@@ -118,7 +118,8 @@ fun BigGlassButton(
     subText: String? = null,
     icon: @Composable (() -> Unit)? = null,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true // Thêm parameter enabled
 ) {
     var pressed by remember { mutableStateOf(false) }
 
@@ -132,11 +133,14 @@ fun BigGlassButton(
             modifier = Modifier.padding(vertical = 10.dp, horizontal = 14.dp)
         ) {
             Button(
-                onClick = { pressed = true; onClick() },
+                onClick = { if (enabled) { pressed = true; onClick() } }, // Kiểm tra enabled
+                enabled = enabled, // Thêm enabled state
                 shape = RoundedCornerShape(50),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color.Transparent,
-                    contentColor = Color.White
+                    contentColor = if (enabled) Color.White else Color.White.copy(0.5f),
+                    disabledContainerColor = Color.Transparent,
+                    disabledContentColor = Color.White.copy(0.5f)
                 ),
                 modifier = Modifier.fillMaxWidth().height(54.dp),
                 elevation = ButtonDefaults.buttonElevation(0.dp)

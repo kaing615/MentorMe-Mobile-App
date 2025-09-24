@@ -406,6 +406,8 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
   const email = rawEmail.toLowerCase();
   const password = (req.body.password ?? "").toString();
 
+  console.log("🔐 SignIn attempt:", { email, passwordLength: password.length });
+
   if (!email || !password) {
     return responseHandler.badRequest(
       res,
@@ -415,14 +417,39 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
   }
 
   const user = await User.findOne({ email }).lean();
-  if (!user || user.status !== "active") {
+  if (!user) {
+    console.log("❌ User not found:", email);
     return responseHandler.unauthorized(res, null, "Invalid email or password");
   }
 
+  console.log("👤 User found:", {
+    email: user.email,
+    role: (user as any).role,
+    status: (user as any).status,
+    hasPassword: !!(user as any).passwordHash
+  });
+
+  // Kiểm tra password trước để đảm bảo user nhập đúng thông tin
   const match = await bcrypt.compare(password, (user as any).passwordHash);
+  console.log("🔑 Password match:", match);
+
   if (!match) {
+    console.log("❌ Password mismatch for:", email);
     return responseHandler.unauthorized(res, null, "Invalid email or password");
   }
+
+  // Sau khi password đúng, kiểm tra status để trả về message phù hợp
+  if (user.status === "pending" || user.status === "pending-mentor") {
+    console.log("⏳ Account pending approval:", { email, status: user.status });
+    return responseHandler.unauthorized(res, null, "Account pending approval");
+  }
+
+  if (user.status !== "active") {
+    console.log("❌ Account not active:", { email, status: user.status });
+    return responseHandler.unauthorized(res, null, "Invalid email or password");
+  }
+
+  console.log("✅ Login successful for:", email);
 
   let token: string | undefined;
   if (process.env.JWT_SECRET) {

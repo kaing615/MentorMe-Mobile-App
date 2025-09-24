@@ -253,15 +253,33 @@ class AuthViewModel @Inject constructor(
             showOtpScreen = false,
             otpVerificationId = null,
             userEmail = null,
-            otpError = null
+            otpError = null,
+            isOtpVerifying = false,
+            showVerificationDialog = false,
+            verificationSuccess = false,
+            verificationMessage = null,
+            originalSignUpData = null
         )
     }
 
-    fun hideVerificationDialog() {
+    // Thêm method để xử lý đóng verification dialog
+    fun dismissVerificationDialog() {
         _authState.value = _authState.value.copy(
             showVerificationDialog = false,
             verificationMessage = null
         )
+
+        // Nếu verification thành công, reset toàn bộ OTP screen
+        if (_authState.value.verificationSuccess) {
+            hideOtpScreen()
+        }
+        // Nếu thất bại, chỉ reset dialog để người dùng có thể nhập lại
+        else {
+            _authState.value = _authState.value.copy(
+                otpError = null,
+                verificationSuccess = false
+            )
+        }
     }
 
     fun goBackToLoginAfterVerification() {

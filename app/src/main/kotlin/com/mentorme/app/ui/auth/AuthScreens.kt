@@ -8,10 +8,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.outlined.Badge
@@ -56,25 +55,33 @@ private enum class AuthMode { Welcome, Login, Register, Forgot, Reset, OtpVerifi
 fun AuthScreen(
     onLogin: (email: String, password: String) -> Boolean,
     onRegister: (RegisterPayload) -> Boolean,
-    onResetPassword: (email: String) -> Unit,   // dùng cho màn Forgot
+    onResetPassword: (email: String) -> Unit,
     onAuthed: () -> Unit,
-    startInReset: Boolean = false               // có thể mở thẳng màn Reset khi deeplink
+    startInReset: Boolean = false
 ) {
     var mode by remember { mutableStateOf(if (startInReset) AuthMode.Reset else AuthMode.Welcome) }
+    var userEmail by remember { mutableStateOf("") }
+    var dialogState by remember { mutableStateOf<OtpDialogState>(OtpDialogState.None) }
 
-    // Get AuthViewModel for OTP handling
-    val authViewModel: AuthViewModel? = if (LocalInspectionMode.current) {
-        null
-    } else {
-        runCatching { hiltViewModel<AuthViewModel>() }
-            .onFailure { Log.e("AuthScreens", "Failed to initialize AuthViewModel: ${it.message}") }
-            .getOrNull()
-    }
+    // ViewModel & state
+    val authViewModel: AuthViewModel? = if (LocalInspectionMode.current) null
+    else runCatching { hiltViewModel<AuthViewModel>() }
+        .onFailure {
+            Log.e(
+                "AuthScreens",
+                "Failed to init AuthViewModel: ${it.message}"
+            )
+        }
+        .getOrNull()
 
-    val authState by (authViewModel?.authState ?: remember { MutableStateFlow(AuthState()) }.asStateFlow())
+    val authState by (authViewModel?.authState ?: remember {
+        MutableStateFlow(
+            AuthState()
+        )
+    }.asStateFlow())
         .collectAsStateWithLifecycle()
 
-    // Điều hướng sang OTP khi cần (tránh BringIntoViewRequester crash)
+    // Điều hướng mở OTP khi server yêu cầu
     LaunchedEffect(authState.showOtpScreen) {
         if (authState.showOtpScreen && mode != AuthMode.OtpVerification) {
             delay(300)
@@ -82,24 +89,26 @@ fun AuthScreen(
         }
     }
 
-    // Popup kết quả verify
-    OtpVerificationDialog(
-        isVisible = authState.showVerificationDialog,
-        isSuccess = authState.verificationSuccess,
-        message = authState.verificationMessage ?: "",
-        onDismiss = {
-            authViewModel?.hideVerificationDialog()
-            if (authState.verificationSuccess) {
-                mode = AuthMode.Login
-            }
-        },
-        onLoginRedirect = if (authState.verificationSuccess) {
-            {
-                authViewModel?.goBackToLoginAfterVerification()
-                mode = AuthMode.Login
-            }
-        } else null
-    )
+    // ===== Popup state ở CẤP CHA (overlay full-screen) =====
+    var showErrorDialog by remember { mutableStateOf(false) }
+    var showSuccessDialog by remember { mutableStateOf(false) }
+
+    // Lỗi OTP -> show Error (và có thể "consume" lỗi nếu bạn có hàm trong VM)
+    LaunchedEffect(authState.otpError) {
+        val e = authState.otpError
+        if (!e.isNullOrBlank()) {
+            dialogState = OtpDialogState.Error(message = e)
+            // authViewModel?.clearOtpError() // nếu có
+        }
+    }
+
+    // Thành công -> show Success
+    LaunchedEffect(authState.verificationSuccess) {
+        if (authState.verificationSuccess) {
+            dialogState = OtpDialogState.Success(message = "Bạn đã nhập đúng mã OTP. Sẽ chuyển về đăng nhập.")
+            // authViewModel?.ackVerification() // nếu có
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -107,26 +116,34 @@ fun AuthScreen(
                 TopAppBar(
                     title = {},
                     navigationIcon = {
-                        // Nút back phong cách liquid glass
                         var pressed by remember { mutableStateOf(false) }
                         com.mentorme.app.ui.theme.LiquidGlassCard(
                             strong = true,
                             radius = 22.dp,
                             modifier = Modifier
                                 .size(44.dp)
-                                .graphicsLayer { val s = if (pressed) .92f else 1f; scaleX = s; scaleY = s }
+                                .graphicsLayer {
+                                    val s = if (pressed) .92f else 1f; scaleX =
+                                    s; scaleY = s
+                                }
                         ) {
                             IconButton(onClick = {
                                 pressed = true
-                                if (mode == AuthMode.OtpVerification) {
-                                    authViewModel?.hideOtpScreen()
-                                }
+                                if (mode == AuthMode.OtpVerification) authViewModel?.hideOtpScreen()
                                 mode = AuthMode.Welcome
                             }) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = null, tint = Color.White)
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = null,
+                                    tint = Color.White
+                                )
                             }
                         }
-                        LaunchedEffect(pressed) { if (pressed) { delay(160); pressed = false } }
+                        LaunchedEffect(pressed) {
+                            if (pressed) {
+                                delay(160); pressed = false
+                            }
+                        }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 )
@@ -134,70 +151,139 @@ fun AuthScreen(
         },
         containerColor = Color.Transparent
     ) { pad ->
-        Box(
-            Modifier
-                .fillMaxSize()
-                .padding(pad)
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            // ❗ Chỉ còn MỘT AnimatedContent (đã bỏ when(mode) lặp)
-            AnimatedContent(
-                targetState = mode,
-                transitionSpec = {
-                    (fadeIn(tween(400)) + scaleIn(initialScale = 0.95f, animationSpec = tween(400)))
-                        .togetherWith(fadeOut(tween(200)))
-                },
-                label = "authContent"
-            ) { current ->
-                when (current) {
-                    AuthMode.Welcome -> WelcomeSection(
-                        onGotoLogin = { mode = AuthMode.Login },
-                        onGotoRegister = { mode = AuthMode.Register }
-                    )
-                    AuthMode.Login -> LoginSection(
-                        onSubmit = { email, pass ->
-                            if (onLogin(email, pass)) onAuthed()
-                        },
-                        onGotoRegister = { mode = AuthMode.Register },
-                        onForgot = { mode = AuthMode.Forgot },
-                        onBack = { mode = AuthMode.Welcome }
-                    )
-                    AuthMode.Register -> RegisterSection(
-                        onSubmit = { name, email, pass, role ->
-                            if (onRegister(RegisterPayload(name, email, pass, role))) onAuthed()
-                        },
-                        onGotoLogin = { mode = AuthMode.Login },
-                        onBack = { mode = AuthMode.Welcome },
-                    )
-                    AuthMode.Forgot -> ForgotPasswordSection(
-                        onSubmit = { email -> onResetPassword(email); mode = AuthMode.Login },
-                        onBack = { mode = AuthMode.Login },
-                        onHaveCode = { mode = AuthMode.Reset }
-                    )
-                    AuthMode.Reset -> ResetPasswordSection(
-                        onSubmit = { /* TODO: call API đặt lại mật khẩu bằng token */ mode = AuthMode.Login },
-                        onBack = { mode = AuthMode.Login }
-                    )
-                    AuthMode.OtpVerification -> OtpVerificationSection(
-                        onSubmit = { otp ->
-                            val verificationId = authState.otpVerificationId
-                            if (verificationId != null) {
-                                authViewModel?.verifyOtp(verificationId, otp)
-                            }
-                        },
-                        onBack = {
-                            authViewModel?.hideOtpScreen()
-                            mode = AuthMode.Login
+        // ===== OUTER BOX: KHÔNG padding -> cho popup phủ full-screen =====
+        Box(modifier = Modifier.fillMaxSize()) {
+
+            // ===== CONTENT chỉ nhận padding =====
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(pad)
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AnimatedContent(
+                    targetState = mode,
+                    transitionSpec = {
+                        (fadeIn(tween(400)) + scaleIn(
+                            initialScale = 0.95f,
+                            animationSpec = tween(400)
+                        ))
+                            .togetherWith(fadeOut(tween(200)))
+                    },
+                    label = "authContent"
+                ) { current ->
+                    when (current) {
+                        AuthMode.Welcome -> WelcomeSection(
+                            onGotoLogin = { mode = AuthMode.Login },
+                            onGotoRegister = { mode = AuthMode.Register }
+                        )
+
+                        AuthMode.Login -> LoginSection(
+                            onSubmit = { email, pass ->
+                                if (onLogin(email, pass)) onAuthed()
+                            },
+                            onGotoRegister = { mode = AuthMode.Register },
+                            onForgot = { mode = AuthMode.Forgot },
+                            onBack = { mode = AuthMode.Welcome }
+                        )
+
+                        AuthMode.Register -> RegisterSection(
+                            onSubmit = { name, email, pass, role ->
+                                if (onRegister(
+                                        RegisterPayload(
+                                            name,
+                                            email,
+                                            pass,
+                                            role
+                                        )
+                                    )
+                                ) onAuthed()
+                            },
+                            onGotoLogin = { mode = AuthMode.Login },
+                            onBack = { mode = AuthMode.Welcome },
+                            onEmailSaved = { email -> userEmail = email }
+                        )
+
+                        AuthMode.Forgot -> ForgotPasswordSection(
+                            onSubmit = { email ->
+                                onResetPassword(email); mode = AuthMode.Login
+                            },
+                            onBack = { mode = AuthMode.Login },
+                            onHaveCode = { mode = AuthMode.Reset }
+                        )
+
+                        AuthMode.Reset -> ResetPasswordSection(
+                            onSubmit = { /* TODO */ mode = AuthMode.Login },
+                            onBack = { mode = AuthMode.Login }
+                        )
+
+                        AuthMode.OtpVerification -> {
+                            // Lưu ý: OtpVerificationScreen KHÔNG cần tự vẽ popup nữa.
+                            OtpVerificationScreen(
+                                email = if (userEmail.isNotEmpty()) userEmail else "your@email.com",
+                                onOtpSubmit = { otp ->
+                                    authState.otpVerificationId?.let { id ->
+                                        authViewModel?.verifyOtp(id, otp)
+                                    }
+                                },
+                                onResendOtp = { authViewModel?.resendOtp() },
+                                onBackToLogin = {
+                                    authViewModel?.hideOtpScreen()
+                                    mode = AuthMode.Login
+                                },
+                                onVerificationSuccess = {
+                                    authViewModel?.goBackToLoginAfterVerification()
+                                    mode = AuthMode.Login
+                                },
+                                authState = authState
+                            )
                         }
+                    }
+                }
+            }
+
+            /* ======= Popup OTP: CHỈ 1 nơi vẽ ======= */
+            when (dialogState) {
+                is OtpDialogState.Success -> {
+                    OtpPopup(
+                        isVisible = true,
+                        isSuccess = true,
+                        title = (dialogState as OtpDialogState.Success).title,
+                        message = (dialogState as OtpDialogState.Success).message,
+                        confirmText = "OK",
+                        onConfirm = {
+                            dialogState = OtpDialogState.None
+                            authViewModel?.goBackToLoginAfterVerification()
+                            mode = AuthMode.Login
+                        },
+                        onDismiss = { dialogState = OtpDialogState.None }
                     )
+                }
+                is OtpDialogState.Error -> {
+                    OtpPopup(
+                        isVisible = true,
+                        isSuccess = false,
+                        title = (dialogState as OtpDialogState.Error).title,
+                        message = (dialogState as OtpDialogState.Error).message,
+                        confirmText = "Thử lại",
+                        onConfirm = {
+                            dialogState = OtpDialogState.None
+                        },
+                        onDismiss = { dialogState = OtpDialogState.None }
+                    )
+                }
+                OtpDialogState.None -> {
+                    // Không hiển thị popup
                 }
             }
         }
     }
 }
 
-/* ---------------- Welcome ---------------- */
+
+
+            /* ---------------- Welcome ---------------- */
 
 @Composable
 private fun WelcomeSection(
@@ -331,6 +417,7 @@ private fun RegisterSection(
     onSubmit: (fullName: String, email: String, password: String, role: UserRole) -> Unit,
     onGotoLogin: () -> Unit,
     onBack: () -> Unit,
+    onEmailSaved: (String) -> Unit = {}, // Callback để lưu email
 ) {
     // Safe initialization of AuthViewModel with error handling
     val viewModel: AuthViewModel? = if (LocalInspectionMode.current) {
@@ -449,6 +536,7 @@ private fun RegisterSection(
                         onClick = {
                             if (!validate()) return@BigGlassButton
                             localError = null
+                            onEmailSaved(email) // Gọi callback để lưu email
                             viewModel?.let { vm ->
                                 runCatching {
                                     if (role == UserRole.MENTOR) {
@@ -693,93 +781,6 @@ private fun ResetPasswordSection(
                     try {
                         onSubmit(newPassword)
                         success = "Mật khẩu đã được đặt lại thành công!"
-                    } catch (e: Exception) {
-                        error = "Có lỗi xảy ra: ${e.message}"
-                    } finally {
-                        isLoading = false
-                    }
-                }
-            )
-        }
-
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
-            Text("Quay lại đăng nhập?", color = Color.White.copy(0.85f))
-            SmallGlassPillButton("Đăng nhập", onClick = onBack)
-        }
-    }
-}
-
-/* ---------------- OTP Verification ---------------- */
-
-@Composable
-private fun OtpVerificationSection(
-    onSubmit: (String) -> Unit,
-    onBack: () -> Unit
-) {
-    var otpCode by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var success by remember { mutableStateOf<String?>(null) }
-
-    fun validate(): String? {
-        return when {
-            otpCode.isBlank() -> "Vui lòng nhập mã OTP"
-            otpCode.length != 6 -> "Mã OTP phải có 6 ký tự"
-            else -> null
-        }
-    }
-
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        FloatingLogo(size = 80.dp)
-        Spacer(Modifier.height(12.dp))
-
-        Text("Xác thực OTP", fontWeight = FontWeight.ExtraBold, fontSize = 28.sp, color = Color.White)
-        Spacer(Modifier.height(8.dp))
-
-        Text(
-            "Nhập mã OTP đã gửi đến email của bạn",
-            style = MaterialTheme.typography.bodyMedium.copy(
-                color = Color.White.copy(0.8f),
-                textAlign = TextAlign.Center
-            ),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(Modifier.height(20.dp))
-
-        GlassFormContainer {
-            GlassInput(
-                value = otpCode,
-                onValueChange = {
-                    otpCode = it
-                    error = null
-                    success = null
-                },
-                label = "Mã OTP",
-                placeholder = "Nhập mã OTP",
-                leading = { Icon(Icons.Default.Lock, null, tint = Color.White) }
-            )
-
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            success?.let { Text(it, color = Color.Green) }
-
-            BigGlassButton(
-                text = if (isLoading) "Đang xác thực..." else "Xác thực OTP",
-                subText = null,
-                icon = { Icon(Icons.Default.Lock, null, tint = Color.White) },
-                onClick = {
-                    val validationError = validate()
-                    if (validationError != null) {
-                        error = validationError
-                        return@BigGlassButton
-                    }
-
-                    isLoading = true
-                    error = null
-                    success = null
-                    try {
-                        onSubmit(otpCode)
-                        success = "Xác thực thành công! Đang chuyển hướng..."
                     } catch (e: Exception) {
                         error = "Có lỗi xảy ra: ${e.message}"
                     } finally {

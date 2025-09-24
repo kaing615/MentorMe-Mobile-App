@@ -46,6 +46,17 @@ data class AuthData(
     val user: UserDto? = null,
     @SerializedName("token")
     val token: String? = null,
+    // Fields for signin response
+    @SerializedName("role")
+    val role: String? = null,
+    @SerializedName("status")
+    val status: String? = null,
+    @SerializedName("profileCompleted")
+    val profileCompleted: Boolean? = null,
+    @SerializedName("requiresOnboarding")
+    val requiresOnboarding: Boolean? = null,
+    @SerializedName("next")
+    val next: String? = null,
     // Fields for OTP verification from signup response
     @SerializedName("userId")
     val userId: String? = null,
@@ -53,8 +64,6 @@ data class AuthData(
     val email: String? = null,
     @SerializedName("userName")
     val userName: String? = null,
-    @SerializedName("status")
-    val status: String? = null,
     @SerializedName("verificationId")
     val verificationId: String? = null,
     @SerializedName("expiresIn")

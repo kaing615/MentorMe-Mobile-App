@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+    <!-- Cho phép HTTP tới các host dùng khi dev -->
     <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">10.0.2.2</domain>
-        <domain includeSubdomains="true">localhost</domain>
-        <domain includeSubdomains="true">192.168.1.1</domain>
+        <domain includeSubdomains="TODO">10.158.38.39</domain>   <!-- server thật trên LAN -->
+        <domain includeSubdomains="TODO">10.0.2.2</domain>       <!-- host máy tính khi dùng Android Emulator -->
+        <domain includeSubdomains="TODO">10.0.3.2</domain>       <!-- host máy tính khi dùng Genymotion (nếu có) -->
+        <domain includeSubdomains="TODO">localhost</domain>
+        <domain includeSubdomains="TODO">192.168.1.1</domain>    <!-- nếu server chạy trên IP này -->
+        <domain includeSubdomains="TODO">172.72.74.62</domain>    <!-- nếu server chạy trên IP này -->
     </domain-config>
 </network-security-config>
-

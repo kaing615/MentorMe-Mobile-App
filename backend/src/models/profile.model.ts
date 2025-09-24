@@ -3,6 +3,7 @@ import mongoose, { Document, Schema, Model } from "mongoose";
 export interface IProfile extends Document {
   _id: mongoose.Types.ObjectId;
   user: mongoose.Types.ObjectId;
+  fullName?: string;
   jobTitle?: string;
   location?: string;
   category?: string;
@@ -42,6 +43,7 @@ const ProfileSchema: Schema<IProfile> = new Schema(
       required: true,
       unique: true,
     },
+    fullName: { type: String, trim: true, default: "" },
     jobTitle: { type: String, trim: true, default: "" },
     location: { type: String, trim: true, default: "" },
     category: { type: String, trim: true, default: "" },

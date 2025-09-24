@@ -14,6 +14,38 @@ object ErrorUtils {
         return when {
             errorMessage == null -> "Đã xảy ra lỗi không xác định"
 
+            // OTP specific errors - ưu tiên xử lý trước các lỗi khác
+            errorMessage.contains("\"message\":\"Invalid OTP\"", ignoreCase = true) ->
+                "Mã OTP không đúng. Vui lòng kiểm tra lại và nhập đúng 6 chữ số."
+            errorMessage.contains("\"Invalid OTP\"", ignoreCase = true) ->
+                "Mã OTP không đúng. Vui lòng kiểm tra lại và nhập đúng 6 chữ số."
+            errorMessage.contains("Invalid OTP", ignoreCase = true) ->
+                "Mã OTP không đúng. Vui lòng kiểm tra lại và nhập đúng 6 chữ số."
+            errorMessage.contains("\"message\":\"OTP expired", ignoreCase = true) ->
+                "Mã OTP đã hết hạn. Vui lòng yêu cầu gửi lại mã mới."
+            errorMessage.contains("\"OTP expired", ignoreCase = true) ->
+                "Mã OTP đã hết hạn. Vui lòng yêu cầu gửi lại mã mới."
+            errorMessage.contains("OTP expired", ignoreCase = true) ->
+                "Mã OTP đã hết hạn. Vui lòng yêu cầu gửi lại mã mới."
+            errorMessage.contains("\"message\":\"OTP not found", ignoreCase = true) ->
+                "Mã OTP không hợp lệ. Vui lòng yêu cầu gửi lại mã mới."
+            errorMessage.contains("\"OTP not found", ignoreCase = true) ->
+                "Mã OTP không hợp lệ. Vui lòng yêu cầu gửi lại mã mới."
+            errorMessage.contains("OTP not found", ignoreCase = true) ->
+                "Mã OTP không hợp lệ. Vui lòng yêu cầu gửi lại mã mới."
+            errorMessage.contains("\"message\":\"Invalid OTP format", ignoreCase = true) ->
+                "Mã OTP phải là 6 chữ số. Vui lòng nhập lại."
+            errorMessage.contains("\"Invalid OTP format", ignoreCase = true) ->
+                "Mã OTP phải là 6 chữ số. Vui lòng nhập lại."
+            errorMessage.contains("Invalid OTP format", ignoreCase = true) ->
+                "Mã OTP phải là 6 chữ số. Vui lòng nhập lại."
+            errorMessage.contains("\"message\":\"Too many attempts", ignoreCase = true) ->
+                "Bạn đã nhập sai quá nhiều lần. Vui lòng yêu cầu gửi lại mã OTP mới."
+            errorMessage.contains("\"Too many attempts", ignoreCase = true) ->
+                "Bạn đã nhập sai quá nhiều lần. Vui lòng yêu cầu gửi lại mã OTP mới."
+            errorMessage.contains("Too many attempts", ignoreCase = true) ->
+                "Bạn đã nhập sai quá nhiều lần. Vui lòng yêu cầu gửi lại mã OTP mới."
+
             // Network connection errors
             errorMessage.contains("failed to connect", ignoreCase = true) ->
                 "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối internet và thử lại."

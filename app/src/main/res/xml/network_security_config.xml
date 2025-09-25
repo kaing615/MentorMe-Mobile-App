@@ -8,5 +8,7 @@
         <domain includeSubdomains="TODO">localhost</domain>
         <domain includeSubdomains="TODO">192.168.1.1</domain>    <!-- nếu server chạy trên IP này -->
         <domain includeSubdomains="TODO">172.72.74.62</domain>    <!-- nếu server chạy trên IP này -->
+        <domain includeSubdomains="TODO">127.0.0.1</domain>
     </domain-config>
+    <base-config cleartextTrafficPermitted="true" />
 </network-security-config>

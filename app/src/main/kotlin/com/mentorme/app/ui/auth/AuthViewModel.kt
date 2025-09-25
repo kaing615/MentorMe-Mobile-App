@@ -123,20 +123,36 @@ class AuthViewModel @Inject constructor(
             when (val result = signInUseCase.invoke(email, password)) {
                 is AppResult.Success -> {
                     Log.d(TAG, "SignIn success: ${result.data}")
+                    Log.d(TAG, "SignIn success data: ${result.data.data}")
 
-                    // Extract user role từ response data
+                    // Extract user role từ response data với logging chi tiết
                     val userRole = try {
                         result.data.data?.let { data ->
+                            Log.d(TAG, "Extracting role from data.role: ${data.role}")
                             when (data.role) {
-                                "mentor" -> UserRole.MENTOR
-                                "mentee" -> UserRole.MENTEE
-                                else -> UserRole.MENTEE
+                                "mentor" -> {
+                                    Log.d(TAG, "Setting userRole to MENTOR")
+                                    UserRole.MENTOR
+                                }
+                                "mentee" -> {
+                                    Log.d(TAG, "Setting userRole to MENTEE")
+                                    UserRole.MENTEE
+                                }
+                                else -> {
+                                    Log.d(TAG, "Unknown role: ${data.role}, defaulting to MENTEE")
+                                    UserRole.MENTEE
+                                }
                             }
-                        } ?: UserRole.MENTEE
+                        } ?: run {
+                            Log.w(TAG, "No data found in response, defaulting to MENTEE")
+                            UserRole.MENTEE
+                        }
                     } catch (e: Exception) {
-                        Log.w(TAG, "Failed to extract user role: ${e.message}")
+                        Log.e(TAG, "Failed to extract user role: ${e.message}", e)
                         UserRole.MENTEE
                     }
+
+                    Log.d(TAG, "Final userRole set to: $userRole")
 
                     _authState.value = _authState.value.copy(
                         isLoading = false,

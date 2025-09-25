@@ -52,7 +52,8 @@ private data class NavItem(
     val badge: Int = 0
 )
 
-private val navItems = listOf(
+// Navigation items cho Mentee (5 tabs)
+private val menteeNavItems = listOf(
     NavItem("home",     "Trang chủ", Icons.Filled.Home),
     NavItem("search",   "Tìm kiếm", Icons.Filled.Search),
     NavItem("calendar", "Lịch hẹn", Icons.Filled.CalendarMonth, badge = 1),
@@ -60,10 +61,27 @@ private val navItems = listOf(
     NavItem("profile",  "Cá nhân",  Icons.Filled.Person)
 )
 
+// Navigation items cho Mentor (4 tabs)
+private val mentorNavItems = listOf(
+    NavItem("mentor_dashboard", "Dashboard", Icons.Filled.Home),
+    NavItem("mentor_calendar",  "Lịch hẹn",  Icons.Filled.CalendarMonth, badge = 1),
+    NavItem("mentor_messages",  "Tin nhắn",  Icons.AutoMirrored.Filled.Chat, badge = 2),
+    NavItem("mentor_profile",   "Cá nhân",   Icons.Filled.Person)
+)
+
+// Helper function để map mentor_home thành home cho bottom bar
+private fun mapRouteForBottomBar(route: String?): String {
+    return when (route) {
+        "mentor_home" -> "home"  // Map mentor_home thành home cho bottom navigation
+        else -> route ?: "home"
+    }
+}
+
 // ===== Public API =====
 @Composable
 fun GlassBottomBar(
     navController: NavHostController,
+    userRole: String = "mentee", // Thêm tham số userRole với default là mentee
     modifier: Modifier = Modifier
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -96,8 +114,10 @@ fun GlassBottomBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val navItems = if (userRole == "mentor") mentorNavItems else menteeNavItems
+
             navItems.forEach { item ->
-                val selected = current.isSelected(item.route)
+                val selected = current.isSelected(item.route, userRole)
                 GlassBarItem(
                     selected = selected,
                     label = item.label,
@@ -105,7 +125,10 @@ fun GlassBottomBar(
                     badge = item.badge
                 ) {
                     if (!selected) {
-                        navController.navigate(item.route) {
+                        // Xác định route đích dựa trên role và item được click
+                        val targetRoute = getTargetRoute(item.route, userRole)
+
+                        navController.navigate(targetRoute) {
                             popUpTo(navController.graph.findStartDestination().id) {
                                 saveState = true
                             }
@@ -190,5 +213,45 @@ private fun GlassBarItem(
 }
 
 // ===== Helpers =====
-private fun NavDestination?.isSelected(route: String): Boolean =
-    this?.hierarchy?.any { it.route == route } == true
+private fun NavDestination?.isSelected(route: String, userRole: String): Boolean {
+    return when (route) {
+        // Mentor routes
+        "mentor_dashboard" -> {
+            this?.hierarchy?.any { it.route == "mentor_dashboard" || it.route == "mentor_home" } == true
+        }
+        "mentor_calendar" -> {
+            this?.hierarchy?.any { it.route == "mentor_calendar" } == true
+        }
+        "mentor_messages" -> {
+            this?.hierarchy?.any { it.route == "mentor_messages" } == true
+        }
+        "mentor_profile" -> {
+            this?.hierarchy?.any { it.route == "mentor_profile" } == true
+        }
+        // Mentee routes
+        "home" -> {
+            // Home item được selected khi ở route "home" HOẶC "mentor_home"
+            this?.hierarchy?.any { it.route == "home" || it.route == "mentor_home" } == true
+        }
+        else -> {
+            this?.hierarchy?.any { it.route == route } == true
+        }
+    }
+}
+
+private fun getTargetRoute(route: String, userRole: String): String {
+    return when (route) {
+        // Mentor routes
+        "mentor_dashboard" -> "mentor_dashboard"
+        "mentor_calendar" -> "mentor_calendar"
+        "mentor_messages" -> "mentor_messages"
+        "mentor_profile" -> "mentor_profile"
+        // Mentee routes
+        "home" -> if (userRole == "mentor") "mentor_home" else "home"
+        "search" -> "search"
+        "calendar" -> "calendar"
+        "messages" -> "messages"
+        "profile" -> "profile"
+        else -> if (userRole == "mentor") "mentor_dashboard" else "home"
+    }
+}

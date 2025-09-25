@@ -61,7 +61,7 @@ fun LoginSection(
 
     // Xử lý kết quả đăng nhập từ backend
     LaunchedEffect(authState) {
-        Log.d("LoginSection", "AuthState changed: isAuthenticated=${authState.isAuthenticated}, error=${authState.error}")
+        Log.d("LoginSection", "AuthState changed: isAuthenticated=${authState.isAuthenticated}, error=${authState.error}, userRole=${authState.userRole}")
 
         when {
             // Đăng nhập thành công
@@ -69,9 +69,18 @@ fun LoginSection(
                 Log.d("LoginSection", "Login successful, navigating to home for role: ${authState.userRole}")
                 // Điều hướng dựa trên role của user
                 when (authState.userRole) {
-                    UserRole.MENTOR -> onNavigateToMentorHome()
-                    UserRole.MENTEE -> onNavigateToMenteeHome()
-                    else -> onNavigateToMenteeHome() // Default to mentee home
+                    UserRole.MENTOR -> {
+                        Log.d("LoginSection", "Navigating to MENTOR home")
+                        onNavigateToMentorHome()
+                    }
+                    UserRole.MENTEE -> {
+                        Log.d("LoginSection", "Navigating to MENTEE home")
+                        onNavigateToMenteeHome()
+                    }
+                    else -> {
+                        Log.w("LoginSection", "Unknown role: ${authState.userRole}, defaulting to MENTEE home")
+                        onNavigateToMenteeHome() // Default to mentee home
+                    }
                 }
             }
             // Tài khoản chờ xét duyệt (kiểm tra error message từ ErrorUtils)

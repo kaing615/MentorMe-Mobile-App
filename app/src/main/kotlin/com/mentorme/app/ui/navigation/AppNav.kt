@@ -1,5 +1,6 @@
 package com.mentorme.app.ui.navigation
 
+import android.util.Log
 import android.annotation.SuppressLint
 import android.os.Build
 import androidx.annotation.RequiresApi
@@ -22,6 +23,10 @@ import com.mentorme.app.ui.layout.UserUi
 import com.mentorme.app.ui.auth.AuthScreen
 import com.mentorme.app.ui.auth.RegisterPayload
 import com.mentorme.app.ui.home.HomeScreen
+import com.mentorme.app.ui.dashboard.MentorDashboardScreen
+import com.mentorme.app.ui.calendar.MentorCalendarScreen
+import com.mentorme.app.ui.chat.MentorMessagesScreen
+import com.mentorme.app.ui.profile.MentorProfileScreen
 import com.mentorme.app.ui.search.SearchMentorScreen
 import com.mentorme.app.data.mock.MockData
 import com.mentorme.app.ui.calendar.CalendarScreen
@@ -42,32 +47,16 @@ import com.mentorme.app.ui.wallet.PaymentMethodScreen
 import com.mentorme.app.ui.wallet.AddPaymentMethodScreen
 import com.mentorme.app.ui.wallet.EditPaymentMethodScreen
 
-private fun goToSearch(nav: NavHostController) {
-    if (nav.currentDestination?.route != Routes.search) {
-        nav.navigate(Routes.search) {
-            // giữ lại state của tab trước đó, tránh tạo bản sao Search
-            popUpTo(nav.graph.findStartDestination().id) { saveState = true }
-            launchSingleTop = true
-            restoreState = true
-        }
-    }
-}
-
-private fun backOrHome(nav: NavHostController) {
-    // Thử pop về màn trước; nếu không có gì để pop thì về Home
-    val popped = nav.popBackStack()
-    if (!popped) {
-        nav.navigate(Routes.Home) {
-            popUpTo(nav.graph.findStartDestination().id) { saveState = true }
-            launchSingleTop = true
-            restoreState = true
-        }
-    }
-}
-
 object Routes {
     const val Auth = "auth"
     const val Home = "home"
+
+    // Mentor routes
+    const val MentorDashboard = "mentor_dashboard"
+    const val MentorCalendar = "mentor_calendar"
+    const val MentorMessages = "mentor_messages"
+    const val MentorProfile = "mentor_profile"
+
     const val Calendar = "calendar"
     const val Messages = "messages"
     const val Profile = "profile"
@@ -80,6 +69,31 @@ object Routes {
     const val EditPaymentMethod = "wallet/edit_method"
 }
 
+private fun goToSearch(nav: NavHostController) {
+    if (nav.currentDestination?.route != Routes.search) {
+        nav.navigate(Routes.search) {
+            // giữ lại state của tab trước đó, tránh tạo bản sao Search
+            popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+}
+
+private fun backOrHome(nav: NavHostController, userRole: String = "mentee") {
+    // Thử pop về màn trước; nếu không có gì để pop thì về Home tương ứng với user role
+    val popped = nav.popBackStack()
+    if (!popped) {
+        val homeRoute = if (userRole == "mentor") Routes.MentorDashboard else Routes.Home  // Thay đổi từ MentorHome sang MentorDashboard
+        nav.navigate(homeRoute) {
+            popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+}
+
+
 @RequiresApi(Build.VERSION_CODES.O)
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
@@ -90,7 +104,13 @@ fun AppNav(
     val backstack by nav.currentBackStackEntryAsState()
     val currentRoute = backstack?.destination?.route
     var isLoggedIn by rememberSaveable { mutableStateOf(false) }
+    var userRole by rememberSaveable { mutableStateOf("mentee") } // Track user role
     var payMethods by remember { mutableStateOf(initialPaymentMethods()) }
+
+    // Debug current route
+    LaunchedEffect(currentRoute) {
+        Log.d("AppNav", "Current route changed to: $currentRoute")
+    }
 
     val selMethodId = nav.currentBackStackEntry
         ?.savedStateHandle
@@ -156,7 +176,7 @@ fun AppNav(
                     !hideForBooking &&
                     !hideForWallet
                 ){
-                    GlassBottomBar(navController = nav)
+                    GlassBottomBar(navController = nav, userRole = userRole)
                 }
             },
             modifier = Modifier.fillMaxSize()
@@ -164,7 +184,11 @@ fun AppNav(
             Box(modifier = Modifier.fillMaxSize()) {
                 NavHost(
                     navController = nav,
-                    startDestination = if (isLoggedIn) Routes.Home else Routes.Auth,
+                    startDestination = when {
+                        !isLoggedIn -> Routes.Auth
+                        userRole == "mentor" -> Routes.MentorDashboard  // Thay đổi từ MentorHome sang MentorDashboard
+                        else -> Routes.Home
+                    },
                     modifier = Modifier.fillMaxSize()
                 ) {
                     // ---------- AUTH ----------
@@ -183,6 +207,7 @@ fun AppNav(
                             onResetPassword = { /* TODO */ },
                             onNavigateToMenteeHome = {
                                 isLoggedIn = true
+                                userRole = "mentee"  // Set role
                                 nav.navigate(Routes.Home) {
                                     popUpTo(Routes.Auth) { inclusive = true }
                                     launchSingleTop = true
@@ -190,8 +215,9 @@ fun AppNav(
                             },
                             onNavigateToMentorHome = {
                                 isLoggedIn = true
-                                // TODO: Điều hướng đến MentorHome khi đã tạo route cho mentor
-                                nav.navigate(Routes.Home) {
+                                userRole = "mentor"  // Set role
+                                Log.d("AppNav", "Navigating to MentorDashboard route")
+                                nav.navigate(Routes.MentorDashboard) {  // Thay đổi từ MentorHome sang MentorDashboard
                                     popUpTo(Routes.Auth) { inclusive = true }
                                     launchSingleTop = true
                                 }
@@ -207,10 +233,94 @@ fun AppNav(
                         )
                     }
 
+                    // ---------- MENTOR SCREENS ----------
+                    composable(Routes.MentorDashboard) {
+                        MentorDashboardScreen(
+                            onViewSchedule = { nav.navigate(Routes.MentorCalendar) },
+                            onViewStudents = {
+                                Log.d("AppNav", "Navigate to students list - TODO")
+                            },
+                            onViewEarnings = {
+                                Log.d("AppNav", "Navigate to earnings - TODO")
+                            },
+                            onViewReviews = {
+                                Log.d("AppNav", "Navigate to reviews - TODO")
+                            },
+                            onJoinSession = { sessionId ->
+                                Log.d("AppNav", "Join session $sessionId - TODO")
+                            },
+                            onViewAllSessions = { nav.navigate(Routes.MentorCalendar) },
+                            onUpdateProfile = { nav.navigate(Routes.MentorProfile) }
+                        )
+                    }
+
+                    composable(Routes.MentorCalendar) {
+                        MentorCalendarScreen(
+                            onViewSession = { sessionId ->
+                                Log.d("AppNav", "View session $sessionId - TODO")
+                            },
+                            onCreateSession = {
+                                Log.d("AppNav", "Create session - TODO")
+                            },
+                            onUpdateAvailability = {
+                                Log.d("AppNav", "Update availability - TODO")
+                            },
+                            onCancelSession = { sessionId ->
+                                Log.d("AppNav", "Cancel session $sessionId - TODO")
+                            }
+                        )
+                    }
+
+                    composable(Routes.MentorMessages) {
+                        MentorMessagesScreen(
+                            onOpenConversation = { convId ->
+                                nav.navigate("${Routes.Chat}/$convId")
+                            },
+                            onFilterStudents = {
+                                Log.d("AppNav", "Filter students - TODO")
+                            },
+                            onSearchConversations = { query ->
+                                Log.d("AppNav", "Search conversations: $query - TODO")
+                            }
+                        )
+                    }
+
+                    composable(Routes.MentorProfile) {
+                        MentorProfileScreen(
+                            onEditProfile = {
+                                Log.d("AppNav", "Edit mentor profile - TODO")
+                            },
+                            onViewEarnings = {
+                                Log.d("AppNav", "View earnings - TODO")
+                            },
+                            onViewReviews = {
+                                Log.d("AppNav", "View reviews - TODO")
+                            },
+                            onUpdateAvailability = { nav.navigate(Routes.MentorCalendar) },
+                            onManageServices = {
+                                Log.d("AppNav", "Manage services - TODO")
+                            },
+                            onViewStatistics = {
+                                Log.d("AppNav", "View statistics - TODO")
+                            },
+                            onSettings = {
+                                Log.d("AppNav", "Settings - TODO")
+                            },
+                            onLogout = {
+                                isLoggedIn = false
+                                userRole = "mentee"
+                                nav.navigate(Routes.Auth) {
+                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                    launchSingleTop = true
+                                }
+                            }
+                        )
+                    }
+
                     composable(Routes.search) {
                         SearchMentorScreen(
-                            onOpenProfile = { backOrHome(nav) },
-                            onBook = { backOrHome(nav) }
+                            onOpenProfile = { backOrHome(nav, userRole) },
+                            onBook = { backOrHome(nav, userRole) }
                         )
                     }
 

@@ -5,9 +5,13 @@ import android.annotation.SuppressLint
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
@@ -38,6 +42,10 @@ import com.mentorme.app.ui.layout.UserUi
 import com.mentorme.app.ui.theme.LiquidBackground
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.mentorme.app.ui.auth.AuthScreen
 import com.mentorme.app.ui.auth.RegisterPayload
@@ -54,6 +62,14 @@ import com.mentorme.app.ui.wallet.initialPaymentMethods
 import com.mentorme.app.ui.wallet.PaymentMethodScreen
 import com.mentorme.app.ui.wallet.AddPaymentMethodScreen
 import com.mentorme.app.ui.wallet.EditPaymentMethodScreen
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.unit.dp
+import com.mentorme.app.ui.onboarding.MenteeOnboardingScreen
+import com.mentorme.app.ui.onboarding.MentorOnboardingScreen
+import com.mentorme.app.ui.onboarding.PendingApprovalScreen
 
 object Routes {
     const val Auth = "auth"
@@ -75,6 +91,9 @@ object Routes {
     const val PaymentMethods = "wallet/payment_methods"
     const val AddPaymentMethod = "wallet/add_method"
     const val EditPaymentMethod = "wallet/edit_method"
+    const val PendingApproval = "pending_approval"
+    const val Onboarding = "onboarding/{role}"
+    fun onboardingFor(role: String) = "onboarding/$role"
 }
 
 private fun goToSearch(nav: NavHostController) {
@@ -114,6 +133,7 @@ fun AppNav(
     var isLoggedIn by rememberSaveable { mutableStateOf(false) }
     var userRole by rememberSaveable { mutableStateOf("mentee") } // Track user role
     var payMethods by remember { mutableStateOf(initialPaymentMethods()) }
+    var authToken by rememberSaveable { mutableStateOf<String?>(null) }
 
     // Debug current route
     LaunchedEffect(currentRoute) {
@@ -232,9 +252,86 @@ fun AppNav(
                                     popUpTo(Routes.Auth) { inclusive = true }
                                     launchSingleTop = true
                                 }
+                            },
+                            onNavigateToOnboarding = { tokenFromAuth: String?, role: String? ->
+                                authToken = tokenFromAuth
+                                val roleSafe = role ?: "mentee"
+                                userRole = roleSafe // optional, vẫn set state để bottom bar, startDestination... biết
+                                Log.d("AppNav", "Navigating to Onboarding, token=$tokenFromAuth, role=$roleSafe")
+
+                                nav.navigate(Routes.onboardingFor(roleSafe)) {
+                                    popUpTo(Routes.Auth) { inclusive = false }
+                                    launchSingleTop = true
+                                }
+                            },
+                            onNavigateToReview = {
+                                Log.d("AppNav", "Navigating to PendingApproval screen")
+                                nav.navigate(Routes.PendingApproval) {
+                                    popUpTo(Routes.Auth) { inclusive = false }
+                                    launchSingleTop = true
+                                }
                             }
                         )
                     }
+
+                    // ---------- ONBOARDING ----------
+                    composable(Routes.Onboarding) { backStackEntry ->
+                        val roleArg = backStackEntry.arguments?.getString("role") ?: userRole
+
+                        if (roleArg == "mentor") {
+                            MentorOnboardingScreen(
+                                onBack = { nav.popBackStack() },
+                                onDoneGoHome = {
+                                    isLoggedIn = true
+                                    userRole = "mentor"
+                                    nav.navigate(Routes.MentorDashboard) {
+                                        popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
+                                },
+                                onGoToReview = {
+                                    nav.navigate(Routes.PendingApproval) {
+                                        popUpTo(Routes.Auth) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
+                                }
+                            )
+                        } else {
+                            MenteeOnboardingScreen(
+                                onBack = { nav.popBackStack() },
+                                onDoneGoHome = {
+                                    isLoggedIn = true
+                                    userRole = "mentee"
+                                    nav.navigate(Routes.Home) {
+                                        popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
+                                },
+                                onGoToReview = {
+                                    nav.navigate(Routes.PendingApproval) {
+                                        popUpTo(Routes.Auth) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+// ---------- PENDING APPROVAL ----------
+                    composable(Routes.PendingApproval) {
+                        PendingApprovalScreen(
+                            onRefreshStatus = {
+                                // TODO: Gọi API kiểm tra trạng thái → nếu đã duyệt thì điều hướng sang dashboard
+                            },
+                            onBackToLogin = {
+                                nav.navigate(Routes.Auth) {
+                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                        )
+                    }
+
 
                     // ---------- MAIN APP ----------
                     composable(Routes.Home) {

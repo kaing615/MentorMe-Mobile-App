@@ -71,6 +71,12 @@ dependencies {
     implementation(libs.androidx.compose.ui.text)
     implementation(libs.androidx.ui)
     implementation(libs.firebase.database.ktx)
+    implementation(libs.androidx.material3)
+    implementation(libs.ui)
+    implementation(libs.androidx.ui.text)
+    implementation(libs.androidx.compose.foundation.layout)
+    implementation(libs.androidx.compose.animation)
+    implementation(libs.androidx.ui.graphics)
     kapt(libs.hilt.compiler)
 
     implementation(libs.retrofit)

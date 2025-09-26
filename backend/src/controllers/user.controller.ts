@@ -4,7 +4,7 @@ import sgMail from "../utils/sendGrid";
 import redis from "../utils/redis";
 import { asyncHandler } from "../handlers/async.handler";
 import responseHandler from "../handlers/response.handler";
-import User from "../models/user.model";
+import User, { IUser } from "../models/user.model";
 import { randomInt, randomBytes, createHash, randomUUID } from "crypto";
 import jwt, { SignOptions } from "jsonwebtoken";
 import getTokenFromReq from "../middlewares/auth.middleware";
@@ -105,6 +105,39 @@ async function sendOtpEmail(
   });
 }
 
+async function issueEmailOtpAndSend(
+  userId: string,
+  email: string,
+  userName: string | undefined
+) {
+  const cdKey = `otp:last:${userId}`;
+  const cd = await redis.ttl(cdKey);
+  if (cd > 0) {
+    throw new Error(`OTP was recently sent. Try again in ${cd}s`);
+  }
+
+  const code = genNumericOtp(6);
+  let verificationId = randomBytes(16).toString("hex");
+  const minutes = Math.max(1, Math.floor(OTP_TTL_SEC / 60));
+
+  await redis.setEx(
+    `otp:verify:${verificationId}`,
+    OTP_TTL_SEC,
+    JSON.stringify({
+      userId,
+      verificationId,
+      email,
+      codeHash: sha256(code),
+      attempts: 0,
+    })
+  );
+
+  await sendOtpEmail(email, userName, code, minutes);
+  await redis.setEx(cdKey, 30, "1");
+
+  return { verificationId, expiresIn: OTP_TTL_SEC };
+}
+
 export const signUpMentee = asyncHandler(
   async (req: Request, res: Response) => {
     const rawEmail = String(req.body?.email ?? "").trim();
@@ -138,7 +171,7 @@ export const signUpMentee = asyncHandler(
           userName,
           passwordHash: hashed,
           role: "mentee",
-          status: "pending",
+          status: "verifying",
         });
         userId = doc.id;
       } catch (e: any) {
@@ -158,24 +191,12 @@ export const signUpMentee = asyncHandler(
       }
     }
 
-    const code = genNumericOtp(6);
-    const verificationId = randomBytes(16).toString("hex");
-    const minutes = Math.max(1, Math.floor(OTP_TTL_SEC / 60));
-
-    await redis.setEx(
-      `otp:verify:${verificationId}`,
-      OTP_TTL_SEC,
-      JSON.stringify({
-        userId,
-        verificationId,
-        email,
-        codeHash: sha256(code),
-        attempts: 0,
-      })
-    );
-
+    let verificationId: string;
+    let expiresIn: number;
     try {
-      await sendOtpEmail(email, userName, code, minutes);
+      const issued = await issueEmailOtpAndSend(userId!, email, userName);
+      verificationId = issued.verificationId;
+      expiresIn = issued.expiresIn;
     } catch (e: any) {
       return responseHandler.internalServerError(
         res,
@@ -190,11 +211,12 @@ export const signUpMentee = asyncHandler(
         userId,
         email,
         userName,
-        status: "pending",
+        status: "verifying",
         verificationId,
-        expiresIn: OTP_TTL_SEC,
+        expiresIn,
+        next: "/verify-otp",
       },
-      "User pending. OTP sent to email."
+      "Verification required. OTP sent to email."
     );
   }
 );
@@ -264,7 +286,7 @@ export const verifyEmailOtp = asyncHandler(
       );
     }
 
-    const newStatus = user.role === "mentor" ? "pending-mentor" : "active";
+    const newStatus: IUser["status"] = "onboarding";
 
     const updated = await User.findByIdAndUpdate(
       data.userId,
@@ -284,7 +306,7 @@ export const verifyEmailOtp = asyncHandler(
     await redis.del(key);
 
     let token: string | undefined;
-    if (process.env.JWT_SECRET && updated.status === "active") {
+    if (process.env.JWT_SECRET) {
       token = jwt.sign(
         {
           id: data.userId,
@@ -303,6 +325,7 @@ export const verifyEmailOtp = asyncHandler(
         userId: String(updated._id),
         status: updated.status,
         token,
+        next: "/onboarding",
       },
       "Email verified"
     );
@@ -340,7 +363,7 @@ export const signUpAsMentor = asyncHandler(
           userName,
           passwordHash: hashed,
           role: "mentor",
-          status: "pending-mentor",
+          status: "verifying",
         });
         userId = doc.id;
       } catch (e: any) {
@@ -359,24 +382,12 @@ export const signUpAsMentor = asyncHandler(
       }
     }
 
-    const code = genNumericOtp(6);
-    const verificationId = randomBytes(16).toString("hex");
-    const minutes = Math.max(1, Math.floor(OTP_TTL_SEC / 60));
-
-    await redis.setEx(
-      `otp:verify:${verificationId}`,
-      OTP_TTL_SEC,
-      JSON.stringify({
-        userId,
-        verificationId,
-        email,
-        codeHash: sha256(code),
-        attempts: 0,
-      })
-    );
-
+    let verificationId: string;
+    let expiresIn: number;
     try {
-      await sendOtpEmail(email, userName, code, minutes);
+      const issued = await issueEmailOtpAndSend(userId!, email, userName);
+      verificationId = issued.verificationId;
+      expiresIn = issued.expiresIn;
     } catch (e: any) {
       return responseHandler.internalServerError(
         res,
@@ -391,10 +402,11 @@ export const signUpAsMentor = asyncHandler(
         userId,
         email,
         userName,
-        status: "pending-mentor",
+        status: "verifying",
         role: "mentor",
         verificationId,
-        expiresIn: OTP_TTL_SEC,
+        expiresIn,
+        next: "/verify-otp",
       },
       "Your mentor application is received and pending review. OTP sent to email."
     );
@@ -426,7 +438,7 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
     email: user.email,
     role: (user as any).role,
     status: (user as any).status,
-    hasPassword: !!(user as any).passwordHash
+    hasPassword: !!(user as any).passwordHash,
   });
 
   // Kiểm tra password trước để đảm bảo user nhập đúng thông tin
@@ -438,10 +450,84 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
     return responseHandler.unauthorized(res, null, "Invalid email or password");
   }
 
-  // Sau khi password đúng, kiểm tra status để trả về message phù hợp
-  if (user.status === "pending" || user.status === "pending-mentor") {
+  if (user.status === "verifying") {
+    console.log("⏳ Account verifying (resend OTP):", email);
+    try {
+      const { verificationId, expiresIn } = await issueEmailOtpAndSend(
+        String(user._id),
+        email,
+        (user as any).userName
+      );
+
+      return responseHandler.ok(
+        res,
+        {
+          userId: String(user._id),
+          email: user.email,
+          status: "verifying",
+          verificationId,
+          expiresIn,
+          next: "/verify-otp",
+          resent: true,
+        },
+        "Account verifying. OTP sent to email."
+      );
+    } catch (e: any) {
+      const msg = e?.message || "Failed to resend OTP email";
+      const m = msg.match(/OTP was recently sent\. Try again in (\d+)s/);
+      if (m) {
+        const retryIn = Number(m[1]);
+        return responseHandler.ok(
+          res,
+          {
+            userId: String(user._id),
+            email: user.email,
+            status: "verifying",
+            next: "/verify-otp",
+            resent: false,
+            retryIn,
+          },
+          "OTP was recently sent. Please wait before requesting again."
+        );
+      }
+      return responseHandler.internalServerError(
+        res,
+        null,
+        "Failed to send OTP email. Please try again later."
+      );
+    }
+  }
+
+  if (user.status === "onboarding" || user.status === "pending-mentor") {
     console.log("⏳ Account pending approval:", { email, status: user.status });
-    return responseHandler.unauthorized(res, null, "Account pending approval");
+    let token: string | undefined;
+    if (process.env.JWT_SECRET) {
+      token = jwt.sign(
+        {
+          id: String(user._id),
+          email: user.email,
+          role: (user as any).role ?? "mentee",
+        },
+        process.env.JWT_SECRET,
+        jwtOpts()
+      );
+    }
+    return responseHandler.ok(
+      res,
+      {
+        userId: String(user._id),
+        email: user.email,
+        status: user.status,
+        next:
+          user.status === "onboarding" ? "/onboarding" : "/onboarding/review",
+        requiresOnboarding: user.status === "onboarding",
+        requiresApproval: user.status === "pending-mentor",
+        token,
+      },
+      user.status === "onboarding"
+        ? "Account requires onboarding."
+        : "Account pending mentor approval."
+    );
   }
 
   if (user.status !== "active") {
@@ -535,13 +621,11 @@ export const getCurrentUser = asyncHandler(
 
     const profileCompleted = !!profile?.profileCompleted;
 
-    const next = !profileCompleted
-      ? "/onboarding"
-      : dbUser.status !== "active"
-      ? "/onboarding/review"
-      : "/home";
-
-    const requiresOnboarding = next === "/onboarding";
+    let next = "/home";
+    if (dbUser.status === "verifying") next = "/verify-otp";
+    else if (dbUser.status === "onboarding" || !profileCompleted)
+      next = "/onboarding";
+    else if (dbUser.status !== "active") next = "/onboarding/review";
 
     return responseHandler.ok(
       res,
@@ -560,7 +644,6 @@ export const getCurrentUser = asyncHandler(
             }
           : { profileCompleted: false, avatarUrl: "" },
         profileCompleted,
-        requiresOnboarding,
         next,
       },
       "Current user fetched"

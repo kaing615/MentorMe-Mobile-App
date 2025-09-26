@@ -2,6 +2,7 @@ package com.mentorme.app.ui.auth
 
 import android.util.Log
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -38,6 +39,7 @@ import com.mentorme.app.ui.auth.sections.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import com.mentorme.app.ui.auth.AuthViewModel
 
 /* ---------------- Data ---------------- */
 
@@ -60,6 +62,8 @@ fun AuthScreen(
     onResetPassword: (email: String) -> Unit,
     onNavigateToMenteeHome: () -> Unit,
     onNavigateToMentorHome: () -> Unit,
+    onNavigateToOnboarding: (token: String?, role: String?) -> Unit,
+    onNavigateToReview: () -> Unit,
     startInReset: Boolean = false
 ) {
     var mode by remember { mutableStateOf(if (startInReset) AuthMode.Reset else AuthMode.Welcome) }
@@ -83,6 +87,23 @@ fun AuthScreen(
         )
     }.asStateFlow())
         .collectAsStateWithLifecycle()
+
+    fun parseRoleFromJwt(token: String?): String? {
+        if (token.isNullOrBlank()) return null
+        return try {
+            val parts = token.split(".")
+            if (parts.size < 2) return null
+            val payload = android.util.Base64.decode(
+                parts[1],
+                android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING
+            )
+            val json = org.json.JSONObject(String(payload, Charsets.UTF_8))
+            json.optString("role", null) // "mentor" | "mentee"
+        } catch (e: Exception) {
+            Log.e("AuthScreen", "parseRoleFromJwt error", e)
+            null
+        }
+    }
 
     // Điều hướng mở OTP khi server yêu cầu
     LaunchedEffect(authState.showOtpScreen) {
@@ -193,7 +214,18 @@ fun AuthScreen(
                             onForgot = { mode = AuthMode.Forgot },
                             onBack = { mode = AuthMode.Welcome },
                             onNavigateToMenteeHome = onNavigateToMenteeHome,
-                            onNavigateToMentorHome = onNavigateToMentorHome
+                            onNavigateToMentorHome = onNavigateToMentorHome,
+                            onNavigateToOnboarding = {
+                                val token = authState.authResponse?.data?.token
+                                // Nếu VM chưa set đúng userRole, tự đọc từ JWT
+                                val roleStr = when (authState.userRole) {
+                                    UserRole.MENTOR -> "mentor"
+                                    UserRole.MENTEE -> "mentee"
+                                    else -> parseRoleFromJwt(token) ?: "mentee"
+                                }
+                                onNavigateToOnboarding(token, roleStr)
+                            },
+                            onNavigateToReview = onNavigateToReview,
                         )
 
                         AuthMode.Register -> RegisterSection(
@@ -243,8 +275,16 @@ fun AuthScreen(
                                     mode = AuthMode.Login
                                 },
                                 onVerificationSuccess = {
-                                    authViewModel?.goBackToLoginAfterVerification()
-                                    mode = AuthMode.Login
+                                    authViewModel?.hideOtpScreen()
+                                    val token = authState.authResponse?.data?.token
+                                    val roleStr =
+                                        if (authState.originalSignUpData?.isMentor == true) "mentor"
+                                        else when (authState.userRole) {
+                                            UserRole.MENTOR -> "mentor"
+                                            UserRole.MENTEE -> "mentee"
+                                            else -> null
+                                        }
+                                    onNavigateToOnboarding(token, roleStr)
                                 },
                                 authState = authState
                             )
@@ -261,11 +301,19 @@ fun AuthScreen(
                         isSuccess = true,
                         title = (dialogState as OtpDialogState.Success).title,
                         message = (dialogState as OtpDialogState.Success).message,
-                        confirmText = "OK",
+                        confirmText = "Bắt đầu thiết lập",
                         onConfirm = {
                             dialogState = OtpDialogState.None
-                            authViewModel?.goBackToLoginAfterVerification()
-                            mode = AuthMode.Login
+                            authViewModel?.hideOtpScreen()
+                            val token = authState.authResponse?.data?.token
+                            val roleStr =
+                                if (authState.originalSignUpData?.isMentor == true) "mentor"
+                                else when (authState.userRole) {
+                                    UserRole.MENTOR -> "mentor"
+                                    UserRole.MENTEE -> "mentee"
+                                    else -> null
+                                }
+                            onNavigateToOnboarding(token, roleStr)
                         },
                         onDismiss = { dialogState = OtpDialogState.None }
                     )

@@ -4,11 +4,7 @@ import com.mentorme.app.core.datastore.DataStoreManager
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.Response
-import okio.Buffer
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,63 +16,59 @@ class AuthInterceptor @Inject constructor(
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
 
-        val token = runBlocking {
-            dataStoreManager.getToken().first()
+        // Lấy token hiện tại (blocking ngắn trên nền tảng OkHttp thread)
+        val token = runBlocking { dataStoreManager.getToken().first() }
+        android.util.Log.d("AuthInterceptor", "📦 Token in DataStore: $token")
+
+        // Không có token -> đi tiếp như cũ
+        if (token.isNullOrBlank()) {
+            return chain.proceed(originalRequest)
         }
 
-        return if (token != null) {
-            val newRequest = originalRequest.newBuilder()
-                .header("Authorization", "Bearer $token")
-                .build()
-            chain.proceed(newRequest)
-        } else {
-            chain.proceed(originalRequest)
-        }
+        // Có token -> gắn Authorization header
+        val authed = originalRequest.newBuilder()
+            .header("Authorization", "Bearer $token")
+            .build()
+
+        return chain.proceed(authed)
     }
 }
 
 @Singleton
-class ApiKeyInterceptor @Inject constructor() : Interceptor {
+class ApiKeyInterceptor @Inject constructor(
+) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
-        val originalRequest = chain.request()
+        // CHỈ log – KHÔNG chỉnh sửa body/header để không làm mất Authorization
+        val req = chain.request()
 
-        // Create a new request builder
-        val requestBuilder = originalRequest.newBuilder()
+        // Nếu muốn chấp nhận JSON từ server
+        val newReq = req.newBuilder()
             .header("Accept", "application/json")
+            .build()
 
-        // If the request has a body, we need to ensure the Content-Type is exactly "application/json"
-        originalRequest.body?.let { body ->
-            val mediaType = "application/json".toMediaType()
-            val buffer = Buffer()
-            body.writeTo(buffer)
-            val requestBody = buffer.readByteArray()
-            val newBody = requestBody.toRequestBody(mediaType)
-            requestBuilder.method(originalRequest.method, newBody)
-
-            // Log the request details for debugging
-            android.util.Log.d("ApiKeyInterceptor", "Request URL: ${originalRequest.url}")
-            android.util.Log.d("ApiKeyInterceptor", "Request Method: ${originalRequest.method}")
-            android.util.Log.d("ApiKeyInterceptor", "Request Body: ${String(requestBody)}")
-            android.util.Log.d("ApiKeyInterceptor", "Content-Type: application/json")
+        android.util.Log.d("ApiKeyInterceptor", "➡️ ${req.method} ${req.url}")
+        android.util.Log.d("ApiKeyInterceptor", "Authorization header: ${req.header("Authorization")}")
+        req.body?.contentType()?.let { ct ->
+            android.util.Log.d("ApiKeyInterceptor", "Content-Type: $ct")
         }
 
-        val newRequest = requestBuilder.build()
-        val response = chain.proceed(newRequest)
+        val res = chain.proceed(newReq)
 
-        // Log response details for debugging
-        if (!response.isSuccessful) {
-            android.util.Log.e("ApiKeyInterceptor", "Response Code: ${response.code}")
-            android.util.Log.e("ApiKeyInterceptor", "Response Message: ${response.message}")
-            response.body?.let { responseBody ->
-                val responseString = responseBody.string()
-                android.util.Log.e("ApiKeyInterceptor", "Response Body: $responseString")
-                // Create a new response body since we consumed the original
-                val newResponseBody = responseString.toResponseBody(responseBody.contentType())
-                return response.newBuilder().body(newResponseBody).build()
+        if (!res.isSuccessful) {
+            android.util.Log.e("ApiKeyInterceptor", "⬅️ ${res.code} ${res.message}")
+            // Đọc body để log rồi bọc lại cho downstream đọc tiếp
+            val raw = res.body
+            if (raw != null) {
+                val str = raw.string()
+                android.util.Log.e("ApiKeyInterceptor", "Response Body: $str")
+                return res.newBuilder()
+                    .body(okhttp3.ResponseBody.create(raw.contentType(), str))
+                    .build()
             }
+        } else {
+            android.util.Log.d("ApiKeyInterceptor", "⬅️ ${res.code} ${res.message}")
         }
-
-        return response
+        return res
     }
 }

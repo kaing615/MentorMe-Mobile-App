@@ -39,7 +39,9 @@ fun LoginSection(
     onForgot: () -> Unit,
     onBack: () -> Unit,
     onNavigateToMenteeHome: () -> Unit,
-    onNavigateToMentorHome: () -> Unit
+    onNavigateToMentorHome: () -> Unit,
+    onNavigateToReview: () -> Unit,
+    onNavigateToOnboarding: () -> Unit
 ) {
     val viewModel: AuthViewModel? = if (LocalInspectionMode.current) {
         null
@@ -59,10 +61,16 @@ fun LoginSection(
     var localError by remember { mutableStateOf<String?>(null) }
     var showUnauthorizedPopup by remember { mutableStateOf(false) }
 
+    var navigated by remember { mutableStateOf(false) }
+
+    val justOnboarded by (
+            viewModel?.hasJustOnboarded ?: MutableStateFlow(false)
+            ).collectAsStateWithLifecycle()
+
     // Xử lý kết quả đăng nhập từ backend
     LaunchedEffect(authState) {
         Log.d("LoginSection", "AuthState changed: isAuthenticated=${authState.isAuthenticated}, error=${authState.error}, userRole=${authState.userRole}")
-
+        if (navigated) return@LaunchedEffect
         when {
             // Đăng nhập thành công
             authState.isAuthenticated && !authState.isLoading -> {
@@ -83,14 +91,39 @@ fun LoginSection(
                     }
                 }
             }
-            // Tài khoản chờ xét duyệt (kiểm tra error message từ ErrorUtils)
+
+            authState.error == "requires_onboarding" -> {
+                viewModel?.clearError()
+                showUnauthorizedPopup = false
+                navigated = true
+
+                when (authState.next) {
+                    "/onboarding/review" -> {
+                        Log.d("LoginSection", "Navigate: /onboarding/review")
+                        onNavigateToReview()
+                    }
+                    else -> {
+                        Log.d("LoginSection", "Navigate: /onboarding")
+                        onNavigateToOnboarding()
+                    }
+                }
+            }
+
+            authState.error == "pending_approval" -> {
+                viewModel?.clearError()
+                if (justOnboarded || authState.next == "/onboarding/review") {
+                    navigated = true
+                    viewModel?.hasJustOnboarded?.value = false
+                    Log.d("LoginSection", "Navigating to PendingReview screen")
+                    onNavigateToReview()
+                } else {
+                    showUnauthorizedPopup = true
+                }
+            }
+
             authState.error != null -> {
                 val processedError = ErrorUtils.getUserFriendlyErrorMessage(authState.error)
-                Log.d("LoginSection", "Original error: ${authState.error}")
-                Log.d("LoginSection", "Processed error: $processedError")
-
                 if (processedError == "pending_approval") {
-                    Log.d("LoginSection", "Showing unauthorized popup for pending approval")
                     showUnauthorizedPopup = true
                 }
             }

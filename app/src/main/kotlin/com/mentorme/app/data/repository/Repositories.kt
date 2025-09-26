@@ -17,6 +17,8 @@ import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.model.Mentor
 import com.mentorme.app.data.model.User
 import kotlinx.coroutines.flow.Flow
+import com.mentorme.app.data.dto.profile.ProfileCreateResponse
+import com.mentorme.app.domain.usecase.onboarding.RequiredProfileParams
 
 interface AuthRepository {
 
@@ -61,4 +63,10 @@ interface BookingRepository {
     suspend fun getBookingById(bookingId: String): AppResult<Booking>
     suspend fun updateBooking(bookingId: String, status: String? = null): AppResult<Booking>
     suspend fun rateBooking(bookingId: String, rating: Int, feedback: String? = null): AppResult<Booking>
+}
+
+interface ProfileRepository {
+    suspend fun createRequiredProfile(
+        params: RequiredProfileParams
+    ): AppResult<ProfileCreateResponse>
 }

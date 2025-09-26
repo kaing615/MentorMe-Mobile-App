@@ -209,7 +209,28 @@ export const createRequiredProfile = asyncHandler(
       setDefaultsOnInsert: true,
     });
 
-    return responseHandler.created(res, profile, "Profile created");
+    const newStatus = role === "mentor" ? "pending-mentor" : "active";
+    await User.findByIdAndUpdate(
+      userId,
+      { $set: { status: newStatus } },
+      { new: false }
+    );
+
+    const next = role === "mentor" ? "/onboarding/review" : "/home";
+    const msg =
+      role === "mentor"
+        ? "Mentor profile created. Your mentor application is pending review."
+        : "Mentee profile created. Your account is active.";
+
+    responseHandler.created(
+      res,
+      {
+        profile,
+        updatedStatus: newStatus,
+        next,
+      },
+      msg
+    );
   }
 );
 

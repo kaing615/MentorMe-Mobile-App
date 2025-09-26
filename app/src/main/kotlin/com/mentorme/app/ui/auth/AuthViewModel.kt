@@ -19,6 +19,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.mentorme.app.core.datastore.DataStoreManager
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
@@ -27,13 +30,29 @@ class AuthViewModel @Inject constructor(
     private val signInUseCase: SignInUseCase,
     private val verifyOtpUseCase: VerifyOtpUseCase,
     private val resendOtpUseCase: ResendOtpUseCase,
-    private val signOutUseCase: SignOutUseCase
+    private val signOutUseCase: SignOutUseCase,
+    private val dataStoreManager: DataStoreManager
 ) : ViewModel() {
 
     private val TAG = "AuthViewModel"
 
     private val _authState = MutableStateFlow(AuthState())
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
+    val hasJustOnboarded = MutableStateFlow(false)
+
+    private suspend fun saveAndConfirmToken(token: String) {
+        dataStoreManager.saveToken(token)
+        Log.d(TAG, "💾 Token saved request: $token")
+
+        // đợi token thực sự được ghi
+        var confirmed: String? = null
+        repeat(5) { // thử lại tối đa 5 lần, mỗi lần 100ms
+            delay(100)
+            confirmed = dataStoreManager.getToken().first()
+            if (!confirmed.isNullOrBlank()) return@repeat
+        }
+        Log.d(TAG, "📦 Token confirmed in DataStore: $confirmed")
+    }
 
     fun signUp(
         username: String,
@@ -48,9 +67,13 @@ class AuthViewModel @Inject constructor(
 
             when (val result = signUpUseCase(username, email, password, confirmPassword)) {
                 is AppResult.Success -> {
-                    Log.d(TAG, "SignUp success: ${result.data}")
+                    Log.d(TAG, "✅ SignUp success: ${result.data}")
 
                     val verificationId = result.data.data?.let { extractVerificationId(it) }
+                    val token = result.data.data?.token
+                    if (!token.isNullOrBlank()) {
+                        saveAndConfirmToken(token)
+                    }
 
                     _authState.value = _authState.value.copy(
                         isLoading = false,
@@ -62,14 +85,7 @@ class AuthViewModel @Inject constructor(
                         originalSignUpData = OriginalSignUpData(username, email, password, false)
                     )
                 }
-                is AppResult.Error -> {
-                    val errMsg: String = result.throwable ?: "Unknown error"
-                    Log.e(TAG, "SignUp failed: $errMsg")
-                    _authState.value = _authState.value.copy(
-                        isLoading = false,
-                        error = ErrorUtils.getUserFriendlyErrorMessage(errMsg)
-                    )
-                }
+                is AppResult.Error -> handleAuthError(result.throwable)
                 AppResult.Loading -> Unit
             }
         }
@@ -88,9 +104,12 @@ class AuthViewModel @Inject constructor(
 
             when (val result = signUpMentorUseCase(username, email, password, confirmPassword)) {
                 is AppResult.Success -> {
-                    Log.d(TAG, "SignUpMentor success: ${result.data}")
-
+                    Log.d(TAG, "✅ SignUpMentor success: ${result.data}")
                     val verificationId = result.data.data?.let { extractVerificationId(it) }
+                    val token = result.data.data?.token
+                    if (!token.isNullOrBlank()) {
+                        saveAndConfirmToken(token)
+                    }
 
                     _authState.value = _authState.value.copy(
                         isLoading = false,
@@ -102,14 +121,7 @@ class AuthViewModel @Inject constructor(
                         originalSignUpData = OriginalSignUpData(username, email, password, true)
                     )
                 }
-                is AppResult.Error -> {
-                    val errMsg: String = result.throwable ?: "Unknown error"
-                    Log.e(TAG, "SignUpMentor failed: $errMsg")
-                    _authState.value = _authState.value.copy(
-                        isLoading = false,
-                        error = ErrorUtils.getUserFriendlyErrorMessage(errMsg)
-                    )
-                }
+                is AppResult.Error -> handleAuthError(result.throwable)
                 AppResult.Loading -> Unit
             }
         }
@@ -122,64 +134,54 @@ class AuthViewModel @Inject constructor(
 
             when (val result = signInUseCase.invoke(email, password)) {
                 is AppResult.Success -> {
-                    Log.d(TAG, "SignIn success: ${result.data}")
-                    Log.d(TAG, "SignIn success data: ${result.data.data}")
+                    val data = result.data.data
+                    val token = data?.token
 
-                    // Extract user role từ response data với logging chi tiết
-                    val userRole = try {
-                        result.data.data?.let { data ->
-                            Log.d(TAG, "Extracting role from data.role: ${data.role}")
-                            when (data.role) {
-                                "mentor" -> {
-                                    Log.d(TAG, "Setting userRole to MENTOR")
-                                    UserRole.MENTOR
-                                }
-                                "mentee" -> {
-                                    Log.d(TAG, "Setting userRole to MENTEE")
-                                    UserRole.MENTEE
-                                }
-                                else -> {
-                                    Log.d(TAG, "Unknown role: ${data.role}, defaulting to MENTEE")
-                                    UserRole.MENTEE
-                                }
-                            }
-                        } ?: run {
-                            Log.w(TAG, "No data found in response, defaulting to MENTEE")
-                            UserRole.MENTEE
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to extract user role: ${e.message}", e)
-                        UserRole.MENTEE
+                    if (!token.isNullOrBlank()) {
+                        saveAndConfirmToken(token)
                     }
 
-                    Log.d(TAG, "Final userRole set to: $userRole")
+                    // ❶ Lấy role: ưu tiên từ data.role, nếu null → lấy từ JWT
+                    val roleStrFromData = data?.role
+                    val roleStr = roleStrFromData ?: parseRoleFromJwt(token)
+                    val role = if (roleStr == "mentor") UserRole.MENTOR else UserRole.MENTEE
+
+                    val isActive = data?.status == "active"
+                    val authenticated = isActive && !token.isNullOrBlank()
+                    val pendingApproval = data?.status == "pending-mentor"
+                    val onboarding = data?.status == "onboarding"
+                    val verifying = data?.status == "verifying"
 
                     _authState.value = _authState.value.copy(
                         isLoading = false,
                         authResponse = result.data,
-                        isAuthenticated = result.data.success,
-                        userRole = userRole
+                        isAuthenticated = authenticated,
+                        userRole = role,                    // ❷ giờ đã đúng mentor/mentee
+                        error = when {
+                            pendingApproval -> "pending_approval"
+                            onboarding -> "requires_onboarding"
+                            else -> null
+                        },
+                        next = data?.next,
+                        showOtpScreen = verifying,
+                        userEmail = if (verifying) email else _authState.value.userEmail,
+                        otpVerificationId = if (verifying) data?.verificationId else _authState.value.otpVerificationId
                     )
                 }
-                is AppResult.Error -> {
-                    val errMsg: String = result.throwable ?: "Unknown error"
-                    Log.e(TAG, "SignIn failed: $errMsg")
 
-                    // Xử lý đặc biệt cho pending approval - không qua ErrorUtils
-                    val finalError = if (errMsg.contains("Account pending approval", ignoreCase = true)) {
-                        "pending_approval"
-                    } else {
-                        ErrorUtils.getUserFriendlyErrorMessage(errMsg)
-                    }
-
-                    _authState.value = _authState.value.copy(
-                        isLoading = false,
-                        error = finalError
-                    )
-                }
+                is AppResult.Error -> handleAuthError(result.throwable)
                 AppResult.Loading -> Unit
             }
         }
+    }
+
+    private fun handleAuthError(throwable: String?) {
+        val errMsg = throwable ?: "Unknown error"
+        Log.e(TAG, "❌ Auth failed: $errMsg")
+        _authState.value = _authState.value.copy(
+            isLoading = false,
+            error = ErrorUtils.getUserFriendlyErrorMessage(errMsg)
+        )
     }
 
     fun verifyOtp(verificationId: String, otp: String) {
@@ -192,18 +194,28 @@ class AuthViewModel @Inject constructor(
 
             when (val result = verifyOtpUseCase.invoke(verificationId, otp)) {
                 is AppResult.Success -> {
-                    Log.d(TAG, "OTP verification success: ${result.data}")
+                    Log.d(TAG, "✅ OTP verification success: ${result.data}")
+
+                    // ✅ Sau khi OTP xác minh thành công → gọi lại signIn để lấy token
+                    val email = _authState.value.userEmail
+                    val original = _authState.value.originalSignUpData
+
+                    if (email != null && original != null) {
+                        Log.d(TAG, "📡 Auto sign-in after OTP verify with email=$email")
+                        signIn(email, original.password) // gọi lại signIn
+                    } else {
+                        Log.w(TAG, "⚠️ Không có email/password để sign-in lại sau OTP")
+                    }
+
                     _authState.value = _authState.value.copy(
                         isOtpVerifying = false,
-                        authResponse = result.data,
                         showOtpScreen = false,
                         showVerificationDialog = true,
                         verificationSuccess = true,
-                        verificationMessage = "Email đã được xác minh thành công! Bạn có thể đăng nhập ngay bây giờ.",
-                        // Không set isAuthenticated = true vì người dùng chỉ mới xác minh email, chưa đăng nhập
-                        isAuthenticated = false
+                        verificationMessage = "Xác minh email thành công! Đang đăng nhập..."
                     )
                 }
+
                 is AppResult.Error -> {
                     val errMsg: String = result.throwable ?: "OTP verification failed"
                     Log.e(TAG, "OTP verification failed: $errMsg")
@@ -215,6 +227,7 @@ class AuthViewModel @Inject constructor(
                         verificationMessage = ErrorUtils.getUserFriendlyErrorMessage(errMsg)
                     )
                 }
+
                 AppResult.Loading -> Unit
             }
         }
@@ -303,7 +316,6 @@ class AuthViewModel @Inject constructor(
         )
     }
 
-    // Thêm method để xử lý đóng verification dialog
     fun dismissVerificationDialog() {
         _authState.value = _authState.value.copy(
             showVerificationDialog = false,
@@ -355,15 +367,32 @@ class AuthViewModel @Inject constructor(
     private fun extractVerificationId(authData: com.mentorme.app.data.dto.auth.AuthData): String? {
         return authData.verificationId
     }
+
+    private fun parseRoleFromJwt(token: String?): String? {
+        if (token.isNullOrBlank()) return null
+        return try {
+            val parts = token.split(".")
+            if (parts.size < 2) return null
+            val payload = android.util.Base64.decode(
+                parts[1].replace('-', '+').replace('_', '/'),
+                android.util.Base64.DEFAULT
+            )
+            val json = org.json.JSONObject(String(payload, Charsets.UTF_8))
+            json.optString("role", null) // "mentor" | "mentee"
+        } catch (e: Exception) {
+            null
+        }
+    }
+
 }
+
 
 data class AuthState(
     val isLoading: Boolean = false,
     val isAuthenticated: Boolean = false,
     val authResponse: AuthResponse? = null,
     val error: String? = null,
-    val userRole: UserRole? = null, // Thêm userRole
-    // OTP verification states
+    val userRole: UserRole? = null,
     val showOtpScreen: Boolean = false,
     val otpVerificationId: String? = null,
     val userEmail: String? = null,
@@ -372,11 +401,10 @@ data class AuthState(
     val showVerificationDialog: Boolean = false,
     val verificationSuccess: Boolean = false,
     val verificationMessage: String? = null,
-    // Original signup data
-    val originalSignUpData: OriginalSignUpData? = null
+    val originalSignUpData: OriginalSignUpData? = null,
+    val next: String? = null
 )
 
-// Data class to hold original signup data
 data class OriginalSignUpData(
     val userName: String,
     val email: String,

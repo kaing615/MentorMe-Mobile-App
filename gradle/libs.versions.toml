@@ -27,7 +27,13 @@ foundation = "1.9.1"
 ui-text = "1.9.1"
 ui = "1.9.1"
 firebase-database-ktx = "22.0.1"
-firebase-bom = "33.4.0" # hoặc 33.+
+firebase-bom = "33.4.0"
+material3 = "1.4.0"
+ui-version = "1.9.2"
+ui-text-version = "1.9.2"
+foundation-layout = "1.9.2"
+animation = "1.9.2"
+ui-graphics = "1.9.2" # hoặc 33.+
 
 
 [plugins]
@@ -96,3 +102,9 @@ firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "fir
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
 hilt-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hilt" }
 hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version = "1.2.0" }
+androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
+ui = { group = "androidx.compose.ui", name = "ui", version.ref = "ui-version" }
+androidx-ui-text = { group = "androidx.compose.ui", name = "ui-text", version.ref = "ui-text-version" }
+androidx-compose-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "foundation-layout" }
+androidx-compose-animation = { group = "androidx.compose.animation", name = "animation", version.ref = "animation" }
+androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics", version.ref = "ui-graphics" }

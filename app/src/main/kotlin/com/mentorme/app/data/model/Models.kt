@@ -164,3 +164,50 @@ data class Message(
     @SerializedName("read")
     val read: Boolean
 )
+
+data class Profile(
+    @SerializedName("jobTitle")
+    val jobTitle: String?,
+    @SerializedName("location")
+    val location: String,
+    @SerializedName("category")
+    val category: String,
+    @SerializedName("bio")
+    val bio: String?,
+    @SerializedName("skills")
+    val skills: String,            // ví dụ: "kotlin,compose"
+    @SerializedName("experience")
+    val experience: String?,
+    @SerializedName("headline")
+    val headline: String?,
+    @SerializedName("mentorReason")
+    val mentorReason: String?,
+    @SerializedName("greatestAchievement")
+    val greatestAchievement: String?,
+    @SerializedName("introVideo")
+    val introVideo: String?,
+    @SerializedName("description")
+    val description: String?,
+    @SerializedName("goal")
+    val goal: String?,
+    @SerializedName("education")
+    val education: String?,
+    @SerializedName("languages")
+    val languages: String,         // ví dụ: "vi,en"
+    @SerializedName("website")
+    val website: String?,
+    @SerializedName("twitter")
+    val twitter: String?,
+    @SerializedName("linkedin")
+    val linkedin: String?,
+    @SerializedName("github")
+    val github: String?,
+    @SerializedName("youtube")
+    val youtube: String?,
+    @SerializedName("facebook")
+    val facebook: String?,
+    @SerializedName("avatarPath")
+    val avatarPath: String?,       // file local (optional)
+    @SerializedName("avatarUrl")
+    val avatarUrl: String?
+)

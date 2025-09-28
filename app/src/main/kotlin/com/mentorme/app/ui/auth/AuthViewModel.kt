@@ -63,7 +63,7 @@ class AuthViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             Log.d(TAG, "🔥 SIGNUP CALLED - EMAIL: $email")
-            _authState.value = _authState.value.copy(isLoading = true, error = null)
+            _authState.value = _authState.value.copy(isLoading = true, error = null, flowHint = null)
 
             when (val result = signUpUseCase(username, email, password, confirmPassword)) {
                 is AppResult.Success -> {
@@ -82,7 +82,8 @@ class AuthViewModel @Inject constructor(
                         otpVerificationId = verificationId,
                         userEmail = email,
                         otpError = null,
-                        originalSignUpData = OriginalSignUpData(username, email, password, false)
+                        originalSignUpData = OriginalSignUpData(username, email, password, false),
+                        flowHint = FlowHint.Verifying
                     )
                 }
                 is AppResult.Error -> handleAuthError(result.throwable)
@@ -100,7 +101,7 @@ class AuthViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             Log.d(TAG, "🔥 SIGNUP MENTOR CALLED - EMAIL: $email")
-            _authState.value = _authState.value.copy(isLoading = true, error = null)
+            _authState.value = _authState.value.copy(isLoading = true, error = null, flowHint = null)
 
             when (val result = signUpMentorUseCase(username, email, password, confirmPassword)) {
                 is AppResult.Success -> {
@@ -118,7 +119,8 @@ class AuthViewModel @Inject constructor(
                         otpVerificationId = verificationId,
                         userEmail = email,
                         otpError = null,
-                        originalSignUpData = OriginalSignUpData(username, email, password, true)
+                        originalSignUpData = OriginalSignUpData(username, email, password, true),
+                        flowHint = FlowHint.Verifying
                     )
                 }
                 is AppResult.Error -> handleAuthError(result.throwable)
@@ -130,7 +132,11 @@ class AuthViewModel @Inject constructor(
     fun signIn(email: String, password: String) {
         viewModelScope.launch {
             Log.d(TAG, "🔥 SIGNIN CALLED - EMAIL: $email")
-            _authState.value = _authState.value.copy(isLoading = true, error = null)
+            _authState.value = _authState.value.copy(
+                isLoading = true,
+                error = null,
+                flowHint = null
+            )
 
             when (val result = signInUseCase.invoke(email, password)) {
                 is AppResult.Success -> {
@@ -141,7 +147,6 @@ class AuthViewModel @Inject constructor(
                         saveAndConfirmToken(token)
                     }
 
-                    // ❶ Lấy role: ưu tiên từ data.role, nếu null → lấy từ JWT
                     val roleStrFromData = data?.role
                     val roleStr = roleStrFromData ?: parseRoleFromJwt(token)
                     val role = if (roleStr == "mentor") UserRole.MENTOR else UserRole.MENTEE
@@ -156,10 +161,12 @@ class AuthViewModel @Inject constructor(
                         isLoading = false,
                         authResponse = result.data,
                         isAuthenticated = authenticated,
-                        userRole = role,                    // ❷ giờ đã đúng mentor/mentee
-                        error = when {
-                            pendingApproval -> "pending_approval"
-                            onboarding -> "requires_onboarding"
+                        userRole = role,
+                        // dùng flowHint để UI điều hướng, KHÔNG gán vào error
+                        flowHint = when {
+                            verifying -> FlowHint.Verifying
+                            onboarding -> FlowHint.RequiresOnboarding
+                            pendingApproval -> FlowHint.PendingApproval
                             else -> null
                         },
                         next = data?.next,
@@ -176,11 +183,13 @@ class AuthViewModel @Inject constructor(
     }
 
     private fun handleAuthError(throwable: String?) {
-        val errMsg = throwable ?: "Unknown error"
-        Log.e(TAG, "❌ Auth failed: $errMsg")
+        val raw = throwable ?: "Unknown error"
+        Log.e(TAG, "❌ Auth failed: $raw")
+        val friendly = ErrorUtils.getUserFriendlyErrorMessage(raw)
         _authState.value = _authState.value.copy(
             isLoading = false,
-            error = ErrorUtils.getUserFriendlyErrorMessage(errMsg)
+            // chỉ dùng error cho hiển thị – không đụng flowHint
+            error = if (friendly.isNullOrBlank()) raw else friendly
         )
     }
 
@@ -196,13 +205,13 @@ class AuthViewModel @Inject constructor(
                 is AppResult.Success -> {
                     Log.d(TAG, "✅ OTP verification success: ${result.data}")
 
-                    // ✅ Sau khi OTP xác minh thành công → gọi lại signIn để lấy token
+                    // Sau khi OTP xác minh thành công → gọi lại signIn để lấy token
                     val email = _authState.value.userEmail
                     val original = _authState.value.originalSignUpData
 
                     if (email != null && original != null) {
                         Log.d(TAG, "📡 Auto sign-in after OTP verify with email=$email")
-                        signIn(email, original.password) // gọi lại signIn
+                        signIn(email, original.password)
                     } else {
                         Log.w(TAG, "⚠️ Không có email/password để sign-in lại sau OTP")
                     }
@@ -212,19 +221,21 @@ class AuthViewModel @Inject constructor(
                         showOtpScreen = false,
                         showVerificationDialog = true,
                         verificationSuccess = true,
-                        verificationMessage = "Xác minh email thành công! Đang đăng nhập..."
+                        verificationMessage = "Xác minh email thành công! Đang đăng nhập...",
+                        flowHint = null
                     )
                 }
 
                 is AppResult.Error -> {
                     val errMsg: String = result.throwable ?: "OTP verification failed"
                     Log.e(TAG, "OTP verification failed: $errMsg")
+                    val friendly = ErrorUtils.getUserFriendlyErrorMessage(errMsg)
                     _authState.value = _authState.value.copy(
                         isOtpVerifying = false,
-                        otpError = ErrorUtils.getUserFriendlyErrorMessage(errMsg),
+                        otpError = friendly,
                         showVerificationDialog = true,
                         verificationSuccess = false,
-                        verificationMessage = ErrorUtils.getUserFriendlyErrorMessage(errMsg)
+                        verificationMessage = friendly
                     )
                 }
 
@@ -255,7 +266,6 @@ class AuthViewModel @Inject constructor(
                 when (result) {
                     is AppResult.Success -> {
                         Log.d(TAG, "Resend OTP success: ${result.data}")
-                        // Update verification ID if backend returns a new one
                         val newVerificationId = result.data.data?.let { extractVerificationId(it) }
                         if (newVerificationId != null) {
                             _authState.value = _authState.value.copy(otpVerificationId = newVerificationId)
@@ -325,9 +335,8 @@ class AuthViewModel @Inject constructor(
         // Nếu verification thành công, reset toàn bộ OTP screen
         if (_authState.value.verificationSuccess) {
             hideOtpScreen()
-        }
-        // Nếu thất bại, chỉ reset dialog để người dùng có thể nhập lại
-        else {
+        } else {
+            // Nếu thất bại, chỉ reset dialog để người dùng có thể nhập lại
             _authState.value = _authState.value.copy(
                 otpError = null,
                 verificationSuccess = false
@@ -349,7 +358,8 @@ class AuthViewModel @Inject constructor(
             isAuthenticated = false,
             authResponse = null,
             error = null,
-            isLoading = false
+            isLoading = false,
+            flowHint = null
         )
         Log.d(TAG, "User redirected to login screen after successful email verification")
     }
@@ -358,9 +368,13 @@ class AuthViewModel @Inject constructor(
         _authState.value = _authState.value.copy(otpError = null)
     }
 
-    // Thêm method clearError
+    // Dùng khi chuẩn bị gọi signIn/SignUp mới hoặc sau khi điều hướng xong
     fun clearError() {
         _authState.value = _authState.value.copy(error = null)
+    }
+
+    fun clearFlowHint() {
+        _authState.value = _authState.value.copy(flowHint = null)
     }
 
     // Helper to extract verificationId from AuthData
@@ -386,12 +400,16 @@ class AuthViewModel @Inject constructor(
 
 }
 
+// ================== State & Models ==================
 
 data class AuthState(
     val isLoading: Boolean = false,
     val isAuthenticated: Boolean = false,
     val authResponse: AuthResponse? = null,
+
+    // ❗️Chỉ dành cho thông báo lỗi hiển thị cho người dùng
     val error: String? = null,
+
     val userRole: UserRole? = null,
     val showOtpScreen: Boolean = false,
     val otpVerificationId: String? = null,
@@ -402,7 +420,11 @@ data class AuthState(
     val verificationSuccess: Boolean = false,
     val verificationMessage: String? = null,
     val originalSignUpData: OriginalSignUpData? = null,
-    val next: String? = null
+
+    val next: String? = null,
+
+    // ❗️Dành cho điều hướng (không phải lỗi)
+    val flowHint: FlowHint? = null
 )
 
 data class OriginalSignUpData(
@@ -411,3 +433,9 @@ data class OriginalSignUpData(
     val password: String,
     val isMentor: Boolean
 )
+
+enum class FlowHint {
+    RequiresOnboarding,
+    PendingApproval,
+    Verifying
+}

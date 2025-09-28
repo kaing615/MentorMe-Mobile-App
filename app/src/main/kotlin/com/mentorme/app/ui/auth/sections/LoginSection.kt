@@ -29,6 +29,7 @@ import com.mentorme.app.ui.auth.GlassFormContainer
 import com.mentorme.app.ui.auth.GlassInput
 import com.mentorme.app.ui.auth.SmallGlassPillButton
 import com.mentorme.app.ui.auth.components.UnauthorizedPopup
+import com.mentorme.app.ui.auth.FlowHint
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -52,8 +53,8 @@ fun LoginSection(
     }
 
     val authState by (
-        viewModel?.authState ?: remember { MutableStateFlow(AuthState()) }.asStateFlow()
-    ).collectAsStateWithLifecycle()
+            viewModel?.authState ?: remember { MutableStateFlow(AuthState()) }.asStateFlow()
+            ).collectAsStateWithLifecycle()
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -67,64 +68,54 @@ fun LoginSection(
             viewModel?.hasJustOnboarded ?: MutableStateFlow(false)
             ).collectAsStateWithLifecycle()
 
-    // Xử lý kết quả đăng nhập từ backend
+    // Điều hướng/hiển thị theo state
     LaunchedEffect(authState) {
-        Log.d("LoginSection", "AuthState changed: isAuthenticated=${authState.isAuthenticated}, error=${authState.error}, userRole=${authState.userRole}")
+        Log.d(
+            "LoginSection",
+            "AuthState: auth=${authState.isAuthenticated}, error=${authState.error}, flow=${authState.flowHint}, role=${authState.userRole}, next=${authState.next}"
+        )
         if (navigated) return@LaunchedEffect
+
         when {
             // Đăng nhập thành công
             authState.isAuthenticated && !authState.isLoading -> {
-                Log.d("LoginSection", "Login successful, navigating to home for role: ${authState.userRole}")
-                // Điều hướng dựa trên role của user
                 when (authState.userRole) {
-                    UserRole.MENTOR -> {
-                        Log.d("LoginSection", "Navigating to MENTOR home")
-                        onNavigateToMentorHome()
-                    }
-                    UserRole.MENTEE -> {
-                        Log.d("LoginSection", "Navigating to MENTEE home")
-                        onNavigateToMenteeHome()
-                    }
-                    else -> {
-                        Log.w("LoginSection", "Unknown role: ${authState.userRole}, defaulting to MENTEE home")
-                        onNavigateToMenteeHome() // Default to mentee home
-                    }
+                    UserRole.MENTOR -> onNavigateToMentorHome()
+                    UserRole.MENTEE, null -> onNavigateToMenteeHome()
                 }
+                navigated = true
             }
 
-            authState.error == "requires_onboarding" -> {
+            // ❗️Luồng điều hướng KHÔNG coi là lỗi UI
+            authState.flowHint == FlowHint.RequiresOnboarding -> {
                 viewModel?.clearError()
+                viewModel?.clearFlowHint()
                 showUnauthorizedPopup = false
                 navigated = true
-
                 when (authState.next) {
-                    "/onboarding/review" -> {
-                        Log.d("LoginSection", "Navigate: /onboarding/review")
-                        onNavigateToReview()
-                    }
-                    else -> {
-                        Log.d("LoginSection", "Navigate: /onboarding")
-                        onNavigateToOnboarding()
-                    }
+                    "/onboarding/review" -> onNavigateToReview()
+                    else -> onNavigateToOnboarding()
                 }
             }
 
-            authState.error == "pending_approval" -> {
+            authState.flowHint == FlowHint.PendingApproval -> {
                 viewModel?.clearError()
+                // Nếu vừa onboard xong hoặc backend trả next=review → điều hướng luôn
                 if (justOnboarded || authState.next == "/onboarding/review") {
                     navigated = true
                     viewModel?.hasJustOnboarded?.value = false
-                    Log.d("LoginSection", "Navigating to PendingReview screen")
                     onNavigateToReview()
                 } else {
                     showUnauthorizedPopup = true
                 }
             }
 
+            // Lỗi thực sự → hiển thị
             authState.error != null -> {
                 val processedError = ErrorUtils.getUserFriendlyErrorMessage(authState.error)
                 if (processedError == "pending_approval") {
-                    showUnauthorizedPopup = true
+                    // Nếu ErrorUtils map nhầm: bỏ qua ở đây, flowHint mới là nguồn điều hướng
+                    Log.w("LoginSection", "Ignoring 'pending_approval' as user-visible error; expecting flowHint")
                 }
             }
         }
@@ -185,11 +176,16 @@ fun LoginSection(
                 visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation()
             )
 
-            // Hiển thị lỗi
-            val displayError = authState.error?.let { ErrorUtils.getUserFriendlyErrorMessage(it) }
-                ?: localError
+            // Chỉ hiển thị lỗi khi KHÔNG có flowHint (tức là không ở trạng thái điều hướng)
+            val displayError = if (authState.flowHint == null) {
+                authState.error?.let { ErrorUtils.getUserFriendlyErrorMessage(it) }
+                    ?: localError
+            } else null
+
             displayError?.let {
-                if (!it.contains("unauthorized", ignoreCase = true) && !it.contains("pending", ignoreCase = true)) {
+                if (!it.contains("unauthorized", ignoreCase = true) &&
+                    !it.contains("pending", ignoreCase = true)
+                ) {
                     Text(it, color = MaterialTheme.colorScheme.error)
                 }
             }
@@ -218,6 +214,8 @@ fun LoginSection(
                     // Gọi backend login
                     viewModel?.let { vm ->
                         runCatching {
+                            vm.clearError()
+                            vm.clearFlowHint()
                             vm.signIn(email, password)
                         }.onFailure { ex ->
                             Log.e("LoginSection", "Login error: ${ex.message}", ex)

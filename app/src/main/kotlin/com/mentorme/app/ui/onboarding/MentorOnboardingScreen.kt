@@ -103,22 +103,22 @@ fun MentorOnboardingScreen(
             GlassInput(
                 value = ui.category,
                 onValueChange = { vm.update { st -> st.copy(category = it) } },
-                label = "Chuyên mục *",
-                placeholder = "Software, Design…"
+                label = "Lĩnh vực chuyên môn *",
+                placeholder = "Android, Backend, UI/UX…"
             )
             GlassInput(
                 value = ui.languages,
                 onValueChange = { vm.update { st -> st.copy(languages = it) } },
-                label = "Ngôn ngữ * (phẩy phân tách)",
-                placeholder = "vi,en"
+                label = "Ngôn ngữ bạn có thể mentor * (phẩy để phân tách)",
+                placeholder = "vi, en"
             )
             ChipsPreview(csv = ui.languages, modifier = Modifier.padding(top = 6.dp))
             Spacer(Modifier.height(6.dp))
             GlassInput(
                 value = ui.skills,
                 onValueChange = { vm.update { st -> st.copy(skills = it) } },
-                label = "Kỹ năng * (phẩy phân tách)",
-                placeholder = "kotlin,android,leadership"
+                label = "Kỹ năng nổi bật * (phẩy để phân tách)",
+                placeholder = "Kotlin, Android, Leadership"
             )
             ChipsPreview(csv = ui.skills, modifier = Modifier.padding(top = 6.dp))
 
@@ -127,44 +127,44 @@ fun MentorOnboardingScreen(
             GlassInput(
                 value = ui.jobTitle ?: "",
                 onValueChange = { vm.update { st -> st.copy(jobTitle = it) } },
-                label = "Chức danh *",
+                label = "Chức danh hiện tại *",
                 placeholder = "Senior Android Engineer"
             )
             GlassInput(
                 value = ui.experience ?: "",
                 onValueChange = { vm.update { st -> st.copy(experience = it) } },
-                label = "Kinh nghiệm *",
+                label = "Kinh nghiệm tổng quan *",
                 placeholder = "8+ năm Android, 3 năm mentoring"
             )
             GlassInput(
                 value = ui.headline ?: "",
                 onValueChange = { vm.update { st -> st.copy(headline = it) } },
-                label = "Tiêu đề nổi bật *",
+                label = "Tiêu đề giới thiệu ngắn *",
                 placeholder = "Giúp bạn lên Senior Android trong 6 tháng"
             )
             GlassInput(
                 value = ui.mentorReason ?: "",
                 onValueChange = { vm.update { st -> st.copy(mentorReason = it) } },
-                label = "Lý do muốn mentor *",
+                label = "Vì sao bạn muốn làm mentor? *",
                 placeholder = "Đam mê chia sẻ, xây đội ngũ..."
             )
             GlassInput(
                 value = ui.greatestAchievement ?: "",
                 onValueChange = { vm.update { st -> st.copy(greatestAchievement = it) } },
-                label = "Thành tựu lớn nhất *",
+                label = "Thành tựu nổi bật *",
                 placeholder = "Dẫn dắt team 10 người, top 1 app ..."
             )
             // Tuỳ chọn
             GlassInput(
                 value = ui.bio ?: "",
                 onValueChange = { vm.update { st -> st.copy(bio = it) } },
-                label = "Giới thiệu ngắn (tuỳ chọn)",
-                placeholder = "Tóm tắt phong cách mentoring, lĩnh vực mạnh..."
+                label = "Giới thiệu bản thân (tuỳ chọn)",
+                placeholder = "Phong cách mentoring, lĩnh vực mạnh..."
             )
             GlassInput(
                 value = ui.introVideo ?: "",
                 onValueChange = { vm.update { st -> st.copy(introVideo = it) } },
-                label = "Intro video URL (tuỳ chọn)",
+                label = "Link video giới thiệu (tuỳ chọn)",
                 placeholder = "https://..."
             )
 
@@ -179,7 +179,6 @@ fun MentorOnboardingScreen(
                 }
             }
 
-            // Submit
             Spacer(Modifier.height(6.dp))
             BigGlassButton(
                 text = if (ui.isLoading) "Đang gửi duyệt..." else "Gửi duyệt mentor",

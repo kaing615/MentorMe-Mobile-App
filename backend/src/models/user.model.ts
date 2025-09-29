@@ -12,7 +12,7 @@ export interface IUser extends Document {
   email: string;
   passwordHash: string;
   role: "mentee" | "mentor" | "admin";
-  status: "active" | "pending" | "pending-mentor";
+  status: "active" | "pending-mentor" | "verifying" | "onboarding";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,12 +29,13 @@ const userSchema: Schema<IUser> = new Schema(
     },
     status: {
       type: String,
-      enum: ["active", "pending", "pending-mentor"],
-      default: "pending",
+      enum: ["active", "verifying", "pending-mentor", "onboarding"],
+      default: "verifying",
     },
   },
   { timestamps: true }
 );
 
 export type UserDoc = HydratedDocument<IUser>;
-export const User = model<IUser>("User", userSchema);
+const User = model<IUser>("User", userSchema);
+export default User;

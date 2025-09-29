@@ -29,6 +29,7 @@ class ProfileRepositoryImpl @Inject constructor(
 
             // chuẩn bị các part text
             val parts = mutableMapOf<String, okhttp3.RequestBody>()
+            parts["fullName"] = params.fullName.toRequestBody("text/plain".toMediaTypeOrNull())
             parts["location"] = params.location.toRequestBody("text/plain".toMediaTypeOrNull())
             parts["category"] = params.category.toRequestBody("text/plain".toMediaTypeOrNull())
             parts["languages"] = splitCsv(params.languages).joinToString(",")

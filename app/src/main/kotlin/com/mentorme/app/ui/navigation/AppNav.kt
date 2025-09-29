@@ -317,7 +317,7 @@ fun AppNav(
                         }
                     }
 
-// ---------- PENDING APPROVAL ----------
+                    // ---------- PENDING APPROVAL ----------
                     composable(Routes.PendingApproval) {
                         PendingApprovalScreen(
                             onRefreshStatus = {
@@ -450,7 +450,7 @@ fun AppNav(
                         })
                     }
 
-// Route khung chat + ẩn bottom bar
+                    // Route khung chat + ẩn bottom bar
                     composable("${Routes.Chat}/{conversationId}") { backStackEntry ->
                         val convId = backStackEntry.arguments?.getString("conversationId") ?: return@composable
                         ChatScreen(

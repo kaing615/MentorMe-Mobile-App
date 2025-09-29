@@ -270,7 +270,10 @@ fun AppNav(
                         )
                     }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 0b24bb21 (feat(auth,onboarding,ui): implement auth flow, OTP, mentor/mentee onboarding; polish UI)
                     // ---------- ONBOARDING ----------
                     composable(Routes.Onboarding) { backStackEntry ->
                         val roleArg = backStackEntry.arguments?.getString("role") ?: userRole

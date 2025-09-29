@@ -1,0 +1,116 @@
+"use strict";
+var __assign = (this && this.__assign) || function () {
+    __assign = Object.assign || function(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+                t[p] = s[p];
+        }
+        return t;
+    };
+    return __assign.apply(this, arguments);
+};
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+var _a;
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AccessDeniedClasses = exports.AccessDenied = void 0;
+var React = __importStar(require("react"));
+var styles_1 = require("@mui/material/styles");
+var Lock_1 = __importDefault(require("@mui/icons-material/Lock"));
+var material_1 = require("@mui/material");
+var clsx_1 = __importDefault(require("clsx"));
+var ra_core_1 = require("ra-core");
+var AccessDenied = function (inProps) {
+    var props = (0, styles_1.useThemeProps)({
+        props: inProps,
+        name: PREFIX,
+    });
+    var className = props.className, _a = props.icon, icon = _a === void 0 ? DEFAULT_ICON : _a, _b = props.textPrimary, textPrimary = _b === void 0 ? 'ra.page.access_denied' : _b, _c = props.textSecondary, textSecondary = _c === void 0 ? 'ra.message.access_denied' : _c, rest = __rest(props, ["className", "icon", "textPrimary", "textSecondary"]);
+    var translate = (0, ra_core_1.useTranslate)();
+    return (React.createElement(Root, __assign({ className: (0, clsx_1.default)(exports.AccessDeniedClasses.root, className) }, rest),
+        React.createElement("div", { className: exports.AccessDeniedClasses.message },
+            icon,
+            React.createElement(material_1.Typography, { variant: "h5", sx: {
+                    mt: 3,
+                    color: 'text.secondary',
+                } }, translate(textPrimary, { _: textPrimary })),
+            React.createElement(material_1.Typography, { variant: "body2" }, translate(textSecondary, {
+                _: textSecondary,
+            })))));
+};
+exports.AccessDenied = AccessDenied;
+var PREFIX = 'RaAccessDenied';
+exports.AccessDeniedClasses = {
+    root: "".concat(PREFIX, "-root"),
+    icon: "".concat(PREFIX, "-icon"),
+    message: "".concat(PREFIX, "-message"),
+};
+var Root = (0, styles_1.styled)('div', {
+    name: PREFIX,
+    overridesResolver: function (props, styles) { return styles.root; },
+})((_a = {
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100%'
+    },
+    _a["& .".concat(exports.AccessDeniedClasses.message)] = {
+        textAlign: 'center',
+        paddingTop: '1em',
+        paddingBottom: '1em',
+        opacity: 0.5,
+    },
+    _a["& .".concat(exports.AccessDeniedClasses.icon)] = {
+        width: '9em',
+        height: '9em',
+    },
+    _a));
+var DEFAULT_ICON = React.createElement(Lock_1.default, { className: exports.AccessDeniedClasses.icon });
+//# sourceMappingURL=AccessDenied.js.map

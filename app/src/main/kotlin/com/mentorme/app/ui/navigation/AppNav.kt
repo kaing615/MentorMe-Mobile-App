@@ -179,7 +179,6 @@ fun AppNav(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Nền liquid
         LiquidBackground(
             modifier = Modifier
                 .matchParentSize()
@@ -223,15 +222,12 @@ fun AppNav(
                     composable(Routes.Auth) {
                         AuthScreen(
                             onLogin = { email, pass ->
-                                // TODO: gọi repo thực tế
                                 val ok = email.isNotBlank() && pass.isNotBlank()
                                 if (ok) isLoggedIn = true
                                 ok
                             },
                             onRegister = { p: RegisterPayload ->
-                                // TODO: gọi API tạo user
-                                val ok =
-                                    p.fullName.isNotBlank() && p.email.isNotBlank() && p.password.length >= 6
+                                val ok = p.fullName.isNotBlank() && p.email.isNotBlank() && p.password.length >= 6
                                 if (ok) isLoggedIn = true
                                 ok
                             },
@@ -442,8 +438,6 @@ fun AppNav(
                         )
                     }
 
-                    // AppNav.kt  (trong NavHost)
-                    // Route danh sách
                     composable(Routes.Messages) {
                         MessagesScreen(onOpenConversation = { convId ->
                             nav.navigate("${Routes.Chat}/$convId")

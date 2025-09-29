@@ -42,8 +42,8 @@ class OnboardingViewModel @Inject constructor(
 
     fun submit() {
         val s = _state.value
-        if (s.location.isBlank() || s.category.isBlank() || s.languages.isBlank() || s.skills.isBlank()) {
-            update { it.copy(error = "Vui lòng nhập đủ Location, Category, Languages và Skills") }
+        if (s.fullName.isBlank() || s.location.isBlank() || s.category.isBlank() || s.languages.isBlank() || s.skills.isBlank()) {
+            update { it.copy(error = "Vui lòng nhập đủ Họ và tên, Location, Category, Languages và Skills") }
             return
         }
 
@@ -61,6 +61,7 @@ class OnboardingViewModel @Inject constructor(
             _state.value = _state.value.copy(isLoading = true, error = null, success = null, next = null)
 
             val params = RequiredProfileParams(
+                fullName = s.fullName,
                 jobTitle = s.jobTitle,
                 location = s.location,
                 category = s.category,
@@ -106,9 +107,11 @@ class OnboardingViewModel @Inject constructor(
 
     private fun handleError(raw: String) {
         Log.e(TAG, "Onboarding failed: $raw")
+        val friendlyMessage = ErrorUtils.getUserFriendlyErrorMessage(raw)
+        Log.d(TAG, "Friendly error message: $friendlyMessage")
         _state.value = _state.value.copy(
             isLoading = false,
-            error = ErrorUtils.getUserFriendlyErrorMessage(raw),
+            error = friendlyMessage,
             success = false
         )
     }
@@ -120,6 +123,7 @@ data class OnboardingState(
     val success: Boolean? = null,
     val next: String? = null,
     val createdProfileId: String? = null,
+    val fullName: String = "",
     val jobTitle: String? = null,
     val location: String = "",
     val category: String = "",

@@ -7,6 +7,7 @@ import com.mentorme.app.data.repository.ProfileRepository
 import javax.inject.Inject
 
 data class RequiredProfileParams(
+    val fullName: String,
     val jobTitle: String?,
     val location: String,
     val category: String,

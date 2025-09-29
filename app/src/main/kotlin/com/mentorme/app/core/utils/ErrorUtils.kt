@@ -65,11 +65,16 @@ object ErrorUtils {
     /** Parse message từ JSON: "message" | "error" | "detail" | "errors[field][0]" */
     private fun parseJsonMessage(raw: String): String? {
         val trimmed = raw.trim()
+
+        // Extract JSON from HTTP error format like "HTTP 400: {...}"
+        val jsonStart = trimmed.indexOf("{")
+        val actualJson = if (jsonStart > 0) trimmed.substring(jsonStart) else trimmed
+
         val jsonObj: JSONObject? = try {
             when {
-                trimmed.startsWith("{") -> JSONObject(trimmed)
-                trimmed.startsWith("[") -> {
-                    val arr = JSONArray(trimmed)
+                actualJson.startsWith("{") -> JSONObject(actualJson)
+                actualJson.startsWith("[") -> {
+                    val arr = JSONArray(actualJson)
                     return firstStringFromJsonArray(arr)
                 }
                 else -> null
@@ -84,16 +89,36 @@ object ErrorUtils {
             if (v is String && v.isNotBlank()) {
                 // Map nhanh các thông điệp auth phổ biến
                 detectAuthCredentialIssue(v)?.let { return it }
-                return v
+                // Map validation errors to Vietnamese
+                translateValidationError(v)?.let { return it }
+                // Don't return raw message directly, process it first
+                val processedMessage = processServerMessage(v)
+                if (processedMessage.isNotBlank()) return processedMessage
             }
         }
 
-        // 2) errors: { field: ["msg", ...] } hoặc errors: ["msg1", ...]
+        // 2) Check data.missing array for specific missing fields
+        jsonObj.optJSONObject("data")?.let { data ->
+            data.optJSONArray("missing")?.let { missingArray ->
+                val missingFields = mutableListOf<String>()
+                for (i in 0 until missingArray.length()) {
+                    val field = missingArray.optString(i)
+                    if (field.isNotBlank()) {
+                        missingFields.add(field)
+                    }
+                }
+                if (missingFields.isNotEmpty()) {
+                    return generateMissingFieldsMessage(missingFields)
+                }
+            }
+        }
+
+        // 3) errors: { field: ["msg", ...] } hoặc errors: ["msg1", ...]
         jsonObj.opt("errors")?.let { e ->
             if (e is JSONArray) {
                 firstStringFromJsonArray(e)?.let { msg ->
                     detectAuthCredentialIssue(msg)?.let { return it }
-                    return msg
+                    return processServerMessage(msg)
                 }
             } else if (e is JSONObject) {
                 val keys = e.keys()
@@ -103,11 +128,11 @@ object ErrorUtils {
                     if (node is JSONArray) {
                         firstStringFromJsonArray(node)?.let { msg ->
                             detectAuthCredentialIssue(msg)?.let { return it }
-                            return msg
+                            return processServerMessage(msg)
                         }
                     } else if (node is String && node.isNotBlank()) {
                         detectAuthCredentialIssue(node)?.let { return it }
-                        return node
+                        return processServerMessage(node)
                     }
                 }
             }
@@ -208,6 +233,134 @@ object ErrorUtils {
             .filter { it.isNotBlank() && !it.startsWith("at ") && !it.contains("Exception") }
 
         return lines.firstOrNull { it.length in 8..160 }
+    }
+
+    /** Translate common validation errors to Vietnamese */
+    private fun translateValidationError(message: String): String? {
+        val msg = message.lowercase()
+        return when {
+            msg.contains("missing required fields") -> {
+                // Parse specific missing fields from the message
+                when {
+                    msg.contains("avatar") || msg.contains("avatarurl") ->
+                        "Vui lòng chọn ảnh đại diện để tiếp tục."
+                    msg.contains("fullname") ->
+                        "Vui lòng nhập họ và tên."
+                    msg.contains("location") ->
+                        "Vui lòng nhập địa điểm."
+                    msg.contains("category") ->
+                        "Vui lòng nhập lĩnh vực chuyên môn."
+                    msg.contains("languages") ->
+                        "Vui lòng nhập ngôn ngữ."
+                    msg.contains("skills") ->
+                        "Vui lòng nhập kỹ năng."
+                    msg.contains("jobtitle") ->
+                        "Vui lòng nhập chức danh hiện tại."
+                    msg.contains("experience") ->
+                        "Vui lòng nhập kinh nghiệm."
+                    msg.contains("headline") ->
+                        "Vui lòng nhập tiêu đề giới thiệu."
+                    msg.contains("description") ->
+                        "Vui lòng nhập mô tả bản thân."
+                    msg.contains("goal") ->
+                        "Vui lòng nhập mục tiêu."
+                    msg.contains("education") ->
+                        "Vui lòng nhập học vấn."
+                    else -> "Vui lòng điền đầy đủ thông tin bắt buộc."
+                }
+            }
+            msg.contains("profile already exists") ->
+                "Hồ sơ đã tồn tại. Không thể tạo mới."
+            msg.contains("user not found") ->
+                "Không tìm thấy thông tin người dùng."
+            msg.contains("avatar must be an image") ->
+                "Ảnh đại diện phải là định dạng hình ảnh hợp lệ."
+            msg.contains("invalid url") ->
+                "URL không hợp lệ. Vui lòng kiểm tra lại."
+            msg.contains("introvideo must be a valid url") ->
+                "Link video giới thiệu không hợp lệ. Vui lòng kiểm tra lại hoặc để trống."
+            msg.contains("must be a valid url") ->
+                "Đường dẫn không hợp lệ. Vui lòng kiểm tra lại."
+            else -> null
+        }
+    }
+
+    /** Generate user-friendly message for missing fields */
+    private fun generateMissingFieldsMessage(missingFields: List<String>): String {
+        val translatedFields = missingFields.map { field ->
+            when (field.lowercase()) {
+                "avatar (file hoặc avatarurl)", "avatar", "avatarurl" -> "ảnh đại diện"
+                "fullname" -> "họ và tên"
+                "location" -> "địa điểm"
+                "category" -> "lĩnh vực chuyên môn"
+                "languages" -> "ngôn ngữ"
+                "skills" -> "kỹ năng"
+                "jobtitle" -> "chức danh"
+                "experience" -> "kinh nghiệm"
+                "headline" -> "tiêu đề giới thiệu"
+                "description" -> "mô tả bản thân"
+                "goal" -> "mục tiêu"
+                "education" -> "học vấn"
+                "mentorreason" -> "lý do muốn làm mentor"
+                "greatestachievement" -> "thành tựu nổi bật"
+                else -> field.lowercase()
+            }
+        }
+
+        return when {
+            translatedFields.size == 1 -> "Vui lòng nhập ${translatedFields[0]}."
+            translatedFields.size == 2 -> "Vui lòng nhập ${translatedFields[0]} và ${translatedFields[1]}."
+            translatedFields.size > 2 -> {
+                val lastField = translatedFields.last()
+                val otherFields = translatedFields.dropLast(1).joinToString(", ")
+                "Vui lòng nhập $otherFields và $lastField."
+            }
+            else -> "Vui lòng điền đầy đủ thông tin bắt buộc."
+        }
+    }
+
+    /** Process and clean up server messages */
+    private fun processServerMessage(message: String): String {
+        val msg = message.trim()
+
+        // Skip if it contains technical details that shouldn't be shown to users
+        if (msg.contains("HTTP ") ||
+            msg.contains("Exception") ||
+            msg.contains("stacktrace") ||
+            msg.contains("internal server") ||
+            msg.contains("database") ||
+            msg.startsWith("{") ||
+            msg.startsWith("[")) {
+            return ""
+        }
+
+        // Clean up common server message patterns
+        return when {
+            msg.contains("Missing required fields", ignoreCase = true) -> {
+                translateValidationError(msg) ?: "Vui lòng điền đầy đủ thông tin bắt buộc."
+            }
+            msg.contains("invalid", ignoreCase = true) && msg.contains("format", ignoreCase = true) -> {
+                "Định dạng dữ liệu không hợp lệ. Vui lòng kiểm tra lại."
+            }
+            msg.contains("already exists", ignoreCase = true) -> {
+                "Dữ liệu đã tồn tại trong hệ thống."
+            }
+            msg.contains("not found", ignoreCase = true) -> {
+                "Không tìm thấy thông tin yêu cầu."
+            }
+            msg.contains("access denied", ignoreCase = true) || msg.contains("unauthorized", ignoreCase = true) -> {
+                "Bạn không có quyền thực hiện thao tác này."
+            }
+            msg.contains("too many", ignoreCase = true) -> {
+                "Bạn đã thực hiện quá nhiều lần. Vui lòng thử lại sau."
+            }
+            msg.length > 200 -> {
+                // If message is too long, try to extract meaningful part
+                val sentences = msg.split(".", "!", "?").filter { it.trim().isNotEmpty() }
+                sentences.firstOrNull { it.length in 10..100 }?.trim() ?: "Có lỗi xảy ra. Vui lòng thử lại."
+            }
+            else -> msg
+        }
     }
 
     // ==== Helpers cũ nếu nơi khác còn dùng ====

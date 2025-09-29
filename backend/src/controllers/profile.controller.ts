@@ -27,6 +27,7 @@ export const createRequiredProfile = asyncHandler(
     const role = (user as any).role as "mentee" | "mentor" | "admin";
 
     const {
+      fullName,
       jobTitle,
       location,
       category,
@@ -110,7 +111,7 @@ export const createRequiredProfile = asyncHandler(
       avatarPublicId = up.public_id;
     }
 
-    if (normStr(introVideo) && !isHttpUrl(introVideo)) {
+    if (normStr(introVideo) && !isHttpUrl(normStr(introVideo))) {
       return responseHandler.badRequest(
         res,
         null,
@@ -119,6 +120,7 @@ export const createRequiredProfile = asyncHandler(
     }
 
     const commonMissing: string[] = [];
+    if (!normStr(fullName)) commonMissing.push("fullName");
     if (!normStr(location)) commonMissing.push("location");
     if (!normStr(category)) commonMissing.push("category");
     if (!avatarUrl) commonMissing.push("avatar (file hoặc avatarUrl)");
@@ -174,6 +176,7 @@ export const createRequiredProfile = asyncHandler(
 
     const payload: any = {
       user: userId,
+      fullName: normStr(fullName),
       location: normStr(location),
       category: normStr(category),
       avatarUrl,

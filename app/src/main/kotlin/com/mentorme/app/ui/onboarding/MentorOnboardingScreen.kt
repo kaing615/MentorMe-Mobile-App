@@ -7,6 +7,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -95,6 +97,12 @@ fun MentorOnboardingScreen(
             // 2) Thông tin cơ bản (chung)
             SectionTitle("Thông tin cơ bản")
             GlassInput(
+                value = ui.fullName,
+                onValueChange = { vm.update { st -> st.copy(fullName = it) } },
+                label = "Họ và tên *",
+                placeholder = "Nguyễn Văn A"
+            )
+            GlassInput(
                 value = ui.location,
                 onValueChange = { vm.update { st -> st.copy(location = it) } },
                 label = "Địa điểm *",
@@ -168,14 +176,62 @@ fun MentorOnboardingScreen(
                 placeholder = "https://..."
             )
 
-            // Error
-            AnimatedVisibility(visible = !ui.error.isNullOrBlank(), modifier = Modifier.padding(top = 8.dp)) {
-                Surface(
-                    color = MaterialTheme.colorScheme.error.copy(alpha = .15f),
-                    tonalElevation = 0.dp,
-                    shape = MaterialTheme.shapes.medium,
+            // Error Display - Enhanced
+            AnimatedVisibility(
+                visible = !ui.error.isNullOrBlank(),
+                modifier = Modifier.padding(top = 8.dp),
+                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
+                    )
                 ) {
-                    Text(ui.error ?: "", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(12.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "Error",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = "Có lỗi xảy ra",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = ui.error ?: "",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = { vm.clearError() },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close error",
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                 }
             }
 

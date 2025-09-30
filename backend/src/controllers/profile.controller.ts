@@ -26,15 +26,8 @@ export const createRequiredProfile = asyncHandler(
 
     const role = (user as any).role as "mentee" | "mentor" | "admin";
 
-    if (role === "admin") {
-      return responseHandler.forbidden(
-        res,
-        null,
-        "Admin cannot create profiles"
-      );
-    }
-
     const {
+      fullName,
       jobTitle,
       location,
       category,
@@ -50,7 +43,6 @@ export const createRequiredProfile = asyncHandler(
       education,
       languages,
       links,
-      price,
     } = req.body ?? {};
 
     const normStr = (v: any) => (typeof v === "string" ? v.trim() : "");
@@ -87,26 +79,17 @@ export const createRequiredProfile = asyncHandler(
       if (!file.mimetype?.startsWith("image/")) {
         return responseHandler.badRequest(res, null, "avatar must be an image");
       }
-      try {
-        const up = await cloudinary.uploadImage(file.buffer, {
-          folder: "mentorme/avatars",
-          resource_type: "image",
-          overwrite: false,
-          unique_filename: true,
-          transformation: [
-            { width: 512, height: 512, crop: "fill", gravity: "face:auto" },
-          ],
-        });
-        avatarUrl = up.secure_url;
-        avatarPublicId = up.public_id;
-      } catch (error) {
-        console.error("Cloudinary upload error:", error);
-        return responseHandler.badRequest(
-          res,
-          null,
-          "Failed to upload avatar image"
-        );
-      }
+      const up = await cloudinary.uploadImage(file.buffer, {
+        folder: "mentorme/avatars",
+        resource_type: "image",
+        overwrite: false,
+        unique_filename: true,
+        transformation: [
+          { width: 512, height: 512, crop: "fill", gravity: "face:auto" },
+        ],
+      });
+      avatarUrl = up.secure_url;
+      avatarPublicId = up.public_id;
     } else if (avatarUrlInput) {
       if (!isHttpUrl(avatarUrlInput)) {
         return responseHandler.badRequest(
@@ -115,29 +98,20 @@ export const createRequiredProfile = asyncHandler(
           "avatarUrl must be a valid http(s) URL"
         );
       }
-      try {
-        const up = await cloudinary.uploadImage(avatarUrlInput, {
-          folder: "mentorme/avatars",
-          resource_type: "image",
-          overwrite: false,
-          unique_filename: true,
-          transformation: [
-            { width: 512, height: 512, crop: "fill", gravity: "face:auto" },
-          ],
-        });
-        avatarUrl = up.secure_url;
-        avatarPublicId = up.public_id;
-      } catch (e) {
-        console.error("Cloudinary fetch error:", e);
-        return responseHandler.badRequest(
-          res,
-          null,
-          "avatarUrl must point to a direct image URL (jpg/png/webp)"
-        );
-      }
+      const up = await cloudinary.uploadImage(avatarUrlInput, {
+        folder: "mentorme/avatars",
+        resource_type: "image",
+        overwrite: false,
+        unique_filename: true,
+        transformation: [
+          { width: 512, height: 512, crop: "fill", gravity: "face:auto" },
+        ],
+      });
+      avatarUrl = up.secure_url;
+      avatarPublicId = up.public_id;
     }
 
-    if (normStr(introVideo) && !isHttpUrl(introVideo)) {
+    if (normStr(introVideo) && !isHttpUrl(normStr(introVideo))) {
       return responseHandler.badRequest(
         res,
         null,
@@ -146,6 +120,7 @@ export const createRequiredProfile = asyncHandler(
     }
 
     const commonMissing: string[] = [];
+    if (!normStr(fullName)) commonMissing.push("fullName");
     if (!normStr(location)) commonMissing.push("location");
     if (!normStr(category)) commonMissing.push("category");
     if (!avatarUrl) commonMissing.push("avatar (file hoặc avatarUrl)");
@@ -162,13 +137,6 @@ export const createRequiredProfile = asyncHandler(
       if (!normStr(greatestAchievement))
         mentorMissing.push("greatestAchievement");
       if (skillsArr.length === 0) mentorMissing.push("skills");
-      if (
-        price === undefined ||
-        price === null ||
-        isNaN(Number(price)) ||
-        Number(price) < 0
-      )
-        mentorMissing.push("price");
     } else if (role === "mentee") {
       if (!normStr(description)) menteeMissing.push("description");
       if (!normStr(goal)) menteeMissing.push("goal");
@@ -208,6 +176,7 @@ export const createRequiredProfile = asyncHandler(
 
     const payload: any = {
       user: userId,
+      fullName: normStr(fullName),
       location: normStr(location),
       category: normStr(category),
       avatarUrl,
@@ -226,7 +195,6 @@ export const createRequiredProfile = asyncHandler(
         greatestAchievement: normStr(greatestAchievement),
         bio: normStr(bio || ""),
         skills: skillsArr,
-        price: Number(price),
       });
       if (normStr(introVideo)) payload.introVideo = normStr(introVideo);
     } else if (role === "mentee") {
@@ -242,13 +210,30 @@ export const createRequiredProfile = asyncHandler(
       new: true,
       upsert: true,
       setDefaultsOnInsert: true,
-      runValidators: true,
     });
 
-    const populated = await Profile.findById(profile._id)
-      .populate("user", "userName email role status")
-      .lean();
-    return responseHandler.created(res, populated, "Profile created");
+    const newStatus = role === "mentor" ? "pending-mentor" : "active";
+    await User.findByIdAndUpdate(
+      userId,
+      { $set: { status: newStatus } },
+      { new: false }
+    );
+
+    const next = role === "mentor" ? "/onboarding/review" : "/home";
+    const msg =
+      role === "mentor"
+        ? "Mentor profile created. Your mentor application is pending review."
+        : "Mentee profile created. Your account is active.";
+
+    responseHandler.created(
+      res,
+      {
+        profile,
+        updatedStatus: newStatus,
+        next,
+      },
+      msg
+    );
   }
 );
 

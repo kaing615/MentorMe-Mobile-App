@@ -23,6 +23,8 @@ data class CreatedProfilePayload(
 data class ProfileDto(
     @SerializedName("_id") val id: String?,
     @SerializedName("user") val user: String?,
+    @SerializedName("fullName") val fullName: String?,
+    @SerializedName("phone") val phone: String?,
     @SerializedName("location") val location: String?,
     @SerializedName("category") val category: String?,
     @SerializedName("avatarUrl") val avatarUrl: String?,
@@ -39,7 +41,14 @@ data class ProfileDto(
     @SerializedName("goal") val goal: String?,
     @SerializedName("education") val education: String?,
     @SerializedName("skills") val skills: List<String>?,
+    @SerializedName("price") val price: Double?,     
+    @SerializedName("rating") val rating: RatingDto?, 
     @SerializedName("profileCompleted") val profileCompleted: Boolean?
+)
+
+data class RatingDto(
+    @SerializedName("average") val average: Double?,
+    @SerializedName("count") val count: Int?
 )
 
 data class LinksDto(

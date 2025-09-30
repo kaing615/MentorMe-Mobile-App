@@ -285,6 +285,7 @@ export const updateUserProfile = asyncHandler(
       return responseHandler.notFound(res, null, "Profile not found");
 
     const updatableFields = [
+      "phone",
       "jobTitle",
       "location",
       "category",
@@ -562,6 +563,8 @@ export const getAllMentors = asyncHandler(
           updatedAt: 1,
           profile: {
             user: 1,
+
+            phone: 1,
             jobTitle: 1,
             location: 1,
             category: 1,

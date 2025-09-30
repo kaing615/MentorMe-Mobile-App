@@ -1,4 +1,3 @@
-// CreateRequiredProfileUseCase.kt
 package com.mentorme.app.domain.usecase.onboarding
 
 import com.mentorme.app.core.utils.AppResult

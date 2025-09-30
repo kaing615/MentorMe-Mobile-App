@@ -166,6 +166,10 @@ data class Message(
 )
 
 data class Profile(
+    @SerializedName("fullName")
+    val fullName: String?,
+    @SerializedName("phone")
+    val phone: String?,
     @SerializedName("jobTitle")
     val jobTitle: String?,
     @SerializedName("location")

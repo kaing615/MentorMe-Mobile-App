@@ -7,18 +7,32 @@ import com.mentorme.app.data.repository.ProfileRepository
 import com.mentorme.app.domain.usecase.onboarding.RequiredProfileParams
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.mentorme.app.data.dto.profile.MePayload
+import com.mentorme.app.data.dto.profile.ProfileDto
+import com.mentorme.app.domain.usecase.profile.UpdateProfileParams
+import com.google.gson.Gson
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 
 @Singleton
 class ProfileRepositoryImpl @Inject constructor(
     private val api: ProfileApiService
 ) : ProfileRepository {
+
+    private fun String.toTextPart(): RequestBody =
+        this.toRequestBody("text/plain".toMediaType())
+
+    private fun List<String>.toCsv(): String =
+        this.joinToString(",") { it.trim() }.trim(',')
 
     override suspend fun createRequiredProfile(
         params: RequiredProfileParams
@@ -69,4 +83,83 @@ class ProfileRepositoryImpl @Inject constructor(
                 AppResult.failure("HTTP ${resp.code()}: ${resp.errorBody()?.string() ?: resp.message()}")
             }
         }
+
+        override suspend fun getMe(): AppResult<MePayload> = withContext(Dispatchers.IO) {
+        val resp = api.getMe()
+        if (resp.isSuccessful) {
+            val body = resp.body()
+            if (body?.success == true && body.data != null) {
+                AppResult.success(body.data)
+            } else {
+                AppResult.failure(body?.message ?: "Unknown error")
+            }
+        } else {
+            AppResult.failure("HTTP ${resp.code()}: ${resp.errorBody()?.string() ?: resp.message()}")
+        }
     }
+
+    override suspend fun updateProfile(
+        params: UpdateProfileParams
+    ): AppResult<ProfileDto> = withContext(Dispatchers.IO) {
+        val parts = mutableMapOf<String, RequestBody>()
+
+        fun putIfNotBlank(key: String, v: String?) {
+            v?.takeIf { it.isNotBlank() }?.let { parts[key] = it.toTextPart() }
+        }
+
+        putIfNotBlank("phone", params.phone)
+        putIfNotBlank("jobTitle", params.jobTitle)
+        putIfNotBlank("location", params.location)
+        putIfNotBlank("category", params.category)
+        putIfNotBlank("bio", params.bio)
+        putIfNotBlank("experience", params.experience)
+        putIfNotBlank("headline", params.headline)
+        putIfNotBlank("mentorReason", params.mentorReason)
+        putIfNotBlank("greatestAchievement", params.greatestAchievement)
+        putIfNotBlank("introVideo", params.introVideo)
+        putIfNotBlank("description", params.description)
+        putIfNotBlank("goal", params.goal)
+        putIfNotBlank("education", params.education)
+
+        params.skills?.takeIf { it.isNotEmpty() }?.let {
+            parts["skills"] = it.toCsv().toTextPart()
+        }
+        params.languages?.takeIf { it.isNotEmpty() }?.let {
+            // server sẽ lower-case; vẫn gửi bình thường
+            parts["languages"] = it.toCsv().toTextPart()
+        }
+        params.price?.let {
+            parts["price"] = it.toString().toTextPart()
+        }
+
+        // Links: gửi dưới dạng JSON string (xem backend tweak bên dưới)
+        params.links?.let {
+            val json = Gson().toJson(it)
+            parts["links"] = json.toRequestBody("application/json".toMediaType())
+        }
+
+        // Ảnh: ưu tiên file path, nếu không có thì gửi avatarUrl
+        val avatarPart: MultipartBody.Part? = params.avatarPath?.let { path ->
+            val file = File(path)
+            if (file.exists()) {
+                val body = file.asRequestBody("image/*".toMediaTypeOrNull())
+                MultipartBody.Part.createFormData("avatar", file.name, body)
+            } else null
+        }
+        params.avatarUrl?.let { url ->
+            parts["avatarUrl"] = url.toTextPart()
+        }
+
+        val resp = api.updateProfile(parts, avatarPart)
+        if (resp.isSuccessful) {
+            val body = resp.body()
+            if (body?.success == true && body.data != null) {
+                AppResult.success(body.data)
+            } else {
+                AppResult.failure(body?.message ?: "Unknown error")
+            }
+        } else {
+            AppResult.failure("HTTP ${resp.code()}: ${resp.errorBody()?.string() ?: resp.message()}")
+        }
+    }
+}

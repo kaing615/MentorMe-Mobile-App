@@ -11,6 +11,7 @@ import com.mentorme.app.data.dto.auth.SignUpRequest
 import com.mentorme.app.data.dto.auth.VerifyOtpRequest
 import com.mentorme.app.data.dto.auth.AuthResponse as AuthResponseDto
 import com.mentorme.app.data.dto.auth.ResendOtpRequest
+import com.mentorme.app.data.dto.profile.MePayload
 
 // Specific imports for Models (used for business entities)
 import com.mentorme.app.data.model.Booking
@@ -18,7 +19,9 @@ import com.mentorme.app.data.model.Mentor
 import com.mentorme.app.data.model.User
 import kotlinx.coroutines.flow.Flow
 import com.mentorme.app.data.dto.profile.ProfileCreateResponse
+import com.mentorme.app.data.dto.profile.ProfileDto
 import com.mentorme.app.domain.usecase.onboarding.RequiredProfileParams
+import com.mentorme.app.domain.usecase.profile.UpdateProfileParams
 
 interface AuthRepository {
 
@@ -69,4 +72,7 @@ interface ProfileRepository {
     suspend fun createRequiredProfile(
         params: RequiredProfileParams
     ): AppResult<ProfileCreateResponse>
+
+    suspend fun getMe(): AppResult<MePayload>
+    suspend fun updateProfile(params: UpdateProfileParams): AppResult<ProfileDto>
 }

@@ -651,21 +651,6 @@ export const getCurrentUser = asyncHandler(
   }
 );
 
-export const getUserByUserName = asyncHandler(
-  async (req: Request, res: Response) => {
-    const userName = req.params.userName;
-    if (!userName)
-      return responseHandler.badRequest(res, null, "userName is required");
-
-    const user = await User.findOne({ userName })
-      .select("email userName role status createdAt updatedAt")
-      .lean();
-    if (!user) return responseHandler.notFound(res, null, "User not found");
-
-    return responseHandler.ok(res, user, "User fetched");
-  }
-);
-
 export default {
   signUpMentee,
   verifyEmailOtp,
@@ -673,5 +658,4 @@ export default {
   signIn,
   signOut,
   getCurrentUser,
-  getUserByUserName,
 };

@@ -41,7 +41,7 @@ const ProfileSchema: Schema<IProfile> = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      unique: true,
+      // unique: true,
     },
     fullName: { type: String, trim: true, default: "" },
     jobTitle: { type: String, trim: true, default: "" },

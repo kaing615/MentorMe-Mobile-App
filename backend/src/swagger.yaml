@@ -16,6 +16,8 @@ tags:
     description: Xác thực người dùng (đăng ký, đăng nhập, đăng xuất)
   - name: Profile
     description: Onboarding hồ sơ người dùng (tạo hồ sơ bắt buộc theo role + upload avatar) - Chỉnh sửa, xem hồ sơ sẽ có sau
+  - name: Availability
+    description: Quản lý slot trống của mentor (tạo draft, publish một lần hoặc lặp RRULE, xem lịch công khai)
 
 components:
   securitySchemes:
@@ -23,6 +25,27 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+
+  examples:
+    calendar_success_min:
+      summary: Calendar trong khoảng from/to (tối giản)
+      value:
+        success: true
+        message: OK
+        data:
+          items:
+            - _id: "000000000000000000000001"
+              slot: "00000000000000000000A001"
+              start: "2025-11-03T01:00:00Z"
+              end: "2025-11-03T01:30:00Z"
+              status: "open"
+
+    calendar_400_min:
+      summary: Calendar 400 khi from/to sai
+      value:
+        success: false
+        message: "Invalid or missing from/to (ISO UTC expected)"
+        data: null
 
   schemas:
     ApiResponse:
@@ -41,7 +64,15 @@ components:
       properties:
         message:
           type: string
-          example: Invalid email or password
+          example: Bad Request
+        code:
+          type: string
+          description: Short machine-readable error key
+          example: INVALID_INPUT
+        errors:
+          type: object
+          additionalProperties: true
+          description: Field-level validation details
         data:
           nullable: true
           example: null
@@ -360,6 +391,100 @@ components:
               example: ["description", "goal", "education", "skills"]
       required: [message]
 
+    # ===== AVAILABILITY SCHEMAS =====
+    AvailabilitySlot:
+      type: object
+      properties:
+        _id: { type: string, example: "68e0fef4d73c9fd4063f958a" }
+        mentor: { type: string, example: "68e0f6de7f19db9cfeb0df48" }
+        title: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        timezone: { type: string, example: "Asia/Ho_Chi_Minh" }
+        start: { type: string, format: date-time, nullable: true, description: "UTC ISO start (one-off hoặc anchor cho RRULE)" }
+        end: { type: string, format: date-time, nullable: true, description: "UTC ISO end" }
+        rrule: { type: string, nullable: true, example: "FREQ=WEEKLY;BYDAY=MO,TH;COUNT=8" }
+        exdates:
+          type: array
+          items: { type: string, format: date-time }
+          description: "Danh sách ngày giờ (UTC) loại trừ – phải trùng với các lần phát sinh của RRULE"
+        bufferBeforeMin: { type: integer, example: 5 }
+        bufferAfterMin: { type: integer, example: 10 }
+        visibility: { type: string, enum: [public, private], example: public }
+        status: { type: string, enum: [draft, published, archived], example: draft }
+        publishHorizonDays: { type: integer, example: 45 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    AvailabilityOccurrence:
+      type: object
+      properties:
+        _id: { type: string }
+        slot: { type: string }
+        mentor: { type: string }
+        start: { type: string, format: date-time }
+        end: { type: string, format: date-time }
+        visibility: { type: string, enum: [public, private], example: public }
+        status: { type: string, enum: [open, booked, closed], example: open }
+        capacity: { type: integer, example: 1 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateSlotRequest:
+      type: object
+      properties:
+        timezone: { type: string, example: "Asia/Ho_Chi_Minh" }
+        title: { type: string }
+        description: { type: string }
+        start: { type: string, format: date-time, description: "Bắt buộc (one-off hoặc anchor cho RRULE)" }
+        end: { type: string, format: date-time, description: "Bắt buộc; phải sau start" }
+        rrule: { type: string, nullable: true, description: "Chuỗi RRULE (DAILY/WEEKLY subset) hoặc bỏ trống" }
+        exdates:
+          type: array
+          items: { type: string, format: date-time }
+        bufferBeforeMin: { type: integer, minimum: 0, example: 0 }
+        bufferAfterMin: { type: integer, minimum: 0, example: 0 }
+        visibility: { type: string, enum: [public, private], example: public }
+        publishHorizonDays: { type: integer, minimum: 1, maximum: 365, example: 90 }
+      required: [timezone, start, end]
+
+    CreateSlotResponse:
+      type: object
+      properties:
+        message: { type: string, example: "Created" }
+        slot:
+          $ref: "#/components/schemas/AvailabilitySlot"
+      required: [slot]
+
+    PublishSlotResponse:
+      type: object
+      properties:
+        published: { type: boolean, example: true }
+        occurrencesCreated: { type: integer, example: 5 }
+        skippedConflict: { type: integer, example: 1 }
+        rrule: { type: string, nullable: true }
+        horizonDays: { type: integer, example: 45 }
+
+    CalendarItem:
+      type: object
+      properties:
+        start: { type: string, format: date-time }
+        end: { type: string, format: date-time }
+        status: { type: string, enum: [open, booked, closed] }
+        slot: { type: string }
+
+    CalendarResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/CalendarItem" }
+
+    AvailabilityValidationErrorExample:
+      type: object
+      properties:
+        message: { type: string, example: "Invalid RRULE format" }
+        data: { type: null, nullable: true }
+
 paths:
   /auth/signup:
     post:
@@ -471,12 +596,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missing_fields:
+                  value:
+                    { message: "email and password are required", code: "MISSING_FIELDS", errors: { email: "required", password: "required" }, data: null }
         "401":
           description: Invalid email or password / inactive user
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalid_credentials:
+                  value: { message: "Invalid email or password", code: "INVALID_CREDENTIALS", data: null }
+                inactive_user:
+                  value: { message: "Account is not active", code: "USER_INACTIVE", data: null }
 
   /auth/verify-otp:
     post:
@@ -529,39 +663,28 @@ paths:
           description: Invalid/expired OTP, invalid format, missing fields, or too many attempts
           content:
             application/json:
-              examples:
-                missing_fields:
-                  value:
-                    {
-                      message: "verificationId and code are required",
-                      data: null,
-                    }
-                invalid_format:
-                  value: { message: "Invalid OTP format", data: null }
-                otp_not_found:
-                  value: { message: "OTP expired or not found", data: null }
-                invalid_otp:
-                  value: { message: "Invalid OTP", data: null }
-                too_many_attempts:
-                  value:
-                    {
-                      message: "Too many attempts. Request a new OTP.",
-                      data: null,
-                    }
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                missing_fields: { value: { message: "verificationId and code are required", code: "MISSING_FIELDS", data: null } }
+                invalid_format:  { value: { message: "Invalid OTP format (must be 6 digits)", code: "INVALID_FORMAT", data: null } }
+                otp_not_found:  { value: { message: "OTP expired or not found", code: "OTP_NOT_FOUND", data: null } }
+                invalid_otp:    { value: { message: "Invalid OTP", code: "INVALID_OTP", data: null } }
+                too_many_attempts: { value: { message: "Too many attempts. Request a new OTP.", code: "RATE_LIMITED", data: null } }
         "404":
           description: User not found
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              examples:
+                user_not_found: { value: { message: "User not found", code: "USER_NOT_FOUND", data: null } }
         "500":
           description: Failed to activate account
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              examples:
+                activate_failed: { value: { message: "Failed to activate account", code: "INTERNAL_ERROR", data: null } }
 
   /auth/signout:
     post:
@@ -690,6 +813,281 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  # ===== AVAILABILITY ENDPOINTS =====
+  /availability/slots:
+    post:
+      tags: [Availability]
+      summary: Tạo slot (draft)
+      description: |
+        Mentor tạo slot dạng one-off hoặc recurring (RRULE). Sau khi tạo cần gọi publish để sinh occurrences.
+        - Yêu cầu Bearer token với role mentor.
+        - Hỗ trợ RRULE subset: FREQ=DAILY|WEEKLY; COUNT; INTERVAL; BYDAY (WEEKLY).
+        - `start` / `end` luôn bắt buộc (anchor cho recurring).
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateSlotRequest" }
+            examples:
+              one_off:
+                summary: One-off 30 phút
+                value:
+                  timezone: Asia/Ho_Chi_Minh
+                  title: "One-off mentoring"
+                  start: "2025-11-03T07:00:00Z"
+                  end: "2025-11-03T07:30:00Z"
+                  bufferBeforeMin: 5
+                  bufferAfterMin: 10
+                  visibility: public
+                  publishHorizonDays: 30
+              weekly_rrule:
+                summary: Weekly Mon/Thu (COUNT=8)
+                value:
+                  timezone: Asia/Ho_Chi_Minh
+                  title: "Weekly mentoring"
+                  start: "2025-11-03T07:00:00Z"
+                  end: "2025-11-03T07:20:00Z"
+                  rrule: "FREQ=WEEKLY;BYDAY=MO,TH;COUNT=8"
+                  exdates: []
+                  publishHorizonDays: 45
+      responses:
+        "201":
+          description: Slot tạo thành công (draft)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateSlotResponse"
+        "400":
+          description: Dữ liệu không hợp lệ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalid_rrule:
+                  value:
+                    message: "Invalid RRULE format"
+                    code: INVALID_RRULE
+                    data: null
+                start_after_end:
+                  value:
+                    message: "start must be before end"
+                    code: START_AFTER_END
+                    data: null
+
+        "401":
+          description: Chưa đăng nhập hoặc token không hợp lệ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                unauthorized:
+                  value:
+                    message: "Unauthorized"
+                    code: UNAUTHORIZED
+                    data: null
+
+        "403":
+          description: Không có quyền (role không phải mentor)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                role_forbidden:
+                  value:
+                    message: "Only mentors can create availability"
+                    code: FORBIDDEN
+                    data: null
+
+
+  /availability/slots/{id}/publish:
+    post:
+      tags: [Availability]
+      summary: Publish slot (sinh occurrences)
+      description: |
+        - One-off: sinh 1 occurrence nếu không conflict.
+        - Recurring (RRULE): sinh nhiều occurrences trong horizon (`publishHorizonDays`).
+        - Xử lý conflict: occurrence bị đụng thời gian (kể cả buffer) sẽ bị bỏ qua và tăng `skippedConflict`.
+        - Idempotent: publish lại slot đã published => trả message đã published.
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Publish thành công / đã published trước đó
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublishSlotResponse" }
+              examples:
+                one_off_created:
+                  value:
+                    published: true
+                    occurrencesCreated: 1
+                    skippedConflict: 0
+                    rrule: null
+                    horizonDays: 30
+                one_off_conflict_soft_skip:
+                  summary: Soft-skip khi trùng thời gian (không trả 409)
+                  value:
+                    published: true
+                    occurrencesCreated: 0
+                    skippedConflict: 1
+                    rrule: null
+                    horizonDays: 2
+                recurring_created:
+                  value:
+                    published: true
+                    occurrencesCreated: 8
+                    skippedConflict: 1
+                    rrule: "FREQ=WEEKLY;BYDAY=MO,TH;COUNT=8"
+                    horizonDays: 45
+                already_published:
+                  summary: Idempotent publish trả counters 0/0
+                  value:
+                    published: true
+                    occurrencesCreated: 0
+                    skippedConflict: 0
+                    rrule: null
+                    horizonDays: 30
+        "400":
+          description: Slot thiếu start/end hoặc invalid RRULE
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              examples:
+                missing_start_end: { value: { message: "Slot start/end is required", code: "MISSING_FIELDS", data: null } }
+                invalid_rrule:     { value: { message: "Invalid RRULE format", code: "INVALID_RRULE", data: null } }
+        "401":
+          description: Chưa đăng nhập
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              examples:
+                unauthorized: { value: { message: "Unauthorized", code: "UNAUTHORIZED", data: null } }
+        "403":
+          description: Không phải chủ sở hữu slot
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              examples:
+                not_owner: { value: { message: "Not owner of slot", code: "FORBIDDEN", data: null } }
+        "404":
+          description: Slot không tồn tại
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              examples:
+                slot_not_found: { value: { message: "Slot not found", code: "NOT_FOUND", data: null } }
+
+  /availability/slots/publish-batch:
+    post:
+      tags: [Availability]
+      summary: Publish nhiều slot cùng lúc (debug/test concurrency)
+      description: |
+        Nhận danh sách `ids` (slotId). Nếu `concurrent=true` thì chạy song song để mô phỏng publish đồng thời.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: string
+                concurrent:
+                  type: boolean
+                  default: false
+            examples:
+              sequential:
+                value:
+                  ids: ["68ec0000000000000000a001", "68ec0000000000000000a002"]
+                  concurrent: false
+              concurrent:
+                value:
+                  ids: ["68ec0000000000000000a001", "68ec0000000000000000a002"]
+                  concurrent: true
+      responses:
+        "200":
+          description: Kết quả publish từng slot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mode:
+                    type: string
+                    enum: [sequential, concurrent]
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        ok: { type: boolean }
+                        result:
+                          oneOf:
+                            - $ref: "#/components/schemas/PublishSlotResponse"
+                            - type: object
+                        error:
+                          type: string
+                          nullable: true
+
+  /availability/calendar/{mentorId}:
+    get:
+      tags: [Availability]
+      summary: Lịch public của mentor
+      description: Trả về các occurrences mở (status=open, visibility=public) trong khoảng from/to.
+      parameters:
+        - in: path
+          name: mentorId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: from
+          required: true
+          schema: { type: string, format: date-time }
+          examples:
+            from_min:
+              value: "2025-11-01T00:00:00Z"
+        - in: query
+          name: to
+          required: true
+          schema: { type: string, format: date-time }
+          examples:
+            to_min:
+              value: "2025-11-10T00:00:00Z"
+      responses:
+        "200":
+          description: Danh sách occurrences
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CalendarResponse" }
+              examples:
+                calendar_success_min:
+                  $ref: "#/components/examples/calendar_success_min"
+        "400":
+          description: Thiếu hoặc sai định dạng from/to (ISO UTC) hoặc from >= to
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              examples:
+                invalid_range:
+                  value: { message: "Invalid or missing from/to (ISO UTC expected)", code: "INVALID_RANGE", data: null }
+                calendar_400_min:
+                  $ref: "#/components/examples/calendar_400_min"
 
 security:
   - BearerAuth: []

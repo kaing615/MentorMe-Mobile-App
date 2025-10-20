@@ -59,25 +59,29 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.safeDrawing
 // MMButton + size enum (đúng package của repo bạn)
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.components.ui.MMButtonSize
 
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.only
-//import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.style.TextOverflow
 import com.mentorme.app.ui.common.MMGhostButton
-
-//import androidx.compose.ui.layout.onGloballyPositioned
-//import androidx.compose.ui.platform.LocalDensity
-//import androidx.compose.foundation.layout.only
-//import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import androidx.compose.foundation.text.KeyboardOptions
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.platform.LocalFocusManager
+// ==== MASK VISUAL TRANSFORMATION ====
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 
 // ======= TAB ENUM =======
 private enum class MentorTab(val label: String) {
@@ -85,6 +89,151 @@ private enum class MentorTab(val label: String) {
     Bookings("📋 Booking"),
     Sessions("💬 Phiên học")
 }
+
+
+private data class AvailabilitySlot(
+    val id: String,
+    val date: String,         // YYYY-MM-DD
+    val startTime: String,    // HH:MM
+    val endTime: String,      // HH:MM
+    val duration: Int,        // minutes
+    val description: String?,
+    val isActive: Boolean,
+    val sessionType: String,  // "video" | "in-person"
+    val isBooked: Boolean
+)
+private fun validateDateDigitsReturnIso(d: String): String? {
+    if (d.length != 8 || d.any { !it.isDigit() }) return null
+    val day = d.substring(0,2).toInt()
+    val mon = d.substring(2,4).toInt()
+    val yr  = d.substring(4,8).toInt()
+    if (yr !in 1900..2100 || mon !in 1..12) return null
+    val dim = daysInMonth(mon, yr)
+    if (day !in 1..dim) return null
+    return "%04d-%02d-%02d".format(yr, mon, day)
+}
+
+private fun isLeap(y: Int) = (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
+private fun daysInMonth(m: Int, y: Int): Int =
+    when (m) {
+        1,3,5,7,8,10,12 -> 31
+        4,6,9,11 -> 30
+        2 -> if (isLeap(y)) 29 else 28
+        else -> 0
+    }
+
+// "0930" -> "09:30" nếu hợp lệ, ngược lại null
+private fun validateTimeDigitsReturnHHMM(d: String): String? {
+    if (d.length != 4 || d.any { !it.isDigit() }) return null
+    val h = d.substring(0,2).toInt()
+    val m = d.substring(2,4).toInt()
+    if (h !in 0..23 || m !in 0..59) return null
+    return "%02d:%02d".format(h, m)
+}
+
+private fun toMinutesFromDigits(d: String): Int {
+    val h = d.substring(0,2).toInt()
+    val m = d.substring(2,4).toInt()
+    return h * 60 + m
+}
+
+// trả về số phút (e - s) nếu > 0, không thì null
+private fun durationFromDigits(startD: String, endD: String): Int? {
+    if (startD.length != 4 || endD.length != 4) return null
+    val diff = toMinutesFromDigits(endD) - toMinutesFromDigits(startD)
+    return if (diff > 0) diff else null
+}
+
+// Giúp hiển thị khi tạo slot
+private fun digitsToDisplayTime(d: String) = "%02d:%02d".format(
+    d.substring(0,2).toInt(), d.substring(2,4).toInt()
+)
+
+// "__/__/____"
+private class DateMaskTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        // gốc là CHỈ digits (bạn đã filter trong onValueChange)
+        val raw = text.text.take(8)
+        val rawLen = raw.length
+
+        val filled = buildString {
+            val pattern = charArrayOf('_','_','/','_','_','/','_','_','_','_')
+            var i = 0
+            raw.forEach { d ->
+                while (i < pattern.size && pattern[i] == '/') { append('/'); i++ }
+                if (i < pattern.size) { append(d); i++ }
+            }
+            while (i < pattern.size) { append(pattern[i]); i++ }
+        }
+
+        val mapping = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int {
+                // clamp offset theo độ dài gốc
+                val o = offset.coerceIn(0, rawLen)
+                return when {
+                    o <= 2 -> o
+                    o <= 4 -> o + 1
+                    else   -> (o + 2).coerceAtMost(10)
+                }
+            }
+
+            override fun transformedToOriginal(offset: Int): Int {
+                val guess = when {
+                    offset <= 2  -> offset
+                    offset <= 5  -> offset - 1
+                    offset <= 10 -> offset - 2
+                    else         -> 8
+                }
+                // QUAN TRỌNG: clamp về [0, rawLen]
+                return guess.coerceIn(0, rawLen)
+            }
+        }
+
+        return TransformedText(AnnotatedString(filled), mapping)
+    }
+}
+
+
+// "__:__"
+private class TimeMaskTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val raw = text.text.take(4)
+        val rawLen = raw.length
+
+        val filled = buildString {
+            val pattern = charArrayOf('_','_',':','_','_')
+            var i = 0
+            raw.forEach { d ->
+                while (i < pattern.size && pattern[i] == ':') { append(':'); i++ }
+                if (i < pattern.size) { append(d); i++ }
+            }
+            while (i < pattern.size) { append(pattern[i]); i++ }
+        }
+
+        val mapping = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int {
+                val o = offset.coerceIn(0, rawLen)
+                return when {
+                    o <= 2 -> o
+                    else   -> (o + 1).coerceAtMost(5)
+                }
+            }
+
+            override fun transformedToOriginal(offset: Int): Int {
+                val guess = when {
+                    offset <= 2 -> offset
+                    offset <= 5 -> offset - 1
+                    else        -> 4
+                }
+                return guess.coerceIn(0, rawLen)
+            }
+        }
+
+        return TransformedText(AnnotatedString(filled), mapping)
+    }
+}
+
+
 
 private fun hhmmToMinutes(hhmm: String) =
     hhmm.split(":").let { it[0].toInt() * 60 + it[1].toInt() }
@@ -101,7 +250,40 @@ fun MentorCalendarScreen(
     modifier: Modifier = Modifier
 ) {
     var activeTab by remember { mutableStateOf(MentorTab.Availability) }
-    val bookings = remember { MockData.mockBookings }
+    var bookings by remember { mutableStateOf(MockData.mockBookings) }
+
+    // HOIST state của lịch trống lên đây
+    var slots by remember {
+        mutableStateOf(
+            listOf(
+                AvailabilitySlot("1","2024-01-15","09:00","10:00",60,"React/NextJS Consultation", true,"video", true),
+                AvailabilitySlot("2","2024-01-16","14:00","15:30",90,"System Design & Architecture", true,"in-person", false),
+                AvailabilitySlot("3","2024-01-17","10:30","11:30",60,"Career Guidance", true,"video", false),
+            )
+        )
+    }
+
+    // ===== TÍNH 4 CHỈ SỐ =====
+    // 1) Lịch còn trống = slot đang ACTIVE và chưa bị đặt
+    val availabilityOpen = remember(slots) { slots.count { it.isActive && !it.isBooked } }
+
+    // 2) Đã xác nhận = số booking CONFIRMED
+    val confirmedCount = remember(bookings) { bookings.count { it.status == BookingStatus.CONFIRMED } }
+
+    // 3) Đã thu = tổng giá các booking COMPLETED và đã thanh toán
+    val totalPaid = remember(bookings) {
+        bookings.filter { it.status == BookingStatus.COMPLETED }
+            .filter { MockData.bookingExtras[it.id]?.paymentStatus == "paid" }
+            .sumOf { it.price.toInt() }
+    }
+
+    // 4) Chờ thanh toán = tổng giá các booking PENDING/CONFIRMED nhưng CHƯA thanh toán
+    val totalPending = remember(bookings) {
+        bookings.filter { it.status == BookingStatus.PENDING || it.status == BookingStatus.CONFIRMED }
+            .filter { MockData.bookingExtras[it.id]?.paymentStatus != "paid" }
+            .sumOf { it.price.toInt() }
+    }
+
 
     // Insets: top = status bar (cuộn cùng nội dung), bottom = nav + dashboard
     val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -112,7 +294,6 @@ fun MentorCalendarScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            // Không cố định top; cho top padding theo status bar để cuộn cùng
             .padding(top = topInset, start = 16.dp, end = 16.dp)
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -134,19 +315,12 @@ fun MentorCalendarScreen(
         )
         Spacer(Modifier.height(14.dp))
 
-        // Stats (dùng price & status sẵn có)
-        val completedEarnings = bookings
-            .filter { it.status == BookingStatus.COMPLETED }
-            .sumOf { it.price.toLong() }.toInt()
-        val pendingEarnings = bookings
-            .filter { it.status == BookingStatus.PENDING || it.status == BookingStatus.CONFIRMED }
-            .sumOf { it.price.toLong() }.toInt()
-
+        // ✅ Chỉ 1 StatsOverview, dùng đúng số đã tính
         StatsOverview(
-            availabilityOpen = 0,
-            confirmedCount = bookings.count { it.status == BookingStatus.CONFIRMED },
-            totalPaid = completedEarnings,
-            totalPending = pendingEarnings
+            availabilityOpen = availabilityOpen,
+            confirmedCount = confirmedCount,
+            totalPaid = totalPaid,
+            totalPending = totalPending
         )
 
         Spacer(Modifier.height(10.dp))
@@ -164,17 +338,20 @@ fun MentorCalendarScreen(
         when (activeTab) {
             MentorTab.Availability -> {
                 AvailabilityTabSection(
-                    onEdit = { },
-                    onToggle = { },
-                    onDelete = { }
+                    slots = slots,
+                    onAdd = { newSlot -> slots = slots + newSlot },
+                    onToggle = { id -> slots = slots.map { if (it.id == id) it.copy(isActive = !it.isActive) else it } },
+                    onDelete = { id -> slots = slots.filterNot { it.id == id } }
                 )
             }
             MentorTab.Bookings -> {
-                PendingBookingsTab(bookings = bookings)
+                PendingBookingsTab(
+                    bookings = bookings,
+                    onAccept = { id -> bookings = bookings.map { if (it.id == id) it.copy(status = BookingStatus.CONFIRMED) else it } },
+                    onReject = { id -> bookings = bookings.map { if (it.id == id) it.copy(status = BookingStatus.CANCELLED) else it } }
+                )
             }
-            MentorTab.Sessions -> {
-                SessionsTab(bookings = bookings)
-            }
+            MentorTab.Sessions -> { SessionsTab(bookings = bookings) }
         }
 
         // chừa chỗ đáy để né dashboard
@@ -202,49 +379,30 @@ private fun CenteredPill(
 }
 
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AvailabilityTabSection(
-    onEdit: (String) -> Unit,
+    slots: List<AvailabilitySlot>,
+    onAdd: (AvailabilitySlot) -> Unit,
     onToggle: (String) -> Unit,
-    onDelete: (String) -> Unit,
+    onDelete: (String) -> Unit
 ) {
-    // ---- mock giống TSX ----
-    data class AvailabilitySlot(
-        val id: String,
-        val date: String,      // YYYY-MM-DD
-        val startTime: String, // HH:MM
-        val endTime: String,   // HH:MM
-        val duration: Int,     // minutes
-        val description: String?,
-        val isActive: Boolean,
-        val sessionType: String, // "video" | "in-person"
-        val isBooked: Boolean
-    )
-    val numberFormat = remember { NumberFormat.getCurrencyInstance(java.util.Locale("vi", "VN")) }
+    val context = LocalContext.current
+    val numberFormat = remember { NumberFormat.getCurrencyInstance(java.util.Locale("vi","VN")) }
     val HOURLY = 100_000
 
-    var slots by remember {
-        mutableStateOf(
-            listOf(
-                AvailabilitySlot("1","2024-01-15","09:00","10:00",60,"React/NextJS Consultation", true,"video", true),
-                AvailabilitySlot("2","2024-01-16","14:00","15:30",90,"System Design & Architecture", true,"in-person", false),
-                AvailabilitySlot("3","2024-01-17","10:30","11:30",60,"Career Guidance", true,"video", false),
-            )
-        )
-    }
-
-    // ---- dialog state ----
+    // ====== State cho dialog (lưu DIGITS thô để caret ổn định) ======
     var showAdd by remember { mutableStateOf(false) }
-    var date by remember { mutableStateOf("") }
-    var start by remember { mutableStateOf("") }
-    var end by remember { mutableStateOf("") }
+    var dateDigits by remember { mutableStateOf("") }   // max 8, ví dụ "31122024"
+    var startDigits by remember { mutableStateOf("") }  // max 4, ví dụ "0930"
+    var endDigits by remember { mutableStateOf("") }    // max 4
     var type by remember { mutableStateOf("video") }
     var desc by remember { mutableStateOf(TextFieldValue("")) }
     var typeMenu by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-        // Header + nút ✨ Thêm lịch (giống TSX)
+        // Header + Thêm lịch
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -254,57 +412,42 @@ private fun AvailabilityTabSection(
                         .background(Color(0x3348A6FF))
                         .padding(6.dp),
                     contentAlignment = Alignment.Center
-                ) { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = Color.White) }
+                ) { Icon(Icons.Default.CalendarToday, null, tint = Color.White) }
 
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    "📅 Lịch trống của bạn",
-                    color = Color.White,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Text("📅 Lịch trống của bạn", color = Color.White, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.weight(1f))
             MMPrimaryButton(onClick = { showAdd = true }) {
-                Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
+                Icon(Icons.Default.Add, null, tint = Color.White)
                 Spacer(Modifier.width(6.dp))
                 Text("✨ Thêm lịch", color = Color.White)
             }
         }
 
-        // Empty state
+        // List / empty
         if (slots.isEmpty()) {
             LiquidGlassCard(radius = 24.dp, modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    Modifier.padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
+                Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(Color(0x3348A6FF)),
+                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(Color(0x3348A6FF)),
                         contentAlignment = Alignment.Center
-                    ) { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = Color.White.copy(.7f)) }
+                    ) { Icon(Icons.Default.CalendarToday, null, tint = Color.White.copy(.7f)) }
                     Spacer(Modifier.height(8.dp))
                     Text("📅 Chưa có lịch trống", color = Color.White, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Hãy thêm lịch trống để mentee có thể đặt hẹn tư vấn cá nhân với bạn!",
-                        color = Color.White.copy(.7f),
-                        textAlign = TextAlign.Center
-                    )
+                    Text("Hãy thêm lịch trống để mentee có thể đặt hẹn tư vấn cá nhân với bạn!",
+                        color = Color.White.copy(.7f), textAlign = TextAlign.Center)
                 }
             }
         } else {
-            // KHÔNG dùng LazyColumn con -> tránh nested scroll
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 slots.forEach { slot ->
                     LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Box(
-                                    modifier = Modifier
-                                        .size(26.dp)
-                                        .clip(RoundedCornerShape(10.dp))
+                                    modifier = Modifier.size(26.dp).clip(RoundedCornerShape(10.dp))
                                         .background(if (slot.sessionType == "video") Color(0x332467F1) else Color(0x3322C55E)),
                                     contentAlignment = Alignment.Center
                                 ) { Text(if (slot.sessionType == "video") "💻" else "🤝") }
@@ -312,15 +455,11 @@ private fun AvailabilityTabSection(
                                 Spacer(Modifier.width(8.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(
-                                        text = slot.description ?: "Phiên ${if (slot.sessionType=="video") "Video Call" else "Trực tiếp"}",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.SemiBold
+                                        text = slot.description ?: "Phiên ${if (slot.sessionType == "video") "Video Call" else "Trực tiếp"}",
+                                        color = Color.White, fontWeight = FontWeight.SemiBold
                                     )
-                                    Text(
-                                        text = "📅 ${slot.date}  •  ${slot.startTime} - ${slot.endTime}",
-                                        color = Color.White.copy(.7f),
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
+                                    Text("📅 ${slot.date}  •  ${slot.startTime} - ${slot.endTime}",
+                                        color = Color.White.copy(.7f), style = MaterialTheme.typography.bodySmall)
                                 }
 
                                 val badgeBg = when {
@@ -341,8 +480,7 @@ private fun AvailabilityTabSection(
                                             slot.isBooked  -> "📅 Đã đặt"
                                             else           -> "✨ Còn trống"
                                         },
-                                        color = Color.White,
-                                        fontWeight = FontWeight.SemiBold
+                                        color = Color.White, fontWeight = FontWeight.SemiBold
                                     )
                                 }
                             }
@@ -350,17 +488,22 @@ private fun AvailabilityTabSection(
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                     InfoChip("⏱️ Thời lượng", "${slot.duration} phút", Modifier.weight(1f))
-                                    InfoChip("💎 Giá tư vấn", numberFormat.format((HOURLY * slot.duration) / 60), Modifier.weight(1f))
+                                    InfoChip("💎 Giá tư vấn",
+                                        numberFormat.format((HOURLY * slot.duration) / 60),
+                                        Modifier.weight(1f))
                                 }
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    InfoChip("🎯 Hình thức", if (slot.sessionType=="video") "💻 Video Call" else "🤝 Trực tiếp", Modifier.weight(1f))
-                                    InfoChip("📊 Trạng thái", if (slot.isBooked) "📅 Đã đặt" else "✨ Trống", Modifier.weight(1f))
+                                    InfoChip("🎯 Hình thức",
+                                        if (slot.sessionType=="video") "💻 Video Call" else "🤝 Trực tiếp",
+                                        Modifier.weight(1f))
+                                    InfoChip("📊 Trạng thái",
+                                        if (slot.isBooked) "📅 Đã đặt" else "✨ Trống",
+                                        Modifier.weight(1f))
                                 }
                             }
 
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                val canDelete = !slot.isBooked
-                                MMButton(text = "✏️ Sửa", onClick = { onEdit(slot.id) }, size = MMButtonSize.Compact)
+                                MMButton(text = "✏️ Sửa", onClick = { /* TODO */ }, size = MMButtonSize.Compact)
                                 MMButton(
                                     text = if (slot.isActive) "⏸️ Tạm dừng" else "▶️ Kích hoạt",
                                     onClick = { onToggle(slot.id) },
@@ -368,9 +511,14 @@ private fun AvailabilityTabSection(
                                 )
                                 MMButton(
                                     text = "🗑️ Xóa",
-                                    onClick = { if (canDelete) onDelete(slot.id) },
+                                    onClick = {
+                                        if (!slot.isBooked) {
+                                            onDelete(slot.id)
+                                            Toast.makeText(context, "🗑️ Đã xóa lịch trống thành công!", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
                                     size = MMButtonSize.Compact,
-                                    modifier = if (canDelete) Modifier else Modifier.alpha(0.5f)
+                                    modifier = if (!slot.isBooked) Modifier else Modifier.alpha(0.5f)
                                 )
                             }
                         }
@@ -380,83 +528,167 @@ private fun AvailabilityTabSection(
         }
     }
 
-    // ---- Dialog thêm lịch ----
+    // ===== Dialog thêm lịch =====
     if (showAdd) {
         AlertDialog(
             onDismissRequest = { showAdd = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    val st = runCatching { java.time.LocalTime.parse(start) }.getOrNull()
-                    val et = runCatching { java.time.LocalTime.parse(end) }.getOrNull()
-                    if (date.isBlank() || st == null || et == null) { showAdd = false; return@TextButton }
-                    val duration = java.time.Duration.between(st, et).toMinutes().toInt().coerceAtLeast(0)
-                    if (duration < 30) { showAdd = false; return@TextButton }
-
-                    val newSlot = AvailabilitySlot(
-                        id = System.currentTimeMillis().toString(),
-                        date = date,
-                        startTime = start,
-                        endTime = end,
-                        duration = duration,
-                        description = desc.text.ifBlank { null },
-                        isActive = true,
-                        sessionType = type,
-                        isBooked = false
-                    )
-                    slots = slots + newSlot
-                    date = ""; start = ""; end = ""; type = "video"; desc = TextFieldValue("")
-                    showAdd = false
-                }) { Text("✨ Thêm lịch") }
-            },
-            dismissButton = { TextButton(onClick = { showAdd = false }) { Text("❌ Hủy") } },
-            title = { Text("✨ Thêm lịch trống mới") },
+            confirmButton = {}, dismissButton = {}, title = null,
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(value = date, onValueChange = { date = it }, label = { Text("📅 Ngày (YYYY-MM-DD)") })
-                    Box {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier.size(56.dp).clip(RoundedCornerShape(18.dp)).background(Color(0x3348A6FF)),
+                        contentAlignment = Alignment.Center
+                    ) { Text("+", color = Color(0xFF2563EB), fontSize = 22.sp, fontWeight = FontWeight.Bold) }
+                    Text("✨ Thêm lịch trống mới", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color(0xFF0F172A))
+                    Text("Tạo lịch trống để mentee có thể đặt hẹn tư vấn cá nhân với bạn",
+                        color = Color(0xFF475569), fontSize = 13.sp, textAlign = TextAlign.Center)
+
+                    // Ngày (digits + mask "__/__/____")
+                    FormLabel("📅  Ngày")
+                    OutlinedTextField(
+                        value = dateDigits,
+                        onValueChange = { dateDigits = it.filter(Char::isDigit).take(8) },
+                        placeholder = { Text("dd/MM/yyyy") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = DateMaskTransformation(),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // Loại phiên
+                    FormLabel("🎯  Loại phiên")
+                    ExposedDropdownMenuBox(expanded = typeMenu, onExpandedChange = { typeMenu = it }) {
                         OutlinedTextField(
                             value = if (type == "video") "💻 Video Call" else "🤝 Trực tiếp",
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("🎯 Loại phiên") },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .liquidGlass()
-                                .clickable { typeMenu = true }
+                            onValueChange = {}, readOnly = true,
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeMenu) },
+                            modifier = Modifier.menuAnchor().fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp)
                         )
                         DropdownMenu(expanded = typeMenu, onDismissRequest = { typeMenu = false }) {
                             DropdownMenuItem(text = { Text("💻 Video Call") }, onClick = { type = "video"; typeMenu = false })
                             DropdownMenuItem(text = { Text("🤝 Trực tiếp") }, onClick = { type = "in-person"; typeMenu = false })
                         }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedTextField(
-                            value = start, onValueChange = { start = it },
-                            label = { Text("🕐 Giờ bắt đầu (HH:MM)") }, modifier = Modifier.weight(1f)
-                        )
-                        OutlinedTextField(
-                            value = end, onValueChange = { end = it },
-                            label = { Text("🕐 Giờ kết thúc (HH:MM)") }, modifier = Modifier.weight(1f)
-                        )
+
+                    // Giờ (digits + mask "__:__")
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.weight(1f)) {
+                            FormLabel("🕐  Giờ bắt đầu")
+                            OutlinedTextField(
+                                value = startDigits,
+                                onValueChange = { startDigits = it.filter(Char::isDigit).take(4) },
+                                placeholder = { Text("HH:mm") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                visualTransformation = TimeMaskTransformation(),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        Column(Modifier.weight(1f)) {
+                            FormLabel("🕐  Giờ kết thúc")
+                            OutlinedTextField(
+                                value = endDigits,
+                                onValueChange = { endDigits = it.filter(Char::isDigit).take(4) },
+                                placeholder = { Text("HH:mm") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                visualTransformation = TimeMaskTransformation(),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
-                    OutlinedTextField(
-                        value = desc, onValueChange = { desc = it },
-                        label = { Text("📝 Mô tả (tùy chọn)") }, modifier = Modifier.fillMaxWidth(), minLines = 3
-                    )
-                    val numberFormat = NumberFormat.getCurrencyInstance(java.util.Locale("vi", "VN"))
-                    val HOURLY = 100_000
+
+                    // Giá + mô tả
                     LiquidGlassCard(radius = 18.dp, modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(12.dp)) {
-                            Text("💎 Giá niêm yết", color = Color.White, fontWeight = FontWeight.Medium)
-                            Text("${numberFormat.format(HOURLY)}/giờ", color = Color(0xFF34D399), fontWeight = FontWeight.Bold)
-                            Text("ℹ️ Giá tự động tính theo thời lượng phiên tư vấn của bạn", color = Color.White.copy(.7f), style = MaterialTheme.typography.bodySmall)
+                            Text("💎 Giá niêm yết", color = Color(0xFF0F172A), fontWeight = FontWeight.Medium)
+                            Text("${NumberFormat.getCurrencyInstance(java.util.Locale("vi","VN")).format(100_000)}/giờ",
+                                color = Color(0xFF059669), fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                            Text("ℹ️ Giá tự động tính theo thời lượng phiên tư vấn của bạn",
+                                color = Color(0xFF64748B), fontSize = 12.sp)
                         }
+                    }
+
+                    FormLabel("📝  Mô tả phiên tư vấn (tùy chọn)")
+                    OutlinedTextField(
+                        value = desc, onValueChange = { desc = it },
+                        placeholder = { Text("Ví dụ: React Performance, Career Guidance…") },
+                        shape = RoundedCornerShape(14.dp), minLines = 3,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { showAdd = false },
+                            modifier = Modifier.weight(1f).height(48.dp),
+                            shape = RoundedCornerShape(14.dp)
+                        ) { Text("❌ Hủy") }
+
+                        Button(
+                            onClick = {
+                                val dateIso   = validateDateDigitsReturnIso(dateDigits)
+                                val startHHMM = validateTimeDigitsReturnHHMM(startDigits)
+                                val endHHMM   = validateTimeDigitsReturnHHMM(endDigits)
+                                val duration  = durationFromDigits(startDigits, endDigits)
+
+                                if (dateIso == null) {
+                                    Toast.makeText(context, "Ngày không hợp lệ (định dạng dd/MM/yyyy).", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                                if (startHHMM == null || endHHMM == null) {
+                                    Toast.makeText(context, "Giờ không hợp lệ (HH:mm).", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                                if (duration == null || duration < 30) {
+                                    Toast.makeText(context, "Thời lượng tối thiểu 30 phút.", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+
+                                val newSlot = AvailabilitySlot(
+                                    id = System.currentTimeMillis().toString(),
+                                    date = dateIso,                     // lưu ISO YYYY-MM-DD
+                                    startTime = startHHMM,              // định dạng "HH:mm"
+                                    endTime = endHHMM,
+                                    duration = duration,
+                                    description = desc.text.ifBlank { null },
+                                    isActive = true,
+                                    sessionType = type,
+                                    isBooked = false
+                                )
+
+                                onAdd(newSlot)
+                                Toast.makeText(context, "✨ Đã thêm lịch trống thành công!", Toast.LENGTH_SHORT).show()
+                                // reset form
+                                dateDigits = ""; startDigits = ""; endDigits = ""; type = "video"; desc = TextFieldValue("")
+                                showAdd = false
+                            },
+                            modifier = Modifier.weight(1f).height(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF4F46E5),
+                                contentColor = Color.White
+                            )
+                        ) { Text("✨ Thêm lịch", fontWeight = FontWeight.SemiBold) }
                     }
                 }
             }
         )
     }
 }
+
 
 @Composable
 private fun InfoChip(
@@ -489,6 +721,34 @@ private fun InfoChip(
     }
 }
 
+@Composable
+private fun InfoRow(
+    title: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    LiquidGlassCard(radius = 16.dp, modifier = modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = title,                  // ví dụ "📅 Ngày & giờ"
+                color = Color.White.copy(.85f),
+                style = MaterialTheme.typography.labelMedium
+            )
+            Text(
+                text = value,
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.End
+            )
+        }
+    }
+}
 
 
 // ======= 1) Ô THỐNG KÊ =======
@@ -660,7 +920,11 @@ private fun SegmentedTabs(
 
 // ======= Booking Pending  =======
 @Composable
-private fun PendingBookingsTab(bookings: List<Booking>) {
+private fun PendingBookingsTab(
+    bookings: List<Booking>,
+    onAccept: (String) -> Unit,
+    onReject: (String) -> Unit
+) {
     // Lọc + sắp xếp
     val pending = remember(bookings) {
         bookings.filter { it.status == BookingStatus.PENDING }
@@ -739,19 +1003,13 @@ private fun PendingBookingsTab(bookings: List<Booking>) {
                     }
 
                     // 4 ô info: Ngày & giờ + Thời lượng / Giá tư vấn + Hình thức
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        InfoChip("📅 Ngày & giờ", "${b.date} • ${b.startTime}", Modifier.weight(1f))
-                        InfoChip("⏱️ Thời lượng", "${durationMinutes(b.startTime, b.endTime)} phút", Modifier.weight(1f))
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        val priceText = "${b.price.toInt()} đ"
-                        InfoChip("💎 Giá tư vấn", priceText, Modifier.weight(1f))
-                        InfoChip(
-                            "🎯 Hình thức",
-                            if (sessionType == "in-person") "🤝 Trực tiếp" else "💻 Video Call",
-                            Modifier.weight(1f)
-                        )
-                    }
+                    InfoRow("📅 Ngày & giờ", "${b.date} • ${b.startTime}")
+                    InfoRow("⏱️ Thời lượng", "${durationMinutes(b.startTime, b.endTime)} phút")
+                    InfoRow("💎 Giá tư vấn", "${b.price.toInt()} đ")
+                    InfoRow(
+                        "🎯 Hình thức",
+                        if (sessionType == "in-person") "🤝 Trực tiếp" else "💻 Video Call"
+                    )
 
                     // Trạng thái thanh toán (left text + pill bên phải như figma)
                     LiquidGlassCard(radius = 16.dp, modifier = Modifier.fillMaxWidth()) {
@@ -800,17 +1058,13 @@ private fun PendingBookingsTab(bookings: List<Booking>) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         MMButton(
                             text = "✅ Chấp nhận booking",
-                            onClick = { /* accept */ },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)            // tránh khuất chữ
+                            onClick = { onAccept(b.id) },
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
                         )
                         MMGhostButton(
                             text = "❌ Từ chối",
-                            onClick = { /* reject */ },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
+                            onClick = { onReject(b.id) },
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
                         )
                     }
                 }
@@ -819,7 +1073,6 @@ private fun PendingBookingsTab(bookings: List<Booking>) {
     }
 }
 
-// ======= Sessions (tất cả phiên) =======
 // ======= Sessions (tất cả phiên) =======
 @Composable
 private fun SessionsTab(bookings: List<Booking>) {
@@ -864,7 +1117,7 @@ private fun SessionsTab(bookings: List<Booking>) {
             val (statusColor, statusLabel) = when (b.status) {
                 BookingStatus.CONFIRMED -> Color(0xFF22C55E) to "✅ Đã xác nhận"
                 BookingStatus.PENDING   -> Color(0xFFF59E0B) to "⏳ Chờ duyệt"
-                BookingStatus.COMPLETED -> Color(0xFF8B5CF6) to "🎉 Hoàn thành"
+                BookingStatus.COMPLETED -> Color(0xFF14B8A6) to "🎉 Hoàn thành"
                 BookingStatus.CANCELLED -> Color(0xFFEF4444) to "❌ Đã hủy"
             }
 
@@ -972,5 +1225,52 @@ private fun MMGhostButton(
             text = text,
             fontWeight = FontWeight.Medium
         )
+    }
+}
+
+
+private fun maskDate(input: String): String {
+    val digits = input.filter { it.isDigit() }.take(8)
+    val sb = StringBuilder()
+    for (i in digits.indices) {
+        sb.append(digits[i])
+        if (i == 1 || i == 3) sb.append('/')
+    }
+    return sb.toString()
+}
+
+private fun maskTime(input: String): String {
+    val digits = input.filter { it.isDigit() }.take(4)
+    val sb = StringBuilder()
+    for (i in digits.indices) {
+        sb.append(digits[i])
+        if (i == 1) sb.append(':')
+    }
+    return sb.toString()
+}
+
+@Composable
+private fun FormLabel(text: String) {
+    Text(
+        text = text,
+        color = Color(0xFF475569),
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.fillMaxWidth(),
+        textAlign = TextAlign.Start
+    )
+}
+
+@Composable
+private fun GradientInfoCard(content: @Composable RowScope.() -> Unit) {
+    LiquidGlassCard(radius = 18.dp, modifier = Modifier.fillMaxWidth()) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .background(Color(0xF0F8FF)) // gần kiểu “blue-50”, nổi tốt trên nền xanh
+                .border(BorderStroke(2.dp, Color(0xFFBFDBFE)), RoundedCornerShape(18.dp))
+                .padding(14.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, content = content)
+        }
     }
 }

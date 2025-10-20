@@ -819,12 +819,31 @@ private fun PendingBookingsTab(bookings: List<Booking>) {
     }
 }
 
-
-
-
+// ======= Sessions (tất cả phiên) =======
 // ======= Sessions (tất cả phiên) =======
 @Composable
 private fun SessionsTab(bookings: List<Booking>) {
+    // Header của tab (title + subtitle) — căn giữa như figma
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "💬  Tất cả phiên tư vấn",
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleLarge
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "Quản lý và theo dõi tất cả các phiên tư vấn của bạn",
+            color = Color.White.copy(.7f),
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center
+        )
+    }
+    Spacer(Modifier.height(12.dp))
+
     val all = remember(bookings) {
         bookings.sortedWith(
             compareByDescending<Booking> { it.date }.thenByDescending { it.startTime }
@@ -833,41 +852,102 @@ private fun SessionsTab(bookings: List<Booking>) {
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         all.forEach { b ->
+            // Lấy thêm dữ liệu mock để hiển thị theo Figma
+            val extra = MockData.bookingExtras[b.id]
+            val topic = extra?.topic ?: "Phiên tư vấn"
+            val sessionType = extra?.sessionType ?: "video"  // "video" | "in-person"
+            val isPaid = extra?.paymentStatus == "paid"
+            val menteeName = MockData.currentMenteeName
+            val mentorName = MockData.mentorNameById(b.mentorId)
+
+            // Map màu + nhãn trạng thái
+            val (statusColor, statusLabel) = when (b.status) {
+                BookingStatus.CONFIRMED -> Color(0xFF22C55E) to "✅ Đã xác nhận"
+                BookingStatus.PENDING   -> Color(0xFFF59E0B) to "⏳ Chờ duyệt"
+                BookingStatus.COMPLETED -> Color(0xFF8B5CF6) to "🎉 Hoàn thành"
+                BookingStatus.CANCELLED -> Color(0xFFEF4444) to "❌ Đã hủy"
+            }
+
             LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
                 Column(
                     Modifier.padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Tiêu đề + pill trạng thái căn giữa
+                    // ===== Header: chủ đề + tên mentee/mentor + pill trạng thái ở phải
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "📝 Phiên tư vấn",
-                            color = Color.White,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.weight(1f)
-                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = (if (sessionType == "in-person") "🤝 " else "💻 ") + topic,
+                                color = Color.White,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "👤 Với $menteeName   •   👨‍🏫 $mentorName",
+                                color = Color.White.copy(.85f),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(statusColor.copy(.25f))
+                                .border(BorderStroke(1.dp, statusColor.copy(.45f)), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text(statusLabel, color = Color.White, fontWeight = FontWeight.Medium)
+                        }
                     }
-                    val (bg, label) = when (b.status) {
-                        BookingStatus.CONFIRMED -> Color(0xFF22C55E) to "✅ Đã xác nhận"
-                        BookingStatus.PENDING   -> Color(0xFFF59E0B) to "⏳ Chờ duyệt"
-                        BookingStatus.COMPLETED -> Color(0xFF8B5CF6) to "🎉 Hoàn thành"
-                        BookingStatus.CANCELLED -> Color(0xFFEF4444) to "❌ Đã hủy"
-                    }
-                    CenteredPill(text = label, bg = bg)
 
-                    // Nội dung
+                    // ===== Hàng 1: Ngày & giờ + Thời lượng
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         InfoChip("📅 Ngày & giờ", "${b.date} • ${b.startTime}", Modifier.weight(1f))
                         InfoChip("⏱️ Thời lượng", "${durationMinutes(b.startTime, b.endTime)} phút", Modifier.weight(1f))
                     }
+
+                    // ===== Hàng 2: Giá tư vấn + Hình thức
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        InfoChip("💎 Giá tư vấn", "${b.price.toInt()} đ", Modifier.weight(1f), center = true)
+                        InfoChip("💎 Giá tư vấn", "${b.price.toInt()} đ", Modifier.weight(1f))
+                        InfoChip(
+                            "🎯 Hình thức",
+                            if (sessionType == "in-person") "🤝 Trực tiếp" else "💻 Video Call",
+                            Modifier.weight(1f)
+                        )
+                    }
+
+                    // ===== Thanh toán: label bên trái + pill bên phải (giống figma)
+                    LiquidGlassCard(radius = 16.dp, modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "💳 Thanh toán",
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            val (payColor, payLabel) = if (isPaid)
+                                Color(0xFF22C55E) to "✅ Đã thanh toán"
+                            else
+                                Color(0xFFF59E0B) to "⏳ Chờ thanh toán"
+
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(payColor.copy(.25f))
+                                    .border(BorderStroke(1.dp, payColor.copy(.45f)), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            ) { Text(payLabel, color = Color.White, fontWeight = FontWeight.Medium) }
+                        }
                     }
                 }
             }
         }
     }
 }
+
 
 
 

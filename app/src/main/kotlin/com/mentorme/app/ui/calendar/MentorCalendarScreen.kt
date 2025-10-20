@@ -71,6 +71,7 @@ import androidx.compose.foundation.layout.only
 //import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.style.TextOverflow
 import com.mentorme.app.ui.common.MMGhostButton
 
 //import androidx.compose.ui.layout.onGloballyPositioned
@@ -180,6 +181,26 @@ fun MentorCalendarScreen(
         Spacer(Modifier.height(bottomPadding))
     }
 }
+
+@Composable
+private fun CenteredPill(
+    text: String,
+    bg: Color,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(bg.copy(.25f))
+            .border(BorderStroke(1.dp, bg.copy(.45f)), RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, color = Color.White, fontWeight = FontWeight.SemiBold)
+    }
+}
+
 
 @Composable
 private fun AvailabilityTabSection(
@@ -441,18 +462,34 @@ private fun AvailabilityTabSection(
 private fun InfoChip(
     title: String,
     value: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    center: Boolean = false
 ) {
     LiquidGlassCard(radius = 16.dp, modifier = modifier.height(68.dp)) {
         Column(
-            Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = if (center) Alignment.CenterHorizontally else Alignment.Start
         ) {
-            Text(title, color = Color.White.copy(.85f), style = MaterialTheme.typography.labelMedium)
-            Text(value, color = Color.White, fontWeight = FontWeight.SemiBold)
+            Text(
+                title,
+                color = Color.White.copy(.85f),
+                style = MaterialTheme.typography.labelMedium,
+                textAlign = if (center) TextAlign.Center else TextAlign.Start
+            )
+            Text(
+                value,
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = if (center) TextAlign.Center else TextAlign.Start
+            )
         }
     }
 }
+
+
 
 // ======= 1) Ô THỐNG KÊ =======
 @Composable
@@ -472,14 +509,14 @@ private fun StatsOverview(
                 title = "Lịch còn trống",
                 value = availabilityOpen.toString(),
                 tint = Color(0xFF93C5FD),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f).height(110.dp)
             )
             StatCard(
                 emoji = "✨",
                 title = "Đã xác nhận",
                 value = confirmedCount.toString(),
                 tint = Color(0xFF34D399),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f).height(110.dp)
             )
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -489,7 +526,7 @@ private fun StatsOverview(
                 value = nf.format(totalPaid),
                 accent = Color(0xFF34D399),
                 tint = Color(0xFF34D399),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f).height(110.dp)
             )
             StatCard(
                 emoji = "⏳",
@@ -497,7 +534,7 @@ private fun StatsOverview(
                 value = nf.format(totalPending),
                 accent = Color(0xFFFCD34D),
                 tint = Color(0xFFF59E0B),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f).height(110.dp)
             )
         }
     }
@@ -513,29 +550,54 @@ private fun StatCard(
     modifier: Modifier = Modifier
 ) {
     LiquidGlassCard(radius = 24.dp, modifier = modifier) {
-        Column(
-            Modifier.padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        // Chiếm toàn bộ diện tích thẻ và căn GIỮA cả ngang lẫn dọc
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(110.dp),          // chỉnh cao/thấp tùy Figma (100–120dp)
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(tint.copy(alpha = .2f))
-                    .padding(8.dp)
-            ) { Text(emoji) }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // icon đầu thẻ
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(tint.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(emoji)
+                }
 
-            Spacer(Modifier.height(6.dp))
-            Text(value, color = accent, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            Text(title, color = Color.White.copy(.7f), fontSize = 12.sp)
+                // số liệu
+                Text(
+                    value,
+                    color = accent,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    textAlign = TextAlign.Center
+                )
+
+                // nhãn
+                Text(
+                    title,
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }
 
-// ======= Segmented Tabs =======
+
 @Composable
 private fun SegmentedTabs(
     active: MentorTab,
-    pendingCount: Int,
+    pendingCount: Int,                 // giữ tham số để không phải đổi nơi gọi
     onChange: (MentorTab) -> Unit
 ) {
     LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
@@ -557,7 +619,11 @@ private fun SegmentedTabs(
                                 BorderStroke(
                                     2.dp,
                                     Brush.linearGradient(
-                                        listOf(Color(0xFF60A5FA), Color(0xFFA78BFA), Color(0xFFF472B6))
+                                        listOf(
+                                            Color(0xFF60A5FA),
+                                            Color(0xFFA78BFA),
+                                            Color(0xFFF472B6)
+                                        )
                                     )
                                 ),
                                 RoundedCornerShape(16.dp)
@@ -569,16 +635,19 @@ private fun SegmentedTabs(
             MentorTab.values().forEachIndexed { i, tab ->
                 val label = when (tab) {
                     MentorTab.Availability -> "📅 Lịch trống"
-                    MentorTab.Bookings -> "📋 Booking ($pendingCount)"
-                    MentorTab.Sessions -> "💬 Phiên học"
+                    MentorTab.Bookings     -> "📋 Booking"
+                    MentorTab.Sessions     -> "💬 Phiên học"
                 }
                 Tab(
                     selected = i == active.ordinal,
                     onClick = { onChange(tab) },
                     text = {
                         Text(
-                            label,
+                            text = label,
                             color = Color.White,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
                             fontWeight = if (i == active.ordinal) FontWeight.Bold else FontWeight.Normal
                         )
                     }
@@ -588,13 +657,37 @@ private fun SegmentedTabs(
     }
 }
 
-// ======= Booking Pending =======
+
+// ======= Booking Pending  =======
 @Composable
 private fun PendingBookingsTab(bookings: List<Booking>) {
+    // Lọc + sắp xếp
     val pending = remember(bookings) {
         bookings.filter { it.status == BookingStatus.PENDING }
             .sortedWith(compareBy({ it.date }, { it.startTime }))
     }
+
+    // Header của tab (title + subtitle) — căn giữa như figma
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "⏱️  Booking chờ duyệt",
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleLarge
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "Các yêu cầu đặt lịch từ mentee đang chờ bạn phản hồi",
+            color = Color.White.copy(0.7f),
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center
+        )
+    }
+
+    Spacer(Modifier.height(12.dp))
 
     if (pending.isEmpty()) {
         LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
@@ -603,84 +696,180 @@ private fun PendingBookingsTab(bookings: List<Booking>) {
                 Text("Tất cả yêu cầu đặt lịch đã được xử lý.", color = Color.White.copy(.7f))
             }
         }
-    } else {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            pending.forEach { b ->
-                LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text("📝 Booking", color = Color.White, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        return
+    }
+
+    // Danh sách thẻ booking
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        pending.forEach { b ->
+            val extra = MockData.bookingExtras[b.id]
+            val topic = extra?.topic ?: "Booking"
+            val sessionType = extra?.sessionType ?: "video" // "video" | "in-person"
+            val isPaid = extra?.paymentStatus == "paid"
+            val menteeNote = extra?.menteeNotes
+            val menteeName = MockData.currentMenteeName
+            val mentorName = MockData.mentorNameById(b.mentorId)
+
+            LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+                    // Header: Topic + mentee/mentor + pill "Chờ duyệt"
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = "📝 $topic",
+                                color = Color.White,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "👤 Với $menteeName   •   👨‍🏫 $mentorName",
+                                color = Color.White.copy(.85f),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFF59E0B).copy(.25f))
+                                .border(BorderStroke(1.dp, Color(0xFFF59E0B).copy(.45f)), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) { Text("⏳ Chờ duyệt", color = Color.White, fontWeight = FontWeight.Medium) }
+                    }
+
+                    // 4 ô info: Ngày & giờ + Thời lượng / Giá tư vấn + Hình thức
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        InfoChip("📅 Ngày & giờ", "${b.date} • ${b.startTime}", Modifier.weight(1f))
+                        InfoChip("⏱️ Thời lượng", "${durationMinutes(b.startTime, b.endTime)} phút", Modifier.weight(1f))
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        val priceText = "${b.price.toInt()} đ"
+                        InfoChip("💎 Giá tư vấn", priceText, Modifier.weight(1f))
+                        InfoChip(
+                            "🎯 Hình thức",
+                            if (sessionType == "in-person") "🤝 Trực tiếp" else "💻 Video Call",
+                            Modifier.weight(1f)
+                        )
+                    }
+
+                    // Trạng thái thanh toán (left text + pill bên phải như figma)
+                    LiquidGlassCard(radius = 16.dp, modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Trạng thái thanh toán", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "Mentee đã hoàn tất thanh toán",
+                                    color = Color.White.copy(.7f),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            val (bg, label) = if (isPaid)
+                                Color(0xFF22C55E) to "✅ Đã thanh toán"
+                            else
+                                Color(0xFFF59E0B) to "⏳ Chờ thanh toán"
+
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFFF59E0B).copy(.25f))
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
-                            ) { Text("⏳ Chờ duyệt", color = Color.White) }
+                                    .background(bg.copy(.25f))
+                                    .border(BorderStroke(1.dp, bg.copy(.45f)), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            ) { Text(label, color = Color.White, fontWeight = FontWeight.Medium) }
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            InfoChip("📅 Ngày & giờ", "${b.date} • ${b.startTime}", Modifier.weight(1f))
-                            InfoChip("⏱️ Thời lượng", "${durationMinutes(b.startTime, b.endTime)} phút", Modifier.weight(1f))
+                    }
+
+                    // Ghi chú từ mentee (nếu có)
+                    if (!menteeNote.isNullOrBlank()) {
+                        LiquidGlassCard(radius = 16.dp, modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("💬 Ghi chú từ mentee:", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "“$menteeNote”",
+                                    color = Color.White.copy(.95f),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            InfoChip("💎 Giá tư vấn", "${b.price.toInt()} đ", Modifier.weight(1f))
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            MMButton(
-                                text = "✅ Chấp nhận",
-                                onClick = { /* accept */ },
-                                modifier = Modifier.weight(1f)
-                            )
-                            MMGhostButton(
-                                text = "❌ Từ chối",
-                                onClick = { /* reject */ },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                    }
+
+                    // Nút hành động (theo figma)
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        MMButton(
+                            text = "✅ Chấp nhận booking",
+                            onClick = { /* accept */ },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)            // tránh khuất chữ
+                        )
+                        MMGhostButton(
+                            text = "❌ Từ chối",
+                            onClick = { /* reject */ },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                        )
                     }
                 }
             }
         }
     }
 }
+
+
+
 
 // ======= Sessions (tất cả phiên) =======
 @Composable
 private fun SessionsTab(bookings: List<Booking>) {
     val all = remember(bookings) {
-        bookings.sortedWith(compareByDescending<Booking> { it.date }.thenByDescending { it.startTime })
+        bookings.sortedWith(
+            compareByDescending<Booking> { it.date }.thenByDescending { it.startTime }
+        )
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         all.forEach { b ->
             LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Tiêu đề + pill trạng thái căn giữa
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("📝 Phiên tư vấn", color = Color.White, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                        val (bg, label) = when (b.status) {
-                            BookingStatus.CONFIRMED -> Color(0xFF22C55E) to "✅ Đã xác nhận"
-                            BookingStatus.PENDING -> Color(0xFFF59E0B) to "⏳ Chờ duyệt"
-                            BookingStatus.COMPLETED -> Color(0xFF8B5CF6) to "🎉 Hoàn thành"
-                            BookingStatus.CANCELLED -> Color(0xFFEF4444) to "❌ Đã hủy"
-                        }
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(bg.copy(.25f))
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
-                        ) { Text(label, color = Color.White) }
+                        Text(
+                            "📝 Phiên tư vấn",
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val (bg, label) = when (b.status) {
+                        BookingStatus.CONFIRMED -> Color(0xFF22C55E) to "✅ Đã xác nhận"
+                        BookingStatus.PENDING   -> Color(0xFFF59E0B) to "⏳ Chờ duyệt"
+                        BookingStatus.COMPLETED -> Color(0xFF8B5CF6) to "🎉 Hoàn thành"
+                        BookingStatus.CANCELLED -> Color(0xFFEF4444) to "❌ Đã hủy"
+                    }
+                    CenteredPill(text = label, bg = bg)
+
+                    // Nội dung
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         InfoChip("📅 Ngày & giờ", "${b.date} • ${b.startTime}", Modifier.weight(1f))
                         InfoChip("⏱️ Thời lượng", "${durationMinutes(b.startTime, b.endTime)} phút", Modifier.weight(1f))
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        InfoChip("💎 Giá tư vấn", "${b.price.toInt()} đ", Modifier.weight(1f))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        InfoChip("💎 Giá tư vấn", "${b.price.toInt()} đ", Modifier.weight(1f), center = true)
                     }
                 }
             }
         }
     }
 }
+
+
 
 @Composable
 private fun MMGhostButton(

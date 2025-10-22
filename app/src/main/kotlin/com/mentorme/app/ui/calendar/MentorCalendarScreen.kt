@@ -21,11 +21,17 @@ import com.mentorme.app.data.model.BookingStatus
 import com.mentorme.app.data.mock.MockData
 import com.mentorme.app.ui.calendar.components.SegmentedTabs
 import com.mentorme.app.ui.calendar.components.StatCard
-import com.mentorme.app.ui.calendar.core.AvailabilitySlot
-import com.mentorme.app.ui.calendar.core.durationMinutes
 import com.mentorme.app.ui.calendar.tabs.AvailabilityTabSection
 import com.mentorme.app.ui.calendar.tabs.PendingBookingsTab
 import com.mentorme.app.ui.calendar.tabs.SessionsTab
+import kotlinx.coroutines.launch
+
+// Hilt entry point to access DataStoreManager without changing composable parameters
+@dagger.hilt.EntryPoint
+@dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+interface MentorCalendarDeps {
+    fun dataStoreManager(): com.mentorme.app.core.datastore.DataStoreManager
+}
 
 @Composable
 fun MentorCalendarScreen(
@@ -39,32 +45,52 @@ fun MentorCalendarScreen(
     var activeTab by remember { mutableStateOf(0) }
     val tabLabels = listOf("📅 Lịch trống", "📋 Booking", "💬 Phiên học")
 
-    // --- bookings state (mock) ---
-    var bookings by remember { mutableStateOf(MockData.mockBookings) }
+    // --- ViewModel for Availability ---
+    val vm = androidx.hilt.navigation.compose.hiltViewModel<com.mentorme.app.ui.calendar.MentorCalendarViewModel>()
 
-    // --- slots state (mock demo) ---
-    var slots by remember {
-        mutableStateOf(
-            listOf(
-                AvailabilitySlot("1","2024-01-15","09:00","10:00",60,"React/NextJS Consultation", true,"video", true),
-                AvailabilitySlot("2","2024-01-16","14:00","15:30",90,"System Design & Architecture", true,"in-person", false),
-                AvailabilitySlot("3","2024-01-17","10:30","11:30",60,"Career Guidance", true,"video", false),
-            )
-        )
+    // Observe availability state only
+    val slotsState = vm.slots.collectAsState()
+    val scope = rememberCoroutineScope()
+
+    // Resolve mentorId: prefer nav arg if provided; else, use current user id from DataStore
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val deps = remember(context) {
+        dagger.hilt.android.EntryPointAccessors.fromApplication(context, MentorCalendarDeps::class.java)
+    }
+    val currentUserIdState = deps.dataStoreManager().getUserId().collectAsState(initial = null)
+    val mentorId: String? = currentUserIdState.value
+
+    // Compute default window [today 00:00 local .. +30 days 23:59:59] as ISO-UTC
+    val zone = java.time.ZoneId.systemDefault()
+    val todayStart = remember { java.time.LocalDate.now().atStartOfDay(zone) }
+    val fromIsoUtc = remember { todayStart.toInstant().toString() }
+    val toIsoUtc = remember { todayStart.plusDays(30).withHour(23).withMinute(59).withSecond(59).toInstant().toString() }
+
+    // Initial load for availability only
+    LaunchedEffect(mentorId) {
+        mentorId?.let {
+            try {
+                vm.loadWindow(it, fromIsoUtc, toIsoUtc)
+            } catch (t: Throwable) {
+                val msg = com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(t.message)
+                android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
-    // ---- Tính số liệu tổng quan (memo theo state) ----
-    val availabilityOpen = remember(slots) { slots.count { it.isActive && !it.isBooked } }
-    val confirmedCount = remember(bookings) { bookings.count { it.status == BookingStatus.CONFIRMED } }
+    // ---- Summary metrics based on (now empty) bookings for tabs ----
+    val emptyBookings = remember { emptyList<com.mentorme.app.data.model.Booking>() }
+    val availabilityOpen = remember(slotsState.value) { slotsState.value.count { it.isActive && !it.isBooked } }
+    val confirmedCount = remember(emptyBookings) { emptyBookings.count { it.status == BookingStatus.CONFIRMED } }
 
-    val totalPaid = remember(bookings) {
-        bookings
+    val totalPaid = remember(emptyBookings) {
+        emptyBookings
             .filter { it.status == BookingStatus.COMPLETED }
             .filter { MockData.bookingExtras[it.id]?.paymentStatus == "paid" }
             .sumOf { it.price.toInt() }
     }
-    val totalPending = remember(bookings) {
-        bookings
+    val totalPending = remember(emptyBookings) {
+        emptyBookings
             .filter { it.status == BookingStatus.PENDING || it.status == BookingStatus.CONFIRMED }
             .filter { MockData.bookingExtras[it.id]?.paymentStatus != "paid" }
             .sumOf { it.price.toInt() }
@@ -113,30 +139,76 @@ fun MentorCalendarScreen(
         SegmentedTabs(
             activeIndex = activeTab,
             labels = tabLabels,
-            onChange = { activeTab = it }
+            onChange = { index ->
+                if (index == 0 && mentorId != null) {
+                    try {
+                        vm.loadWindow(mentorId, fromIsoUtc, toIsoUtc)
+                    } catch (t: Throwable) {
+                        val msg = com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(t.message)
+                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+                // Do not fetch bookings (backend not available yet)
+                activeTab = index
+            }
         )
         Spacer(Modifier.height(12.dp))
 
         // Nội dung từng tab
         when (activeTab) {
             0 -> AvailabilityTabSection(
-                slots = slots,
-                onAdd = { newSlot -> slots = slots + newSlot },
-                onUpdate = { updated ->                      // 👈 NEW
-                    slots = slots.map { if (it.id == updated.id) updated else it }
+                slots = slotsState.value,
+                onAdd = { newSlot ->
+                    if (mentorId == null) {
+                        android.widget.Toast.makeText(
+                            context,
+                            "Không tìm thấy tài khoản mentor. Vui lòng đăng nhập lại.",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    } else {
+                        val res = vm.addSlot(
+                            mentorId = mentorId,
+                            dateIso = newSlot.date,
+                            startHHmm = newSlot.startTime,
+                            endHHmm = newSlot.endTime,
+                            sessionType = newSlot.sessionType,
+                            description = newSlot.description
+                        )
+                        when (res) {
+                            is com.mentorme.app.core.utils.AppResult.Success -> {
+                                android.widget.Toast.makeText(context, "✨ Thêm lịch thành công", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                            is com.mentorme.app.core.utils.AppResult.Error -> {
+                                val raw = res.throwable
+                                val code = run {
+                                    val after = raw.substringAfter("HTTP ", "")
+                                    after.take(3).toIntOrNull() ?: Regex("""\b([1-5]\d{2})\b""").find(raw)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                                }
+                                when (code) {
+                                    401 -> android.widget.Toast.makeText(context, "Bạn cần đăng nhập để thực hiện thao tác này.", android.widget.Toast.LENGTH_LONG).show()
+                                    400 -> android.widget.Toast.makeText(context, "Dữ liệu thời gian không hợp lệ", android.widget.Toast.LENGTH_LONG).show()
+                                    409, 422 -> android.widget.Toast.makeText(context, "Khung giờ bị trùng/đã tồn tại", android.widget.Toast.LENGTH_LONG).show()
+                                    else -> {
+                                        val msg = com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(raw)
+                                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }
+                            com.mentorme.app.core.utils.AppResult.Loading -> Unit
+                        }
+                    }
                 },
-                onToggle = { id ->
-                    slots = slots.map { if (it.id == id) it.copy(isActive = !it.isActive) else it }
-                },
-                onDelete = { id -> slots = slots.filterNot { it.id == id } }
+                onUpdate = { _ -> },
+                onToggle = { _ -> },
+                onDelete = { _ -> }
 
             )
             1 -> PendingBookingsTab(
-                bookings = bookings,
-                onAccept = { id -> bookings = bookings.map { if (it.id == id) it.copy(status = BookingStatus.CONFIRMED) else it } },
-                onReject = { id -> bookings = bookings.map { if (it.id == id) it.copy(status = BookingStatus.CANCELLED) else it } }
+                bookings = emptyBookings,
+                onAccept = { _ -> },
+                onReject = { _ -> }
             )
-            2 -> SessionsTab(bookings = bookings)
+            2 -> SessionsTab(bookings = emptyBookings)
         }
 
         // chừa chỗ đáy để né dashboard
@@ -156,8 +228,8 @@ private fun StatsOverview(
     val vi = java.util.Locale("vi","VN")
     val nf = remember { java.text.NumberFormat.getCurrencyInstance(vi) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
             StatCard(
                 emoji = "📅",
                 title = "Lịch còn trống",
@@ -173,7 +245,7 @@ private fun StatsOverview(
                 modifier = Modifier.weight(1f).height(110.dp)
             )
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
             StatCard(
                 emoji = "💰",
                 title = "Đã thu",

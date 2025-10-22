@@ -258,7 +258,7 @@ fun AvailabilityTabSection(
                     isBooked = false
                 )
                 onAdd(newSlot)
-                Toast.makeText(context, "✨ Đã thêm lịch trống!", Toast.LENGTH_SHORT).show()
+                // success toast is shown by the parent after VM reloads
                 resetForm()
                 showAdd = false
             }

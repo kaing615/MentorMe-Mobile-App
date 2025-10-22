@@ -13,6 +13,8 @@ import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import com.mentorme.app.data.repository.availability.AvailabilityRepository
+import com.mentorme.app.data.repository.availability.AvailabilityRepositoryImpl
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -26,6 +28,13 @@ abstract class RepositoryModule {
 
     @Binds @Singleton
     abstract fun bindBookingRepository(impl: BookingRepositoryImpl): BookingRepository
+
+    // Availability
+    @Binds
+    @Singleton
+    abstract fun bindAvailabilityRepository(
+        impl: AvailabilityRepositoryImpl
+    ): AvailabilityRepository
 
     @Binds
     @Singleton

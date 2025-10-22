@@ -19,6 +19,7 @@ import com.mentorme.app.data.model.Mentor
 import com.mentorme.app.data.model.User
 import retrofit2.Response
 import retrofit2.http.*
+import kotlin.jvm.JvmSuppressWildcards
 
 interface MentorMeApi {
 
@@ -77,6 +78,55 @@ interface MentorMeApi {
         @Path("id") bookingId: String,
         @Body ratingRequest: RatingRequest
     ): Response<Booking>
+
+    // Availability endpoints
+
+    /**
+     * Create a draft availability slot (mentor auth with Bearer).
+     * Times are ISO-8601 UTC; common errors: 400/401/403/404/409.
+     */
+    @POST("availability/slots")
+    suspend fun createAvailabilitySlot(
+        @Body body: com.mentorme.app.data.dto.availability.CreateSlotRequest
+    ): retrofit2.Response<com.mentorme.app.data.dto.availability.ApiEnvelope<com.mentorme.app.data.dto.availability.SlotPayload>>
+
+    /**
+     * Publish a slot to materialize occurrences (mentor auth).
+     * Respects RRULE and horizon; conflicts may be skipped; errors: 400/401/403/404/409.
+     */
+    @POST("availability/slots/{id}/publish")
+    suspend fun publishAvailabilitySlot(
+        @Path("id") id: String
+    ): retrofit2.Response<com.mentorme.app.data.dto.availability.ApiEnvelope<kotlin.collections.Map<String, @JvmSuppressWildcards Any>>>
+
+    /**
+     * Get public calendar for a mentor (no auth).
+     * 'from'/'to' must be ISO-8601 UTC; errors: 400/401/403/404/409.
+     */
+    @GET("availability/calendar/{mentorId}")
+    suspend fun getPublicAvailabilityCalendar(
+        @Path("mentorId") mentorId: String,
+        @Query("from") fromIsoUtc: String,
+        @Query("to") toIsoUtc: String
+    ): retrofit2.Response<com.mentorme.app.data.dto.availability.ApiEnvelope<com.mentorme.app.data.dto.availability.CalendarPayload>>
+
+    /**
+     * Soft-delete (disable) a slot (mentor auth).
+     * Errors: 400/401/403/404/409.
+     */
+    @DELETE("availability/slots/{slotId}")
+    suspend fun disableAvailabilitySlot(
+        @Path("slotId") slotId: String
+    ): retrofit2.Response<kotlin.Unit>
+
+    /**
+     * Delete a single unbooked occurrence (mentor auth).
+     * Errors: 400/401/403/404/409 (409 if booked).
+     */
+    @DELETE("availability/occurrences/{occurrenceId}")
+    suspend fun deleteAvailabilityOccurrence(
+        @Path("occurrenceId") occurrenceId: String
+    ): retrofit2.Response<kotlin.Unit>
 
     // Messages endpoints
     @GET("messages/{bookingId}")

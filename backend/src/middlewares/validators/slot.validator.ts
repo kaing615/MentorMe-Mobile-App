@@ -44,5 +44,36 @@ export const publishSlotRules = [ param('id').isMongoId() ];
 export const calendarQueryRules = [
   param('mentorId').isMongoId(),
   query('from').isISO8601(),
-  query('to').isISO8601()
+  query('to').isISO8601(),
+  query('includeClosed').optional().isBoolean().toBoolean()
+];
+
+// PATCH /availability/slots/:id
+export const updateSlotRules = [
+  param('id').isMongoId(),
+  body('title').optional().isString(),
+  body('description').optional().isString(),
+  body('timezone').optional().isString().notEmpty(),
+  body('visibility').optional().isIn(['public', 'private']),
+  body('action').optional().isIn(['pause', 'resume']),
+  body('rrule').optional().isString(),
+  body('exdates').optional().isArray(),
+  body('exdates.*').optional().isISO8601(),
+  body('start').optional().custom((value) => {
+    if (value != null && !isISO(value)) throw new Error('start must be ISO UTC');
+    return true;
+  }),
+  body('end').optional().custom((value) => {
+    if (value != null && !isISO(value)) throw new Error('end must be ISO UTC');
+    return true;
+  }),
+  body('end').optional().custom((end, { req }) => {
+    const s = req.body.start ?? undefined;
+    if (s != null && end != null) {
+      const sMs = new Date(s).getTime();
+      const eMs = new Date(end).getTime();
+      if (!(eMs > sMs)) throw new Error('end must be greater than start');
+    }
+    return true;
+  })
 ];

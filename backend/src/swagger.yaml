@@ -47,7 +47,24 @@ components:
         message: "Invalid or missing from/to (ISO UTC expected)"
         data: null
 
+    delete_slot_409:
+      summary: Xoá bị chặn do có booking tương lai
+      value:
+        message: "slot has booked occurrences"
+        code: "CONFLICT_BOOKED"
+        data: null
+
   schemas:
+    UpdateSlotRequest:
+      type: object
+      properties:
+        title:        { type: string, example: "[type=in-person] Tư vấn trực tiếp" }
+        description:  { type: string, example: "Fix CV + mock interview" }
+        timezone:     { type: string, example: "Asia/Ho_Chi_Minh" }
+        start:        { type: string, format: date-time, example: "2025-11-03T07:30:00Z" }
+        end:          { type: string, format: date-time, example: "2025-11-03T08:00:00Z" }
+        visibility:   { type: string, enum: [public, private] }
+        action:       { type: string, enum: [pause, resume], description: "pause=đóng occurrences tương lai; resume=mở lại" }
     ApiResponse:
       type: object
       properties:
@@ -467,10 +484,18 @@ components:
     CalendarItem:
       type: object
       properties:
-        start: { type: string, format: date-time }
-        end: { type: string, format: date-time }
-        status: { type: string, enum: [open, booked, closed] }
-        slot: { type: string }
+        id:         { type: string, example: "66aa1b2c0000000000000001" }
+        start:      { type: string, format: date-time, example: "2025-11-03T01:00:00Z" }
+        end:        { type: string, format: date-time, example: "2025-11-03T01:30:00Z" }
+        status:     { type: string, enum: [open, booked, closed], example: open }
+        title:        { type: string, nullable: true, example: "[type=in-person] Tư vấn trực tiếp" }
+        description:  { type: string, nullable: true, example: "Fix CV" }
+        slot:
+          type: object
+          properties:
+            id:          { type: string, example: "00000000000000000000A001" }
+            title:       { type: string, nullable: true, example: "[type=in-person] Tư vấn trực tiếp" }
+            description: { type: string, nullable: true, example: "Fix CV" }
 
     CalendarResponse:
       type: object
@@ -1045,6 +1070,101 @@ paths:
                           type: string
                           nullable: true
 
+  /availability/slots/{id}:
+    patch:
+      tags: [Availability]
+      summary: Cập nhật slot (meta) hoặc pause/resume
+      description: |
+        - Meta: cập nhật title/description/timezone/start/end/visibility (không tái sinh occurrences ở đây).
+        - action=pause: đặt slot vào trạng thái tạm dừng và đóng các occurrences tương lai (status=closed).
+        - action=resume: bật lại slot và mở các occurrences tương lai (status=open).
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateSlotRequest" }
+            examples:
+              metaOnly:
+                value: { "title": "[type=in-person] Tư vấn trực tiếp", "visibility": "public" }
+              pause:
+                value: { "action": "pause" }
+              resume:
+                value: { "action": "resume" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string, example: "OK" }
+                  data:    { $ref: "#/components/schemas/AvailabilitySlot" }
+        "400":
+          description: Dữ liệu không hợp lệ (ISO time, end > start, action sai…)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Chưa đăng nhập
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Không phải chủ sở hữu
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Slot không tồn tại
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+    delete:
+      tags: [Availability]
+      summary: Xoá slot (nếu không có booked occurrences tương lai)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: No Content (xoá thành công)
+        "401":
+          description: Chưa đăng nhập
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Không phải chủ sở hữu
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Slot không tồn tại
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "409":
+          description: Có booked occurrences tương lai, không thể xoá
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              examples:
+                booked_future:
+                  $ref: "#/components/examples/delete_slot_409"
+
   /availability/calendar/{mentorId}:
     get:
       tags: [Availability]
@@ -1076,6 +1196,29 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/CalendarResponse" }
               examples:
+                calendar_rich:
+                  value:
+                    items:
+                      - id: "66aa1b2c0000000000000001"
+                        start: "2025-11-03T01:00:00Z"
+                        end:   "2025-11-03T01:30:00Z"
+                        status: "open"
+                        title: "[type=in-person] Tư vấn trực tiếp"
+                        description: "Fix CV"
+                        slot:
+                          id: "00000000000000000000A001"
+                          title: "[type=in-person] Tư vấn trực tiếp"
+                          description: "Fix CV"
+                      - id: "66aa1b2c0000000000000002"
+                        start: "2025-11-04T02:00:00Z"
+                        end:   "2025-11-04T02:30:00Z"
+                        status: "open"
+                        title: "[type=video] Phiên Video Call"
+                        description: "React performance"
+                        slot:
+                          id: "00000000000000000000A002"
+                          title: "[type=video] Phiên Video Call"
+                          description: "React performance"
                 calendar_success_min:
                   $ref: "#/components/examples/calendar_success_min"
         "400":

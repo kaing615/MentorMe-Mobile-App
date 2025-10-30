@@ -1,6 +1,7 @@
 package com.mentorme.app.data.dto.availability
 
 import com.google.gson.annotations.SerializedName
+import com.google.gson.JsonObject
 
 // ---- BEGIN: Envelope & Slot payload (server-aligned) ----
 /**
@@ -47,9 +48,8 @@ data class CalendarPayload(
     @SerializedName("items") val items: List<CalendarItemDto>?
 )
 
-/**
- * Calendar item DTO mapped from server shape.
- */
+// REPLACED: CalendarItemDto to support slot as String or Object
+// Backend can send either: "slot": "<id>" OR "slot": { _id/id, title, description }
 data class CalendarItemDto(
     @SerializedName("_id") val id: String? = null,
     val start: String? = null,
@@ -57,14 +57,22 @@ data class CalendarItemDto(
     val status: String? = null,
     val title: String? = null,
     val description: String? = null,
-    @SerializedName("slot") val slot: String? = null
+    // Backend can send either: "slot": "<id>" OR "slot": { _id/id, title, description }
+    @SerializedName("slot") val slotRaw: Any? = null
 )
 
-// CalendarSlotMeta kept for future backends that nest meta under slot.*
-data class CalendarSlotMeta(
-    val title: String? = null,
-    val description: String? = null
-)
+fun CalendarItemDto.slotIdOrEmpty(): String {
+    return when (val v = slotRaw) {
+        is String -> v
+        is Map<*, *> -> (v["_id"] as? String) ?: (v["id"] as? String) ?: ""
+        is JsonObject -> when {
+            v.has("_id") -> v.get("_id").asString
+            v.has("id") -> v.get("id").asString
+            else -> ""
+        }
+        else -> ""
+    }
+}
 
 /**
  * Request payload to create an availability slot.
@@ -93,6 +101,20 @@ data class CreateSlotRequest(
     val visibility: String? = "public",
     /** Days to expand recurrence into concrete occurrences; default 90. */
     val publishHorizonDays: Int? = 90
+)
+
+/**
+ * Minimal request payload to update a slot's meta/time/visibility or to issue an action.
+ */
+data class UpdateSlotRequest(
+    val title: String? = null,
+    val description: String? = null,
+    val timezone: String? = null,
+    val start: String? = null,
+    val end: String? = null,
+    val visibility: String? = null,
+    /** action: "pause" | "resume" */
+    val action: String? = null
 )
 
 /**

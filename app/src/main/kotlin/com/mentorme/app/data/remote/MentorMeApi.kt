@@ -12,6 +12,7 @@ import com.mentorme.app.data.dto.RatingRequest
 import com.mentorme.app.data.dto.RegisterRequest
 import com.mentorme.app.data.dto.SendMessageRequest
 import com.mentorme.app.data.dto.UpdateBookingRequest
+import com.mentorme.app.data.dto.availability.UpdateSlotRequest
 
 // Specific imports for Models (used for business entities)
 import com.mentorme.app.data.model.Booking
@@ -100,6 +101,15 @@ interface MentorMeApi {
     ): retrofit2.Response<com.mentorme.app.data.dto.availability.ApiEnvelope<kotlin.collections.Map<String, @JvmSuppressWildcards Any>>>
 
     /**
+     * Update slot meta/time/visibility or action (pause/resume).
+     */
+    @PATCH("availability/slots/{id}")
+    suspend fun updateAvailabilitySlot(
+        @Path("id") id: String,
+        @Body body: UpdateSlotRequest
+    ): retrofit2.Response<kotlin.Unit>
+
+    /**
      * Get public calendar for a mentor (no auth).
      * 'from'/'to' must be ISO-8601 UTC; errors: 400/401/403/404/409.
      */
@@ -107,7 +117,8 @@ interface MentorMeApi {
     suspend fun getPublicAvailabilityCalendar(
         @Path("mentorId") mentorId: String,
         @Query("from") fromIsoUtc: String,
-        @Query("to") toIsoUtc: String
+        @Query("to") toIsoUtc: String,
+        @Query("includeClosed") includeClosed: Boolean = true
     ): retrofit2.Response<com.mentorme.app.data.dto.availability.ApiEnvelope<com.mentorme.app.data.dto.availability.CalendarPayload>>
 
     /**
@@ -117,6 +128,14 @@ interface MentorMeApi {
     @DELETE("availability/slots/{slotId}")
     suspend fun disableAvailabilitySlot(
         @Path("slotId") slotId: String
+    ): retrofit2.Response<kotlin.Unit>
+
+    /**
+     * Delete slot by id (mentor auth).
+     */
+    @DELETE("availability/slots/{id}")
+    suspend fun deleteAvailabilitySlot(
+        @Path("id") id: String
     ): retrofit2.Response<kotlin.Unit>
 
     /**

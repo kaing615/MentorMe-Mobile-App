@@ -50,7 +50,6 @@ fun MentorCalendarScreen(
 
     // Observe availability state only
     val slotsState = vm.slots.collectAsState()
-    val scope = rememberCoroutineScope()
 
     // Resolve mentorId: prefer nav arg if provided; else, use current user id from DataStore
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -65,6 +64,10 @@ fun MentorCalendarScreen(
     val todayStart = remember { java.time.LocalDate.now().atStartOfDay(zone) }
     val fromIsoUtc = remember { todayStart.toInstant().toString() }
     val toIsoUtc = remember { todayStart.plusDays(30).withHour(23).withMinute(59).withSecond(59).toInstant().toString() }
+
+    // Coroutine scope + toast helper
+    val scope = rememberCoroutineScope()
+    fun toast(msg: String) = android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
 
     // Initial load for availability only
     LaunchedEffect(mentorId) {
@@ -81,18 +84,18 @@ fun MentorCalendarScreen(
     // ---- Summary metrics based on (now empty) bookings for tabs ----
     val emptyBookings = remember { emptyList<com.mentorme.app.data.model.Booking>() }
     val availabilityOpen = remember(slotsState.value) { slotsState.value.count { it.isActive && !it.isBooked } }
-    val confirmedCount = remember(emptyBookings) { emptyBookings.count { it.status == BookingStatus.CONFIRMED } }
+    val confirmedCount = remember(emptyBookings) { emptyBookings.count { it.status == com.mentorme.app.data.model.BookingStatus.CONFIRMED } }
 
     val totalPaid = remember(emptyBookings) {
         emptyBookings
             .filter { it.status == BookingStatus.COMPLETED }
-            .filter { MockData.bookingExtras[it.id]?.paymentStatus == "paid" }
+            .filter { com.mentorme.app.data.mock.MockData.bookingExtras[it.id]?.paymentStatus == "paid" }
             .sumOf { it.price.toInt() }
     }
     val totalPending = remember(emptyBookings) {
         emptyBookings
             .filter { it.status == BookingStatus.PENDING || it.status == BookingStatus.CONFIRMED }
-            .filter { MockData.bookingExtras[it.id]?.paymentStatus != "paid" }
+            .filter { com.mentorme.app.data.mock.MockData.bookingExtras[it.id]?.paymentStatus != "paid" }
             .sumOf { it.price.toInt() }
     }
 
@@ -154,6 +157,14 @@ fun MentorCalendarScreen(
         )
         Spacer(Modifier.height(12.dp))
 
+        // Helpers
+        fun toIsoUtc(dateIso: String, hhmm: String, zoneId: java.time.ZoneId): String {
+            val localDate = java.time.LocalDate.parse(dateIso)
+            val localTime = java.time.LocalTime.parse(hhmm)
+            val zdt = localDate.atTime(localTime).atZone(zoneId)
+            return zdt.toInstant().toString()
+        }
+
         // Nội dung từng tab
         when (activeTab) {
             0 -> AvailabilityTabSection(
@@ -176,7 +187,7 @@ fun MentorCalendarScreen(
                         )
                         when (res) {
                             is com.mentorme.app.core.utils.AppResult.Success -> {
-                                android.widget.Toast.makeText(context, "✨ Thêm lịch thành công", android.widget.Toast.LENGTH_LONG).show()
+                                toast("✨ Thêm lịch thành công")
                             }
                             is com.mentorme.app.core.utils.AppResult.Error -> {
                                 val raw = res.throwable
@@ -185,22 +196,72 @@ fun MentorCalendarScreen(
                                     after.take(3).toIntOrNull() ?: Regex("""\b([1-5]\d{2})\b""").find(raw)?.groupValues?.getOrNull(1)?.toIntOrNull()
                                 }
                                 when (code) {
-                                    401 -> android.widget.Toast.makeText(context, "Bạn cần đăng nhập để thực hiện thao tác này.", android.widget.Toast.LENGTH_LONG).show()
-                                    400 -> android.widget.Toast.makeText(context, "Dữ liệu thời gian không hợp lệ", android.widget.Toast.LENGTH_LONG).show()
-                                    409, 422 -> android.widget.Toast.makeText(context, "Khung giờ bị trùng/đã tồn tại", android.widget.Toast.LENGTH_LONG).show()
-                                    else -> {
-                                        val msg = com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(raw)
-                                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
-                                    }
+                                    401 -> toast("Bạn cần đăng nhập để thực hiện thao tác này.")
+                                    400 -> toast("Dữ liệu thời gian không hợp lệ")
+                                    409, 422 -> toast("Khung giờ bị trùng/đã tồn tại")
+                                    else -> toast(com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(raw))
                                 }
                             }
                             com.mentorme.app.core.utils.AppResult.Loading -> Unit
                         }
                     }
                 },
-                onUpdate = { _ -> },
-                onToggle = { _ -> },
-                onDelete = { _ -> }
+                onUpdate = { updated ->
+                    val normalizedType = if (updated.sessionType.equals("in-person", true)) "in-person" else "video"
+                    val desc = (updated.description ?: "").trim()
+                    val composedTitle = buildString {
+                        append("[type=$normalizedType] ")
+                        if (desc.isNotBlank()) append(desc) else append(if (normalizedType == "in-person") "Phiên Trực tiếp" else "Phiên Video Call")
+                    }
+                    val patch = com.mentorme.app.data.dto.availability.UpdateSlotRequest(
+                        title = composedTitle,
+                        description = desc,
+                        start = toIsoUtc(updated.date, updated.startTime, zone),
+                        end = toIsoUtc(updated.date, updated.endTime, zone)
+                    )
+                    val slotId = updated.backendSlotId
+                    if (slotId.isBlank()) {
+                        toast("Không xác định được Slot ID trên máy chủ.")
+                    } else {
+                        scope.launch {
+                            vm.updateSlotMeta(slotId, patch) { res ->
+                                when (res) {
+                                    is com.mentorme.app.core.utils.AppResult.Success -> toast("✅ Đã cập nhật lịch trống!")
+                                    is com.mentorme.app.core.utils.AppResult.Error -> toast(com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(res.throwable))
+                                    com.mentorme.app.core.utils.AppResult.Loading -> Unit
+                                }
+                            }
+                        }
+                    }
+                },
+                onToggle = { id ->
+                    val slot = slotsState.value.firstOrNull { it.backendSlotId == id }
+                    val action = if (slot?.isActive == true) "pause" else "resume"
+                    scope.launch {
+                        vm.updateSlotMeta(id, com.mentorme.app.data.dto.availability.UpdateSlotRequest(action = action)) { res ->
+                            when (res) {
+                                is com.mentorme.app.core.utils.AppResult.Success -> toast(if (action == "pause") "⏸️ Đã tạm dừng lịch" else "▶️ Đã kích hoạt lịch")
+                                is com.mentorme.app.core.utils.AppResult.Error -> toast(com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(res.throwable))
+                                com.mentorme.app.core.utils.AppResult.Loading -> Unit
+                            }
+                        }
+                    }
+                },
+                onDelete = { id ->
+                    scope.launch {
+                        vm.deleteSlot(id) { res ->
+                            when (res) {
+                                is com.mentorme.app.core.utils.AppResult.Success -> toast("🗑️ Đã xóa lịch trống")
+                                is com.mentorme.app.core.utils.AppResult.Error -> {
+                                    val raw = res.throwable
+                                    if (raw.contains("409")) toast("⚠️ Slot có booking trong tương lai, không thể xóa.")
+                                    else toast(com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(raw))
+                                }
+                                com.mentorme.app.core.utils.AppResult.Loading -> Unit
+                            }
+                        }
+                    }
+                }
 
             )
             1 -> PendingBookingsTab(
@@ -228,8 +289,8 @@ private fun StatsOverview(
     val vi = java.util.Locale("vi","VN")
     val nf = remember { java.text.NumberFormat.getCurrencyInstance(vi) }
 
-    Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatCard(
                 emoji = "📅",
                 title = "Lịch còn trống",
@@ -245,7 +306,7 @@ private fun StatsOverview(
                 modifier = Modifier.weight(1f).height(110.dp)
             )
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatCard(
                 emoji = "💰",
                 title = "Đã thu",

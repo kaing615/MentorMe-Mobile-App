@@ -2,7 +2,6 @@ package com.mentorme.app.domain.usecase.availability
 
 import com.mentorme.app.core.utils.AppResult
 import com.mentorme.app.data.remote.MentorMeApi
-import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
 
 /**
@@ -12,27 +11,26 @@ import javax.inject.Inject
 class GetPublicCalendarUseCase @Inject constructor(
     private val api: MentorMeApi
 ) {
-    operator fun invoke(
+    suspend operator fun invoke(
         mentorId: String,
         fromIsoUtc: String,
-        toIsoUtc: String
+        toIsoUtc: String,
+        includeClosed: Boolean = true
     ): AppResult<List<com.mentorme.app.data.dto.availability.CalendarItemDto>> {
         return try {
-            runBlocking {
-                val res = api.getPublicAvailabilityCalendar(mentorId, fromIsoUtc, toIsoUtc)
-                if (res.isSuccessful) {
-                    val envelope: com.mentorme.app.data.dto.availability.ApiEnvelope<
-                        com.mentorme.app.data.dto.availability.CalendarPayload
-                    >? = res.body()
-                    val items: List<
-                        com.mentorme.app.data.dto.availability.CalendarItemDto
-                    > = envelope?.data?.items.orEmpty()
-                    AppResult.success(items)
-                } else {
-                    AppResult.failure(
-                        "HTTP " + res.code() + " " + res.message()
-                    )
-                }
+            val res = api.getPublicAvailabilityCalendar(mentorId, fromIsoUtc, toIsoUtc, includeClosed)
+            if (res.isSuccessful) {
+                val envelope: com.mentorme.app.data.dto.availability.ApiEnvelope<
+                    com.mentorme.app.data.dto.availability.CalendarPayload
+                >? = res.body()
+                val items: List<
+                    com.mentorme.app.data.dto.availability.CalendarItemDto
+                > = envelope?.data?.items.orEmpty()
+                AppResult.success(items)
+            } else {
+                AppResult.failure(
+                    "HTTP " + res.code() + " " + res.message()
+                )
             }
         } catch (t: Throwable) {
             AppResult.failure(t)

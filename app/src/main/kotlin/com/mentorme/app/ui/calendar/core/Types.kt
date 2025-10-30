@@ -13,5 +13,8 @@ data class AvailabilitySlot(
     val description: String?,
     val isActive: Boolean,
     val sessionType: String,  // "video" | "in-person"
-    val isBooked: Boolean
+    val isBooked: Boolean,
+    // New: differentiate backend ids
+    val backendOccurrenceId: String = id,
+    val backendSlotId: String = ""
 )

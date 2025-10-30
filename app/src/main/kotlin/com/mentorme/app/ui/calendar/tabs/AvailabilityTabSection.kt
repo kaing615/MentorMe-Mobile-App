@@ -198,15 +198,14 @@ fun AvailabilityTabSection(
                                 )
                                 MMButton(
                                     text = if (slot.isActive) "⏸️ Tạm dừng" else "▶️ Kích hoạt",
-                                    onClick = { onToggle(slot.id) },
+                                    onClick = { onToggle(slot.backendSlotId) },
                                     size = MMButtonSize.Compact
                                 )
                                 MMButton(
                                     text = "🗑️ Xóa",
                                     onClick = {
                                         if (!slot.isBooked) {
-                                            onDelete(slot.id)
-                                            Toast.makeText(context, "🗑️ Đã xóa lịch trống thành công!", Toast.LENGTH_SHORT).show()
+                                            onDelete(slot.backendSlotId)
                                         }
                                     },
                                     size = MMButtonSize.Compact,
@@ -298,11 +297,14 @@ fun AvailabilityTabSection(
                     endTime = endHHMM,
                     duration = duration,
                     description = desc.text.ifBlank { null },
-                    sessionType = type
+                    sessionType = type,
+                    // preserve backend ids for mutation
+                    backendSlotId = base.backendSlotId,
+                    backendOccurrenceId = base.backendOccurrenceId
                     // giữ nguyên id, isActive, isBooked
                 )
                 onUpdate(updated)
-                Toast.makeText(context, "✅ Đã cập nhật lịch trống!", Toast.LENGTH_SHORT).show()
+                // toast is handled by parent after API result
                 showEdit = false
                 editingSlot = null
                 resetForm()

@@ -7,6 +7,8 @@ import com.mentorme.app.core.utils.Logx
 import com.mentorme.app.domain.usecase.availability.CreateAvailabilitySlotUseCase
 import com.mentorme.app.domain.usecase.availability.GetPublicCalendarUseCase
 import com.mentorme.app.domain.usecase.availability.PublishSlotUseCase
+import com.mentorme.app.domain.usecase.availability.UpdateAvailabilitySlotUseCase
+import com.mentorme.app.domain.usecase.availability.DeleteAvailabilitySlotUseCase
 import com.mentorme.app.ui.calendar.core.AvailabilitySlot
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -21,12 +23,15 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.mentorme.app.data.dto.availability.slotIdOrEmpty
 
 @HiltViewModel
 class MentorCalendarViewModel @Inject constructor(
     private val getPublicCalendar: GetPublicCalendarUseCase,
     private val createAvailabilitySlot: CreateAvailabilitySlotUseCase,
-    private val publishSlot: PublishSlotUseCase
+    private val publishSlot: PublishSlotUseCase,
+    private val updateAvailabilitySlot: UpdateAvailabilitySlotUseCase,
+    private val deleteAvailabilitySlot: DeleteAvailabilitySlotUseCase
 ) : ViewModel() {
 
     private val _slots = MutableStateFlow<List<AvailabilitySlot>>(emptyList())
@@ -36,69 +41,64 @@ class MentorCalendarViewModel @Inject constructor(
     private data class Window(val mentorId: String, val from: String, val to: String)
     private var lastWindow: Window? = null
 
+    // Debounce concurrent loads
+    private var loadJob: kotlinx.coroutines.Job? = null
+
     // Enrich occurrences immediately after creation when calendar API lacks meta
     private val recentSlots: java.util.LinkedHashMap<String, Pair<String, String?>> = object : java.util.LinkedHashMap<String, Pair<String, String?>>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<String, String?>>?): Boolean = size > 20
     }
 
     fun loadWindow(mentorId: String, fromIsoUtc: String, toIsoUtc: String) {
-        // set cache first
         lastWindow = Window(mentorId, fromIsoUtc, toIsoUtc)
-        viewModelScope.launch {
-            Logx.d(TAG) { "loadWindow start mentorId=$mentorId from=$fromIsoUtc to=$toIsoUtc" }
-            when (val res = getPublicCalendar(mentorId, fromIsoUtc, toIsoUtc)) {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            when (val res = getPublicCalendar(mentorId, fromIsoUtc, toIsoUtc, includeClosed = true)) {
                 is AppResult.Success -> {
                     val items = res.data
                     val ui = items.mapNotNull { item ->
                         val s = item.start ?: return@mapNotNull null
                         val e = item.end ?: return@mapNotNull null
-                        if (s.isBlank() || e.isBlank()) return@mapNotNull null
-                        val startInstant = runCatching { Instant.parse(s) }.getOrNull() ?: return@mapNotNull null
-                        val endInstant = runCatching { Instant.parse(e) }.getOrNull() ?: return@mapNotNull null
-                        val startLocal = startInstant.atZone(ZoneId.systemDefault())
-                        val endLocal = endInstant.atZone(ZoneId.systemDefault())
+                        val startInstant = runCatching { java.time.Instant.parse(s) }.getOrNull() ?: return@mapNotNull null
+                        val endInstant = runCatching { java.time.Instant.parse(e) }.getOrNull() ?: return@mapNotNull null
+                        val startLocal = startInstant.atZone(java.time.ZoneId.systemDefault())
+                        val endLocal = endInstant.atZone(java.time.ZoneId.systemDefault())
 
-                        // Prefer root title/desc; many backends don't include them at all
+                        // --- New: extract slotId and status flags ---
+                        val slotId = item.slotIdOrEmpty()
+                        val st = item.status?.lowercase()
+                        val isBooked = st == "booked"
+                        val isActive = st == "open" // "closed" => paused
+
+                        // --- New: parse marker from ROOT fields (title/description) ---
                         val rawTitle = (item.title ?: "").trim()
                         val rawDesc = (item.description ?: "").trim()
-
-                        // Loosened marker: case-insensitive + allow spaces
-                        val marker = Regex("""(?i)^\[type\s*=\s*(video|in-person)]\s*""")
-                        val typeFromMarker = marker.find(rawTitle)?.groupValues?.getOrNull(1)?.lowercase()
+                        val marker = Regex("""^\[type=(video|in-person)]\s*""")
+                        val typeFromMarker = marker.find(rawTitle)?.groupValues?.getOrNull(1)
                         val cleanedTitle = rawTitle.replace(marker, "")
-
-                        // Enrich from recent cache if marker/desc missing
-                        val meta = item.slot?.let { recentSlots[it] }
-
-                        val sessionType = when {
-                            typeFromMarker == "in-person" -> "in-person"
-                            typeFromMarker == "video" -> "video"
-                            meta?.first == "in-person" -> "in-person"
-                            meta?.first == "video" -> "video"
+                        val sessionType = when (typeFromMarker) {
+                            "in-person" -> "in-person"
+                            "video" -> "video"
                             else -> "video"
                         }
+                        val uiDesc: String? = cleanedTitle.ifBlank { rawDesc.ifBlank { null } }
 
-                        val uiDesc: String? = when {
-                            cleanedTitle.isNotBlank() -> cleanedTitle
-                            rawDesc.isNotBlank() -> rawDesc
-                            meta?.second?.isNotBlank() == true -> meta.second
-                            else -> null
-                        }
+                        val startHHmm = startLocal.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                        val endHHmm = endLocal.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                        val durationMin = java.time.Duration.between(startLocal, endLocal).toMinutes().toInt()
 
-                        val startHHmm = startLocal.format(HH_MM)
-                        val endHHmm = endLocal.format(HH_MM)
-                        val durationMin = Duration.between(startLocal, endLocal).toMinutes().toInt()
-
-                        AvailabilitySlot(
-                            id = item.id ?: "",
+                        com.mentorme.app.ui.calendar.core.AvailabilitySlot(
+                            id = item.id.orEmpty(),
                             date = startLocal.toLocalDate().toString(),
                             startTime = startHHmm,
                             endTime = endHHmm,
                             duration = durationMin,
                             description = uiDesc,
-                            isActive = item.status != "reserved",
+                            isActive = isActive,
                             sessionType = sessionType,
-                            isBooked = item.status == "booked"
+                            isBooked = isBooked,
+                            backendOccurrenceId = item.id.orEmpty(),
+                            backendSlotId = slotId
                         )
                     }
                     _slots.update { ui }
@@ -200,6 +200,59 @@ class MentorCalendarViewModel @Inject constructor(
             AppResult.success(Unit)
         } catch (t: Throwable) {
             AppResult.failure(t)
+        }
+    }
+
+    fun updateSlotMeta(
+        slotId: String,
+        patch: com.mentorme.app.data.dto.availability.UpdateSlotRequest,
+        onDone: (AppResult<Unit>) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            // --- Optimistic UI: if patch has new start/end, reflect in _slots before calling API ---
+            val zone = ZoneId.systemDefault()
+            val newDateTime = runCatching {
+                val newDate = patch.start?.let { Instant.parse(it).atZone(zone) }
+                val newEnd  = patch.end  ?.let { Instant.parse(it).atZone(zone) }
+                newDate to newEnd
+            }.getOrNull()
+
+            if (newDateTime != null) {
+                val (zStart, zEnd) = newDateTime
+                if (zStart != null && zEnd != null) {
+                    _slots.update { list ->
+                        list.map {
+                            if (it.backendSlotId == slotId) {
+                                it.copy(
+                                    date = zStart.toLocalDate().toString(),
+                                    startTime = zStart.format(HH_MM),
+                                    endTime   = zEnd.format(HH_MM),
+                                    duration  = java.time.Duration.between(zStart, zEnd).toMinutes().toInt()
+                                )
+                            } else it
+                        }
+                    }
+                }
+            }
+
+            val res = updateAvailabilitySlot(slotId, patch)
+            // Always reload the current window to reconcile with server
+            lastWindow?.let { w -> loadWindow(w.mentorId, w.from, w.to) }
+            onDone(res)
+        }
+    }
+
+    fun pauseSlot(slotId: String, onDone: (AppResult<Unit>) -> Unit = {}) =
+        updateSlotMeta(slotId, com.mentorme.app.data.dto.availability.UpdateSlotRequest(action = "pause"), onDone)
+
+    fun resumeSlot(slotId: String, onDone: (AppResult<Unit>) -> Unit = {}) =
+        updateSlotMeta(slotId, com.mentorme.app.data.dto.availability.UpdateSlotRequest(action = "resume"), onDone)
+
+    fun deleteSlot(slotId: String, onDone: (AppResult<Unit>) -> Unit = {}) {
+        viewModelScope.launch {
+            val res = deleteAvailabilitySlot(slotId)
+            if (res is AppResult.Success) lastWindow?.let { w -> loadWindow(w.mentorId, w.from, w.to) }
+            onDone(res)
         }
     }
 

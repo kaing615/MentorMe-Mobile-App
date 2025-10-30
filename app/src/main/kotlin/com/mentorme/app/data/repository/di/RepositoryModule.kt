@@ -42,3 +42,24 @@ abstract class RepositoryModule {
         impl: ProfileRepositoryImpl
     ): ProfileRepository
 }
+
+// --- Use case providers ---
+@Module
+@InstallIn(SingletonComponent::class)
+object UseCaseProvidersModule {
+    @dagger.Provides
+    @Singleton
+    fun provideUpdateAvailabilitySlotUseCase(
+        api: com.mentorme.app.data.remote.MentorMeApi
+    ): com.mentorme.app.domain.usecase.availability.UpdateAvailabilitySlotUseCase {
+        return com.mentorme.app.domain.usecase.availability.UpdateAvailabilitySlotUseCase(api)
+    }
+
+    @dagger.Provides
+    @Singleton
+    fun provideDeleteAvailabilitySlotUseCase(
+        api: com.mentorme.app.data.remote.MentorMeApi
+    ): com.mentorme.app.domain.usecase.availability.DeleteAvailabilitySlotUseCase {
+        return com.mentorme.app.domain.usecase.availability.DeleteAvailabilitySlotUseCase(api)
+    }
+}

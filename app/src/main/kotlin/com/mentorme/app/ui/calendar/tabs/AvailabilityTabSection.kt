@@ -53,6 +53,9 @@ fun AvailabilityTabSection(
     var endDigits by remember { mutableStateOf("") }    // "HHmm"
     var type by remember { mutableStateOf("video") }
     var desc by remember { mutableStateOf(TextFieldValue("")) }
+    // Field errors (reset when dialog open/close)
+    var startErr by remember { mutableStateOf<String?>(null) }
+    var endErr by remember { mutableStateOf<String?>(null) }
 
     // Dialog flags
     var showAdd by remember { mutableStateOf(false) }
@@ -70,6 +73,23 @@ fun AvailabilityTabSection(
 
     fun resetForm() {
         dateDigits = ""; startDigits = ""; endDigits = ""; type = "video"; desc = TextFieldValue("")
+        startErr = null; endErr = null
+    }
+
+    // Helper: check future (+30s) errors
+    fun futureErrors(dateIso: String, startHHMM: String, endHHMM: String): Pair<String?, String?> {
+        return try {
+            val zone = java.time.ZoneId.systemDefault()
+            val selectedDate = java.time.LocalDate.parse(dateIso)
+            val nowPlusSkew = java.time.ZonedDateTime.now(zone).plusSeconds(30)
+            val startZdt = java.time.LocalTime.parse(startHHMM).atDate(selectedDate).atZone(zone)
+            val endZdt = java.time.LocalTime.parse(endHHMM).atDate(selectedDate).atZone(zone)
+            val sErr = if (startZdt.isBefore(nowPlusSkew)) "⏳ Giờ bắt đầu phải ở tương lai" else null
+            val eErr = if (endZdt.isBefore(nowPlusSkew)) "⏳ Giờ kết thúc phải ở tương lai" else null
+            Pair(sErr, eErr)
+        } catch (e: Exception) {
+            Pair(null, null)
+        }
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -193,6 +213,7 @@ fun AvailabilityTabSection(
                                         endDigits = hhmmToDigits(slot.endTime)
                                         type = slot.sessionType
                                         desc = TextFieldValue(slot.description ?: "")
+                                        startErr = null; endErr = null
                                         showEdit = true
                                     }
                                 )
@@ -229,12 +250,14 @@ fun AvailabilityTabSection(
             endDigits = endDigits,
             type = type,
             desc = desc,
+            startError = startErr,
+            endError = endErr,
             onDateChange = { dateDigits = it.filter(Char::isDigit).take(8) },
-            onStartChange = { startDigits = it.filter(Char::isDigit).take(4) },
-            onEndChange = { endDigits = it.filter(Char::isDigit).take(4) },
+            onStartChange = { startDigits = it.filter(Char::isDigit).take(4); startErr = null },
+            onEndChange = { endDigits = it.filter(Char::isDigit).take(4); endErr = null },
             onTypeChange = { type = it },
             onDescChange = { desc = it },
-            onDismiss = { showAdd = false },
+            onDismiss = { showAdd = false; startErr = null; endErr = null },
             onSubmit = {
                 val dateIso   = validateDateDigitsReturnIso(dateDigits)
                 val startHHMM = validateTimeDigitsReturnHHMM(startDigits)
@@ -244,6 +267,13 @@ fun AvailabilityTabSection(
                 if (dateIso == null) { Toast.makeText(context, "Ngày không hợp lệ.", Toast.LENGTH_SHORT).show(); return@AvailabilityDialog }
                 if (startHHMM == null || endHHMM == null) { Toast.makeText(context, "Giờ không hợp lệ.", Toast.LENGTH_SHORT).show(); return@AvailabilityDialog }
                 if (duration == null || duration < 30) { Toast.makeText(context, "Tối thiểu 30 phút.", Toast.LENGTH_SHORT).show(); return@AvailabilityDialog }
+                // Future-only validation (+30s)
+                val (sErr, eErr) = futureErrors(dateIso, startHHMM, endHHMM)
+                startErr = sErr; endErr = eErr
+                if (sErr != null || eErr != null) {
+                    Toast.makeText(context, "⏳ Vui lòng chọn thời gian ở tương lai.", Toast.LENGTH_SHORT).show()
+                    return@AvailabilityDialog
+                }
 
                 val newSlot = AvailabilitySlot(
                     id = System.currentTimeMillis().toString(),
@@ -274,12 +304,14 @@ fun AvailabilityTabSection(
             endDigits = endDigits,
             type = type,
             desc = desc,
+            startError = startErr,
+            endError = endErr,
             onDateChange = { dateDigits = it.filter(Char::isDigit).take(8) },
-            onStartChange = { startDigits = it.filter(Char::isDigit).take(4) },
-            onEndChange = { endDigits = it.filter(Char::isDigit).take(4) },
+            onStartChange = { startDigits = it.filter(Char::isDigit).take(4); startErr = null },
+            onEndChange = { endDigits = it.filter(Char::isDigit).take(4); endErr = null },
             onTypeChange = { type = it },
             onDescChange = { desc = it },
-            onDismiss = { showEdit = false; editingSlot = null; resetForm() },
+            onDismiss = { showEdit = false; editingSlot = null; resetForm(); startErr = null; endErr = null },
             onSubmit = {
                 val dateIso   = validateDateDigitsReturnIso(dateDigits)
                 val startHHMM = validateTimeDigitsReturnHHMM(startDigits)
@@ -289,6 +321,13 @@ fun AvailabilityTabSection(
                 if (dateIso == null) { Toast.makeText(context, "Ngày không hợp lệ.", Toast.LENGTH_SHORT).show(); return@AvailabilityDialog }
                 if (startHHMM == null || endHHMM == null) { Toast.makeText(context, "Giờ không hợp lệ.", Toast.LENGTH_SHORT).show(); return@AvailabilityDialog }
                 if (duration == null || duration < 30) { Toast.makeText(context, "Tối thiểu 30 phút.", Toast.LENGTH_SHORT).show(); return@AvailabilityDialog }
+                // Future-only validation (+30s)
+                val (sErr, eErr) = futureErrors(dateIso, startHHMM, endHHMM)
+                startErr = sErr; endErr = eErr
+                if (sErr != null || eErr != null) {
+                    Toast.makeText(context, "⏳ Vui lòng chọn thời gian ở tương lai.", Toast.LENGTH_SHORT).show()
+                    return@AvailabilityDialog
+                }
 
                 val base = editingSlot!!
                 val updated = base.copy(
@@ -324,6 +363,8 @@ private fun AvailabilityDialog(
     dateDigits: String,
     startDigits: String,
     endDigits: String,
+    startError: String?,
+    endError: String?,
     type: String,
     desc: TextFieldValue,
     onDateChange: (String) -> Unit,
@@ -389,6 +430,8 @@ private fun AvailabilityDialog(
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             visualTransformation = TimeMaskTransformation(),
+                            isError = startError != null,
+                            supportingText = { if (startError != null) Text(startError, color = MaterialTheme.colorScheme.error) },
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -402,6 +445,8 @@ private fun AvailabilityDialog(
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             visualTransformation = TimeMaskTransformation(),
+                            isError = endError != null,
+                            supportingText = { if (endError != null) Text(endError, color = MaterialTheme.colorScheme.error) },
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.fillMaxWidth()
                         )

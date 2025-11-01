@@ -164,6 +164,7 @@ fun MentorCalendarScreen(
             val zdt = localDate.atTime(localTime).atZone(zoneId)
             return zdt.toInstant().toString()
         }
+        fun nowMinusSkew(): java.time.Instant = java.time.Instant.now().minusSeconds(30)
 
         // Nội dung từng tab
         when (activeTab) {
@@ -177,6 +178,19 @@ fun MentorCalendarScreen(
                             android.widget.Toast.LENGTH_LONG
                         ).show()
                     } else {
+                        // Client guard: block past times with 30s skew
+                        val startUtc = toIsoUtc(newSlot.date, newSlot.startTime, zone)
+                        val endUtc = toIsoUtc(newSlot.date, newSlot.endTime, zone)
+                        val startInstant = runCatching { java.time.Instant.parse(startUtc) }.getOrNull()
+                        val endInstant = runCatching { java.time.Instant.parse(endUtc) }.getOrNull()
+                        val nowSkew = nowMinusSkew()
+                        if (startInstant == null || endInstant == null) {
+                            toast("Giờ không hợp lệ."); return@AvailabilityTabSection
+                        }
+                        if (startInstant.isBefore(nowSkew)) { toast("⏳ Giờ bắt đầu phải ở tương lai"); return@AvailabilityTabSection }
+                        if (endInstant.isBefore(nowSkew))   { toast("⏳ Giờ kết thúc phải ở tương lai"); return@AvailabilityTabSection }
+                        if (!endInstant.isAfter(startInstant)) { toast("⚠️ Giờ kết thúc phải sau giờ bắt đầu"); return@AvailabilityTabSection }
+
                         val res = vm.addSlot(
                             mentorId = mentorId,
                             dateIso = newSlot.date,
@@ -213,11 +227,22 @@ fun MentorCalendarScreen(
                         append("[type=$normalizedType] ")
                         if (desc.isNotBlank()) append(desc) else append(if (normalizedType == "in-person") "Phiên Trực tiếp" else "Phiên Video Call")
                     }
+                    val startUtc = toIsoUtc(updated.date, updated.startTime, zone)
+                    val endUtc = toIsoUtc(updated.date, updated.endTime, zone)
+                    // Client guard: block past times with 30s skew
+                    val startInstant = runCatching { java.time.Instant.parse(startUtc) }.getOrNull()
+                    val endInstant = runCatching { java.time.Instant.parse(endUtc) }.getOrNull()
+                    val nowSkew = nowMinusSkew()
+                    if (startInstant == null || endInstant == null) { toast("Giờ không hợp lệ."); return@AvailabilityTabSection }
+                    if (startInstant.isBefore(nowSkew)) { toast("⏳ Giờ bắt đầu phải ở tương lai"); return@AvailabilityTabSection }
+                    if (endInstant.isBefore(nowSkew))   { toast("⏳ Giờ kết thúc phải ở tương lai"); return@AvailabilityTabSection }
+                    if (!endInstant.isAfter(startInstant)) { toast("⚠️ Giờ kết thúc phải sau giờ bắt đầu"); return@AvailabilityTabSection }
+
                     val patch = com.mentorme.app.data.dto.availability.UpdateSlotRequest(
                         title = composedTitle,
                         description = desc,
-                        start = toIsoUtc(updated.date, updated.startTime, zone),
-                        end = toIsoUtc(updated.date, updated.endTime, zone)
+                        start = startUtc,
+                        end = endUtc
                     )
                     val slotId = updated.backendSlotId
                     if (slotId.isBlank()) {

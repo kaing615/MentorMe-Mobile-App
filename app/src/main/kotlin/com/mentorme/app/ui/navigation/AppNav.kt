@@ -425,9 +425,19 @@ fun AppNav(
                     }
 
                     composable(Routes.search) {
+                        val ctx = LocalContext.current
                         SearchMentorScreen(
-                            onOpenProfile = { backOrHome(nav, userRole) },
-                            onBook = { backOrHome(nav, userRole) }
+                            onOpenProfile = { /* handled by sheet inside SearchMentorScreen */ },
+                            onBook = { id ->
+                                val targetId = if (id.startsWith("m") && id.drop(1).all { it.isDigit() }) id.drop(1) else id
+                                val exists = MockData.mockMentors.any { it.id == targetId }
+                                if (exists) {
+                                    nav.navigate("booking/$targetId")
+                                } else {
+                                    Log.d("AppNav", "Booking target not found for id=$id (mapped=$targetId)")
+                                    Toast.makeText(ctx, "Mentor này chưa có dữ liệu đặt lịch (mock)", Toast.LENGTH_SHORT).show()
+                                }
+                            }
                         )
                     }
 

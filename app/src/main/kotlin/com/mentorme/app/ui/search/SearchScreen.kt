@@ -7,18 +7,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Tune
@@ -27,32 +22,38 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
+
+// FlowRow còn ở ExperimentalLayoutApi (Compose version hiện tại)
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+
 import com.mentorme.app.ui.components.ui.MMGhostButton
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
 import com.mentorme.app.ui.components.ui.MMTextField
 import com.mentorme.app.ui.mentors.MentorCard
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.theme.liquidGlass
-import kotlin.math.roundToInt
 import com.mentorme.app.ui.home.Mentor as HomeMentor
 
-/* ========= Mock data (có thể bỏ nếu bạn lấy từ repo thật) ========= */
-object MentorMocks {
-    val all = listOf(
-        HomeMentor("m1","Nguyễn Văn An","Senior Android Engineer","Google",4.9,156, listOf("Android","Kotlin","Architecture"), 900_000, isAvailable = true),
-        HomeMentor("m2","Trần Thị Minh","Product Manager","Meta",4.8,203, listOf("Strategy","Analytics","Leadership"), 1_100_000, isAvailable = true),
-        HomeMentor("m3","Lê Hoàng Nam","UX/UI Designer","Apple",4.9,89, listOf("Figma","Design Systems","User Research"), 800_000, isAvailable = false),
-        HomeMentor("m4","Phạm Quang Huy","Data Scientist","Grab",4.7,120, listOf("Python","ML","Data Pipeline"), 1_200_000, isAvailable = true),
-        HomeMentor("m5","Võ Như Ý","Frontend Engineer","Shopify",4.8,98, listOf("React","TypeScript","System Design"), 950_000, isAvailable = true),
-        HomeMentor("m6","Đỗ Trọng Tín","DevOps Engineer","Amazon",4.6,77, listOf("AWS","Kubernetes","CI/CD"), 1_000_000, isAvailable = true),
-        HomeMentor("m7","Ngô Bảo Châu","Backend Engineer","Netflix",4.9,145, listOf("Java","Microservices","Kafka"), 1_150_000, isAvailable = true),
-        HomeMentor("m8","Lý Thu Trang","Product Designer","Spotify",4.7,64, listOf("UX Writing","Prototyping","Research"), 850_000, isAvailable = true),
-    )
-}
+import com.mentorme.app.data.mock.SearchMockData
+import com.mentorme.app.ui.search.components.MentorDetailContent
+import com.mentorme.app.ui.search.components.BookSessionContent
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.composed
+import androidx.compose.ui.zIndex
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.unit.dp
+import kotlin.math.min
+import com.mentorme.app.ui.common.GlassOverlay
 
 private enum class SortOption(val label: String) {
     Relevance("Phù hợp"),
@@ -64,7 +65,7 @@ private enum class SortOption(val label: String) {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SearchMentorScreen(
-    mentors: List<HomeMentor> = MentorMocks.all,
+    mentors: List<HomeMentor> = SearchMockData.mentors,
     onOpenProfile: (String) -> Unit = {},
     onBook: (String) -> Unit = {}
 ) {
@@ -73,9 +74,7 @@ fun SearchMentorScreen(
         var query by rememberSaveable { mutableStateOf("") }
         val allSkills = remember(mentors) { mentors.flatMap { it.skills }.distinct().sorted() }
 
-        // Dùng List thay vì Set để save/restore dễ hơn
         var selectedSkills by rememberSaveable { mutableStateOf(listOf<String>()) }
-
         var minRating by rememberSaveable { mutableFloatStateOf(0f) }
 
         // Price steps (x50k): tách 2 primitive để saveable ổn định
@@ -91,6 +90,14 @@ fun SearchMentorScreen(
 
         // Nhớ vị trí scroll của list
         val listState: LazyListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+
+        // ===== Modal states =====
+        var showDetail by rememberSaveable { mutableStateOf(false) }
+        var showBooking by rememberSaveable { mutableStateOf(false) }
+        var selectedMentor by remember { mutableStateOf<HomeMentor?>(null) }
+
+        val blurOn = showDetail || showBooking
+        val blurRadius = if (blurOn) 28.dp else 0.dp
 
         // ===== Filter + sort =====
         val filtered = remember(query, selectedSkills, minRating, priceStart, priceEnd, mentors) {
@@ -113,185 +120,240 @@ fun SearchMentorScreen(
             }
         }
 
-        // ===== Layout =====
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(
-                    WindowInsets.safeDrawing.only(
-                        WindowInsetsSides.Top + WindowInsetsSides.Horizontal
-                    )
-                )
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(top = 12.dp, bottom = 75.dp)
-        ) {
-            // Title
-            item {
-                Text(
-                    text = "Tìm mentor",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            // Search box
-            item {
-                MMTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    placeholder = "Nhập tên mentor…",
-                    leading = { Icon(Icons.Default.Search, null, tint = Color.White) },
+        // ===== Layout with two layers =====
+        Box(Modifier.fillMaxSize()) {
+            // LAYER A: Search content (blur when modal shown)
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .blur(blurRadius)
+            ) {
+                // Original Search content
+                LazyColumn(
+                    state = listState,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .liquidGlass(radius = 24.dp)
-                )
-            }
-
-            // Summary + actions
-            item {
-                LiquidGlassCard(radius = 18.dp) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "${result.size} kết quả",
-                            style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.weight(1f)
+                        .fillMaxSize()
+                        .windowInsetsPadding(
+                            WindowInsets.safeDrawing.only(
+                                WindowInsetsSides.Top + WindowInsetsSides.Horizontal
+                            )
                         )
-
-                        SortMenu(
-                            sort = sort,
-                            onSortChange = { sortName = it.name }
-                        )
-
-                        Spacer(Modifier.width(8.dp))
-
-                        MMGhostButton(onClick = { showFilter = !showFilter }) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Tune, null)
-                                Spacer(Modifier.width(6.dp))
-                                Text(if (showFilter) "Ẩn lọc" else "Bộ lọc")
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Filter card (collapsible)
-            item {
-                AnimatedVisibility(
-                    visible = showFilter,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically()
+                        .padding(horizontal = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 75.dp)
                 ) {
-                    LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Bộ lọc nhanh", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                                Spacer(Modifier.width(8.dp))
-                                SectionCaption(
-                                    if (selectedSkills.isEmpty()) "Chưa chọn"
-                                    else "${selectedSkills.size} bộ lọc"
-                                )
-                                Spacer(Modifier.weight(1f))
-                                TextButton(onClick = {
-                                    query = ""
-                                    selectedSkills = emptyList()
-                                    minRating = 0f
-                                    priceStart = 0
-                                    priceEnd = 20
-                                }) { Text("Đặt lại") }
-                            }
+                    // Title
+                    item {
+                        Text(
+                            text = "Tìm mentor",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
 
-                            // Skills – chip “glass”
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    // Search box
+                    item {
+                        MMTextField(
+                            value = query,
+                            onValueChange = { query = it },
+                            placeholder = "Nhập tên mentor…",
+                            leading = { Icon(Icons.Default.Search, null, tint = Color.White) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .liquidGlass(radius = 24.dp)
+                        )
+                    }
+
+                    // Summary + actions
+                    item {
+                        LiquidGlassCard(radius = 18.dp) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                allSkills.take(18).forEach { tag ->
-                                    val selected = tag in selectedSkills
-                                    GlassFilterChip(
-                                        text = tag,
-                                        selected = selected,
-                                        onToggle = {
-                                            selectedSkills = if (selected) selectedSkills - tag else selectedSkills + tag
-                                        }
-                                    )
+                                Text(
+                                    text = "${result.size} kết quả",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                SortMenu(
+                                    sort = sort,
+                                    onSortChange = { sortName = it.name }
+                                )
+
+                                Spacer(Modifier.width(8.dp))
+
+                                MMGhostButton(onClick = { showFilter = !showFilter }) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Tune, null)
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(if (showFilter) "Ẩn lọc" else "Bộ lọc")
+                                    }
                                 }
                             }
+                        }
+                    }
 
-                            // Rating
-                            Text("Đánh giá tối thiểu: ${minRating.toInt()}★", style = MaterialTheme.typography.labelLarge)
-                            Slider(
-                                value = minRating,
-                                onValueChange = { minRating = it },
-                                valueRange = 0f..5f,
-                                steps = 4,
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color.White,
-                                    activeTrackColor = Color.White.copy(0.95f),
-                                    inactiveTrackColor = Color.White.copy(0.22f)
-                                )
-                            )
+                    // Filter card (collapsible)
+                    item {
+                        AnimatedVisibility(
+                            visible = showFilter,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically()
+                        ) {
+                            LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+                                Column(
+                                    Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("Bộ lọc nhanh", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                        Spacer(Modifier.width(8.dp))
+                                        SectionCaption(
+                                            if (selectedSkills.isEmpty()) "Chưa chọn"
+                                            else "${selectedSkills.size} bộ lọc"
+                                        )
+                                        Spacer(Modifier.weight(1f))
+                                        TextButton(onClick = {
+                                            query = ""
+                                            selectedSkills = emptyList()
+                                            minRating = 0f
+                                            priceStart = 0
+                                            priceEnd = 20
+                                        }) { Text("Đặt lại") }
+                                    }
 
-                            // Price (x50k)
-                            val fromVnd = (priceStart * 50_000)
-                            val toVnd   = (priceEnd * 50_000)
-                            Text("Khoảng giá: ${compactVnd(fromVnd)} – ${compactVnd(toVnd)}", style = MaterialTheme.typography.labelLarge)
-                            RangeSlider(
-                                value = priceRange,
-                                onValueChange = { range ->
-                                    priceStart = range.start.roundToInt().coerceIn(0, 20)
-                                    priceEnd   = range.endInclusive.roundToInt().coerceIn(priceStart, 20)
-                                },
-                                valueRange = 0f..20f,
-                                steps = 19,
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color.White,
-                                    activeTrackColor = Color.White.copy(0.95f),
-                                    inactiveTrackColor = Color.White.copy(0.22f)
-                                )
-                            )
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                SectionCaption("0")
-                                SectionCaption("1M")
+                                    // Skills – chip “glass”
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        allSkills.take(18).forEach { tag ->
+                                            val selected = tag in selectedSkills
+                                            GlassFilterChip(
+                                                text = tag,
+                                                selected = selected,
+                                                onToggle = {
+                                                    selectedSkills = if (selected) selectedSkills - tag else selectedSkills + tag
+                                                }
+                                            )
+                                        }
+                                    }
+
+                                    // Rating
+                                    Text("Đánh giá tối thiểu: ${minRating.toInt()}★", style = MaterialTheme.typography.labelLarge)
+                                    Slider(
+                                        value = minRating,
+                                        onValueChange = { minRating = it },
+                                        valueRange = 0f..5f,
+                                        steps = 4,
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = Color.White,
+                                            activeTrackColor = Color.White.copy(0.95f),
+                                            inactiveTrackColor = Color.White.copy(0.22f)
+                                        )
+                                    )
+
+                                    // Price (x50k)
+                                    val fromVnd = (priceStart * 50_000)
+                                    val toVnd   = (priceEnd * 50_000)
+                                    Text("Khoảng giá: ${compactVnd(fromVnd)} – ${compactVnd(toVnd)}", style = MaterialTheme.typography.labelLarge)
+                                    RangeSlider(
+                                        value = priceRange,
+                                        onValueChange = { range ->
+                                            priceStart = range.start.roundToInt().coerceIn(0, 20)
+                                            priceEnd   = range.endInclusive.roundToInt().coerceIn(priceStart, 20)
+                                        },
+                                        valueRange = 0f..20f,
+                                        steps = 19,
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = Color.White,
+                                            activeTrackColor = Color.White.copy(0.95f),
+                                            inactiveTrackColor = Color.White.copy(0.22f)
+                                        )
+                                    )
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        SectionCaption("0")
+                                        SectionCaption("1M")
+                                    }
+
+                                    // Apply
+                                    MMPrimaryButton(
+                                        onClick = { /* giữ filter – không cần làm gì thêm */ },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { Text("Áp dụng") }
+                                }
                             }
+                        }
+                    }
 
-                            // Apply
-                            MMPrimaryButton(
-                                onClick = { /* giữ filter – không cần làm gì thêm */ },
-                                modifier = Modifier.fillMaxWidth()
-                            ) { Text("Áp dụng") }
+                    // ===== Results =====
+                    if (result.isEmpty()) {
+                        item {
+                            LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+                                Box(Modifier.padding(18.dp), contentAlignment = Alignment.Center) {
+                                    Text("Không tìm thấy mentor phù hợp")
+                                }
+                            }
+                        }
+                    } else {
+                        items(result, key = { it.id }) { m ->
+                            MentorCard(
+                                mentor = m,
+                                onViewProfile = {
+                                    selectedMentor = m
+                                    showDetail = true
+                                    // Stay within Search screen; do not navigate
+                                },
+                                onBookSession = {
+                                    selectedMentor = m
+                                    showBooking = true
+                                    // Stay within Search screen; do not navigate
+                                }
+                            )
+                        }
+                    }
+
+                    item { Spacer(Modifier.height(8.dp)) }
+                }
+            }
+
+            // LAYER B: Glass overlay
+            GlassOverlay(
+                visible = blurOn,
+                onDismiss = { showDetail = false; showBooking = false },
+                formModifier = Modifier.fillMaxSize().padding(12.dp)
+            ) {
+                selectedMentor?.let { mentor ->
+                    when {
+                        showDetail -> {
+                            MentorDetailContent(
+                                mentor = mentor,
+                                onClose = {
+                                    showDetail = false
+                                },
+                                onBookNow = {
+                                    showDetail = false
+                                    showBooking = true
+                                },
+                                onMessage = { /* TODO: open chat */ }
+                            )
+                        }
+                        showBooking -> {
+                            BookSessionContent(
+                                mentor = mentor,
+                                onClose = { showBooking = false },
+                                onConfirm = { _, _, _, _ ->
+                                    showBooking = false
+                                }
+                            )
                         }
                     }
                 }
             }
-
-            // ===== Results =====
-            if (result.isEmpty()) {
-                item {
-                    LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
-                        Box(Modifier.padding(18.dp), contentAlignment = Alignment.Center) {
-                            Text("Không tìm thấy mentor phù hợp")
-                        }
-                    }
-                }
-            } else {
-                items(result, key = { it.id }) { m ->
-                    MentorCard(
-                        mentor = m,
-                        onViewProfile = { onOpenProfile(m.id) },
-                        onBookSession = { onBook(m.id) }
-                    )
-                }
-            }
-
-            item { Spacer(Modifier.height(8.dp)) }
         }
     }
 }
@@ -359,37 +421,33 @@ private fun compactVnd(amount: Int): String {
 }
 
 @Composable
+private fun SectionCaption(text: String) {
+    Text(text, style = MaterialTheme.typography.labelMedium, color = Color.White.copy(0.7f))
+}
+
+private fun Modifier.noIndicationClickable(onClick: () -> Unit) = composed {
+    clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onClick() }
+}
+
+@Composable
 private fun GlassFilterChip(
     text: String,
     selected: Boolean,
     onToggle: () -> Unit
 ) {
-    val shape = RoundedCornerShape(16.dp)
-    val bg = if (selected) Color.White.copy(.22f) else Color.White.copy(.10f)
-    val stroke = if (selected) Color.White.copy(.40f) else Color.White.copy(.18f)
-
-    Row(
-        modifier = Modifier
-            .clip(shape)
-            .background(bg)
-            .border(1.dp, stroke, shape)
-            .clickable { onToggle() }
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (selected) {
-            Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
-            Spacer(Modifier.width(6.dp))
-        }
-        Text(text, color = Color.White, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-    }
-}
-
-@Composable
-private fun SectionCaption(text: String) {
-    Text(
-        text = text,
-        color = Color.White.copy(0.8f),
-        style = MaterialTheme.typography.labelSmall
+    AssistChip(
+        onClick = onToggle,
+        label = { Text(text, color = Color.White, maxLines = 1) },
+        border = AssistChipDefaults.assistChipBorder(
+            enabled = true,
+            borderColor = Color.White.copy(0.35f),
+            borderWidth = 1.dp
+        ),
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = if (selected) Color.White.copy(0.12f) else Color.Transparent,
+            labelColor = Color.White,
+            leadingIconContentColor = Color.White
+        ),
+        shape = RoundedCornerShape(16.dp)
     )
 }

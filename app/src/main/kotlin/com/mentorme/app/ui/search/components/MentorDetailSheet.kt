@@ -20,10 +20,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.ui.text.style.TextOverflow
 import com.mentorme.app.ui.home.Mentor as HomeMentor
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -126,14 +125,12 @@ fun MentorDetailContent(
 
             Spacer(Modifier.height(16.dp))
 
-            // Edge-to-edge segmented tabs
+            // Edge-to-edge segmented tabs (pill)
             SegmentedTabs(
                 titles = listOf("Tổng quan", "Kinh nghiệm", "Đánh giá", "Lịch trống"),
                 selectedIndex = activeTab,
                 onSelect = { activeTab = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(Modifier.height(16.dp))
@@ -149,8 +146,9 @@ fun MentorDetailContent(
     }
 }
 
+// ✅ Thay thế toàn bộ SegmentedTabs hiện tại bằng phiên bản này
 @Composable
-private fun SegmentedTabs(
+fun SegmentedTabs(
     titles: List<String>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
@@ -158,7 +156,8 @@ private fun SegmentedTabs(
 ) {
     val outerShape = RoundedCornerShape(18.dp)
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth(),                // ⬅️ không padding ngang ở container
         color = Color.White.copy(alpha = 0.12f),
         shape = outerShape,
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f))
@@ -166,7 +165,7 @@ private fun SegmentedTabs(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(4.dp),
+                .padding(4.dp),             // ⬅️ chỉ còn 4dp viền trong cho đẹp
             verticalAlignment = Alignment.CenterVertically
         ) {
             titles.forEachIndexed { index, title ->
@@ -175,12 +174,9 @@ private fun SegmentedTabs(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = 44.dp)
+                        .heightIn(min = 46.dp)
                         .clip(innerShape)
-                        .background(
-                            if (selected) Color.White.copy(alpha = 0.28f)
-                            else Color.Transparent
-                        )
+                        .background(if (selected) Color.White.copy(alpha = 0.28f) else Color.Transparent)
                         .clickable { onSelect(index) },
                     contentAlignment = Alignment.Center
                 ) {
@@ -188,13 +184,16 @@ private fun SegmentedTabs(
                         text = title,
                         style = MaterialTheme.typography.labelLarge,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                        letterSpacing = 0.2.sp
                     )
                 }
             }
         }
     }
 }
+
 
 @Composable
 private fun OverviewTab(mentor: HomeMentor) {

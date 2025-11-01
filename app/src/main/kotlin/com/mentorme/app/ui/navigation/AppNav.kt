@@ -181,6 +181,8 @@ fun AppNav(
         }
     }
 
+    var overlayVisible by remember { mutableStateOf(false) }
+
     Box(modifier = Modifier.fillMaxSize()) {
         LiquidBackground(
             modifier = Modifier
@@ -200,6 +202,7 @@ fun AppNav(
                 val hideForWallet = currentRoute?.startsWith("wallet/") == true
 
                 if (
+                    !overlayVisible &&
                     isLoggedIn &&
                     currentRoute != Routes.Auth &&
                     !hideForChat &&
@@ -216,7 +219,7 @@ fun AppNav(
                     navController = nav,
                     startDestination = when {
                         !isLoggedIn -> Routes.Auth
-                        userRole == "mentor" -> Routes.MentorDashboard  // Thay đổi từ MentorHome sang MentorDashboard
+                        userRole == "mentor" -> Routes.MentorDashboard
                         else -> Routes.Home
                     },
                     modifier = Modifier.fillMaxSize()
@@ -437,7 +440,9 @@ fun AppNav(
                                     Log.d("AppNav", "Booking target not found for id=$id (mapped=$targetId)")
                                     Toast.makeText(ctx, "Mentor này chưa có dữ liệu đặt lịch (mock)", Toast.LENGTH_SHORT).show()
                                 }
-                            }
+                            },
+                            onOverlayOpened = { overlayVisible = true },
+                            onOverlayClosed  = { overlayVisible = false }
                         )
                     }
 

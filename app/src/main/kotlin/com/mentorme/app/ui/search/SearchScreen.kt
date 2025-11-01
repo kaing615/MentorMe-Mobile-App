@@ -54,6 +54,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.ui.unit.dp
 import kotlin.math.min
 import com.mentorme.app.ui.common.GlassOverlay
+import androidx.compose.runtime.LaunchedEffect
 
 private enum class SortOption(val label: String) {
     Relevance("Phù hợp"),
@@ -67,7 +68,9 @@ private enum class SortOption(val label: String) {
 fun SearchMentorScreen(
     mentors: List<HomeMentor> = SearchMockData.mentors,
     onOpenProfile: (String) -> Unit = {},
-    onBook: (String) -> Unit = {}
+    onBook: (String) -> Unit = {},
+    onOverlayOpened: () -> Unit = {},
+    onOverlayClosed: () -> Unit = {}
 ) {
     CompositionLocalProvider(LocalContentColor provides Color.White) {
         // ===== State (saveable) =====
@@ -98,6 +101,10 @@ fun SearchMentorScreen(
 
         val blurOn = showDetail || showBooking
         val blurRadius = if (blurOn) 28.dp else 0.dp
+
+        LaunchedEffect(blurOn) {
+            if (blurOn) onOverlayOpened() else onOverlayClosed()
+        }
 
         // ===== Filter + sort =====
         val filtered = remember(query, selectedSkills, minRating, priceStart, priceEnd, mentors) {

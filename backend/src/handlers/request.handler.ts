@@ -6,16 +6,10 @@ export const validate = (req: Request, res: Response, next: NextFunction) => {
   const errors = validationResult(req);
 
   if (!errors.isEmpty()) {
-    return responseHandler.badRequest(
-      res,
-      {
-        errors: errors.array().map((e) => ({
-          field: (e as any).path ?? (e as any).param ?? "unknown",
-          message: e.msg,
-        })),
-      },
-      "Validation error"
-    );
+    // Return only the first error message, per requirement
+    const first = errors.array({ onlyFirstError: true })[0];
+    const message = first?.msg || "Validation error";
+    return responseHandler.badRequest(res, message);
   }
 
   next();

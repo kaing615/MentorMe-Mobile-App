@@ -74,6 +74,17 @@ export const createSlot = asyncHandler(async (req: Request, res: Response) => {
     publishHorizonDays?: number;
   };
 
+  // Defensive future-time checks (30s skew)
+  const nowSkew = new Date(Date.now() + 30_000);
+  if (start) {
+    const s = new Date(start);
+    if (s < nowSkew) return badRequest(res, 'start must be in the future');
+  }
+  if (end) {
+    const e = new Date(end);
+    if (e < nowSkew) return badRequest(res, 'end must be in the future');
+  }
+
   const doc = await AvailabilitySlot.create({
     mentor: mentorId,
     title,
@@ -453,6 +464,15 @@ export const updateSlot = asyncHandler(async (req: Request, res: Response) => {
     }
     if (typeof start === 'string') slot.start = nextStart as any;
     if (typeof end === 'string') slot.end = nextEnd as any;
+  }
+
+  // Defensive future-time checks (30s skew) only for provided fields
+  const nowSkew = new Date(Date.now() + 30_000);
+  if (typeof start === 'string') {
+    if (nextStart && nextStart < nowSkew) return badRequest(res, 'start must be in the future');
+  }
+  if (typeof end === 'string') {
+    if (nextEnd && nextEnd < nowSkew) return badRequest(res, 'end must be in the future');
   }
 
   // Pause/Resume actions impacting future occurrences

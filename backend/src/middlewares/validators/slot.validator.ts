@@ -29,6 +29,19 @@ export const createSlotRules = [
     if (!isISO(value)) throw new Error('end must be ISO UTC');
     return true;
   }),
+  // Future-time checks with 30s skew
+  body('start').custom((value) => {
+    const nowSkew = new Date(Date.now() + 30_000);
+    const s = new Date(value);
+    if (s < nowSkew) throw new Error('start must be in the future');
+    return true;
+  }),
+  body('end').custom((value) => {
+    const nowSkew = new Date(Date.now() + 30_000);
+    const e = new Date(value);
+    if (e < nowSkew) throw new Error('end must be in the future');
+    return true;
+  }),
   body('end').custom((end, { req }) => {
     if (req.body.start && end) {
       const s = new Date(req.body.start).getTime();
@@ -63,8 +76,23 @@ export const updateSlotRules = [
     if (value != null && !isISO(value)) throw new Error('start must be ISO UTC');
     return true;
   }),
+  // Future-time checks when provided
+  body('start').optional().custom((value) => {
+    if (value == null) return true;
+    const nowSkew = new Date(Date.now() + 30_000);
+    const s = new Date(value);
+    if (s < nowSkew) throw new Error('start must be in the future');
+    return true;
+  }),
   body('end').optional().custom((value) => {
     if (value != null && !isISO(value)) throw new Error('end must be ISO UTC');
+    return true;
+  }),
+  body('end').optional().custom((value) => {
+    if (value == null) return true;
+    const nowSkew = new Date(Date.now() + 30_000);
+    const e = new Date(value);
+    if (e < nowSkew) throw new Error('end must be in the future');
     return true;
   }),
   body('end').optional().custom((end, { req }) => {

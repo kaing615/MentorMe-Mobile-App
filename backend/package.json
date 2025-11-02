@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "removeData": "tsx src/utils/removeData.ts",
+    "seed:mentors": "tsx src/scripts/seed-mentors.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "db:setup": "psql \"$PG_URL\" -f db.sql"

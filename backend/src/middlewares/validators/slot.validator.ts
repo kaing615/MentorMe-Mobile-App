@@ -47,6 +47,7 @@ export const createSlotRules = [
       const s = new Date(req.body.start).getTime();
       const e = new Date(end).getTime();
       if (!(e > s)) throw new Error('end must be greater than start');
+      if (e - s < 15 * 60 * 1000) throw new Error('duration must be at least 15 minutes');
     }
     return true;
   })
@@ -101,6 +102,7 @@ export const updateSlotRules = [
       const sMs = new Date(s).getTime();
       const eMs = new Date(end).getTime();
       if (!(eMs > sMs)) throw new Error('end must be greater than start');
+      if (eMs - sMs < 15 * 60 * 1000) throw new Error('duration must be at least 15 minutes');
     }
     return true;
   })

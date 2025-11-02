@@ -21,23 +21,88 @@ import redis from '../utils/redis';
 const isOverlap = (aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) =>
   aStart < bEnd && bStart < aEnd;
 
+// NEW: overlap considering both sides' buffers (minutes)
+const overlapWithBuffers = (
+  aStart: Date, aEnd: Date, aBufBefore: number, aBufAfter: number,
+  bStart: Date, bEnd: Date, bBufBefore: number, bBufAfter: number
+) => {
+  const aS = new Date(aStart.getTime() - aBufBefore * 60_000);
+  const aE = new Date(aEnd.getTime()   + aBufAfter  * 60_000);
+  const bS = new Date(bStart.getTime() - bBufBefore * 60_000);
+  const bE = new Date(bEnd.getTime()   + bBufAfter  * 60_000);
+  return aS < bE && bS < aE;
+};
+
+// ===== Conflict helpers =====
+async function findConflicts(
+  mentor: any,
+  start: Date,
+  end: Date,
+  opts?: {
+    excludeSlotId?: any;
+    excludeOccIds?: any[];
+    limit?: number;
+    selfBufBefore?: number;
+    selfBufAfter?: number;
+  }
+) {
+  const selfBef = opts?.selfBufBefore ?? 0;
+  const selfAft = opts?.selfBufAfter ?? 0;
+
+  //宽 cửa sổ tìm kiếm để lọc chính xác sau khi cộng buffer
+  const PAD = 2 * 60 * 60 * 1000;
+  const wideStart = new Date(start.getTime() - PAD);
+  const wideEnd   = new Date(end.getTime()   + PAD);
+
+  const q: any = {
+    mentor,
+    start: { $lt: wideEnd },
+    end:   { $gt: wideStart },
+    status:{ $in: ['open', 'booked'] },
+  };
+  if (opts?.excludeSlotId) q.slot = { $ne: opts.excludeSlotId };
+  if (opts?.excludeOccIds?.length) q._id = { $nin: opts.excludeOccIds };
+
+  const rows = await AvailabilityOccurrence.find(q)
+    .select('start end status slot')
+    .populate({ path: 'slot', select: 'bufferBeforeMin bufferAfterMin title' })
+    .limit(opts?.limit ?? 50)
+    .lean();
+
+  const hits: any[] = [];
+  for (const r of rows) {
+    const otherBef = Number((r as any)?.slot?.bufferBeforeMin ?? 0);
+    const otherAft = Number((r as any)?.slot?.bufferAfterMin ?? 0);
+    if (overlapWithBuffers(
+      start, end, selfBef, selfAft,
+      new Date(r.start), new Date(r.end), otherBef, otherAft
+    )) {
+      hits.push({
+        id: String(r._id),
+        start: new Date(r.start).toISOString(),
+        end:   new Date(r.end).toISOString(),
+        status: (r as any).status,
+        slot: (r as any).slot ? {
+          id: String(((r as any).slot as any)._id ?? (r as any).slot),
+          title: (r as any).slot?.title ?? null,
+          bufferBeforeMin: otherBef,
+          bufferAfterMin: otherAft,
+        } : null
+      });
+    }
+  }
+  return hits;
+}
+
 // REPLACED: self-aware conflict helper
 async function hasConflict(
   mentor: any,
   start: Date,
   end: Date,
-  opts?: { excludeSlotId?: any; excludeOccIds?: any[] }
+  opts?: { excludeSlotId?: any; excludeOccIds?: any[]; selfBufBefore?: number; selfBufAfter?: number }
 ) {
-  const q: any = {
-    mentor,
-    start: { $lt: end },
-    end:   { $gt: start },
-    status:{ $in: ['open', 'booked'] },
-  };
-  if (opts?.excludeSlotId) q.slot = { $ne: opts.excludeSlotId };
-  if (opts?.excludeOccIds?.length) q._id = { $nin: opts.excludeOccIds };
-  const hit = await AvailabilityOccurrence.findOne(q).select('start end');
-  return !!hit && (start < hit.end && hit.start < end);
+  const hits = await findConflicts(mentor, start, end, opts);
+  return hits.length > 0;
 }
 
 // (old conflict helper removed per exact edit instructions)
@@ -171,37 +236,41 @@ export async function publishSlotLogic(
   }
 
   try {
-    // Nếu không có rrule => one-off (soft-skip conflicts)
+    // Nếu không có rrule => one-off
     if (!slot.rrule) {
+      const conflicts = await findConflicts(
+        slot.mentor,
+        baseStart,
+        baseEnd,
+        { limit: 50, selfBufBefore: bufBefore, selfBufAfter: bufAfter }
+      );
+      if (conflicts.length > 0) {
+        const err: any = new Error('Time overlaps existing occurrences');
+        err.code = 'CONFLICT_OVERLAP';
+        err.details = conflicts;
+        throw err;
+      }
       let occurrencesCreated = 0;
-      let skippedConflict = 0;
-      const checkStart = new Date(baseStart.getTime() - bufBefore * 60_000);
-      const checkEnd = new Date(baseEnd.getTime() + bufAfter * 60_000);
-      if (await hasConflict(slot.mentor, checkStart, checkEnd)) {
-        // Soft-skip
-        skippedConflict++;
-      } else {
-        try {
-          await AvailabilityOccurrence.create({
-            slot: slot._id,
-            mentor: slot.mentor,
-            start: baseStart,
-            end: baseEnd,
-            visibility: slot.visibility,
-            status: 'open',
-            capacity: 1,
-          });
-          occurrencesCreated++;
-        } catch (e: any) {
-          if (e?.code !== 11000) throw e; // duplicate unique key => treat as exists
-        }
+      try {
+        await AvailabilityOccurrence.create({
+          slot: slot._id,
+          mentor: slot.mentor,
+          start: baseStart,
+          end: baseEnd,
+          visibility: slot.visibility,
+          status: 'open',
+          capacity: 1,
+        });
+        occurrencesCreated++;
+      } catch (e: any) {
+        if (e?.code !== 11000) throw e; // duplicate unique key => treat as exists
       }
       slot.status = 'published';
       await slot.save();
       return {
         published: true,
         occurrencesCreated,
-        skippedConflict,
+        skippedConflict: 0,
         rrule: null,
         horizonDays,
       };
@@ -212,7 +281,7 @@ export async function publishSlotLogic(
     let rruleDates: Date[] = [];
     const horizonEnd = new Date(baseStart.getTime() + horizonDays * 24 * 60 * 60 * 1000);
 
-    function manualExpand(ruleStr: string): Date[] {
+  function manualExpand(ruleStr: string): Date[] {
       // Hỗ trợ subset: FREQ=DAILY|WEEKLY; BYDAY (tuỳ chọn); COUNT (tuỳ chọn); INTERVAL (tuỳ chọn); UNTIL (tuỳ chọn)
       const parts = ruleStr.split(';').map(p => p.trim()).filter(Boolean);
       const kv: Record<string,string> = {};
@@ -260,7 +329,12 @@ export async function publishSlotLogic(
             if (wd === undefined) continue;
             const occ = new Date(weekStart.getTime());
             occ.setUTCDate(weekStart.getUTCDate() + wd);
-            occ.setUTCHours(baseStart.getUTCHours(), baseStart.getUTCMinutes(), baseStart.getUTCHours(), baseStart.getUTCMilliseconds());
+            occ.setUTCHours(
+              baseStart.getUTCHours(),
+              baseStart.getUTCMinutes(),
+              baseStart.getUTCSeconds(),
+              baseStart.getUTCMilliseconds()
+            );
             if (occ.getTime() >= baseStart.getTime()) {
               pushIf(occ);
               if (count && results.length >= count) break;
@@ -305,9 +379,12 @@ export async function publishSlotLogic(
       if (occStart.getTime() < baseStart.getTime()) continue;
       if (exdateISOSet.has(occStart.toISOString())) continue;
       const occEnd = new Date(occStart.getTime() + durationMs);
-      const checkStart = new Date(occStart.getTime() - bufBefore * 60_000);
-      const checkEnd = new Date(occEnd.getTime() + bufAfter * 60_000);
-      const conflictHit = await hasConflict(slot.mentor, checkStart, checkEnd);
+      const conflictHit = await hasConflict(
+        slot.mentor,
+        occStart,
+        occEnd,
+        { selfBufBefore: bufBefore, selfBufAfter: bufAfter }
+      );
       if (conflictHit) {
         skippedConflict++;
         continue;
@@ -327,6 +404,13 @@ export async function publishSlotLogic(
         if (e?.code === 11000) continue; // duplicate skip
         throw e;
       }
+    }
+
+    if (created === 0 && skippedConflict > 0) {
+      const err: any = new Error('Time overlaps existing occurrences');
+      err.code = 'CONFLICT_OVERLAP';
+      err.details = [{ message: 'All generated times overlapped within buffer window' }];
+      throw err;
     }
 
     slot.status = 'published';
@@ -353,6 +437,9 @@ export const publishSlot = asyncHandler(async (req: Request, res: Response) => {
     return ok(res, result);
   } catch (e: any) {
     const msg = String(e?.message || e);
+    if (e?.code === 'CONFLICT_OVERLAP') {
+      return conflict(res, { message: msg, conflicts: e.details ?? [] });
+    }
     if (msg === 'Slot not found') return notFound(res, msg);
     if (msg === 'Not owner of slot') return forbidden(res, msg);
     if (msg === 'Slot start/end is required') return badRequest(res, msg);
@@ -531,11 +618,11 @@ export const updateSlot = asyncHandler(async (req: Request, res: Response) => {
       if (occ) {
         const newStart = new Date(baseStart);
         const newEnd   = new Date(baseEnd);
-        const checkStart = new Date(newStart.getTime() - bufBefore * 60_000);
-        const checkEnd   = new Date(newEnd.getTime()   + bufAfter  * 60_000);
-        const overlap = await hasConflict(slot.mentor, checkStart, checkEnd, {
+        const overlap = await hasConflict(slot.mentor, newStart, newEnd, {
           excludeSlotId: slot._id,
-          excludeOccIds: [occ._id]
+          excludeOccIds: [occ._id],
+          selfBufBefore: bufBefore,
+          selfBufAfter:  bufAfter
         });
         if (overlap) return conflict(res, 'time overlaps another occurrence');
         if (occ.status === 'open' || occ.status === 'closed') {

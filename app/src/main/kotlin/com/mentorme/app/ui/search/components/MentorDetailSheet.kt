@@ -33,6 +33,26 @@ import dagger.hilt.components.SingletonComponent
 import java.time.*
 import java.time.format.DateTimeFormatter
 
+// ===== Time helpers =====
+private val DATE_FMT: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd")
+private val TIME_FMT: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("HH:mm")
+
+/** Convert ISO-UTC start/end -> "yyyy-MM-dd • HH:mm - HH:mm" in local time zone */
+private fun formatSlotWindow(
+    startIsoUtc: String,
+    endIsoUtc: String,
+    zone: ZoneId = ZoneId.systemDefault()
+): String {
+    val startZ = Instant.parse(startIsoUtc).atZone(zone)
+    val endZ   = Instant.parse(endIsoUtc).atZone(zone)
+    val dayStr   = DATE_FMT.format(startZ)                 // theo ngày bắt đầu
+    val startStr = TIME_FMT.format(startZ)
+    val endStr   = TIME_FMT.format(endZ)                   // <-- dùng endZ thật
+    return "$dayStr • $startStr - $endStr"
+}
+
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface MentorDetailDeps {
@@ -55,31 +75,27 @@ fun MentorDetailSheet(
     var loading by remember { mutableStateOf(true) }
 
     LaunchedEffect(mentorId) {
-        // Build UTC window [today 00:00Z .. +30d 23:59:59Z]
-        val fromIsoUtc = LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC).toString()
-        val toIsoUtc = LocalDate.now(ZoneOffset.UTC).plusDays(30).atTime(23, 59, 59).toInstant(ZoneOffset.UTC).toString()
+        loading = true
+        // Window UTC: [today local 00:00 .. +30d 23:59:59] rồi chuyển sang UTC string
+        val zone = ZoneId.systemDefault()
+        val todayStartLocal = LocalDate.now(zone).atStartOfDay(zone)
+        val fromIsoUtc = todayStartLocal.toInstant().toString()
+        val toIsoUtc = todayStartLocal.plusDays(30).withHour(23).withMinute(59).withSecond(59).toInstant().toString()
+
         Logx.d("Search") { "load calendar for id=$mentorId from=$fromIsoUtc to=$toIsoUtc" }
         when (val res = getCalendar(mentorId, fromIsoUtc, toIsoUtc, includeClosed = true)) {
             is com.mentorme.app.core.utils.AppResult.Success -> {
                 val items = res.data
-                val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd • HH:mm - HH:mm")
-                val mapped = items.mapNotNull { it ->
-                    val s = it.start ?: return@mapNotNull null
-                    val e = it.end ?: return@mapNotNull null
-                    val sIns = runCatching { Instant.parse(s) }.getOrNull() ?: return@mapNotNull null
-                    val eIns = runCatching { Instant.parse(e) }.getOrNull() ?: return@mapNotNull null
-                    val z = ZoneId.systemDefault()
-                    val sLoc = sIns.atZone(z)
-                    val eLoc = eIns.atZone(z)
-                    fmt.format(sLoc) // will include start date and start HH:mm
-                        .replace(Regex("\\d{2}:\\d{2}") , sLoc.toLocalTime().toString().substring(0,5)) +
-                        "".plus("") // keep format stable
-                        .replace(" - HH:mm", " - ${eLoc.toLocalTime().toString().substring(0,5)}")
+                slots = items.mapNotNull { item ->
+                    val s = item.start ?: return@mapNotNull null
+                    val e = item.end ?: return@mapNotNull null
+                    runCatching { formatSlotWindow(s, e) }.getOrNull()
                 }
-                slots = mapped
                 loading = false
             }
             is com.mentorme.app.core.utils.AppResult.Error -> {
+                Logx.d("Search") { "calendar error: ${res.throwable}" }
+                slots = emptyList()
                 loading = false
             }
             com.mentorme.app.core.utils.AppResult.Loading -> Unit
@@ -91,7 +107,8 @@ fun MentorDetailSheet(
         onClose = onClose,
         onBookNow = onBookNow,
         onMessage = { onMessage(mentor.id) },
-        slots = slots
+        slots = slots,
+        loading = loading
     )
 }
 
@@ -102,7 +119,8 @@ fun MentorDetailContent(
     onClose: () -> Unit,
     onBookNow: (String) -> Unit,
     onMessage: (String) -> Unit,
-    slots: List<String>
+    slots: List<String>,
+    loading: Boolean
 ) {
     var activeTab by remember { mutableStateOf(0) }
 
@@ -211,7 +229,7 @@ fun MentorDetailContent(
                 0 -> OverviewTab(mentor)
                 1 -> ExperienceTab()
                 2 -> ReviewsTab()
-                3 -> ScheduleTab(slots = slots, onBookNow = { onBookNow(mentor.id) })
+                3 -> ScheduleTab(slots = slots, loading = loading, onBookNow = { onBookNow(mentor.id) })
             }
         }
     }
@@ -377,8 +395,14 @@ private fun ReviewsTab() {
 }
 
 @Composable
-private fun ScheduleTab(slots: List<String>, onBookNow: () -> Unit) {
-    val display = if (slots.isEmpty()) listOf("Chưa có lịch trống trong 30 ngày tới") else slots
+private fun ScheduleTab(slots: List<String>, loading: Boolean, onBookNow: () -> Unit) {
+    val display: List<String> =
+        when {
+            loading -> listOf("Đang tải lịch trống...")
+            slots.isEmpty() -> listOf("Chưa có lịch trống trong 30 ngày tới")
+            else -> slots
+        }
+
     LazyColumn(
         Modifier
             .fillMaxWidth()
@@ -400,7 +424,7 @@ private fun ScheduleTab(slots: List<String>, onBookNow: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(s, modifier = Modifier.weight(1f))
-                    if (slots.isNotEmpty()) {
+                    if (!loading && slots.isNotEmpty()) {
                         Button(
                             onClick = onBookNow,
                             modifier = Modifier.fillMaxWidth(0.38f).heightIn(min = 46.dp)

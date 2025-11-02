@@ -145,3 +145,37 @@ data class CalendarItem(
 data class CalendarResponse(
     val items: List<CalendarItem> = emptyList()
 )
+
+/**
+ * Result payload returned by publishAvailabilitySlot endpoint.
+ */
+data class PublishResult(
+    val published: Boolean = true,
+    val occurrencesCreated: Int = 0,
+    val skippedConflict: Int = 0,
+    val rrule: String? = null,
+    val horizonDays: Int = 0,
+    val message: String? = null
+)
+
+// ---- Conflict models for HTTP 409 ----
+/** Server error body when publishing conflicts with existing occurrences (including buffer). */
+data class ConflictBody(
+    val message: String? = null,
+    val conflicts: List<ConflictItem> = emptyList()
+)
+
+data class ConflictItem(
+    val id: String,
+    val start: String,
+    val end: String,
+    val status: String,
+    val slot: ConflictSlot? = null
+)
+
+data class ConflictSlot(
+    val id: String,
+    val title: String? = null,
+    val bufferBeforeMin: Int? = null,
+    val bufferAfterMin: Int? = null
+)

@@ -14,6 +14,7 @@ import com.mentorme.app.data.dto.availability.ApiEnvelope
 import com.mentorme.app.data.dto.availability.CalendarPayload
 import com.mentorme.app.data.dto.mentors.MentorCardDto
 import com.mentorme.app.data.dto.mentors.MentorListPayloadDto
+import com.mentorme.app.data.dto.availability.PublishResult
 
 // Model imports
 import com.mentorme.app.data.model.Booking
@@ -96,7 +97,7 @@ interface MentorMeApi {
     @POST("availability/slots/{id}/publish")
     suspend fun publishAvailabilitySlot(
         @Path("id") id: String
-    ): retrofit2.Response<com.mentorme.app.data.dto.availability.ApiEnvelope<kotlin.collections.Map<String, @JvmSuppressWildcards Any>>>
+    ): retrofit2.Response<com.mentorme.app.data.dto.availability.ApiEnvelope<PublishResult>>
 
     /**
      * Update slot meta/time/visibility or action (pause/resume).

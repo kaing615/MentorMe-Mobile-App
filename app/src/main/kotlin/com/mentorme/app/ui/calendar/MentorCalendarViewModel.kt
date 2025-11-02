@@ -119,12 +119,16 @@ class MentorCalendarViewModel @Inject constructor(
         startHHmm: String, // HH:mm
         endHHmm: String,   // HH:mm
         sessionType: String?,
-        description: String?
-    ): AppResult<*> {
+        description: String?,
+        bufferBeforeMin: Int,
+        bufferAfterMin: Int
+    ): AppResult<com.mentorme.app.data.dto.availability.PublishResult> {
         return try {
-            val tz = ZoneId.systemDefault()
-            val startUtc = toIsoUtc(dateIso, startHHmm, tz)
-            val endUtc = toIsoUtc(dateIso, endHHmm, tz)
+            val tz = java.time.ZoneId.of("Asia/Ho_Chi_Minh")
+            // Debug log as requested
+            Logx.d(TAG) { "addSlot buffers => before=${bufferBeforeMin}, after=${bufferAfterMin}" }
+            val startUtc = com.mentorme.app.core.time.localToUtcIsoZ(java.time.LocalDate.parse(dateIso), java.time.LocalTime.parse(startHHmm), tz)
+            val endUtc = com.mentorme.app.core.time.localToUtcIsoZ(java.time.LocalDate.parse(dateIso), java.time.LocalTime.parse(endHHmm), tz)
 
             // Normalize type and compose title safely
             val normalizedType = if ((sessionType ?: "").equals("in-person", true)) "in-person" else "video"
@@ -142,13 +146,13 @@ class MentorCalendarViewModel @Inject constructor(
                 end = endUtc,
                 rrule = null,
                 exdates = emptyList(),
-                bufferBeforeMin = 0,
-                bufferAfterMin = 0,
+                bufferBeforeMin = bufferBeforeMin,
+                bufferAfterMin = bufferAfterMin,
                 visibility = "public",
                 publishHorizonDays = 90
             )
 
-            Logx.d(TAG) { "addSlot: creating slot $startUtc - $endUtc" }
+            Logx.d(TAG) { "addSlot: creating slot $startUtc - $endUtc (bufBefore=$bufferBeforeMin, bufAfter=$bufferAfterMin)" }
             val createRes = createAvailabilitySlot(body)
             if (createRes is AppResult.Error) {
                 Logx.e(tag = TAG, message = { "addSlot: create failed: ${createRes.throwable}" })
@@ -164,9 +168,10 @@ class MentorCalendarViewModel @Inject constructor(
             val publishRes = publishSlot(slotId)
             if (publishRes is AppResult.Error) {
                 Logx.e(tag = TAG, message = { "addSlot: publish failed: ${publishRes.throwable}" })
-                return publishRes
+                return publishRes as AppResult.Error
             }
 
+            // Reload window after publish
             Logx.d(TAG) { "addSlot: published; reloading window" }
             lastWindow?.let { w ->
                 val zone = ZoneId.systemDefault()
@@ -175,7 +180,6 @@ class MentorCalendarViewModel @Inject constructor(
                 val winTo = runCatching { Instant.parse(w.to) }.getOrNull()
 
                 if (winFrom == null || winTo == null) {
-                    // cache hỏng: nạp lại theo ngày vừa tạo (±30d)
                     val newFrom = createdStartLocal.toString()
                     val newTo = createdStartLocal.atZone(zone)
                         .plusDays(30).withHour(23).withMinute(59).withSecond(59)
@@ -183,7 +187,6 @@ class MentorCalendarViewModel @Inject constructor(
                     lastWindow = Window(w.mentorId, newFrom, newTo)
                     loadWindow(w.mentorId, newFrom, newTo)
                 } else {
-                    // nếu slot ngoài cửa sổ hiện tại → nhảy cửa sổ để bao trọn slot
                     if (createdStartLocal.isBefore(winFrom) || createdStartLocal.isAfter(winTo)) {
                         val newFrom = createdStartLocal.toString()
                         val newTo = createdStartLocal.atZone(zone)
@@ -192,12 +195,11 @@ class MentorCalendarViewModel @Inject constructor(
                         lastWindow = Window(w.mentorId, newFrom, newTo)
                         loadWindow(w.mentorId, newFrom, newTo)
                     } else {
-                        // vẫn trong cửa sổ cũ
                         loadWindow(w.mentorId, w.from, w.to)
                     }
                 }
             }
-            AppResult.success(Unit)
+            publishRes as AppResult.Success<com.mentorme.app.data.dto.availability.PublishResult>
         } catch (t: Throwable) {
             AppResult.failure(t)
         }

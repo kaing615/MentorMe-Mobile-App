@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material3.*
 import androidx.compose.material3.ExposedDropdownMenuDefaults.TrailingIcon
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -25,9 +26,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.mentorme.app.ui.calendar.components.InfoChip
-import com.mentorme.app.ui.calendar.components.InfoRow
 import com.mentorme.app.ui.calendar.core.*
-import com.mentorme.app.ui.common.MMGhostButton
+import com.mentorme.app.ui.calendar.core.NewSlotInput
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.components.ui.MMButtonSize
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
@@ -38,8 +38,8 @@ import java.text.NumberFormat
 @Composable
 fun AvailabilityTabSection(
     slots: List<AvailabilitySlot>,
-    onAdd: (AvailabilitySlot) -> Unit,
-    onUpdate: (AvailabilitySlot) -> Unit,     // 👈 NEW
+    onAdd: (NewSlotInput) -> Unit,
+    onUpdate: (AvailabilitySlot) -> Unit,
     onToggle: (String) -> Unit,
     onDelete: (String) -> Unit
 ) {
@@ -47,13 +47,16 @@ fun AvailabilityTabSection(
     val numberFormat = remember { NumberFormat.getCurrencyInstance(java.util.Locale("vi","VN")) }
     val HOURLY = 100_000
 
+    // Persist last used buffer minutes across opens
+    var lastBufBefore by rememberSaveable { mutableStateOf("0") }
+    var lastBufAfter by rememberSaveable { mutableStateOf("0") }
+
     // Form state dùng chung cho Add/Edit (dạng digits để caret ổn định)
-    var dateDigits by remember { mutableStateOf("") }   // "ddMMyyyy"
-    var startDigits by remember { mutableStateOf("") }  // "HHmm"
-    var endDigits by remember { mutableStateOf("") }    // "HHmm"
+    var dateDigits by remember { mutableStateOf("") }
+    var startDigits by remember { mutableStateOf("") }
+    var endDigits by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("video") }
     var desc by remember { mutableStateOf(TextFieldValue("")) }
-    // Field errors (reset when dialog open/close)
     var startErr by remember { mutableStateOf<String?>(null) }
     var endErr by remember { mutableStateOf<String?>(null) }
 
@@ -242,6 +245,10 @@ fun AvailabilityTabSection(
 
     // ===== Dialog: THÊM =====
     if (showAdd) {
+        // Buffer minutes state (digits only, clamp 0..120), seeded with last used
+        var bufBeforeDigits by rememberSaveable(showAdd) { mutableStateOf(lastBufBefore) }
+        var bufAfterDigits  by rememberSaveable(showAdd) { mutableStateOf(lastBufAfter) }
+
         AvailabilityDialog(
             title = "✨ Thêm lịch trống mới",
             primaryText = "✨ Thêm lịch",
@@ -258,6 +265,11 @@ fun AvailabilityTabSection(
             onTypeChange = { type = it },
             onDescChange = { desc = it },
             onDismiss = { showAdd = false; startErr = null; endErr = null },
+            // Inject buffer fields into dialog content
+            bufBeforeDigits = bufBeforeDigits,
+            bufAfterDigits = bufAfterDigits,
+            onBufBeforeChange = { bufBeforeDigits = it.filter(Char::isDigit).take(3) },
+            onBufAfterChange  = { bufAfterDigits  = it.filter(Char::isDigit).take(3) },
             onSubmit = {
                 val dateIso   = validateDateDigitsReturnIso(dateDigits)
                 val startHHMM = validateTimeDigitsReturnHHMM(startDigits)
@@ -275,19 +287,25 @@ fun AvailabilityTabSection(
                     return@AvailabilityDialog
                 }
 
-                val newSlot = AvailabilitySlot(
-                    id = System.currentTimeMillis().toString(),
+                fun clamp(v: String): Int = v.filter(Char::isDigit).take(3).toIntOrNull()?.coerceIn(0,120) ?: 0
+                val bufBefore = clamp(bufBeforeDigits)
+                val bufAfter  = clamp(bufAfterDigits)
+
+                val newSlot = NewSlotInput(
                     date = dateIso,
                     startTime = startHHMM,
                     endTime = endHHMM,
                     duration = duration,
                     description = desc.text.ifBlank { null },
-                    isActive = true,
                     sessionType = type,
-                    isBooked = false
+                    bufferBeforeMin = bufBefore,
+                    bufferAfterMin = bufAfter
                 )
                 onAdd(newSlot)
-                // success toast is shown by the parent after VM reloads
+                // Persist last used buffer values
+                lastBufBefore = bufBefore.toString()
+                lastBufAfter  = bufAfter.toString()
+                // Close dialog; parent shows toast on result
                 resetForm()
                 showAdd = false
             }
@@ -373,6 +391,11 @@ private fun AvailabilityDialog(
     onTypeChange: (String) -> Unit,
     onDescChange: (TextFieldValue) -> Unit,
     onDismiss: () -> Unit,
+    // Optional buffer fields: if provided, dialog renders buffer controls
+    bufBeforeDigits: String? = null,
+    bufAfterDigits: String? = null,
+    onBufBeforeChange: ((String) -> Unit)? = null,
+    onBufAfterChange: ((String) -> Unit)? = null,
     onSubmit: () -> Unit
 ) {
     var typeMenu by remember { mutableStateOf(false) }
@@ -450,6 +473,37 @@ private fun AvailabilityDialog(
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.fillMaxWidth()
                         )
+                    }
+                }
+
+                // Buffer fields (optional)
+                if (bufBeforeDigits != null && bufAfterDigits != null && onBufBeforeChange != null && onBufAfterChange != null) {
+                    FormLabel("🧱 Khoảng đệm (Buffer)")
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Buffer trước (phút)", color = Color.White)
+                            OutlinedTextField(
+                                value = bufBeforeDigits,
+                                onValueChange = onBufBeforeChange,
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                                supportingText = { Text("Khoảng đệm trước tính bằng phút") }
+                        )
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text("Buffer sau (phút)", color = Color.White)
+                            OutlinedTextField(
+                                value = bufAfterDigits,
+                                onValueChange = onBufAfterChange,
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                                supportingText = { Text("Khoảng đệm sau tính bằng phút") }
+                        )
+                        }
                     }
                 }
 

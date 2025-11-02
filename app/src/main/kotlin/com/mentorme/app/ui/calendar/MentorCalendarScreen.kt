@@ -211,11 +211,15 @@ fun MentorCalendarScreen(
                             startHHmm = newSlot.startTime,
                             endHHmm = newSlot.endTime,
                             sessionType = newSlot.sessionType,
-                            description = newSlot.description
+                            description = newSlot.description,
+                            bufferBeforeMin = newSlot.bufferBeforeMin,
+                            bufferAfterMin = newSlot.bufferAfterMin
                         )
                         when (res) {
                             is com.mentorme.app.core.utils.AppResult.Success -> {
-                                toast("✨ Thêm lịch thành công")
+                                val pr = res.data
+                                if (pr.skippedConflict > 0) toast("Một số lịch bị bỏ qua vì trùng/buffer.")
+                                else toast("✨ Đã xuất bản lịch")
                             }
                             is com.mentorme.app.core.utils.AppResult.Error -> {
                                 val raw = res.throwable
@@ -226,7 +230,8 @@ fun MentorCalendarScreen(
                                 when (code) {
                                     401 -> toast("Bạn cần đăng nhập để thực hiện thao tác này.")
                                     400 -> toast("Dữ liệu thời gian không hợp lệ")
-                                    409, 422 -> toast("Khung giờ bị trùng/đã tồn tại")
+                                    409 -> toast("Khung giờ bị trùng (đã tính buffer). Vui lòng chọn khung khác.")
+                                    422 -> toast("Khung giờ bị trùng/đã tồn tại")
                                     else -> toast(com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(raw))
                                 }
                             }

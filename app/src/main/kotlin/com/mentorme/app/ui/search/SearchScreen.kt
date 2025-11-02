@@ -1,12 +1,12 @@
 package com.mentorme.app.ui.search
 
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,6 +26,11 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import com.mentorme.app.domain.usecase.SearchMentorsUseCase
 import kotlin.math.roundToInt
 
 // FlowRow còn ở ExperimentalLayoutApi (Compose version hiện tại)
@@ -41,18 +46,12 @@ import com.mentorme.app.ui.theme.liquidGlass
 import com.mentorme.app.ui.home.Mentor as HomeMentor
 
 import com.mentorme.app.data.mock.SearchMockData
-import com.mentorme.app.ui.search.components.MentorDetailContent
+import com.mentorme.app.ui.search.components.MentorDetailSheet
 import com.mentorme.app.ui.search.components.BookSessionContent
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.composed
-import androidx.compose.ui.zIndex
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.ProvideTextStyle
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.ui.unit.dp
-import kotlin.math.min
 import com.mentorme.app.ui.common.GlassOverlay
 import androidx.compose.runtime.LaunchedEffect
 
@@ -61,6 +60,12 @@ private enum class SortOption(val label: String) {
     RatingDesc("Đánh giá cao"),
     PriceAsc("Giá thấp → cao"),
     PriceDesc("Giá cao → thấp")
+}
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface SearchDeps {
+    fun searchMentorsUseCase(): SearchMentorsUseCase
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -73,10 +78,17 @@ fun SearchMentorScreen(
     onOverlayClosed: () -> Unit = {}
 ) {
     CompositionLocalProvider(LocalContentColor provides Color.White) {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val deps = remember(context) { EntryPointAccessors.fromApplication(context, SearchDeps::class.java) }
+        val searchUC = remember { deps.searchMentorsUseCase() }
+
+        // Backing state for remote mentors
+        var remoteMentors by remember { mutableStateOf<List<HomeMentor>>(emptyList()) }
+        var loading by remember { mutableStateOf(false) }
+        var error by remember { mutableStateOf<String?>(null) }
+
         // ===== State (saveable) =====
         var query by rememberSaveable { mutableStateOf("") }
-        val allSkills = remember(mentors) { mentors.flatMap { it.skills }.distinct().sorted() }
-
         var selectedSkills by rememberSaveable { mutableStateOf(listOf<String>()) }
         var minRating by rememberSaveable { mutableFloatStateOf(0f) }
 
@@ -106,9 +118,52 @@ fun SearchMentorScreen(
             if (blurOn) onOverlayOpened() else onOverlayClosed()
         }
 
-        // ===== Filter + sort =====
-        val filtered = remember(query, selectedSkills, minRating, priceStart, priceEnd, mentors) {
-            mentors.filter { m ->
+        // Trigger network search when filters change
+        LaunchedEffect(query, selectedSkills, minRating, priceStart, priceEnd, sortName) {
+            loading = true; error = null
+            val skills = selectedSkills
+            val minRatingArg = minRating.takeIf { it > 0f }
+            val priceMin = (priceStart * 50_000).takeIf { it > 0 }
+            val priceMax = (priceEnd * 50_000).takeIf { it > 0 }
+            val res = searchUC(
+                q = query.ifBlank { null },
+                skills = skills,
+                minRating = minRatingArg,
+                priceMin = priceMin,
+                priceMax = priceMax,
+                sort = sortName,
+                page = 1,
+                limit = 50
+            )
+            when (res) {
+                is com.mentorme.app.core.utils.AppResult.Success -> {
+                    remoteMentors = res.data
+                    loading = false
+                }
+                is com.mentorme.app.core.utils.AppResult.Error -> {
+                    error = res.throwable
+                    loading = false
+                }
+                com.mentorme.app.core.utils.AppResult.Loading -> { loading = true }
+            }
+        }
+
+        // Use remote mentors if available, else fallback
+        val listForUi = if (remoteMentors.isNotEmpty()) remoteMentors else mentors
+
+        // Log to verify calendar ID flows through Ui layer
+        LaunchedEffect(listForUi) {
+            listForUi.forEach { m ->
+                Log.d("Search", "ui mentor id=${m.id}")
+            }
+        }
+
+        // Derive chips from current list
+        val allSkills = remember(listForUi) { listForUi.flatMap { it.skills }.distinct().sorted() }
+
+        // ===== Filter + sort on current list =====
+        val filtered = remember(query, selectedSkills, minRating, priceStart, priceEnd, listForUi) {
+            listForUi.filter { m ->
                 (query.isBlank() || m.name.contains(query, ignoreCase = true)) &&
                         (selectedSkills.isEmpty() || m.skills.any { it in selectedSkills }) &&
                         m.rating >= minRating &&
@@ -302,7 +357,7 @@ fun SearchMentorScreen(
                         item {
                             LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
                                 Box(Modifier.padding(18.dp), contentAlignment = Alignment.Center) {
-                                    Text("Không tìm thấy mentor phù hợp")
+                                    Text(if (loading) "Đang tải..." else error ?: "Không tìm thấy mentor phù hợp")
                                 }
                             }
                         }
@@ -311,14 +366,14 @@ fun SearchMentorScreen(
                             MentorCard(
                                 mentor = m,
                                 onViewProfile = {
+                                    Log.d("Search", "clicked mentor card id=${m.id}")
                                     selectedMentor = m
                                     showDetail = true
-                                    // Stay within Search screen; do not navigate
                                 },
                                 onBookSession = {
+                                    Log.d("Search", "clicked mentor card id=${m.id}")
                                     selectedMentor = m
                                     showBooking = true
-                                    // Stay within Search screen; do not navigate
                                 }
                             )
                         }
@@ -337,16 +392,15 @@ fun SearchMentorScreen(
                 selectedMentor?.let { mentor ->
                     when {
                         showDetail -> {
-                            MentorDetailContent(
+                            MentorDetailSheet(
+                                mentorId = mentor.id,
                                 mentor = mentor,
-                                onClose = {
-                                    showDetail = false
-                                },
-                                onBookNow = {
+                                onClose = { showDetail = false },
+                                onBookNow = { _ ->
                                     showDetail = false
                                     showBooking = true
                                 },
-                                onMessage = { /* TODO: open chat */ }
+                                onMessage = { _ -> /* TODO */ }
                             )
                         }
                         showBooking -> {

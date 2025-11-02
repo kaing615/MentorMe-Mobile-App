@@ -24,6 +24,76 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mentorme.app.ui.home.Mentor as HomeMentor
+import com.mentorme.app.core.utils.Logx
+import com.mentorme.app.domain.usecase.availability.GetPublicCalendarUseCase
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import java.time.*
+import java.time.format.DateTimeFormatter
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface MentorDetailDeps {
+    fun getPublicCalendarUseCase(): GetPublicCalendarUseCase
+}
+
+@Composable
+fun MentorDetailSheet(
+    mentorId: String,
+    mentor: HomeMentor,
+    onClose: () -> Unit,
+    onBookNow: (String) -> Unit,
+    onMessage: (String) -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val deps = remember(context) { EntryPointAccessors.fromApplication(context, MentorDetailDeps::class.java) }
+    val getCalendar = remember { deps.getPublicCalendarUseCase() }
+
+    var slots by remember { mutableStateOf<List<String>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(mentorId) {
+        // Build UTC window [today 00:00Z .. +30d 23:59:59Z]
+        val fromIsoUtc = LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC).toString()
+        val toIsoUtc = LocalDate.now(ZoneOffset.UTC).plusDays(30).atTime(23, 59, 59).toInstant(ZoneOffset.UTC).toString()
+        Logx.d("Search") { "load calendar for id=$mentorId from=$fromIsoUtc to=$toIsoUtc" }
+        when (val res = getCalendar(mentorId, fromIsoUtc, toIsoUtc, includeClosed = true)) {
+            is com.mentorme.app.core.utils.AppResult.Success -> {
+                val items = res.data
+                val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd • HH:mm - HH:mm")
+                val mapped = items.mapNotNull { it ->
+                    val s = it.start ?: return@mapNotNull null
+                    val e = it.end ?: return@mapNotNull null
+                    val sIns = runCatching { Instant.parse(s) }.getOrNull() ?: return@mapNotNull null
+                    val eIns = runCatching { Instant.parse(e) }.getOrNull() ?: return@mapNotNull null
+                    val z = ZoneId.systemDefault()
+                    val sLoc = sIns.atZone(z)
+                    val eLoc = eIns.atZone(z)
+                    fmt.format(sLoc) // will include start date and start HH:mm
+                        .replace(Regex("\\d{2}:\\d{2}") , sLoc.toLocalTime().toString().substring(0,5)) +
+                        "".plus("") // keep format stable
+                        .replace(" - HH:mm", " - ${eLoc.toLocalTime().toString().substring(0,5)}")
+                }
+                slots = mapped
+                loading = false
+            }
+            is com.mentorme.app.core.utils.AppResult.Error -> {
+                loading = false
+            }
+            com.mentorme.app.core.utils.AppResult.Loading -> Unit
+        }
+    }
+
+    MentorDetailContent(
+        mentor = mentor,
+        onClose = onClose,
+        onBookNow = onBookNow,
+        onMessage = { onMessage(mentor.id) },
+        slots = slots
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -31,7 +101,8 @@ fun MentorDetailContent(
     mentor: HomeMentor,
     onClose: () -> Unit,
     onBookNow: (String) -> Unit,
-    onMessage: (String) -> Unit
+    onMessage: (String) -> Unit,
+    slots: List<String>
 ) {
     var activeTab by remember { mutableStateOf(0) }
 
@@ -140,7 +211,7 @@ fun MentorDetailContent(
                 0 -> OverviewTab(mentor)
                 1 -> ExperienceTab()
                 2 -> ReviewsTab()
-                3 -> ScheduleTab(onBookNow = { onBookNow(mentor.id) })
+                3 -> ScheduleTab(slots = slots, onBookNow = { onBookNow(mentor.id) })
             }
         }
     }
@@ -157,7 +228,7 @@ fun SegmentedTabs(
     val outerShape = RoundedCornerShape(18.dp)
     Surface(
         modifier = modifier
-            .fillMaxWidth(),                // ⬅️ không padding ngang ở container
+            .fillMaxWidth(),
         color = Color.White.copy(alpha = 0.12f),
         shape = outerShape,
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f))
@@ -165,7 +236,7 @@ fun SegmentedTabs(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(4.dp),             // ⬅️ chỉ còn 4dp viền trong cho đẹp
+                .padding(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             titles.forEachIndexed { index, title ->
@@ -229,11 +300,11 @@ private fun OverviewTab(mentor: HomeMentor) {
                             label = { Text(it, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) },
                             modifier = Modifier.defaultMinSize(minWidth = 112.dp, minHeight = 36.dp),
                             colors = AssistChipDefaults.assistChipColors(
-                                containerColor = Color.White.copy(0.14f)
+                                containerColor = Color.White.copy(alpha = 0.14f)
                             ),
                             border = AssistChipDefaults.assistChipBorder(
                                 enabled = true,
-                                borderColor = Color.White.copy(0.28f),
+                                borderColor = Color.White.copy(alpha = 0.28f),
                                 borderWidth = 1.dp
                             ),
                             shape = RoundedCornerShape(16.dp)
@@ -306,20 +377,15 @@ private fun ReviewsTab() {
 }
 
 @Composable
-private fun ScheduleTab(onBookNow: () -> Unit) {
-    val slots = listOf(
-        "Thứ Bảy, 20 tháng 1, 2024 • 09:00 - 10:00",
-        "Thứ Bảy, 20 tháng 1, 2024 • 14:00 - 15:00",
-        "Chủ Nhật, 21 tháng 1, 2024 • 10:00 - 11:00",
-        "Chủ Nhật, 21 tháng 1, 2024 • 16:00 - 17:00",
-    )
+private fun ScheduleTab(slots: List<String>, onBookNow: () -> Unit) {
+    val display = if (slots.isEmpty()) listOf("Chưa có lịch trống trong 30 ngày tới") else slots
     LazyColumn(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(slots) { s ->
+        items(display) { s ->
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -334,10 +400,12 @@ private fun ScheduleTab(onBookNow: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(s, modifier = Modifier.weight(1f))
-                    Button(
-                        onClick = onBookNow,
-                        modifier = Modifier.fillMaxWidth(0.38f).heightIn(min = 46.dp)
-                    ) { Text("Đặt lịch") }
+                    if (slots.isNotEmpty()) {
+                        Button(
+                            onClick = onBookNow,
+                            modifier = Modifier.fillMaxWidth(0.38f).heightIn(min = 46.dp)
+                        ) { Text("Đặt lịch") }
+                    }
                 }
             }
         }

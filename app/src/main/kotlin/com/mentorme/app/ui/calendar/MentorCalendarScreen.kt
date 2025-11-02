@@ -24,9 +24,10 @@ import com.mentorme.app.ui.calendar.components.StatCard
 import com.mentorme.app.ui.calendar.tabs.AvailabilityTabSection
 import com.mentorme.app.ui.calendar.tabs.PendingBookingsTab
 import com.mentorme.app.ui.calendar.tabs.SessionsTab
+import com.mentorme.app.core.utils.Logx
 import kotlinx.coroutines.launch
 
-// Hilt entry point to access DataStoreManager without changing composable parameters
+// Hilt entry point to access DataStoreManager
 @dagger.hilt.EntryPoint
 @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
 interface MentorCalendarDeps {
@@ -51,7 +52,7 @@ fun MentorCalendarScreen(
     // Observe availability state only
     val slotsState = vm.slots.collectAsState()
 
-    // Resolve mentorId: prefer nav arg if provided; else, use current user id from DataStore
+    // Resolve mentorId: always from DataStore (no nav arg)
     val context = androidx.compose.ui.platform.LocalContext.current
     val deps = remember(context) {
         dagger.hilt.android.EntryPointAccessors.fromApplication(context, MentorCalendarDeps::class.java)
@@ -71,9 +72,13 @@ fun MentorCalendarScreen(
 
     // Initial load for availability only
     LaunchedEffect(mentorId) {
-        mentorId?.let {
+        Logx.d("Cal") { "currentUserId(DataStore) = $mentorId" }
+        if (mentorId == null) {
+            toast("Vui lòng đăng nhập lại")
+        } else {
             try {
-                vm.loadWindow(it, fromIsoUtc, toIsoUtc)
+                Logx.d("Cal") { "Loading window for mentorId=$mentorId from=$fromIsoUtc to=$toIsoUtc" }
+                vm.loadWindow(mentorId, fromIsoUtc, toIsoUtc)
             } catch (t: Throwable) {
                 val msg = com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(t.message)
                 android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
@@ -143,12 +148,17 @@ fun MentorCalendarScreen(
             activeIndex = activeTab,
             labels = tabLabels,
             onChange = { index ->
-                if (index == 0 && mentorId != null) {
-                    try {
-                        vm.loadWindow(mentorId, fromIsoUtc, toIsoUtc)
-                    } catch (t: Throwable) {
-                        val msg = com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(t.message)
-                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                if (index == 0) {
+                    if (mentorId != null) {
+                        try {
+                            Logx.d("Cal") { "Loading window for mentorId=$mentorId from=$fromIsoUtc to=$toIsoUtc" }
+                            vm.loadWindow(mentorId, fromIsoUtc, toIsoUtc)
+                        } catch (t: Throwable) {
+                            val msg = com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(t.message)
+                            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    } else {
+                        toast("Vui lòng đăng nhập lại")
                     }
                 }
                 // Do not fetch bookings (backend not available yet)
@@ -172,11 +182,6 @@ fun MentorCalendarScreen(
                 slots = slotsState.value,
                 onAdd = { newSlot ->
                     if (mentorId == null) {
-                        android.widget.Toast.makeText(
-                            context,
-                            "Không tìm thấy tài khoản mentor. Vui lòng đăng nhập lại.",
-                            android.widget.Toast.LENGTH_LONG
-                        ).show()
                     } else {
                         // Client guard: block past times with 30s skew
                         val startUtc = toIsoUtc(newSlot.date, newSlot.startTime, zone)

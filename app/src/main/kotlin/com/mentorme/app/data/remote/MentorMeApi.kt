@@ -1,22 +1,22 @@
 package com.mentorme.app.data.remote
 
-// Specific imports for DTOs (used for API requests/responses)
+// DTO imports
 import com.mentorme.app.data.dto.AuthResponse
-import com.mentorme.app.data.dto.AvailabilitySlot as ApiAvailabilitySlot
-import com.mentorme.app.data.dto.BookingListResponse
 import com.mentorme.app.data.dto.CreateBookingRequest
 import com.mentorme.app.data.dto.LoginRequest
-import com.mentorme.app.data.dto.MentorListResponse
 import com.mentorme.app.data.dto.Message as ApiMessage
 import com.mentorme.app.data.dto.RatingRequest
 import com.mentorme.app.data.dto.RegisterRequest
 import com.mentorme.app.data.dto.SendMessageRequest
 import com.mentorme.app.data.dto.UpdateBookingRequest
 import com.mentorme.app.data.dto.availability.UpdateSlotRequest
+import com.mentorme.app.data.dto.availability.ApiEnvelope
+import com.mentorme.app.data.dto.availability.CalendarPayload
+import com.mentorme.app.data.dto.mentors.MentorCardDto
+import com.mentorme.app.data.dto.mentors.MentorListPayloadDto
 
-// Specific imports for Models (used for business entities)
+// Model imports
 import com.mentorme.app.data.model.Booking
-import com.mentorme.app.data.model.Mentor
 import com.mentorme.app.data.model.User
 import retrofit2.Response
 import retrofit2.http.*
@@ -37,22 +37,22 @@ interface MentorMeApi {
     @GET("auth/me")
     suspend fun getCurrentUser(): Response<User>
 
-    // Mentor endpoints
+    // Mentors (public discovery)
     @GET("mentors")
-    suspend fun getMentors(
+    suspend fun listMentors(
+        @Query("q") q: String? = null,
+        @Query("skills") skillsCsv: String? = null,
+        @Query("minRating") minRating: Float? = null,
+        @Query("priceMin") priceMin: Int? = null,
+        @Query("priceMax") priceMax: Int? = null,
+        @Query("sort") sort: String? = null,
         @Query("page") page: Int = 1,
-        @Query("limit") limit: Int = 10,
-        @Query("expertise") expertise: String? = null,
-        @Query("minRate") minRate: Double? = null,
-        @Query("maxRate") maxRate: Double? = null,
-        @Query("rating") minRating: Double? = null
-    ): Response<MentorListResponse>
+        @Query("limit") limit: Int = 20
+    ): Response<ApiEnvelope<MentorListPayloadDto>>
 
     @GET("mentors/{id}")
-    suspend fun getMentorById(@Path("id") mentorId: String): Response<Mentor>
+    suspend fun getMentor(@Path("id") id: String): Response<ApiEnvelope<MentorCardDto>>
 
-    @GET("mentors/{id}/availability")
-    suspend fun getMentorAvailability(@Path("id") mentorId: String): Response<List<ApiAvailabilitySlot>>
 
     // Booking endpoints
     @POST("bookings")
@@ -63,7 +63,7 @@ interface MentorMeApi {
         @Query("status") status: String? = null,
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 10
-    ): Response<BookingListResponse>
+    ): Response<com.mentorme.app.data.dto.BookingListResponse>
 
     @GET("bookings/{id}")
     suspend fun getBookingById(@Path("id") bookingId: String): Response<Booking>
@@ -84,7 +84,6 @@ interface MentorMeApi {
 
     /**
      * Create a draft availability slot (mentor auth with Bearer).
-     * Times are ISO-8601 UTC; common errors: 400/401/403/404/409.
      */
     @POST("availability/slots")
     suspend fun createAvailabilitySlot(
@@ -93,7 +92,6 @@ interface MentorMeApi {
 
     /**
      * Publish a slot to materialize occurrences (mentor auth).
-     * Respects RRULE and horizon; conflicts may be skipped; errors: 400/401/403/404/409.
      */
     @POST("availability/slots/{id}/publish")
     suspend fun publishAvailabilitySlot(
@@ -111,7 +109,7 @@ interface MentorMeApi {
 
     /**
      * Get public calendar for a mentor (no auth).
-     * 'from'/'to' must be ISO-8601 UTC; errors: 400/401/403/404/409.
+     * 'from'/'to' must be ISO-8601 UTC.
      */
     @GET("availability/calendar/{mentorId}")
     suspend fun getPublicAvailabilityCalendar(
@@ -119,11 +117,10 @@ interface MentorMeApi {
         @Query("from") fromIsoUtc: String,
         @Query("to") toIsoUtc: String,
         @Query("includeClosed") includeClosed: Boolean = true
-    ): retrofit2.Response<com.mentorme.app.data.dto.availability.ApiEnvelope<com.mentorme.app.data.dto.availability.CalendarPayload>>
+    ): Response<ApiEnvelope<CalendarPayload>>
 
     /**
      * Soft-delete (disable) a slot (mentor auth).
-     * Errors: 400/401/403/404/409.
      */
     @DELETE("availability/slots/{slotId}")
     suspend fun disableAvailabilitySlot(
@@ -140,7 +137,6 @@ interface MentorMeApi {
 
     /**
      * Delete a single unbooked occurrence (mentor auth).
-     * Errors: 400/401/403/404/409 (409 if booked).
      */
     @DELETE("availability/occurrences/{occurrenceId}")
     suspend fun deleteAvailabilityOccurrence(

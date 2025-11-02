@@ -8,7 +8,7 @@ import javax.inject.Inject
 class GetMentorAvailabilityUseCase @Inject constructor(
     private val repository: AvailabilityRepository
 ) {
-    operator fun invoke(mentorId: String): AppResult<List<ApiAvailabilitySlot>> {
+    suspend operator fun invoke(mentorId: String): AppResult<List<ApiAvailabilitySlot>> {
         return repository.getMentorAvailability(mentorId)
     }
 }

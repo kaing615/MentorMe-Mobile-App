@@ -11,6 +11,9 @@ import {
 } from '../handlers/response.handler';
 import AvailabilitySlot from '../models/availabilitySlot.model';
 import AvailabilityOccurrence from '../models/availabilityOccurrence.model';
+import User from '../models/user.model';
+import Profile from '../models/profile.model';
+import mongoose from 'mongoose';
 import * as RRuleLib from 'rrule';
 import redis from '../utils/redis';
 
@@ -661,6 +664,17 @@ export const getPublicCalendar = asyncHandler(
     const { from, to, includeClosed } = req.query as { from: string; to: string; includeClosed?: any };
     const wantClosed = String(includeClosed) === 'true';
 
+    // Validate mentorId as a User id; if it's a Profile id (or invalid), return 404
+    if (!mongoose.Types.ObjectId.isValid(mentorId)) {
+      return notFound(res, 'Mentor not found');
+    }
+    const userExists = await User.exists({ _id: mentorId });
+    if (!userExists) {
+      // If it's actually a profile id, treat as not found for calendar
+      const profileExists = await Profile.exists({ _id: mentorId });
+      return notFound(res, 'Mentor not found');
+    }
+
     // Validate from/to: ISO & from < to
     if (!from || !to) {
       return badRequest(res, 'Invalid or missing from/to (ISO UTC expected)');
@@ -690,8 +704,8 @@ export const getPublicCalendar = asyncHandler(
       const slot = doc.slot && typeof doc.slot === 'object' ? doc.slot : null;
       return {
         id: String(doc._id),
-        start: doc.start,
-        end: doc.end,
+        start: new Date(doc.start).toISOString(),
+        end: new Date(doc.end).toISOString(),
         status: doc.status,
         title: slot?.title ?? null,
         description: slot?.description ?? null,

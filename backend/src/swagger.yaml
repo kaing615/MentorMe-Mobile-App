@@ -18,6 +18,8 @@ tags:
     description: Onboarding hồ sơ người dùng (tạo hồ sơ bắt buộc theo role + upload avatar) - Chỉnh sửa, xem hồ sơ sẽ có sau
   - name: Availability
     description: Quản lý slot trống của mentor (tạo draft, publish một lần hoặc lặp RRULE, xem lịch công khai)
+  - name: Mentors
+    description: Danh sách và chi tiết mentor (public discovery)
 
 components:
   securitySchemes:
@@ -34,11 +36,11 @@ components:
         message: OK
         data:
           items:
-            - _id: "000000000000000000000001"
-              slot: "00000000000000000000A001"
+            - id: "66aa1b2c0000000000000001"
               start: "2025-11-03T01:00:00Z"
               end: "2025-11-03T01:30:00Z"
               status: "open"
+              slot: { id: "00000000000000000000A001", title: null, description: null }
 
     calendar_400_min:
       summary: Calendar 400 khi from/to sai
@@ -55,6 +57,43 @@ components:
         data: null
 
   schemas:
+    ApiEnvelope:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: OK }
+        data:
+          nullable: true
+          description: Payload specific to the endpoint
+
+    MentorCard:
+      type: object
+      properties:
+        id:        { type: string, example: "68e0f6de7f19db9cfeb0df48" }
+        ownerId:   { type: string, example: "68e0f6de7f19db9cfeb0df48" }
+        userId:    { type: string, example: "68e0f6de7f19db9cfeb0df48" }
+        name:      { type: string, example: "Nguyễn Văn A" }
+        role:      { type: string, example: "Mobile Engineer" }
+        company:   { type: string, example: "UIT" }
+        rating:    { type: number, format: float, example: 4.7 }
+        ratingCount:{ type: integer, example: 123 }
+        hourlyRate:{ type: integer, example: 250000 }
+        skills:
+          type: array
+          items: { type: string }
+          example: ["Kotlin","Compose","Android"]
+        avatarUrl: { type: string, format: uri, example: "https://i.pravatar.cc/256?img=12" }
+
+    MentorListPayload:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/MentorCard" }
+        page:  { type: integer, example: 1 }
+        limit: { type: integer, example: 20 }
+        total: { type: integer, example: 123 }
+
     UpdateSlotRequest:
       type: object
       properties:
@@ -497,7 +536,7 @@ components:
             title:       { type: string, nullable: true, example: "[type=in-person] Tư vấn trực tiếp" }
             description: { type: string, nullable: true, example: "Fix CV" }
 
-    CalendarResponse:
+    CalendarPayload:
       type: object
       properties:
         items:
@@ -1189,36 +1228,48 @@ paths:
           examples:
             to_min:
               value: "2025-11-10T00:00:00Z"
+        - in: query
+          name: includeClosed
+          required: false
+          schema: { type: boolean, default: true }
       responses:
         "200":
           description: Danh sách occurrences
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/CalendarResponse" }
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/CalendarPayload" }
               examples:
                 calendar_rich:
                   value:
-                    items:
-                      - id: "66aa1b2c0000000000000001"
-                        start: "2025-11-03T01:00:00Z"
-                        end:   "2025-11-03T01:30:00Z"
-                        status: "open"
-                        title: "[type=in-person] Tư vấn trực tiếp"
-                        description: "Fix CV"
-                        slot:
-                          id: "00000000000000000000A001"
+                    success: true
+                    message: OK
+                    data:
+                      items:
+                        - id: "66aa1b2c0000000000000001"
+                          start: "2025-11-03T01:00:00Z"
+                          end:   "2025-11-03T01:30:00Z"
+                          status: "open"
                           title: "[type=in-person] Tư vấn trực tiếp"
                           description: "Fix CV"
-                      - id: "66aa1b2c0000000000000002"
-                        start: "2025-11-04T02:00:00Z"
-                        end:   "2025-11-04T02:30:00Z"
-                        status: "open"
-                        title: "[type=video] Phiên Video Call"
-                        description: "React performance"
-                        slot:
-                          id: "00000000000000000000A002"
+                          slot:
+                            id: "00000000000000000000A001"
+                            title: "[type=in-person] Tư vấn trực tiếp"
+                            description: "Fix CV"
+                        - id: "66aa1b2c0000000000000002"
+                          start: "2025-11-04T02:00:00Z"
+                          end:   "2025-11-04T02:30:00Z"
+                          status: "open"
                           title: "[type=video] Phiên Video Call"
                           description: "React performance"
+                          slot:
+                            id: "00000000000000000000A002"
+                            title: "[type=video] Phiên Video Call"
+                            description: "React performance"
                 calendar_success_min:
                   $ref: "#/components/examples/calendar_success_min"
         "400":
@@ -1231,6 +1282,142 @@ paths:
                   value: { message: "Invalid or missing from/to (ISO UTC expected)", code: "INVALID_RANGE", data: null }
                 calendar_400_min:
                   $ref: "#/components/examples/calendar_400_min"
+
+  # ===== MENTORS (PUBLIC) =====
+  /mentors:
+    get:
+      tags: [Mentors]
+      summary: Danh sách mentor (public)
+      parameters:
+        - in: query
+          name: q
+          required: false
+          schema: { type: string }
+          description: Match name (fullName), role (jobTitle), company, skills
+        - in: query
+          name: skills
+          required: false
+          schema: { type: string }
+          description: CSV các kỹ năng; match any
+          example: "Kotlin,Android"
+        - in: query
+          name: minRating
+          required: false
+          schema: { type: number, minimum: 0, maximum: 5 }
+          example: 4.5
+        - in: query
+          name: priceMin
+          required: false
+          schema: { type: number, minimum: 0 }
+        - in: query
+          name: priceMax
+          required: false
+          schema: { type: number, minimum: 0 }
+        - in: query
+          name: sort
+          required: false
+          schema:
+            type: string
+            enum: [rating_desc, price_asc, price_desc, newest]
+            default: rating_desc
+        - in: query
+          name: page
+          required: false
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        "200":
+          description: Danh sách mentor theo trang
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/MentorListPayload" }
+              examples:
+                page1:
+                  value:
+                    success: true
+                    message: OK
+                    data:
+                      items:
+                        - id: "68e0f6de7f19db9cfeb0df48"
+                          ownerId: "68e0f6de7f19db9cfeb0df48"
+                          userId: "68e0f6de7f19db9cfeb0df48"
+                          name: "Nguyễn Văn A"
+                          role: "Mobile Engineer"
+                          company: "UIT"
+                          rating: 4.7
+                          ratingCount: 123
+                          hourlyRate: 250000
+                          skills: ["Kotlin","Compose","Android"]
+                          avatarUrl: "https://i.pravatar.cc/256?img=12"
+                        - id: "68e0f6de7f19db9cfeb0df49"
+                          ownerId: "68e0f6de7f19db9cfeb0df49"
+                          userId: "68e0f6de7f19db9cfeb0df49"
+                          name: "Trần Thị B"
+                          role: "Android Lead"
+                          company: "UIT"
+                          rating: 4.9
+                          ratingCount: 87
+                          hourlyRate: 400000
+                          skills: ["Android","Jetpack","Coroutines"]
+                          avatarUrl: "https://i.pravatar.cc/256?img=32"
+                      page: 1
+                      limit: 20
+                      total: 123
+
+  /mentors/{id}:
+    get:
+      tags: [Mentors]
+      summary: Chi tiết mentor theo userId
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+          description: userId (không phải profileId)
+      responses:
+        "200":
+          description: MentorCard
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/MentorCard" }
+              examples:
+                example:
+                  value:
+                    success: true
+                    message: OK
+                    data:
+                      id: "68e0f6de7f19db9cfeb0df48"
+                      ownerId: "68e0f6de7f19db9cfeb0df48"
+                      userId: "68e0f6de7f19db9cfeb0df48"
+                      name: "Nguyễn Văn A"
+                      role: "Mobile Engineer"
+                      company: "UIT"
+                      rating: 4.7
+                      ratingCount: 123
+                      hourlyRate: 250000
+                      skills: ["Kotlin","Compose","Android"]
+                      avatarUrl: "https://i.pravatar.cc/256?img=12"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              examples:
+                not_found:
+                  value: { message: "Mentor not found", code: "NOT_FOUND", data: null }
 
 security:
   - BearerAuth: []

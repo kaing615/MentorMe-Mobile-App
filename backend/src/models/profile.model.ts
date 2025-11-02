@@ -5,6 +5,7 @@ export interface IProfile extends Document {
   user: mongoose.Types.ObjectId;
   fullName?: string;
   jobTitle?: string;
+  hourlyRateVnd?: number;
   location?: string;
   category?: string;
   bio?: string;
@@ -45,6 +46,7 @@ const ProfileSchema: Schema<IProfile> = new Schema(
     },
     fullName: { type: String, trim: true, default: "" },
     jobTitle: { type: String, trim: true, default: "" },
+    hourlyRateVnd: { type: Number, default: 0 },
     location: { type: String, trim: true, default: "" },
     category: { type: String, trim: true, default: "" },
     bio: { type: String, trim: true, default: "" },
@@ -109,12 +111,21 @@ const ProfileSchema: Schema<IProfile> = new Schema(
 );
 
 ProfileSchema.index({ user: 1 }, { unique: true });
+// Text search across key profile fields used by mentors discovery
 ProfileSchema.index({
+  fullName: "text",
+  jobTitle: "text",
   headline: "text",
   bio: "text",
   category: "text",
   skills: "text",
 });
+
+// Helpful indexes for sorting/filtering
+ProfileSchema.index({ "rating.average": -1 });
+ProfileSchema.index({ skills: 1 });
+// If pricing is used, index it for range queries/sorting
+ProfileSchema.index({ hourlyRateVnd: 1 });
 
 const Profile: Model<IProfile> = mongoose.model<IProfile>(
   "Profile",

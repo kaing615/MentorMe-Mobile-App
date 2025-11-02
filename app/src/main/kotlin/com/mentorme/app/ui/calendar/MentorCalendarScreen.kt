@@ -57,8 +57,9 @@ fun MentorCalendarScreen(
     val deps = remember(context) {
         dagger.hilt.android.EntryPointAccessors.fromApplication(context, MentorCalendarDeps::class.java)
     }
-    val currentUserIdState = deps.dataStoreManager().getUserId().collectAsState(initial = null)
-    val mentorId: String? = currentUserIdState.value
+    // Thay đổi: thu ID an toàn với initial = ""
+    val userIdFlow = remember { deps.dataStoreManager().getUserId() }
+    val mentorId: String = userIdFlow.collectAsState(initial = "").value ?: ""
 
     // Compute default window [today 00:00 local .. +30 days 23:59:59] as ISO-UTC
     val zone = java.time.ZoneId.systemDefault()
@@ -72,35 +73,32 @@ fun MentorCalendarScreen(
 
     // Initial load for availability only
     LaunchedEffect(mentorId) {
-        Logx.d("Cal") { "currentUserId(DataStore) = $mentorId" }
-        if (mentorId == null) {
-            toast("Vui lòng đăng nhập lại")
-        } else {
-            try {
-                Logx.d("Cal") { "Loading window for mentorId=$mentorId from=$fromIsoUtc to=$toIsoUtc" }
-                vm.loadWindow(mentorId, fromIsoUtc, toIsoUtc)
-            } catch (t: Throwable) {
-                val msg = com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(t.message)
-                android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
-            }
+        // Chỉ load khi đã có mentorId; không toast ở giai đoạn init
+        if (mentorId.isBlank()) return@LaunchedEffect
+        Logx.d("MentorCalendarScreen") { "Loading window for mentorId=$mentorId, from=$fromIsoUtc, to=$toIsoUtc" }
+        try {
+            vm.loadWindow(mentorId, fromIsoUtc, toIsoUtc)
+        } catch (t: Throwable) {
+            val msg = com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(t.message)
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
         }
     }
 
     // ---- Summary metrics based on (now empty) bookings for tabs ----
     val emptyBookings = remember { emptyList<com.mentorme.app.data.model.Booking>() }
     val availabilityOpen = remember(slotsState.value) { slotsState.value.count { it.isActive && !it.isBooked } }
-    val confirmedCount = remember(emptyBookings) { emptyBookings.count { it.status == com.mentorme.app.data.model.BookingStatus.CONFIRMED } }
+    val confirmedCount = remember(emptyBookings) { emptyBookings.count { it.status == BookingStatus.CONFIRMED } }
 
     val totalPaid = remember(emptyBookings) {
         emptyBookings
             .filter { it.status == BookingStatus.COMPLETED }
-            .filter { com.mentorme.app.data.mock.MockData.bookingExtras[it.id]?.paymentStatus == "paid" }
+            .filter { MockData.bookingExtras[it.id]?.paymentStatus == "paid" }
             .sumOf { it.price.toInt() }
     }
     val totalPending = remember(emptyBookings) {
         emptyBookings
             .filter { it.status == BookingStatus.PENDING || it.status == BookingStatus.CONFIRMED }
-            .filter { com.mentorme.app.data.mock.MockData.bookingExtras[it.id]?.paymentStatus != "paid" }
+            .filter { MockData.bookingExtras[it.id]?.paymentStatus != "paid" }
             .sumOf { it.price.toInt() }
     }
 
@@ -149,16 +147,15 @@ fun MentorCalendarScreen(
             labels = tabLabels,
             onChange = { index ->
                 if (index == 0) {
-                    if (mentorId != null) {
+                    // Chỉ load nếu mentorId đã sẵn sàng; KHÔNG toast khi rỗng
+                    if (mentorId.isNotBlank()) {
                         try {
-                            Logx.d("Cal") { "Loading window for mentorId=$mentorId from=$fromIsoUtc to=$toIsoUtc" }
+                            Logx.d("MentorCalendarScreen") { "Loading window for mentorId=$mentorId, from=$fromIsoUtc, to=$toIsoUtc" }
                             vm.loadWindow(mentorId, fromIsoUtc, toIsoUtc)
                         } catch (t: Throwable) {
                             val msg = com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(t.message)
                             android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
                         }
-                    } else {
-                        toast("Vui lòng đăng nhập lại")
                     }
                 }
                 // Do not fetch bookings (backend not available yet)
@@ -166,6 +163,16 @@ fun MentorCalendarScreen(
             }
         )
         Spacer(Modifier.height(12.dp))
+
+        // (Tuỳ chọn) Thông báo thân thiện khi chưa có id
+        if (activeTab == 0 && mentorId.isBlank()) {
+            Text(
+                text = "Đang khởi tạo phiên đăng nhập…",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.7f)
+            )
+            Spacer(Modifier.height(6.dp))
+        }
 
         // Helpers
         fun toIsoUtc(dateIso: String, hhmm: String, zoneId: java.time.ZoneId): String {
@@ -181,7 +188,9 @@ fun MentorCalendarScreen(
             0 -> AvailabilityTabSection(
                 slots = slotsState.value,
                 onAdd = { newSlot ->
-                    if (mentorId == null) {
+                    if (mentorId.isBlank()) {
+                        android.widget.Toast.makeText(context, "Vui lòng đăng nhập lại", android.widget.Toast.LENGTH_LONG).show()
+                        return@AvailabilityTabSection
                     } else {
                         // Client guard: block past times with 30s skew
                         val startUtc = toIsoUtc(newSlot.date, newSlot.startTime, zone)
@@ -226,6 +235,10 @@ fun MentorCalendarScreen(
                     }
                 },
                 onUpdate = { updated ->
+                    if (mentorId.isBlank()) {
+                        android.widget.Toast.makeText(context, "Vui lòng đăng nhập lại", android.widget.Toast.LENGTH_LONG).show()
+                        return@AvailabilityTabSection
+                    }
                     val normalizedType = if (updated.sessionType.equals("in-person", true)) "in-person" else "video"
                     val desc = (updated.description ?: "").trim()
                     val composedTitle = buildString {
@@ -265,6 +278,10 @@ fun MentorCalendarScreen(
                     }
                 },
                 onToggle = { id ->
+                    if (mentorId.isBlank()) {
+                        android.widget.Toast.makeText(context, "Vui lòng đăng nhập lại", android.widget.Toast.LENGTH_LONG).show()
+                        return@AvailabilityTabSection
+                    }
                     val slot = slotsState.value.firstOrNull { it.backendSlotId == id }
                     val action = if (slot?.isActive == true) "pause" else "resume"
                     scope.launch {
@@ -278,6 +295,10 @@ fun MentorCalendarScreen(
                     }
                 },
                 onDelete = { id ->
+                    if (mentorId.isBlank()) {
+                        android.widget.Toast.makeText(context, "Vui lòng đăng nhập lại", android.widget.Toast.LENGTH_LONG).show()
+                        return@AvailabilityTabSection
+                    }
                     scope.launch {
                         vm.deleteSlot(id) { res ->
                             when (res) {

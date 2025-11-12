@@ -157,6 +157,27 @@ class AuthViewModel @Inject constructor(
                     val onboarding = data?.status == "onboarding"
                     val verifying = data?.status == "verifying"
 
+                    // NEW: persist and log mentorId (userId) for calendar consistency
+                    val userId = data?.userId
+                    val emailResolved = data?.email ?: email
+                    val userName = data?.userName ?: email.substringBefore("@")
+                    val roleStrPersist = roleStr ?: (if (role == UserRole.MENTOR) "mentor" else "mentee")
+                    if (!userId.isNullOrBlank()) {
+                        try {
+                            dataStoreManager.saveUserInfo(
+                                userId = userId,
+                                email = emailResolved,
+                                name = userName,
+                                role = roleStrPersist
+                            )
+                            Log.d(TAG, "👤 Signed-in mentorId(userId)=$userId role=$roleStrPersist email=$emailResolved")
+                        } catch (e: Exception) {
+                            Log.w(TAG, "⚠️ Failed to save user info to DataStore: ${e.message}")
+                        }
+                    } else {
+                        Log.w(TAG, "⚠️ No userId in sign-in response; calendar may not load correctly")
+                    }
+
                     _authState.value = _authState.value.copy(
                         isLoading = false,
                         authResponse = result.data,

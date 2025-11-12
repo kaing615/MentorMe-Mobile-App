@@ -70,6 +70,9 @@ import androidx.compose.ui.unit.dp
 import com.mentorme.app.ui.onboarding.MenteeOnboardingScreen
 import com.mentorme.app.ui.onboarding.MentorOnboardingScreen
 import com.mentorme.app.ui.onboarding.PendingApprovalScreen
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 
 object Routes {
     const val Auth = "auth"
@@ -178,6 +181,8 @@ fun AppNav(
         }
     }
 
+    var overlayVisible by remember { mutableStateOf(false) }
+
     Box(modifier = Modifier.fillMaxSize()) {
         LiquidBackground(
             modifier = Modifier
@@ -197,6 +202,7 @@ fun AppNav(
                 val hideForWallet = currentRoute?.startsWith("wallet/") == true
 
                 if (
+                    !overlayVisible &&
                     isLoggedIn &&
                     currentRoute != Routes.Auth &&
                     !hideForChat &&
@@ -213,7 +219,7 @@ fun AppNav(
                     navController = nav,
                     startDestination = when {
                         !isLoggedIn -> Routes.Auth
-                        userRole == "mentor" -> Routes.MentorDashboard  // Thay đổi từ MentorHome sang MentorDashboard
+                        userRole == "mentor" -> Routes.MentorDashboard
                         else -> Routes.Home
                     },
                     modifier = Modifier.fillMaxSize()
@@ -426,9 +432,21 @@ fun AppNav(
                     }
 
                     composable(Routes.search) {
+                        val ctx = LocalContext.current
                         SearchMentorScreen(
-                            onOpenProfile = { backOrHome(nav, userRole) },
-                            onBook = { backOrHome(nav, userRole) }
+                            onOpenProfile = { /* handled by sheet inside SearchMentorScreen */ },
+                            onBook = { id ->
+                                val targetId = if (id.startsWith("m") && id.drop(1).all { it.isDigit() }) id.drop(1) else id
+                                val exists = MockData.mockMentors.any { it.id == targetId }
+                                if (exists) {
+                                    nav.navigate("booking/$targetId")
+                                } else {
+                                    Log.d("AppNav", "Booking target not found for id=$id (mapped=$targetId)")
+                                    Toast.makeText(ctx, "Mentor này chưa có dữ liệu đặt lịch (mock)", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            onOverlayOpened = { overlayVisible = true },
+                            onOverlayClosed  = { overlayVisible = false }
                         )
                     }
 
@@ -480,11 +498,25 @@ fun AppNav(
                     composable("booking/{mentorId}") { backStackEntry ->
                         val mentorId = backStackEntry.arguments?.getString("mentorId") ?: return@composable
                         val mentor = MockData.mockMentors.find { it.id == mentorId }
+
+                        // ViewModel glue (data-only)
+                        val vm = hiltViewModel<com.mentorme.app.ui.booking.BookingFlowViewModel>()
+                        LaunchedEffect(mentorId) { vm.load(mentorId) }
+                        val uiState by vm.state.collectAsState()
+                        val grouped = (uiState as? com.mentorme.app.ui.booking.BookingFlowViewModel.UiState.Success<
+                            Map<String, List<com.mentorme.app.ui.booking.BookingFlowViewModel.TimeSlotUi>>
+                        >)?.data ?: emptyMap()
+                        val availableDates = remember(grouped) { grouped.keys.sorted() }
+                        val availableTimes = remember(grouped, availableDates) {
+                            val first = availableDates.firstOrNull()
+                            if (first != null) grouped[first]?.map { it.startLabel } ?: emptyList() else emptyList()
+                        }
+
                         mentor?.let { m ->
                             BookingChooseTimeScreen(
                                 mentor = m,
-                                availableDates = listOf("2025-09-20","2025-09-21","2025-09-22","2025-09-23","2025-09-24"),
-                                availableTimes = listOf("09:00","10:00","11:00","14:00","15:00","16:00","17:00"),
+                                availableDates = availableDates,
+                                availableTimes = availableTimes,
                                 onNext = { d: BookingDraft ->
                                     nav.navigate("bookingSummary/${m.id}/${d.date}/${d.time}/${d.durationMin}")
                                 },
@@ -499,6 +531,11 @@ fun AppNav(
                         val time = backStackEntry.arguments?.getString("time") ?: ""
                         val duration = backStackEntry.arguments?.getString("duration")?.toIntOrNull() ?: 60
                         val mentor = MockData.mockMentors.find { it.id == mentorId }
+
+                        // ViewModel glue (data-only)
+                        val vm = hiltViewModel<com.mentorme.app.ui.booking.BookingFlowViewModel>()
+                        val ctx = LocalContext.current
+
                         mentor?.let { m ->
                             BookingSummaryScreen(
                                 mentor = m,
@@ -511,7 +548,52 @@ fun AppNav(
                                 ),
                                 currentUserId = "current-user-id",
                                 onConfirmed = {
-                                    nav.popBackStack(route = Routes.Home, inclusive = false)
+                                    // Compute endTime (HH:mm) from start time and duration, without changing UI.
+                                    val endTime = run {
+                                        try {
+                                            val parts = time.split(":")
+                                            val cal = java.util.Calendar.getInstance()
+                                            cal.set(java.util.Calendar.HOUR_OF_DAY, parts[0].toInt())
+                                            cal.set(java.util.Calendar.MINUTE, parts[1].toInt())
+                                            cal.add(java.util.Calendar.MINUTE, duration)
+                                            String.format(java.util.Locale.US, "%02d:%02d", cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE))
+                                        } catch (_: Exception) { "00:00" }
+                                    }
+                                    when (val res = vm.createBooking(
+                                        mentorId = mentorId,
+                                        date = date,
+                                        startTime = time,
+                                        endTime = endTime,
+                                        topic = "Mentor Session",
+                                        notes = ""
+                                    )) {
+                                        is com.mentorme.app.core.utils.AppResult.Success -> {
+                                            nav.popBackStack(route = Routes.Home, inclusive = false)
+                                        }
+                                        is com.mentorme.app.core.utils.AppResult.Error -> {
+                                            val msg = res.throwable
+                                            // Parse HTTP status code from message shaped like: "HTTP <code>: ..."
+                                            val code = msg.substringAfter("HTTP ", "").substringBefore(":").toIntOrNull()
+                                            when (code) {
+                                                401 -> {
+                                                    // Login required → reuse existing Auth navigation
+                                                    nav.navigate(Routes.Auth) {
+                                                        popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                                        launchSingleTop = true
+                                                    }
+                                                }
+                                                409, 422 -> {
+                                                    // Conflict: slot already taken → toast (no UI changes)
+                                                    Toast.makeText(ctx, "Khung giờ đã được đặt. Vui lòng chọn thời gian khác.", Toast.LENGTH_LONG).show()
+                                                }
+                                                else -> {
+                                                    // Generic error
+                                                    Toast.makeText(ctx, msg.ifBlank { "Có lỗi xảy ra, vui lòng thử lại." }, Toast.LENGTH_LONG).show()
+                                                }
+                                            }
+                                        }
+                                        com.mentorme.app.core.utils.AppResult.Loading -> Unit
+                                    }
                                 },
                                 onBack = { nav.popBackStack() }
                             )

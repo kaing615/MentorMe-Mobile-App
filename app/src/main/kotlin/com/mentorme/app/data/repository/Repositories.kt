@@ -3,7 +3,6 @@ package com.mentorme.app.data.repository
 import com.mentorme.app.core.utils.AppResult
 // Specific imports for DTOs (used for API requests/responses)
 import com.mentorme.app.data.dto.AuthResponse
-import com.mentorme.app.data.dto.AvailabilitySlot as ApiAvailabilitySlot
 import com.mentorme.app.data.dto.BookingListResponse
 import com.mentorme.app.data.dto.MentorListResponse
 import com.mentorme.app.data.dto.auth.SignInRequest
@@ -42,7 +41,6 @@ interface MentorRepository {
     ): AppResult<MentorListResponse>
 
     suspend fun getMentorById(mentorId: String): AppResult<Mentor>
-    suspend fun getMentorAvailability(mentorId: String): AppResult<List<ApiAvailabilitySlot>>
 }
 
 interface BookingRepository {

@@ -2,8 +2,8 @@
 import { Router } from 'express';
 import { auth, requireRoles } from '../middlewares/auth.middleware';
 import { validate } from '../handlers/request.handler';
-import { createSlot, publishSlot, publishBatch, getPublicCalendar } from '../controllers/availability.controller';
-import { createSlotRules, publishSlotRules, calendarQueryRules } from '../middlewares/validators/slot.validator';
+import { createSlot, publishSlot, publishBatch, getPublicCalendar, updateSlot, deleteSlot } from '../controllers/availability.controller';
+import { createSlotRules, publishSlotRules, calendarQueryRules, updateSlotRules } from '../middlewares/validators/slot.validator';
 
 const router = Router();
 
@@ -15,6 +15,12 @@ router.post('/slots/:id/publish', auth, requireRoles('mentor'), publishSlotRules
 
 // Publish batch (sequential or concurrent)
 router.post('/slots/publish-batch', auth, requireRoles('mentor'), publishBatch);
+
+// Update slot meta + pause/resume
+router.patch('/slots/:id', auth, requireRoles('mentor'), updateSlotRules, validate, updateSlot);
+
+// Delete slot (hard delete if no future booked)
+router.delete('/slots/:id', auth, requireRoles('mentor'), publishSlotRules, validate, deleteSlot);
 
 // Public calendar (read-only)
 router.get('/calendar/:mentorId', calendarQueryRules, validate, getPublicCalendar);

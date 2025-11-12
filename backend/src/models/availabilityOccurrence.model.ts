@@ -29,4 +29,8 @@ const OccurrenceSchema = new Schema<IAvailabilityOccurrence>(
 // Chặn trùng khung giờ cho cùng mentor
 OccurrenceSchema.index({ mentor: 1, start: 1, end: 1 }, { unique: true });
 
+// Performance indexes for queries and overlap checks
+OccurrenceSchema.index({ mentor: 1, start: 1, end: 1, status: 1 });
+OccurrenceSchema.index({ slot: 1, start: 1, status: 1 });
+
 export default model<IAvailabilityOccurrence>('AvailabilityOccurrence', OccurrenceSchema);

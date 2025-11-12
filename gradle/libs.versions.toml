@@ -33,7 +33,8 @@ ui-version = "1.9.2"
 ui-text-version = "1.9.2"
 foundation-layout = "1.9.2"
 animation = "1.9.2"
-ui-graphics = "1.9.2" # hoặc 33.+
+ui-graphics = "1.9.2"
+foundation-version = "1.9.3" # hoặc 33.+
 
 
 [plugins]
@@ -108,3 +109,4 @@ androidx-ui-text = { group = "androidx.compose.ui", name = "ui-text", version.re
 androidx-compose-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "foundation-layout" }
 androidx-compose-animation = { group = "androidx.compose.animation", name = "animation", version.ref = "animation" }
 androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics", version.ref = "ui-graphics" }
+androidx-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundation-version" }

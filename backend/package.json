@@ -9,12 +9,12 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "removeData": "tsx src/utils/removeData.ts",
+    "seed:mentors": "tsx src/scripts/seed-mentors.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "db:setup": "psql \"$PG_URL\" -f db.sql"
   },
   "dependencies": {
-    "rrule": "^2.8.1",
     "@neondatabase/serverless": "^1.0.1",
     "@sendgrid/mail": "^8.1.5",
     "@types/axios": "^0.9.36",
@@ -34,6 +34,7 @@
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",
     "mailgun.js": "^12.0.3",
+    "mongodb": "^6.20.0",
     "mongoose": "^8.18.1",
     "morgan": "^1.10.0",
     "multer": "^2.0.2",
@@ -41,6 +42,7 @@
     "pg": "^8.16.3",
     "qs": "^6.14.0",
     "redis": "^5.8.2",
+    "rrule": "^2.8.1",
     "socket.io": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",

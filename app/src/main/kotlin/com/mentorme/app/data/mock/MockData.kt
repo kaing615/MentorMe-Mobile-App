@@ -263,4 +263,87 @@ object MockData {
             createdAt = d(2025, 9, 17)
         )
     )
+    // ===== Thêm metadata cho Booking để dựng đúng UI theo Figma =====
+    data class BookingUiExtra(
+        val topic: String,
+        val sessionType: String,      // "video" | "in-person"
+        val paymentStatus: String,    // "paid" | "pending" | "refunded"
+        val menteeNotes: String? = null
+    )
+
+    /** Map id -> extra info (topic, session type, payment, ghi chú) */
+    val bookingExtras: Map<String, BookingUiExtra> = mapOf(
+        // confirmed / upcoming
+        "booking-1" to BookingUiExtra(
+            topic = "Career Guidance Session",
+            sessionType = "video",
+            paymentStatus = "paid",
+            menteeNotes = null
+        ),
+        "booking-2" to BookingUiExtra(
+            topic = "Product Strategy & Roadmap",
+            sessionType = "video",
+            paymentStatus = "paid",
+            menteeNotes = null
+        ),
+        "booking-3" to BookingUiExtra(
+            topic = "Portfolio Review & Feedback",
+            sessionType = "in-person",
+            paymentStatus = "paid",
+            menteeNotes = null
+        ),
+
+        // pending
+        "booking-4" to BookingUiExtra(
+            topic = "System Design Interview Preparation",
+            sessionType = "in-person",
+            paymentStatus = "pending",
+            menteeNotes = "Muốn thảo luận về career path và skill development"
+        ),
+
+        // completed
+        "booking-5" to BookingUiExtra(
+            topic = "Product Metrics & KPI Deep Dive",
+            sessionType = "video",
+            paymentStatus = "paid"
+        ),
+        "booking-6" to BookingUiExtra(
+            topic = "Figma Efficient Workflow",
+            sessionType = "video",
+            paymentStatus = "paid"
+        ),
+
+        // cancelled
+        "booking-7" to BookingUiExtra(
+            topic = "Code Review Session",
+            sessionType = "video",
+            paymentStatus = "refunded",
+            menteeNotes = "Đã hủy do lý do cá nhân"
+        ),
+
+        // more samples
+        "booking-8" to BookingUiExtra(
+            topic = "Leadership Coaching",
+            sessionType = "video",
+            paymentStatus = "paid"
+        ),
+        "booking-9" to BookingUiExtra(
+            topic = "Technical Interview Mock",
+            sessionType = "video",
+            paymentStatus = "paid"
+        ),
+        "booking-10" to BookingUiExtra(
+            topic = "Design System Deep Dive",
+            sessionType = "video",
+            paymentStatus = "pending"
+        )
+    )
+
+    /** Helper lấy tên nhanh cho UI */
+    fun mentorNameById(id: String): String =
+        mockMentors.firstOrNull { it.id == id }?.fullName ?: "Mentor"
+
+    val currentMenteeName: String
+        get() = mockCurrentUser.fullName
+
 }

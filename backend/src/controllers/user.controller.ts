@@ -35,7 +35,7 @@ async function sendOtpEmail(
   minutes: number
 ) {
   const codeSpaced = code.split("").join(" ");
-  const from = "kainguyen615@gmail.com";
+  const from = "mentorme2025sp@gmail.com";
   await sgMail.send({
     to,
     from,

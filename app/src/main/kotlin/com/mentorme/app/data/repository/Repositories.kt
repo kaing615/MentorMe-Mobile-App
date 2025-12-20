@@ -46,20 +46,21 @@ interface MentorRepository {
 interface BookingRepository {
     suspend fun createBooking(
         mentorId: String,
-        scheduledAt: String,
-        duration: Int,
-        topic: String,
+        occurrenceId: String,
+        topic: String? = null,
         notes: String? = null
     ): AppResult<Booking>
 
     suspend fun getBookings(
+        role: String? = null,
         status: String? = null,
         page: Int = 1,
         limit: Int = 10
     ): AppResult<BookingListResponse>
 
     suspend fun getBookingById(bookingId: String): AppResult<Booking>
-    suspend fun updateBooking(bookingId: String, status: String? = null): AppResult<Booking>
+    suspend fun cancelBooking(bookingId: String, reason: String? = null): AppResult<Booking>
+    suspend fun resendIcs(bookingId: String): AppResult<Boolean>
     suspend fun rateBooking(bookingId: String, rating: Int, feedback: String? = null): AppResult<Booking>
 }
 

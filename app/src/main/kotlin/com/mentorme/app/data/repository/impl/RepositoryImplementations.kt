@@ -3,6 +3,7 @@ package com.mentorme.app.data.repository.impl
 import com.mentorme.app.core.utils.AppResult
 // Specific imports for DTOs (API responses)
 import com.mentorme.app.data.dto.BookingListResponse
+import com.mentorme.app.data.dto.CancelBookingRequest
 import com.mentorme.app.data.dto.CreateBookingRequest
 import com.mentorme.app.data.dto.MentorListResponse
 import com.mentorme.app.data.dto.RatingRequest
@@ -89,16 +90,15 @@ class BookingRepositoryImpl @Inject constructor(
 
     override suspend fun createBooking(
         mentorId: String,
-        scheduledAt: String,
-        duration: Int,
-        topic: String,
+        occurrenceId: String,
+        topic: String?,
         notes: String?
     ): AppResult<Booking> {
         return try {
-            val request = CreateBookingRequest(mentorId, scheduledAt, duration, topic, notes)
+            val request = CreateBookingRequest(mentorId, occurrenceId, topic, notes)
             val response = api.createBooking(request)
-            if (response.isSuccessful && response.body() != null) {
-                AppResult.success(response.body()!!)
+            if (response.isSuccessful && response.body()?.data != null) {
+                AppResult.success(response.body()!!.data)
             } else {
                 AppResult.failure(Exception("Failed to create booking: ${response.message()}"))
             }
@@ -107,11 +107,11 @@ class BookingRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getBookings(status: String?, page: Int, limit: Int): AppResult<BookingListResponse> {
+    override suspend fun getBookings(role: String?, status: String?, page: Int, limit: Int): AppResult<BookingListResponse> {
         return try {
-            val response = api.getBookings(status, page, limit)
-            if (response.isSuccessful && response.body() != null) {
-                AppResult.success(response.body()!!)
+            val response = api.getBookings(role, status, page, limit)
+            if (response.isSuccessful && response.body()?.data != null) {
+                AppResult.success(response.body()!!.data)
             } else {
                 AppResult.failure(Exception("Failed to get bookings: ${response.message()}"))
             }
@@ -123,8 +123,8 @@ class BookingRepositoryImpl @Inject constructor(
     override suspend fun getBookingById(bookingId: String): AppResult<Booking> {
         return try {
             val response = api.getBookingById(bookingId)
-            if (response.isSuccessful && response.body() != null) {
-                AppResult.success(response.body()!!)
+            if (response.isSuccessful && response.body()?.data != null) {
+                AppResult.success(response.body()!!.data)
             } else {
                 AppResult.failure(Exception("Failed to get booking: ${response.message()}"))
             }
@@ -133,14 +133,27 @@ class BookingRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun updateBooking(bookingId: String, status: String?): AppResult<Booking> {
+    override suspend fun cancelBooking(bookingId: String, reason: String?): AppResult<Booking> {
         return try {
-            val request = UpdateBookingRequest(status = status)
-            val response = api.updateBooking(bookingId, request)
-            if (response.isSuccessful && response.body() != null) {
-                AppResult.success(response.body()!!)
+            val request = CancelBookingRequest(reason)
+            val response = api.cancelBooking(bookingId, request)
+            if (response.isSuccessful && response.body()?.data != null) {
+                AppResult.success(response.body()!!.data)
             } else {
-                AppResult.failure(Exception("Failed to update booking: ${response.message()}"))
+                AppResult.failure(Exception("Failed to cancel booking: ${response.message()}"))
+            }
+        } catch (e: Exception) {
+            AppResult.failure(e)
+        }
+    }
+
+    override suspend fun resendIcs(bookingId: String): AppResult<Boolean> {
+        return try {
+            val response = api.resendIcs(bookingId)
+            if (response.isSuccessful && response.body()?.data != null) {
+                AppResult.success(response.body()!!.data.sent)
+            } else {
+                AppResult.failure(Exception("Failed to resend ICS: ${response.message()}"))
             }
         } catch (e: Exception) {
             AppResult.failure(e)
@@ -151,8 +164,8 @@ class BookingRepositoryImpl @Inject constructor(
         return try {
             val request = RatingRequest(rating, feedback)
             val response = api.rateBooking(bookingId, request)
-            if (response.isSuccessful && response.body() != null) {
-                AppResult.success(response.body()!!)
+            if (response.isSuccessful && response.body()?.data != null) {
+                AppResult.success(response.body()!!.data)
             } else {
                 AppResult.failure(Exception("Failed to rate booking: ${response.message()}"))
             }

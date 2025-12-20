@@ -9,7 +9,7 @@ import kotlinx.coroutines.runBlocking
 import com.mentorme.app.core.utils.Logx
 
 /**
- * Create a booking (occurrence-first, time-fallback handled by backend).
+ * Create a booking (occurrence-based).
  * Returns AppResult<Booking> and surfaces HTTP code/message when failing.
  */
 class CreateBookingUseCase @Inject constructor(
@@ -17,26 +17,24 @@ class CreateBookingUseCase @Inject constructor(
 ) {
     operator fun invoke(
         mentorId: String,
-        scheduledAtIsoUtc: String,
-        durationMinutes: Int,
-        topic: String,
-        notes: String?
+        occurrenceId: String,
+        topic: String? = null,
+        notes: String? = null
     ): AppResult<Booking> {
         return try {
             val request = CreateBookingRequest(
                 mentorId = mentorId,
-                scheduledAt = scheduledAtIsoUtc,
-                duration = durationMinutes,
+                occurrenceId = occurrenceId,
                 topic = topic,
                 notes = notes
             )
             Logx.d("CreateBookingUseCase") {
-                "request mentorId=$mentorId scheduledAt=$scheduledAtIsoUtc duration=$durationMinutes"
+                "request mentorId=$mentorId occurrenceId=$occurrenceId"
             }
             val resp = runBlocking { api.createBooking(request) }
             Logx.d("CreateBookingUseCase") { "response code=${resp.code()}" }
             if (resp.isSuccessful) {
-                val body = resp.body()
+                val body = resp.body()?.data
                 if (body != null) {
                     AppResult.success(body)
                 } else {

@@ -85,24 +85,19 @@ class BookingFlowViewModel @Inject constructor(
      */
     fun createBooking(
         mentorId: String,
-        date: String,       // yyyy-MM-dd
-        startTime: String,  // HH:mm
-        endTime: String,    // HH:mm
-        topic: String,
-        notes: String?
+        occurrenceId: String,
+        topic: String? = null,
+        notes: String? = null
     ): AppResult<Booking> {
-        val scheduledAtIsoUtc = DateIsoUtils.toIsoUtc(date, startTime)
-        val durationMinutes = DateIsoUtils.durationMinutes(startTime, endTime)
-        Logx.d("BookingFlowVM") { "createBooking() start mentorId=$mentorId date=$date start=$startTime end=$endTime duration=$durationMinutes" }
+        Logx.d("BookingFlowVM") { "createBooking() start mentorId=$mentorId occurrenceId=$occurrenceId" }
         val result = createBookingUseCase(
             mentorId = mentorId,
-            scheduledAtIsoUtc = scheduledAtIsoUtc,
-            durationMinutes = durationMinutes,
+            occurrenceId = occurrenceId,
             topic = topic,
             notes = notes
         )
         when (result) {
-            is AppResult.Success -> Logx.d("BookingFlowVM") { "createBooking() success mentorId=$mentorId date=$date start=$startTime" }
+            is AppResult.Success -> Logx.d("BookingFlowVM") { "createBooking() success mentorId=$mentorId occurrenceId=$occurrenceId" }
             is AppResult.Error -> {
                 val code = result.throwable.substringAfter("HTTP ", "").substringBefore(":").toIntOrNull()
                 Logx.e("BookingFlowVM", { "createBooking() error mentorId=$mentorId httpCode=${code ?: "n/a"}" })
@@ -111,24 +106,5 @@ class BookingFlowViewModel @Inject constructor(
         }
         Logx.d("BookingFlowVM") { "createBooking() done mentorId=$mentorId" }
         return result
-    }
-
-    /** Internal, JVM-only date helpers (no Android deps). */
-    private object DateIsoUtils {
-        fun toIsoUtc(date: String, startTime: String): String {
-            // date: yyyy-MM-dd, time: HH:mm
-            val dt = java.time.LocalDate.parse(date)
-                .atTime(java.time.LocalTime.parse(startTime))
-                .atOffset(java.time.ZoneOffset.UTC)
-            return dt.toInstant().toString() // ISO-8601 UTC like 2025-10-22T13:45:00Z
-        }
-
-        fun durationMinutes(startTime: String, endTime: String): Int {
-            val start = java.time.LocalTime.parse(startTime)
-            val end = java.time.LocalTime.parse(endTime)
-            var mins = java.time.Duration.between(start, end).toMinutes().toInt()
-            if (mins <= 0) mins += 24 * 60 // cross-midnight fallback
-            return mins
-        }
     }
 }

@@ -56,12 +56,10 @@ data class AvailabilitySlot(
 data class CreateBookingRequest(
     @SerializedName("mentorId")
     val mentorId: String,
-    @SerializedName("scheduledAt")
-    val scheduledAt: String,
-    @SerializedName("duration")
-    val duration: Int,
+    @SerializedName("occurrenceId")
+    val occurrenceId: String,
     @SerializedName("topic")
-    val topic: String,
+    val topic: String? = null,
     @SerializedName("notes")
     val notes: String? = null
 )
@@ -75,6 +73,11 @@ data class UpdateBookingRequest(
     val notes: String? = null
 )
 
+data class CancelBookingRequest(
+    @SerializedName("reason")
+    val reason: String? = null
+)
+
 data class BookingListResponse(
     @SerializedName("bookings")
     val bookings: List<Booking>,
@@ -84,6 +87,11 @@ data class BookingListResponse(
     val page: Int,
     @SerializedName("totalPages")
     val totalPages: Int
+)
+
+data class ResendIcsResponse(
+    @SerializedName("sent")
+    val sent: Boolean
 )
 
 data class RatingRequest(

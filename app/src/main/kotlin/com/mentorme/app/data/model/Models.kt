@@ -84,19 +84,24 @@ data class AvailabilitySlot(
     val isBooked: Boolean
 )
 
-// -------- Booking status từ web: 'pending' | 'confirmed' | 'completed' | 'cancelled'
+// -------- Booking status from API: 'PaymentPending' | 'Confirmed' | 'Failed' | 'Cancelled' | 'Completed'
 enum class BookingStatus {
-    @SerializedName("pending")
-    PENDING,
-    @SerializedName("confirmed")
+    @SerializedName("PaymentPending")
+    PAYMENT_PENDING,
+    @SerializedName("Confirmed")
     CONFIRMED,
-    @SerializedName("completed")
+    @SerializedName("Failed")
+    FAILED,
+    @SerializedName("Cancelled")
+    CANCELLED,
+    @SerializedName("Completed")
     COMPLETED,
-    @SerializedName("cancelled")
-    CANCELLED
+    // Legacy statuses for backward compatibility
+    @SerializedName("pending")
+    PENDING
 }
 
-// -------- Booking (web: menteeId/mentorId, date, startTime, endTime, price, notes?, createdAt)
+// -------- Booking (API response fields)
 data class Booking(
     @SerializedName("id")
     val id: String,
@@ -104,18 +109,32 @@ data class Booking(
     val menteeId: String,
     @SerializedName("mentorId")
     val mentorId: String,
+    @SerializedName("occurrenceId")
+    val occurrenceId: String? = null,
     @SerializedName("date")
     val date: String,          // "YYYY-MM-DD"
     @SerializedName("startTime")
     val startTime: String,     // "HH:mm"
     @SerializedName("endTime")
     val endTime: String,       // "HH:mm"
+    @SerializedName("startTimeIso")
+    val startTimeIso: String? = null,
+    @SerializedName("endTimeIso")
+    val endTimeIso: String? = null,
     @SerializedName("status")
     val status: BookingStatus,
     @SerializedName("price")
     val price: Double,
+    @SerializedName("topic")
+    val topic: String? = null,
     @SerializedName("notes")
     val notes: String? = null,
+    @SerializedName("meetingLink")
+    val meetingLink: String? = null,
+    @SerializedName("location")
+    val location: String? = null,
+    @SerializedName("expiresAt")
+    val expiresAt: String? = null,
     @SerializedName("createdAt")
     val createdAt: String      // ISO-8601 string
 )

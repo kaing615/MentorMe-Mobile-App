@@ -41,7 +41,7 @@ fun PendingBookingsTab(
 
     // Lọc + sort các booking chờ duyệt
     val pending = remember(bookings) {
-        bookings.filter { it.status == BookingStatus.PENDING }
+        bookings.filter { it.status == BookingStatus.PAYMENT_PENDING }
             .sortedWith(compareBy({ it.date }, { it.startTime }))
     }
 

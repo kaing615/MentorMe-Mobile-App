@@ -106,7 +106,7 @@ fun CalendarScreen(
     }
 
     val pending = remember(bookings) {
-        bookings.filter { it.status == BookingStatus.PENDING }
+        bookings.filter { it.status == BookingStatus.PAYMENT_PENDING }
             .sortedWith(compareBy({ it.date }, { it.startTime }))
     }
 
@@ -362,7 +362,7 @@ private fun BookingCard(
             // Action Buttons
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 when (booking.status) {
-                    BookingStatus.PENDING -> {
+                    BookingStatus.PAYMENT_PENDING -> {
                         MMButton(
                             text = "Hủy yêu cầu",
                             onClick = { onCancel(booking) },
@@ -412,7 +412,7 @@ private fun BookingCard(
 @Composable
 private fun StatusPill(status: BookingStatus) {
     val (label, dot, emoji) = when (status) {
-        BookingStatus.PENDING   -> Triple("Chờ duyệt", Color(0xFFF59E0B), "⏳")
+        BookingStatus.PAYMENT_PENDING   -> Triple("Chờ duyệt", Color(0xFFF59E0B), "⏳")
         BookingStatus.CONFIRMED -> Triple("Xác nhận", Color(0xFF10B981), "✅")
         BookingStatus.COMPLETED -> Triple("Hoàn thành", Color(0xFF8B5CF6), "🎉")
         BookingStatus.CANCELLED -> Triple("Đã hủy", Color(0xFFEF4444), "❌")

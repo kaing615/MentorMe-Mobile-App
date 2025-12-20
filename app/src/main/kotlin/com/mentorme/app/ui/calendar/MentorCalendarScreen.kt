@@ -97,7 +97,7 @@ fun MentorCalendarScreen(
     }
     val totalPending = remember(emptyBookings) {
         emptyBookings
-            .filter { it.status == BookingStatus.PENDING || it.status == BookingStatus.CONFIRMED }
+            .filter { it.status == BookingStatus.PAYMENT_PENDING || it.status == BookingStatus.CONFIRMED }
             .filter { MockData.bookingExtras[it.id]?.paymentStatus != "paid" }
             .sumOf { it.price.toInt() }
     }

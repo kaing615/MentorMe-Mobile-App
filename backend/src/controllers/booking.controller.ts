@@ -22,7 +22,7 @@ export const createBooking = async (req: Request, res: Response) => {
 
   try {
     const { mentorId, scheduledAt, duration, topic, notes } = req.body;
-    const menteeId = (req as any).user.userId;
+    const menteeId = (req as any).user.id;
 
     if (!mentorId || !scheduledAt || !duration || !topic) {
       await session.abortTransaction();
@@ -43,9 +43,9 @@ export const createBooking = async (req: Request, res: Response) => {
 
     // Find available occurrence for this time slot
     const occurrence = await AvailabilityOccurrence.findOne({
-      mentorId: new mongoose.Types.ObjectId(mentorId),
-      date: startTime,
-      isAvailable: true,
+      mentor: new mongoose.Types.ObjectId(mentorId),
+      start: startTime,
+      status: "open",
     }).session(session);
 
     // Check for conflicting bookings (prevent double booking)
@@ -64,7 +64,7 @@ export const createBooking = async (req: Request, res: Response) => {
 
     // Lock the occurrence if found
     if (occurrence) {
-      occurrence.isAvailable = false;
+      occurrence.status = "booked";
       await occurrence.save({ session });
     }
 
@@ -119,7 +119,7 @@ export const createBooking = async (req: Request, res: Response) => {
  */
 export const getBookings = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.userId;
+    const userId = (req as any).user.id;
     const userRole = (req as any).user.role;
     const { status, role, page = 1, limit = 10 } = req.query;
 
@@ -182,7 +182,7 @@ export const getBookings = async (req: Request, res: Response) => {
 export const getBookingById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = (req as any).user.userId;
+    const userId = (req as any).user.id;
 
     const booking = await Booking.findById(id)
       .populate("menteeId", "userName email")
@@ -227,7 +227,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
 
   try {
     const { id } = req.params;
-    const userId = (req as any).user.userId;
+    const userId = (req as any).user.id;
 
     const booking = await Booking.findById(id)
       .populate("menteeId", "userName email")
@@ -264,7 +264,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
     if (booking.occurrenceId) {
       await AvailabilityOccurrence.findByIdAndUpdate(
         booking.occurrenceId,
-        { isAvailable: true },
+        { status: "open" },
         { session }
       );
     }
@@ -313,7 +313,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
 export const resendICS = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = (req as any).user.userId;
+    const userId = (req as any).user.id;
 
     const booking = await Booking.findById(id)
       .populate("menteeId", "userName email")
@@ -465,7 +465,7 @@ export const handlePaymentWebhook = async (req: Request, res: Response) => {
       if (booking.occurrenceId) {
         await AvailabilityOccurrence.findByIdAndUpdate(
           booking.occurrenceId,
-          { isAvailable: true },
+          { status: "open" },
           { session }
         );
       }
@@ -517,7 +517,7 @@ export const releaseExpiredBookings = async (req: Request, res: Response) => {
       if (booking.occurrenceId) {
         await AvailabilityOccurrence.findByIdAndUpdate(
           booking.occurrenceId,
-          { isAvailable: true },
+          { status: "open" },
           { session }
         );
       }

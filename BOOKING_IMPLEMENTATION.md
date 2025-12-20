@@ -198,6 +198,14 @@ Set up a cron job to periodically release expired bookings:
 - ✅ Authorization check (user must be mentee or mentor)
 - ⚠️ Payment webhook should verify signature (TODO in production)
 - ⚠️ Release-expired endpoint should be admin-only (TODO in production)
+- ⚠️ **Rate Limiting**: Booking endpoints lack rate limiting (CodeQL finding)
+  - Add rate limiting middleware to prevent abuse
+  - Recommended: 10 requests per minute per user for booking creation
+- ⚠️ **CSRF Protection**: Cookie middleware lacks CSRF protection (CodeQL finding)
+  - Not critical for mobile API with Bearer token authentication
+  - Consider adding CSRF tokens for web admin panel
+- ⚠️ **ICS Injection**: User input in ICS files should be sanitized
+  - Escape special characters in mentor/mentee names, topic, and notes
 
 ## Future Enhancements
 

@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import sgMail from "../utils/sendGrid";
+import transporter from "../utils/emailService";
+import nodemailer from "nodemailer";
 import redis from "../utils/redis";
 import { asyncHandler } from "../handlers/async.handler";
 import responseHandler from "../handlers/response.handler";
@@ -34,19 +35,20 @@ async function sendOtpEmail(
   code: string,
   minutes: number
 ) {
-  const codeSpaced = code.split("").join(" ");
-  const from = "mentorme2025sp@gmail.com";
-  await sgMail.send({
-    to,
-    from,
-    subject: "MentorMe • OTP Verification",
-    text:
-      `Hi ${userName || "there"},\n\n` +
-      `Your one-time verification code is: ${code}\n` +
-      `It expires in ${minutes} minutes.\n\n` +
-      `If you didn’t request this, please ignore this email.\n\n` +
-      `— MentorMe Team`,
-    html: `
+  try {
+    const codeSpaced = code.split("").join(" ");
+    const from = `"MentorMe" <${process.env.SMTP_USER}>`;
+    const info = await transporter.sendMail({
+      to,
+      from,
+      subject: "MentorMe • OTP Verification",
+      text:
+        `Hi ${userName || "there"},\n\n` +
+        `Your one-time verification code is: ${code}\n` +
+        `It expires in ${minutes} minutes.\n\n` +
+        `If you didn’t request this, please ignore this email.\n\n` +
+        `— MentorMe Team`,
+      html: `
   <div style="background:#f6f8fb;padding:32px 12px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111;">
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" width="560" style="max-width:560px;background:#ffffff;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05);overflow:hidden;">
       <tr>
@@ -101,8 +103,15 @@ async function sendOtpEmail(
     </table>
   </div>
   `,
-    categories: ["auth", "otp"],
-  });
+    });
+    console.log("OTP email sent:", info.messageId);
+    console.log("MessageId:", info.messageId);
+    console.log("Preview URL:", nodemailer.getTestMessageUrl(info));
+    return info;
+  } catch (error) {
+    console.error("Failed to send OTP email:", error);
+    throw new Error("Failed to send verification email");
+  }
 }
 
 async function issueEmailOtpAndSend(

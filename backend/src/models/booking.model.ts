@@ -48,12 +48,12 @@ const BookingSchema = new Schema<IBooking>(
   { timestamps: true }
 );
 
-// Unique constraint: only one active booking per occurrence (not Failed/Cancelled)
+// Unique constraint: only one active booking per occurrence (exclude terminal statuses)
 BookingSchema.index(
   { occurrence: 1 },
   {
     unique: true,
-    partialFilterExpression: { status: { $nin: ['Failed', 'Cancelled'] } },
+    partialFilterExpression: { status: { $nin: ['Failed', 'Cancelled', 'Completed'] } },
   }
 );
 

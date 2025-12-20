@@ -47,7 +47,7 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
     }
   } catch (err: any) {
     console.error(`Failed to process payment webhook for ${bookingId}:`, err?.message);
-    return badRequest(res, err?.message || 'Failed to process webhook');
+    return badRequest(res, 'Failed to process webhook');
   }
 
   return ok(res, { processed: true, event, bookingId });

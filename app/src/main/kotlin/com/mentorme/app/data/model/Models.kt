@@ -96,7 +96,8 @@ enum class BookingStatus {
     CANCELLED,
     @SerializedName("Completed")
     COMPLETED,
-    // Legacy statuses for backward compatibility
+    // Legacy status for backward compatibility with older API versions.
+    // @Deprecated: Remove when all API consumers migrate to new statuses.
     @SerializedName("pending")
     PENDING
 }

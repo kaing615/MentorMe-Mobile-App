@@ -14,7 +14,7 @@ export interface IcsEventData {
 }
 
 function formatIcsDate(d: Date): string {
-  return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
 }
 
 function escapeIcsText(text: string): string {

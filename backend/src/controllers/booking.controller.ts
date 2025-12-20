@@ -29,7 +29,7 @@ import {
 } from '../utils/notification.service';
 import { generateBookingIcs } from '../utils/ics.service';
 
-const BOOKING_EXPIRY_MINUTES = Number(process.env.BOOKING_EXPIRY_MINUTES) || 15;
+const BOOKING_EXPIRY_MINUTES = parseInt(process.env.BOOKING_EXPIRY_MINUTES || '15', 10) || 15;
 
 // Valid state transitions
 const VALID_TRANSITIONS: Record<TBookingStatus, TBookingStatus[]> = {
@@ -119,7 +119,9 @@ export const createBooking = asyncHandler(async (req: Request, res: Response) =>
     return notFound(res, 'Mentor not found');
   }
 
-  // Acquire lock on occurrence to prevent race conditions
+  // Acquire Redis lock on occurrence to prevent race conditions.
+  // Falls back to MongoDB transaction if Redis is unavailable - MongoDB's
+  // unique index on occurrence + transaction provides atomicity protection.
   const lockKey = `booking:lock:${occurrenceId}`;
   let lockAcquired = false;
   try {
@@ -127,9 +129,11 @@ export const createBooking = asyncHandler(async (req: Request, res: Response) =>
       const lockResult = await redis.set(lockKey, menteeId, { NX: true, PX: 30_000 });
       lockAcquired = lockResult === 'OK';
     } else {
-      lockAcquired = true; // Fallback if Redis not available
+      // Redis unavailable; rely on MongoDB unique constraint + transaction
+      lockAcquired = true;
     }
   } catch {
+    // Redis error; rely on MongoDB unique constraint + transaction
     lockAcquired = true;
   }
 

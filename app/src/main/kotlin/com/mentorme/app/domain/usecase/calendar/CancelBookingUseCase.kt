@@ -4,7 +4,6 @@ import com.mentorme.app.core.utils.AppResult
 import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.remote.MentorMeApi
 import javax.inject.Inject
-import kotlinx.coroutines.runBlocking
 import com.mentorme.app.core.utils.Logx
 
 /**
@@ -14,10 +13,10 @@ import com.mentorme.app.core.utils.Logx
 class CancelBookingUseCase @Inject constructor(
     private val api: MentorMeApi
 ) {
-    operator fun invoke(bookingId: String): AppResult<Booking> {
+    suspend operator fun invoke(bookingId: String): AppResult<Booking> {
         return try {
             Logx.d("CancelBookingUseCase") { "Cancelling booking $bookingId" }
-            val resp = runBlocking { api.cancelBooking(bookingId) }
+            val resp = api.cancelBooking(bookingId)
             if (resp.isSuccessful) {
                 val body = resp.body()
                 if (body != null) {

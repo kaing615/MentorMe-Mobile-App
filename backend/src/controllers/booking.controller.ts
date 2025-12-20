@@ -58,11 +58,17 @@ export const createBooking = async (req: Request, res: Response) => {
     }).session(session);
 
     // Check for conflicting bookings (prevent double booking)
+    // Complete overlap detection: check all possible overlap scenarios
     const conflictingBooking = await Booking.findOne({
       mentorId: new mongoose.Types.ObjectId(mentorId),
       status: { $in: ["PaymentPending", "Confirmed"] },
       $or: [
-        { startTime: { $lt: endTime }, endTime: { $gt: startTime } },
+        // New booking starts during existing booking
+        { startTime: { $lte: startTime }, endTime: { $gt: startTime } },
+        // New booking ends during existing booking
+        { startTime: { $lt: endTime }, endTime: { $gte: endTime } },
+        // New booking completely contains existing booking
+        { startTime: { $gte: startTime }, endTime: { $lte: endTime } },
       ],
     }).session(session);
 
@@ -77,7 +83,8 @@ export const createBooking = async (req: Request, res: Response) => {
       await occurrence.save({ session });
     }
 
-    // Calculate price (you can customize this logic)
+    // Calculate price
+    // TODO: Fetch hourly rate from mentor profile instead of hard-coding
     const hourlyRate = 50; // Default rate, should fetch from mentor profile
     const price = (hourlyRate * duration) / 60;
 
@@ -203,16 +210,16 @@ export const getBookingById = async (req: Request, res: Response) => {
 
     // Check authorization
     if (
-      booking.menteeId._id.toString() !== userId &&
-      booking.mentorId._id.toString() !== userId
+      booking.menteeId.toString() !== userId &&
+      booking.mentorId.toString() !== userId
     ) {
       return res.status(403).json({ error: "Not authorized" });
     }
 
     res.json({
       id: booking._id.toString(),
-      menteeId: booking.menteeId._id.toString(),
-      mentorId: booking.mentorId._id.toString(),
+      menteeId: booking.menteeId.toString(),
+      mentorId: booking.mentorId.toString(),
       date: booking.startTime.toISOString().split("T")[0],
       startTime: booking.startTime.toISOString().split("T")[1].substring(0, 5),
       endTime: booking.endTime.toISOString().split("T")[1].substring(0, 5),
@@ -250,8 +257,8 @@ export const cancelBooking = async (req: Request, res: Response) => {
 
     // Check authorization
     if (
-      booking.menteeId._id.toString() !== userId &&
-      booking.mentorId._id.toString() !== userId
+      booking.menteeId.toString() !== userId &&
+      booking.mentorId.toString() !== userId
     ) {
       await session.abortTransaction();
       return res.status(403).json({ error: "Not authorized" });
@@ -334,8 +341,8 @@ export const resendICS = async (req: Request, res: Response) => {
 
     // Check authorization
     if (
-      booking.menteeId._id.toString() !== userId &&
-      booking.mentorId._id.toString() !== userId
+      booking.menteeId.toString() !== userId &&
+      booking.mentorId.toString() !== userId
     ) {
       return res.status(403).json({ error: "Not authorized" });
     }
@@ -354,7 +361,7 @@ export const resendICS = async (req: Request, res: Response) => {
     const icsContent = generateICS(booking, mentor.userName, mentee.userName);
 
     // Send email with ICS
-    const recipient = booking.menteeId._id.toString() === userId ? mentee : mentor;
+    const recipient = booking.menteeId.toString() === userId ? mentee : mentor;
     await sendBookingConfirmationEmail(
       recipient.email,
       recipient.userName,

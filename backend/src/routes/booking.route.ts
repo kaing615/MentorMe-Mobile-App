@@ -20,9 +20,11 @@ router.post("/bookings/:id/cancel", auth, cancelBooking);
 router.post("/bookings/:id/resend-ics", auth, resendICS);
 
 // Payment webhook (no auth required, should be secured with signature verification in production)
+// TODO: Add webhook signature verification for production security
 router.post("/payments/webhook", handlePaymentWebhook);
 
 // Admin/cron route for releasing expired bookings
+// TODO: Restrict to admin users or secure with proper authentication in production
 router.post("/bookings/release-expired", releaseExpiredBookings);
 
 export default router;

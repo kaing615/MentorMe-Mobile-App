@@ -3,7 +3,6 @@ package com.mentorme.app.domain.usecase.calendar
 import com.mentorme.app.core.utils.AppResult
 import com.mentorme.app.data.remote.MentorMeApi
 import javax.inject.Inject
-import kotlinx.coroutines.runBlocking
 import com.mentorme.app.core.utils.Logx
 
 /**
@@ -13,10 +12,10 @@ import com.mentorme.app.core.utils.Logx
 class ResendIcsUseCase @Inject constructor(
     private val api: MentorMeApi
 ) {
-    operator fun invoke(bookingId: String): AppResult<Unit> {
+    suspend operator fun invoke(bookingId: String): AppResult<Unit> {
         return try {
             Logx.d("ResendIcsUseCase") { "Resending ICS for booking $bookingId" }
-            val resp = runBlocking { api.resendICS(bookingId) }
+            val resp = api.resendICS(bookingId)
             if (resp.isSuccessful) {
                 Logx.d("ResendIcsUseCase") { "Successfully resent ICS for booking $bookingId" }
                 AppResult.success(Unit)

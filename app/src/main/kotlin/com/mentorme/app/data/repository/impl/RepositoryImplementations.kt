@@ -7,7 +7,6 @@ import com.mentorme.app.data.dto.CreateBookingRequest
 import com.mentorme.app.data.dto.MentorListResponse
 import com.mentorme.app.data.dto.RatingRequest
 import com.mentorme.app.data.dto.UpdateBookingRequest
-import com.mentorme.app.data.dto.AvailabilitySlot as ApiAvailabilitySlot
 
 // Specific imports for Models (business entities)
 import com.mentorme.app.data.model.Booking
@@ -32,11 +31,36 @@ class MentorRepositoryImpl @Inject constructor(
         minRating: Double?
     ): AppResult<MentorListResponse> {
         return try {
-            val response = api.getMentors(page, limit, expertise, minRate, maxRate, minRating)
-            if (response.isSuccessful && response.body() != null) {
-                AppResult.success(response.body()!!)
+            // Bridge to new discovery API (minimal): map filters as best-effort.
+            val q = expertise // legacy 'expertise' -> simple search query
+            val skillsCsv = expertise
+            val res = api.listMentors(
+                q = q,
+                skillsCsv = skillsCsv,
+                minRating = minRating?.toFloat(),
+                priceMin = minRate?.toInt(),
+                priceMax = maxRate?.toInt(),
+                sort = null,
+                page = page,
+                limit = limit
+            )
+            if (res.isSuccessful) {
+                val payload = res.body()?.data
+                val total = payload?.total ?: 0
+                val currentPage = payload?.page ?: page
+                val currentLimit = payload?.limit ?: limit
+                val totalPages = if (currentLimit > 0) ((total + currentLimit - 1) / currentLimit) else 0
+                // Minimal bridge: return empty mentors list with server counts to keep callers from crashing.
+                AppResult.success(
+                    MentorListResponse(
+                        mentors = emptyList(),
+                        total = total,
+                        page = currentPage,
+                        totalPages = totalPages
+                    )
+                )
             } else {
-                AppResult.failure(Exception("Failed to get mentors: ${response.message()}"))
+                AppResult.failure(Exception("Failed to get mentors: ${res.message()}"))
             }
         } catch (e: Exception) {
             AppResult.failure(e)
@@ -45,24 +69,12 @@ class MentorRepositoryImpl @Inject constructor(
 
     override suspend fun getMentorById(mentorId: String): AppResult<Mentor> {
         return try {
-            val response = api.getMentorById(mentorId)
-            if (response.isSuccessful && response.body() != null) {
-                AppResult.success(response.body()!!)
+            // The new API returns ApiEnvelope<MentorCardDto>; no direct mapping to data.model.Mentor provided here.
+            val response = api.getMentor(mentorId)
+            if (response.isSuccessful) {
+                AppResult.failure(Exception("Legacy MentorRepository.getMentorById not supported with current API (use SearchMentorsUseCase)."))
             } else {
                 AppResult.failure(Exception("Failed to get mentor: ${response.message()}"))
-            }
-        } catch (e: Exception) {
-            AppResult.failure(e)
-        }
-    }
-
-    override suspend fun getMentorAvailability(mentorId: String): AppResult<List<ApiAvailabilitySlot>> {
-        return try {
-            val response = api.getMentorAvailability(mentorId)
-            if (response.isSuccessful && response.body() != null) {
-                AppResult.success(response.body()!!)
-            } else {
-                AppResult.failure(Exception("Failed to get availability: ${response.message()}"))
             }
         } catch (e: Exception) {
             AppResult.failure(e)

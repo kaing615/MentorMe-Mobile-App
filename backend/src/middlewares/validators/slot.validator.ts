@@ -1,0 +1,109 @@
+// path: src/middlewares/validators/slot.validator.ts
+import { body, param, query } from 'express-validator';
+
+const isISO = (v?: string) => !v || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(v);
+const rruleBasic = /FREQ=(SECONDLY|MINUTELY|HOURLY|DAILY|WEEKLY|MONTHLY|YEARLY)/i;
+
+export const createSlotRules = [
+  body('timezone').isString().notEmpty().withMessage('timezone is required'),
+  body('title').optional().isString(),
+  body('description').optional().isString(),
+  body('rrule').optional().isString().custom((v) => {
+    if (v && !rruleBasic.test(v)) throw new Error('rrule must contain a valid FREQ');
+    return true;
+  }),
+  body('exdates').optional().isArray(),
+  body('exdates.*').optional().isISO8601(),
+  body('bufferBeforeMin').optional().isInt({ min: 0, max: 120 }),
+  body('bufferAfterMin').optional().isInt({ min: 0, max: 120 }),
+  body('publishHorizonDays').optional().isInt({ min: 1, max: 365 }).withMessage('publishHorizonDays must be 1-365'),
+  body('visibility').optional().isIn(['public', 'private']),
+  // Luôn yêu cầu start & end làm mốc base (kể cả khi có rrule) để biết duration & anchor
+  body('start').custom((value) => {
+    if (!value) throw new Error('start is required');
+    if (!isISO(value)) throw new Error('start must be ISO UTC');
+    return true;
+  }),
+  body('end').custom((value) => {
+    if (!value) throw new Error('end is required');
+    if (!isISO(value)) throw new Error('end must be ISO UTC');
+    return true;
+  }),
+  // Future-time checks with 30s skew
+  body('start').custom((value) => {
+    const nowSkew = new Date(Date.now() + 30_000);
+    const s = new Date(value);
+    if (s < nowSkew) throw new Error('start must be in the future');
+    return true;
+  }),
+  body('end').custom((value) => {
+    const nowSkew = new Date(Date.now() + 30_000);
+    const e = new Date(value);
+    if (e < nowSkew) throw new Error('end must be in the future');
+    return true;
+  }),
+  body('end').custom((end, { req }) => {
+    if (req.body.start && end) {
+      const s = new Date(req.body.start).getTime();
+      const e = new Date(end).getTime();
+      if (!(e > s)) throw new Error('end must be greater than start');
+      if (e - s < 15 * 60 * 1000) throw new Error('duration must be at least 15 minutes');
+    }
+    return true;
+  })
+];
+
+export const publishSlotRules = [ param('id').isMongoId() ];
+
+export const calendarQueryRules = [
+  param('mentorId').isMongoId(),
+  query('from').isISO8601(),
+  query('to').isISO8601(),
+  query('includeClosed').optional().isBoolean().toBoolean()
+];
+
+// PATCH /availability/slots/:id
+export const updateSlotRules = [
+  param('id').isMongoId(),
+  body('title').optional().isString(),
+  body('description').optional().isString(),
+  body('timezone').optional().isString().notEmpty(),
+  body('visibility').optional().isIn(['public', 'private']),
+  body('action').optional().isIn(['pause', 'resume']),
+  body('rrule').optional().isString(),
+  body('exdates').optional().isArray(),
+  body('exdates.*').optional().isISO8601(),
+  body('start').optional().custom((value) => {
+    if (value != null && !isISO(value)) throw new Error('start must be ISO UTC');
+    return true;
+  }),
+  // Future-time checks when provided
+  body('start').optional().custom((value) => {
+    if (value == null) return true;
+    const nowSkew = new Date(Date.now() + 30_000);
+    const s = new Date(value);
+    if (s < nowSkew) throw new Error('start must be in the future');
+    return true;
+  }),
+  body('end').optional().custom((value) => {
+    if (value != null && !isISO(value)) throw new Error('end must be ISO UTC');
+    return true;
+  }),
+  body('end').optional().custom((value) => {
+    if (value == null) return true;
+    const nowSkew = new Date(Date.now() + 30_000);
+    const e = new Date(value);
+    if (e < nowSkew) throw new Error('end must be in the future');
+    return true;
+  }),
+  body('end').optional().custom((end, { req }) => {
+    const s = req.body.start ?? undefined;
+    if (s != null && end != null) {
+      const sMs = new Date(s).getTime();
+      const eMs = new Date(end).getTime();
+      if (!(eMs > sMs)) throw new Error('end must be greater than start');
+      if (eMs - sMs < 15 * 60 * 1000) throw new Error('duration must be at least 15 minutes');
+    }
+    return true;
+  })
+];

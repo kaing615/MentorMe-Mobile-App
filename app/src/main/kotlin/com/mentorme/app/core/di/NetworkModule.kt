@@ -45,8 +45,12 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+        val base = NetworkConstants.BASE_URL
+        val normalized = if (base.endsWith("/")) base else "$base/"
+        val finalBase = if (normalized.endsWith("api/v1/")) normalized else normalized + "api/v1/"
         return Retrofit.Builder()
-            .baseUrl(NetworkConstants.BASE_URL)
+            /** MentorMe API is mounted at /api/v1, so baseUrl includes /api/v1/ while interface paths stay relative (e.g., 'bookings'). */
+            .baseUrl(finalBase)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

@@ -62,6 +62,7 @@ interface MentorMeApi {
     @GET("bookings")
     suspend fun getBookings(
         @Query("status") status: String? = null,
+        @Query("role") role: String? = null,
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 10
     ): Response<com.mentorme.app.data.dto.BookingListResponse>
@@ -74,6 +75,12 @@ interface MentorMeApi {
         @Path("id") bookingId: String,
         @Body updateRequest: UpdateBookingRequest
     ): Response<Booking>
+
+    @POST("bookings/{id}/cancel")
+    suspend fun cancelBooking(@Path("id") bookingId: String): Response<Booking>
+
+    @POST("bookings/{id}/resend-ics")
+    suspend fun resendICS(@Path("id") bookingId: String): Response<Unit>
 
     @POST("bookings/{id}/rate")
     suspend fun rateBooking(

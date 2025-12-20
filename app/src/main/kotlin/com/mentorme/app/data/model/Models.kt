@@ -84,16 +84,18 @@ data class AvailabilitySlot(
     val isBooked: Boolean
 )
 
-// -------- Booking status từ web: 'pending' | 'confirmed' | 'completed' | 'cancelled'
+// -------- Booking status: 'PaymentPending' | 'Confirmed' | 'Failed' | 'Cancelled' | 'Completed'
 enum class BookingStatus {
-    @SerializedName("pending")
-    PENDING,
-    @SerializedName("confirmed")
+    @SerializedName("PaymentPending")
+    PAYMENT_PENDING,
+    @SerializedName("Confirmed")
     CONFIRMED,
-    @SerializedName("completed")
-    COMPLETED,
-    @SerializedName("cancelled")
-    CANCELLED
+    @SerializedName("Failed")
+    FAILED,
+    @SerializedName("Cancelled")
+    CANCELLED,
+    @SerializedName("Completed")
+    COMPLETED
 }
 
 // -------- Booking (web: menteeId/mentorId, date, startTime, endTime, price, notes?, createdAt)

@@ -10,11 +10,20 @@ import {
   sendBookingCancelledEmail,
 } from "../utils/email";
 
+// Booking expiry time: bookings in PaymentPending status expire after this duration
 const BOOKING_EXPIRY_MINUTES = 15;
 
 /**
  * Create a new booking with PaymentPending status
  * Locks the slot immediately using transactions
+ * 
+ * Flow:
+ * 1. Validate mentor exists
+ * 2. Find available occurrence
+ * 3. Check for conflicting bookings (prevent double booking)
+ * 4. Lock occurrence by setting status to "booked"
+ * 5. Create booking with PaymentPending status and expiry time
+ * 6. Commit transaction (atomic operation)
  */
 export const createBooking = async (req: Request, res: Response) => {
   const session = await mongoose.startSession();

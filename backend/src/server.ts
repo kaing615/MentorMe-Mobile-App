@@ -14,6 +14,7 @@ import mongoose from "mongoose";
 import routes from "./routes/index";
 import redis from "./utils/redis";
 import { connectMongoDB } from "./utils/mongo";
+import { startBookingJobs, stopBookingJobs } from "./jobs/booking.jobs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,6 +53,8 @@ async function startServer() {
 
     await connectMongoDB();
 
+    startBookingJobs();
+
     server.listen(PORT, () => {
       console.log(`Server is running on http://localhost:${PORT}`);
       console.log(`API docs: http://localhost:${PORT}/api-docs`);
@@ -68,6 +71,7 @@ startServer();
 const shutdown = async () => {
   try {
     server.close(() => console.log("HTTP server closed"));
+    stopBookingJobs();
     if (redis.isOpen) await redis.quit();
     if (mongoose.connection.readyState === 1) await mongoose.connection.close();
     console.log("Cleaned up Redis and MongoDB connections");

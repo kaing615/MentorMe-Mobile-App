@@ -8,6 +8,8 @@ import {
   getBookingById,
   cancelBooking,
   resendIcs,
+  mentorConfirmBooking,
+  mentorDeclineBooking,
 } from '../controllers/booking.controller';
 import {
   createBookingRules,
@@ -15,6 +17,8 @@ import {
   bookingIdRules,
   cancelBookingRules,
   resendIcsRules,
+  mentorConfirmRules,
+  mentorDeclineRules,
 } from '../middlewares/validators/booking.validator';
 
 const router = Router();
@@ -33,5 +37,9 @@ router.post('/:id/cancel', auth, cancelBookingRules, validate, cancelBooking);
 
 // Resend ICS calendar file
 router.post('/:id/resend-ics', auth, resendIcsRules, validate, resendIcs);
+
+// Mentor confirm/decline pending booking
+router.post('/:id/mentor-confirm', auth, mentorConfirmRules, validate, mentorConfirmBooking);
+router.post('/:id/mentor-decline', auth, mentorDeclineRules, validate, mentorDeclineBooking);
 
 export default router;

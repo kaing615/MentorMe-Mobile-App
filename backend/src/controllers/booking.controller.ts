@@ -19,23 +19,35 @@ import {
   sendBookingFailedEmail,
   sendBookingCancelledEmail,
   resendBookingIcsEmail,
+  sendBookingPendingEmail,
+  sendBookingDeclinedEmail,
+  sendBookingReminderEmail,
   BookingEmailData,
 } from '../utils/email.service';
 import {
   notifyBookingConfirmed,
   notifyBookingFailed,
   notifyBookingCancelled,
+  notifyBookingPending,
+  notifyBookingDeclined,
+  notifyBookingReminder,
 } from '../utils/notification.service';
 import { generateBookingIcs } from '../utils/ics.service';
 
 const BOOKING_EXPIRY_MINUTES = parseInt(process.env.BOOKING_EXPIRY_MINUTES || '15', 10) || 15;
+const LATE_CANCEL_MINUTES = parseInt(process.env.LATE_CANCEL_MINUTES || '1440', 10) || 1440;
+const LATE_CANCEL_ACTION = (process.env.LATE_CANCEL_ACTION || 'block').toLowerCase();
+const MENTOR_CONFIRM_DEADLINE_HOURS =
+  parseInt(process.env.MENTOR_CONFIRM_DEADLINE_HOURS || '12', 10) || 12;
 
 // Valid state transitions
 const VALID_TRANSITIONS: Record<TBookingStatus, TBookingStatus[]> = {
-  PaymentPending: ['Confirmed', 'Failed', 'Cancelled'],
+  PaymentPending: ['PendingMentor', 'Confirmed', 'Failed', 'Cancelled'],
+  PendingMentor: ['Confirmed', 'Declined', 'Cancelled'],
   Confirmed: ['Completed', 'Cancelled'],
   Failed: [],
   Cancelled: [],
+  Declined: [],
   Completed: [],
 };
 
@@ -93,6 +105,17 @@ function formatBookingResponse(booking: any) {
     meetingLink: booking.meetingLink ?? null,
     location: booking.location ?? null,
     expiresAt: booking.expiresAt ? new Date(booking.expiresAt).toISOString() : null,
+    mentorResponseDeadline: booking.mentorResponseDeadline
+      ? new Date(booking.mentorResponseDeadline).toISOString()
+      : null,
+    reminder24hSentAt: booking.reminder24hSentAt
+      ? new Date(booking.reminder24hSentAt).toISOString()
+      : null,
+    reminder1hSentAt: booking.reminder1hSentAt
+      ? new Date(booking.reminder1hSentAt).toISOString()
+      : null,
+    lateCancel: booking.lateCancel ?? false,
+    lateCancelMinutes: booking.lateCancelMinutes ?? null,
     createdAt: new Date(booking.createdAt).toISOString(),
   };
 }
@@ -165,7 +188,7 @@ export const createBooking = asyncHandler(async (req: Request, res: Response) =>
       // Check if mentee already has an active booking for this occurrence
       const existingBooking = await Booking.findOne({
         occurrence: occurrenceId,
-        status: { $nin: ['Failed', 'Cancelled'] },
+        status: { $nin: ['Failed', 'Cancelled', 'Declined', 'Completed'] },
       }).session(session);
 
       if (existingBooking) {
@@ -301,7 +324,6 @@ export const getBookingById = asyncHandler(async (req: Request, res: Response) =
  */
 export const cancelBooking = asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id;
-  const userRole = (req as any).user?.role;
   if (!userId) return badRequest(res, 'Unauthorized');
 
   const { id } = req.params;
@@ -322,6 +344,24 @@ export const cancelBooking = asyncHandler(async (req: Request, res: Response) =>
   // Check valid transition
   if (!canTransition(booking.status, 'Cancelled')) {
     return badRequest(res, `Cannot cancel booking with status ${booking.status}`);
+  }
+
+  const now = new Date();
+  const startTime = new Date(booking.startTime);
+  if (startTime.getTime() <= now.getTime()) {
+    return badRequest(res, 'Cannot cancel after the session has started');
+  }
+
+  const minutesToStart = Math.floor((startTime.getTime() - now.getTime()) / 60000);
+  if (isMentee && LATE_CANCEL_MINUTES > 0 && minutesToStart < LATE_CANCEL_MINUTES) {
+    if (LATE_CANCEL_ACTION === 'block') {
+      return badRequest(
+        res,
+        `Late cancellation is not allowed within ${LATE_CANCEL_MINUTES} minutes of the session`
+      );
+    }
+    booking.lateCancel = true;
+    booking.lateCancelMinutes = Math.max(0, minutesToStart);
   }
 
   // Update booking status
@@ -410,6 +450,69 @@ export const resendIcs = asyncHandler(async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/bookings/:id/mentor-confirm
+ * Mentor confirms a pending booking
+ */
+export const mentorConfirmBooking = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id;
+  const userRole = (req as any).user?.role;
+  if (!userId) return badRequest(res, 'Unauthorized');
+  if (userRole !== 'mentor') return forbidden(res, 'Mentor access required');
+
+  const { id } = req.params;
+
+  const booking = await Booking.findById(id);
+  if (!booking) {
+    return notFound(res, 'Booking not found');
+  }
+
+  if (String(booking.mentor) !== userId) {
+    return forbidden(res, 'Access denied');
+  }
+
+  if (booking.status !== 'PendingMentor') {
+    return badRequest(res, 'Booking is not awaiting mentor confirmation');
+  }
+
+  await confirmBooking(String(booking._id));
+
+  const updated = await Booking.findById(id).lean();
+  return ok(res, updated ? formatBookingResponse(updated) : null, 'Booking confirmed');
+});
+
+/**
+ * POST /api/bookings/:id/mentor-decline
+ * Mentor declines a pending booking
+ */
+export const mentorDeclineBooking = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id;
+  const userRole = (req as any).user?.role;
+  if (!userId) return badRequest(res, 'Unauthorized');
+  if (userRole !== 'mentor') return forbidden(res, 'Mentor access required');
+
+  const { id } = req.params;
+  const { reason } = req.body as { reason?: string };
+
+  const booking = await Booking.findById(id);
+  if (!booking) {
+    return notFound(res, 'Booking not found');
+  }
+
+  if (String(booking.mentor) !== userId) {
+    return forbidden(res, 'Access denied');
+  }
+
+  if (booking.status !== 'PendingMentor') {
+    return badRequest(res, 'Booking is not awaiting mentor confirmation');
+  }
+
+  await declineBooking(String(booking._id), reason, userId);
+
+  const updated = await Booking.findById(id).lean();
+  return ok(res, updated ? formatBookingResponse(updated) : null, 'Booking declined');
+});
+
+/**
  * Confirm booking (called after successful payment)
  */
 export async function confirmBooking(bookingId: string): Promise<void> {
@@ -424,6 +527,7 @@ export async function confirmBooking(bookingId: string): Promise<void> {
 
   booking.status = 'Confirmed';
   booking.expiresAt = undefined;
+  booking.mentorResponseDeadline = undefined;
   await booking.save();
 
   // Send notifications and emails
@@ -453,6 +557,93 @@ export async function confirmBooking(bookingId: string): Promise<void> {
       startTime: new Date(booking.startTime),
     }),
   ]);
+}
+
+/**
+ * Mark booking as awaiting mentor confirmation
+ */
+export async function markBookingPendingMentor(bookingId: string): Promise<void> {
+  const booking = await Booking.findById(bookingId);
+  if (!booking) {
+    throw new Error('Booking not found');
+  }
+
+  if (!canTransition(booking.status, 'PendingMentor')) {
+    throw new Error(`Cannot mark booking pending with status ${booking.status}`);
+  }
+
+  const deadlineMs = Math.min(
+    Date.now() + MENTOR_CONFIRM_DEADLINE_HOURS * 60 * 60 * 1000,
+    new Date(booking.startTime).getTime()
+  );
+
+  booking.status = 'PendingMentor';
+  booking.expiresAt = undefined;
+  booking.mentorResponseDeadline = new Date(deadlineMs);
+  await booking.save();
+
+  const emailData = await buildEmailData(booking);
+  await Promise.all([
+    sendBookingPendingEmail(emailData, booking.mentorResponseDeadline),
+    notifyBookingPending({
+      bookingId: String(booking._id),
+      mentorId: String(booking.mentor),
+      menteeId: String(booking.mentee),
+      mentorName: emailData.mentorName,
+      menteeName: emailData.menteeName,
+      startTime: new Date(booking.startTime),
+    }),
+  ]);
+}
+
+/**
+ * Decline a booking (mentor decision or auto-decline)
+ */
+export async function declineBooking(
+  bookingId: string,
+  reason?: string,
+  declinedById?: string
+): Promise<void> {
+  const booking = await Booking.findById(bookingId);
+  if (!booking) {
+    throw new Error('Booking not found');
+  }
+
+  if (!canTransition(booking.status, 'Declined')) {
+    throw new Error(`Cannot decline booking with status ${booking.status}`);
+  }
+
+  booking.status = 'Declined';
+  booking.mentorResponseDeadline = undefined;
+  if (declinedById) {
+    booking.cancelledBy = new mongoose.Types.ObjectId(declinedById);
+  }
+  if (reason) {
+    booking.cancelReason = reason;
+  }
+  await booking.save();
+
+  await AvailabilityOccurrence.updateOne(
+    { _id: booking.occurrence },
+    { $set: { status: 'open' } }
+  );
+
+  try {
+    const emailData = await buildEmailData(booking);
+    await Promise.all([
+      sendBookingDeclinedEmail(emailData),
+      notifyBookingDeclined({
+        bookingId: String(booking._id),
+        mentorId: String(booking.mentor),
+        menteeId: String(booking.mentee),
+        mentorName: emailData.mentorName,
+        menteeName: emailData.menteeName,
+        startTime: new Date(booking.startTime),
+      }),
+    ]);
+  } catch (err) {
+    console.error('Failed to send decline notifications:', err);
+  }
 }
 
 /**
@@ -519,13 +710,100 @@ export async function processExpiredBookings(): Promise<number> {
   return failedCount;
 }
 
+/**
+ * Auto-decline pending mentor bookings past the response deadline.
+ */
+export async function processPendingMentorBookings(): Promise<number> {
+  const now = new Date();
+  const pendingBookings = await Booking.find({
+    status: 'PendingMentor',
+    mentorResponseDeadline: { $lte: now },
+  });
+
+  let declinedCount = 0;
+  for (const booking of pendingBookings) {
+    try {
+      await declineBooking(String(booking._id), 'Mentor did not respond in time');
+      declinedCount++;
+    } catch (err) {
+      console.error(`Failed to auto-decline booking ${booking._id}:`, err);
+    }
+  }
+
+  return declinedCount;
+}
+
+/**
+ * Send reminder emails/notifications for upcoming confirmed sessions.
+ */
+export async function processBookingReminders(): Promise<{ reminded24h: number; reminded1h: number }> {
+  const now = new Date();
+  const windowMinutes = parseInt(process.env.REMINDER_WINDOW_MINUTES || '10', 10) || 10;
+
+  const reminderWindows = [
+    { hours: 24, field: 'reminder24hSentAt' },
+    { hours: 1, field: 'reminder1hSentAt' },
+  ] as const;
+
+  const results = { reminded24h: 0, reminded1h: 0 };
+
+  for (const window of reminderWindows) {
+    const field = window.field;
+    const minMs = (window.hours * 60 - windowMinutes) * 60 * 1000;
+    const maxMs = (window.hours * 60 + windowMinutes) * 60 * 1000;
+    const start = new Date(now.getTime() + minMs);
+    const end = new Date(now.getTime() + maxMs);
+
+    const bookings = await Booking.find({
+      status: 'Confirmed',
+      startTime: { $gte: start, $lte: end },
+      [field]: { $exists: false },
+    });
+
+    for (const booking of bookings) {
+      try {
+        const emailData = await buildEmailData(booking);
+        await Promise.all([
+          sendBookingReminderEmail(emailData, window.hours),
+          notifyBookingReminder({
+            bookingId: String(booking._id),
+            mentorId: String(booking.mentor),
+            menteeId: String(booking.mentee),
+            mentorName: emailData.mentorName,
+            menteeName: emailData.menteeName,
+            startTime: new Date(booking.startTime),
+          }),
+        ]);
+
+        await Booking.updateOne(
+          { _id: booking._id, [field]: { $exists: false } },
+          { $set: { [field]: new Date() } }
+        );
+
+        if (window.hours === 24) results.reminded24h++;
+        if (window.hours === 1) results.reminded1h++;
+      } catch (err) {
+        console.error(`Failed to send reminder for booking ${booking._id}:`, err);
+      }
+    }
+  }
+
+  return results;
+}
+
 export default {
   createBooking,
   getBookings,
   getBookingById,
   cancelBooking,
   resendIcs,
+  mentorConfirmBooking,
+  mentorDeclineBooking,
   confirmBooking,
+  markBookingPendingMentor,
+  declineBooking,
   failBooking,
   processExpiredBookings,
+  processPendingMentorBookings,
+  processBookingReminders,
 };

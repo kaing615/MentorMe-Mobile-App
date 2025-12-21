@@ -16,7 +16,7 @@ import javax.inject.Singleton
 
 @Singleton
 class MentorRepositoryImpl @Inject constructor(
-    private val api:  MentorMeApi
+    private val api: MentorMeApi
 ) : MentorRepository {
 
     override suspend fun getMentors(
@@ -33,18 +33,18 @@ class MentorRepositoryImpl @Inject constructor(
             val res = api.listMentors(
                 q = q,
                 skillsCsv = skillsCsv,
-                minRating = minRating?. toFloat(),
+                minRating = minRating?.toFloat(),
                 priceMin = minRate?.toInt(),
-                priceMax = maxRate?. toInt(),
+                priceMax = maxRate?.toInt(),
                 sort = null,
                 page = page,
                 limit = limit
             )
             if (res.isSuccessful) {
                 val payload = res.body()?.data
-                val total = payload?.total ?:  0
-                val currentPage = payload?.page ?: page
-                val currentLimit = payload?.limit ?: limit
+                val total = payload?.total?:  0
+                val currentPage = payload?.page?:page
+                val currentLimit = payload?.limit?:limit
                 val totalPages = if (currentLimit > 0) ((total + currentLimit - 1) / currentLimit) else 0
                 AppResult.success(
                     MentorListResponse(
@@ -55,7 +55,7 @@ class MentorRepositoryImpl @Inject constructor(
                     )
                 )
             } else {
-                AppResult. failure(Exception("Failed to get mentors: ${res.message()}"))
+                AppResult.failure(Exception("Failed to get mentors: ${res.message()}"))
             }
         } catch (e: Exception) {
             AppResult.failure(e)
@@ -66,12 +66,12 @@ class MentorRepositoryImpl @Inject constructor(
         return try {
             val response = api.getMentor(mentorId)
             if (response.isSuccessful) {
-                AppResult.failure(Exception("Legacy MentorRepository. getMentorById not supported with current API (use SearchMentorsUseCase)."))
+                AppResult.failure(Exception("Legacy MentorRepository.getMentorById not supported with current API (use SearchMentorsUseCase)."))
             } else {
                 AppResult.failure(Exception("Failed to get mentor:  ${response.message()}"))
             }
-        } catch (e:  Exception) {
-            AppResult. failure(e)
+        } catch (e: Exception) {
+            AppResult.failure(e)
         }
     }
 }
@@ -91,7 +91,7 @@ class BookingRepositoryImpl @Inject constructor(
             val request = CreateBookingRequest(mentorId, occurrenceId, topic, notes)
             val response = api.createBooking(request)
             if (response.isSuccessful) {
-                // ✅ Unwrap . data từ ApiEnvelope<Booking>
+                // ✅ Unwrap data từ ApiEnvelope<Booking>
                 val envelope = response.body()
                 val booking = envelope?.data
                 if (booking != null) {
@@ -137,7 +137,7 @@ class BookingRepositoryImpl @Inject constructor(
         return try {
             val response = api.getBookingById(bookingId)
             if (response.isSuccessful) {
-                // ✅ Unwrap . data
+                // ✅ Unwrap data
                 val envelope = response.body()
                 val booking = envelope?.data
                 if (booking != null) {
@@ -162,14 +162,14 @@ class BookingRepositoryImpl @Inject constructor(
             if (response.isSuccessful) {
                 // ✅ Unwrap .data
                 val envelope = response.body()
-                val booking = envelope?. data
+                val booking = envelope?.data
                 if (booking != null) {
-                    AppResult. success(booking)
+                    AppResult.success(booking)
                 } else {
                     AppResult.failure(Exception("Empty response body"))
                 }
             } else {
-                AppResult. failure(Exception("Failed to update booking: ${response.message()}"))
+                AppResult.failure(Exception("Failed to update booking: ${response.message()}"))
             }
         } catch (e: Exception) {
             AppResult.failure(e)
@@ -181,10 +181,10 @@ class BookingRepositoryImpl @Inject constructor(
             val response = api.resendIcs(bookingId)
             if (response.isSuccessful) {
                 val body = response.body()
-                if (body?. success == true) {
+                if (body?.success == true) {
                     AppResult.success(body.message ?: "ICS email resent successfully")
                 } else {
-                    AppResult.failure(Exception(body?. message ?: "Failed to resend ICS"))
+                    AppResult.failure(Exception(body?.message ?: "Failed to resend ICS"))
                 }
             } else {
                 AppResult.failure(Exception("HTTP ${response.code()}: ${response.message()}"))

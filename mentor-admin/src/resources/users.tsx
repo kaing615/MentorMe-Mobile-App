@@ -30,7 +30,7 @@ type User = {
   id: string | number;
   name?: string;
   email?: string;
-  role?: "admin" | "moderator" | "mentor" | "mentee";
+  role?: "root" | "admin" | "mentor" | "mentee";
   isBlocked?: boolean;
   createdAt?: string;
 };
@@ -65,6 +65,18 @@ function BlockToggleButton() {
   const [open, setOpen] = React.useState(false);
 
   if (!record) return null;
+  
+  const currentUserId = localStorage.getItem("userId");
+  
+  // Không cho phép tự lock bản thân
+  if (currentUserId === String(record.id)) {
+    return null;
+  }
+  
+  // Không cho phép lock root
+  if (record.role === "root") {
+    return null;
+  }
 
   const nextBlocked = !Boolean(record.isBlocked);
   const label = nextBlocked ? "Lock" : "Unlock";
@@ -114,6 +126,17 @@ function ChangePasswordButton() {
   const [loading, setLoading] = React.useState(false);
 
   if (!record) return null;
+  
+  const currentUserId = localStorage.getItem("userId");
+  const currentUserRole = localStorage.getItem("role");
+  
+  if (currentUserId === String(record.id)) {
+    return null;
+  }
+  
+  if (currentUserRole === "admin" && record.role === "root") {
+    return null;
+  }
 
   const onConfirm = async () => {
     if (!password || password.length < 6) {
@@ -196,6 +219,40 @@ function ChangePasswordButton() {
   );
 }
 
+function UserEditButton() {
+  const record = useRecordContext<User>();
+  if (!record) return null;
+  
+  const currentUserRole = localStorage.getItem("role");
+  
+  if (currentUserRole === "admin" && ["admin", "root"].includes(record.role || "")) {
+    const currentUserId = localStorage.getItem("userId");
+    if (currentUserId !== String(record.id)) {
+      return null;
+    }
+  }
+  
+  return <EditButton />;
+}
+
+function UserDeleteButton() {
+  const record = useRecordContext<User>();
+  if (!record) return null;
+  
+  const currentUserId = localStorage.getItem("userId");
+  const currentUserRole = localStorage.getItem("role");
+  
+  if (currentUserId === String(record.id)) {
+    return null;
+  }
+  
+  if (currentUserRole === "admin" && ["admin", "root"].includes(record.role || "")) {
+    return null;
+  }
+  
+  return <DeleteButton />;
+}
+
 export function UserList() {
   return (
     <List filters={UserFilters} sort={{ field: "createdAt", order: "DESC" }}>
@@ -206,10 +263,10 @@ export function UserList() {
         <TextField source="role" />
         <BooleanField source="isBlocked" label="Blocked" />
         <DateField source="createdAt" showTime />
-        <EditButton />
+        <UserEditButton />
         <BlockToggleButton />
         <ChangePasswordButton />
-        <DeleteButton />
+        <UserDeleteButton />
       </Datagrid>
     </List>
   );
@@ -239,17 +296,39 @@ export function UserCreate() {
 }
 
 export function UserEdit() {
+  const record = useRecordContext<User>();
+  const currentUserRole = localStorage.getItem("role");
+  const currentUserId = localStorage.getItem("userId");
+  
+  const isEditingSelf = currentUserId === String(record?.id);
+  
+  let allowedRoleChoices = roleChoices;
+  if (isEditingSelf) {
+    allowedRoleChoices = roleChoices.filter(r => ["mentor", "mentee"].includes(r.id));
+  } else if (currentUserRole === "admin") {
+    allowedRoleChoices = roleChoices.filter(r => ["mentor", "mentee"].includes(r.id));
+  }
+  
   return (
     <Edit>
       <SimpleForm>
         <RaTextInput source="name" validate={[required()]} fullWidth />
-        <RaTextInput source="email" validate={[required()]} fullWidth />
+        <RaTextInput 
+          source="email" 
+          validate={[required()]} 
+          fullWidth 
+          disabled={isEditingSelf}
+        />
         <RaSelectInput
           source="role"
-          choices={roleChoices}
+          choices={allowedRoleChoices}
           validate={[required()]}
         />
-        <BooleanInput source="isBlocked" label="Blocked" />
+        <BooleanInput 
+          source="isBlocked" 
+          label="Blocked" 
+          disabled={isEditingSelf}
+        />
       </SimpleForm>
     </Edit>
   );

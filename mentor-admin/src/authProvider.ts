@@ -17,7 +17,7 @@ export const authProvider: AuthProvider = {
     }
 
     const response = await res.json();
-    // Backend trả về: { success: true, data: { accessToken, role }, message: "..." }
+    // Backend trả về: { success: true, data: { accessToken, role, userId, email }, message: "..." }
     const data = response.data || response;
     
     if (!data.accessToken) {
@@ -26,6 +26,8 @@ export const authProvider: AuthProvider = {
     
     localStorage.setItem("access_token", data.accessToken);
     localStorage.setItem("role", data.role || "admin");
+    localStorage.setItem("userId", data.userId || "");
+    localStorage.setItem("user_email", data.email || "");
     
     return Promise.resolve();
   },
@@ -33,6 +35,8 @@ export const authProvider: AuthProvider = {
   async logout() {
     localStorage.removeItem("access_token");
     localStorage.removeItem("role");
+    localStorage.removeItem("userId");
+    localStorage.removeItem("user_email");
   },
 
   async checkAuth() {

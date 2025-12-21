@@ -692,7 +692,9 @@ export const adminLogin = asyncHandler(async (req: Request, res: Response) => {
   
   return responseHandler.ok(res, { 
     accessToken: token, 
-    role: user.role 
+    role: user.role,
+    userId: String(user._id),
+    email: user.email
   }, "Login successful");
 });
 

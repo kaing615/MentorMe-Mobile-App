@@ -23,7 +23,6 @@ import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.model.User
 import retrofit2.Response
 import retrofit2.http.*
-import kotlin.jvm.JvmSuppressWildcards
 
 interface MentorMeApi {
 

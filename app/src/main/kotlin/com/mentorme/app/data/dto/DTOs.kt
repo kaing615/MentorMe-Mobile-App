@@ -1,6 +1,6 @@
 package com.mentorme.app.data.dto
 
-import com.google.gson.annotations.SerializedName
+import com.google. gson.annotations.SerializedName
 import com.mentorme.app.data.model.*
 
 // Auth DTOs
@@ -41,7 +41,10 @@ data class MentorListResponse(
     val totalPages: Int
 )
 
+// ✅ Thêm field id (occurrenceId)
 data class AvailabilitySlot(
+    @SerializedName("id")
+    val id: String?  = null,
     @SerializedName("date")
     val date: String,
     @SerializedName("startTime")
@@ -56,10 +59,10 @@ data class AvailabilitySlot(
 data class CreateBookingRequest(
     @SerializedName("mentorId")
     val mentorId: String,
-    @SerializedName("occurrenceId")
+    @SerializedName("occurrenceId")  // ✅ Sửa từ scheduledAt sang occurrenceId
     val occurrenceId: String,
     @SerializedName("topic")
-    val topic: String? = null,
+    val topic: String?  = null,  // ✅ Optional
     @SerializedName("notes")
     val notes: String? = null
 )
@@ -73,11 +76,6 @@ data class UpdateBookingRequest(
     val notes: String? = null
 )
 
-data class CancelBookingRequest(
-    @SerializedName("reason")
-    val reason: String? = null
-)
-
 data class BookingListResponse(
     @SerializedName("bookings")
     val bookings: List<Booking>,
@@ -89,16 +87,22 @@ data class BookingListResponse(
     val totalPages: Int
 )
 
-data class ResendIcsResponse(
-    @SerializedName("sent")
-    val sent: Boolean
-)
-
 data class RatingRequest(
     @SerializedName("rating")
     val rating: Int,
     @SerializedName("feedback")
     val feedback: String? = null
+)
+
+data class ResendIcsResponse(
+    @SerializedName("success")
+    val success: Boolean,
+    @SerializedName("message")
+    val message: String?
+)
+data class CancelBookingRequest(
+    @SerializedName("reason")
+    val reason: String? = null
 )
 
 // Message DTOs

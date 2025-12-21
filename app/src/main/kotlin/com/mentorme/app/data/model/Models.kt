@@ -86,20 +86,23 @@ data class AvailabilitySlot(
 
 // -------- Booking status from API: 'PaymentPending' | 'Confirmed' | 'Failed' | 'Cancelled' | 'Completed'
 enum class BookingStatus {
-    @SerializedName("PaymentPending")
-    PAYMENT_PENDING,
-    @SerializedName("Confirmed")
-    CONFIRMED,
-    @SerializedName("Failed")
-    FAILED,
-    @SerializedName("Cancelled")
-    CANCELLED,
-    @SerializedName("Completed")
-    COMPLETED,
-    // Legacy status for backward compatibility with older API versions.
-    // @Deprecated: Remove when all API consumers migrate to new statuses.
     @SerializedName("pending")
-    PENDING
+    PENDING,
+
+    @SerializedName("paymentPending")
+    PAYMENT_PENDING,  // ✅ Mới
+
+    @SerializedName("confirmed")
+    CONFIRMED,
+
+    @SerializedName("completed")
+    COMPLETED,
+
+    @SerializedName("cancelled")
+    CANCELLED,
+
+    @SerializedName("failed")
+    FAILED  // ✅ Mới
 }
 
 // -------- Booking (API response fields)
@@ -110,34 +113,24 @@ data class Booking(
     val menteeId: String,
     @SerializedName("mentorId")
     val mentorId: String,
-    @SerializedName("occurrenceId")
-    val occurrenceId: String? = null,
     @SerializedName("date")
     val date: String,          // "YYYY-MM-DD"
     @SerializedName("startTime")
     val startTime: String,     // "HH:mm"
     @SerializedName("endTime")
     val endTime: String,       // "HH:mm"
-    @SerializedName("startTimeIso")
-    val startTimeIso: String? = null,
-    @SerializedName("endTimeIso")
-    val endTimeIso: String? = null,
     @SerializedName("status")
     val status: BookingStatus,
     @SerializedName("price")
     val price: Double,
-    @SerializedName("topic")
-    val topic: String? = null,
     @SerializedName("notes")
-    val notes: String? = null,
-    @SerializedName("meetingLink")
-    val meetingLink: String? = null,
-    @SerializedName("location")
-    val location: String? = null,
-    @SerializedName("expiresAt")
-    val expiresAt: String? = null,
+    val notes: String?,
     @SerializedName("createdAt")
-    val createdAt: String      // ISO-8601 string
+    val createdAt: String,     // ISO-8601
+    @SerializedName("rating")
+    val rating: Int?  = null,
+    @SerializedName("feedback")
+    val feedback: String?  = null
 )
 
 // -------- Review

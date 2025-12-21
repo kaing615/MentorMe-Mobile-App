@@ -403,6 +403,9 @@ private fun BookingCard(
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
+
+                    BookingStatus.PAYMENT_PENDING -> TODO()
+                    BookingStatus.FAILED -> TODO()
                 }
             }
         }
@@ -416,6 +419,8 @@ private fun StatusPill(status: BookingStatus) {
         BookingStatus.CONFIRMED -> Triple("Xác nhận", Color(0xFF10B981), "✅")
         BookingStatus.COMPLETED -> Triple("Hoàn thành", Color(0xFF8B5CF6), "🎉")
         BookingStatus.CANCELLED -> Triple("Đã hủy", Color(0xFFEF4444), "❌")
+        BookingStatus.PAYMENT_PENDING -> TODO()
+        BookingStatus.FAILED -> TODO()
     }
 
     Box(

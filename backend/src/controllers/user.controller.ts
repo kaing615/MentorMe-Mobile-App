@@ -1,15 +1,15 @@
-import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import transporter from "../utils/emailService";
+import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
+import { Request, Response } from "express";
+import jwt, { SignOptions } from "jsonwebtoken";
 import nodemailer from "nodemailer";
-import redis from "../utils/redis";
 import { asyncHandler } from "../handlers/async.handler";
 import responseHandler from "../handlers/response.handler";
-import User, { IUser } from "../models/user.model";
-import { randomInt, randomBytes, createHash, randomUUID } from "crypto";
-import jwt, { SignOptions } from "jsonwebtoken";
 import getTokenFromReq from "../middlewares/auth.middleware";
 import Profile from "../models/profile.model";
+import User, { IUser } from "../models/user.model";
+import transporter from "../utils/emailService";
+import redis from "../utils/redis";
 
 const OTP_TTL_SEC = 10 * 60;
 const OTP_MAX_ATTEMPTS = 5;
@@ -660,6 +660,78 @@ export const getCurrentUser = asyncHandler(
   }
 );
 
+
+export const adminLogin = asyncHandler(async (req: Request, res: Response) => {
+  const { username, password } = req.body;
+  
+  const user = await User.findOne({ 
+    email: username, // hoặc userName: username
+    role: { $in: ['admin', 'moderator'] } 
+  });
+  
+  if (!user || !(await bcrypt.compare(password, (user as any).passwordHash))) {
+    return responseHandler.unauthorized(res, null, "Invalid credentials");
+  }
+  
+  const token = jwt.sign(
+    { id: String(user._id), email: user.email, role: user.role },
+    process.env.JWT_SECRET!,
+    jwtOpts()
+  );
+  
+  return responseHandler.ok(res, { 
+    accessToken: token, 
+    role: user.role 
+  }, "Login successful");
+});
+
+export const getAllUsers = asyncHandler(async (req: Request, res: Response) => {
+  const { filter = '{}', range = '[0,9]', sort = '["createdAt","DESC"]' } = req.query;
+  
+  const filterObj = JSON.parse(filter as string);
+  const [start, end] = JSON.parse(range as string);
+  const [sortField, sortOrder] = JSON.parse(sort as string);
+  
+  const query: any = {};
+  if (filterObj.q) {
+    query.$or = [
+      { name: { $regex: filterObj.q, $options: 'i' } },
+      { email: { $regex: filterObj.q, $options: 'i' } },
+      { userName: { $regex: filterObj.q, $options: 'i' } }
+    ];
+  }
+  if (filterObj.role) query.role = filterObj.role;
+  if (filterObj.isBlocked !== undefined) query.isBlocked = filterObj.isBlocked === 'true';
+  
+  const total = await User.countDocuments(query);
+  const users = await User.find(query)
+    .select('-passwordHash')
+    .sort({ [sortField]: sortOrder === 'DESC' ? -1 : 1 })
+    .skip(start)
+    .limit(end - start + 1);
+  
+  res.set('Content-Range', `users ${start}-${end}/${total}`);
+  res.set('Access-Control-Expose-Headers', 'Content-Range');
+  return res.json(users.map(u => ({ ...u.toObject(), id: u._id })));
+});
+
+export const getUserById = asyncHandler(async (req: Request, res: Response) => {
+  const user = await User.findById(req.params.id).select('-passwordHash');
+  if (!user) return responseHandler.notFound(res, null, "User not found");
+  return res.json({ ...user.toObject(), id: user._id });
+});
+
+export const updateUser = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const updates = req.body;
+  delete updates.id;
+  delete updates.passwordHash;
+  
+  const user = await User.findByIdAndUpdate(id, updates, { new: true }).select('-passwordHash');
+  if (!user) return responseHandler.notFound(res, null, "User not found");
+  return res.json({ ...user.toObject(), id: user._id });
+});
+
 export default {
   signUpMentee,
   verifyEmailOtp,
@@ -667,4 +739,10 @@ export default {
   signIn,
   signOut,
   getCurrentUser,
+  adminLogin,
+  getAllUsers,
+  getUserById,
+  updateUser,
 };
+
+

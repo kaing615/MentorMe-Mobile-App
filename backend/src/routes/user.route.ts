@@ -1,12 +1,10 @@
-import { requireRoles, auth } from "../middlewares/auth.middleware";
 import { Router } from "express";
-import responseHandler from "../handlers/response.handler";
-import { validate } from "../handlers/request.handler";
 import userController from "../controllers/user.controller";
+import { validate } from "../handlers/request.handler";
 import {
+  signInValidator,
   signUpMenteeValidator,
   signUpMentorValidator,
-  signInValidator,
   verifyOtpValidator,
 } from "../middlewares/validators/user.validator";
 
@@ -32,5 +30,12 @@ router.post(
   userController.verifyEmailOtp
 );
 router.post("/signout", userController.signOut);
+
+// Admin routes
+router.post("/admin/login", userController.adminLogin);
+
+router.get("/", userController.getAllUsers);
+router.get("/:id", userController.getUserById);
+router.put("/:id", userController.updateUser);
 
 export default router;

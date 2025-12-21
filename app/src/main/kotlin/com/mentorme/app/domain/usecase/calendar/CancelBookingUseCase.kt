@@ -1,7 +1,7 @@
 package com.mentorme.app.domain.usecase.calendar
 
 import com.mentorme.app.core.utils.AppResult
-import com.mentorme.app.data.dto.UpdateBookingRequest
+import com.mentorme.app.data.dto.CancelBookingRequest
 import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.remote.MentorMeApi
 import javax.inject.Inject
@@ -14,12 +14,12 @@ import kotlinx.coroutines.runBlocking
 class CancelBookingUseCase @Inject constructor(
     private val api: MentorMeApi
 ) {
-    operator fun invoke(bookingId: String): AppResult<Booking> {
+    operator fun invoke(bookingId: String, reason: String? = null): AppResult<Booking> {
         return try {
-            val request = UpdateBookingRequest(status = "canceled")
-            val resp = runBlocking { api.updateBooking(bookingId, request) }
+            val request = CancelBookingRequest(reason = reason)
+            val resp = runBlocking { api.cancelBooking(bookingId, request) }
             if (resp.isSuccessful) {
-                val body = resp.body()
+                val body = resp.body()?.data
                 if (body != null) {
                     AppResult.success(body)
                 } else {
@@ -27,7 +27,7 @@ class CancelBookingUseCase @Inject constructor(
                 }
             } else {
                 val msg = try { resp.errorBody()?.string() } catch (_: Exception) { null }
-                AppResult.failure("HTTP ${resp.code()}: ${msg ?: resp.message()}\npath=/bookings/$bookingId")
+                AppResult.failure("HTTP ${resp.code()}: ${msg ?: resp.message()}\npath=/bookings/$bookingId/cancel")
             }
         } catch (t: Throwable) {
             AppResult.failure(t)

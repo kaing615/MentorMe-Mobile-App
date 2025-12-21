@@ -7,31 +7,26 @@ import com.mentorme.app.data.remote.MentorMeApi
 import javax.inject.Inject
 import kotlinx.coroutines.runBlocking
 import com.mentorme.app.core.utils.Logx
+import com.mentorme.app.data.dto.availability.ApiEnvelope
 
-/**
- * Create a booking (occurrence-first, time-fallback handled by backend).
- * Returns AppResult<Booking> and surfaces HTTP code/message when failing.
- */
 class CreateBookingUseCase @Inject constructor(
     private val api: MentorMeApi
 ) {
     operator fun invoke(
         mentorId: String,
-        scheduledAtIsoUtc: String,
-        durationMinutes: Int,
-        topic: String,
-        notes: String?
-    ): AppResult<Booking> {
+        occurrenceId: String,
+        topic: String? = null,
+        notes: String? = null
+    ): AppResult<ApiEnvelope<Booking>> {
         return try {
             val request = CreateBookingRequest(
                 mentorId = mentorId,
-                scheduledAt = scheduledAtIsoUtc,
-                duration = durationMinutes,
+                occurrenceId = occurrenceId,
                 topic = topic,
                 notes = notes
             )
             Logx.d("CreateBookingUseCase") {
-                "request mentorId=$mentorId scheduledAt=$scheduledAtIsoUtc duration=$durationMinutes"
+                "request mentorId=$mentorId occurrenceId=$occurrenceId"
             }
             val resp = runBlocking { api.createBooking(request) }
             Logx.d("CreateBookingUseCase") { "response code=${resp.code()}" }

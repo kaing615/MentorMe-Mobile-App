@@ -10,6 +10,9 @@ import com.mentorme.app.data.dto.auth.SignUpRequest
 import com.mentorme.app.data.dto.auth.VerifyOtpRequest
 import com.mentorme.app.data.dto.auth.AuthResponse as AuthResponseDto
 import com.mentorme.app.data.dto.auth.ResendOtpRequest
+import com.mentorme.app.data.dto.UpdateBookingRequest
+import com.mentorme.app.data.dto.availability.ApiEnvelope
+import com.mentorme.app.data.dto.profile.MePayload
 
 // Specific imports for Models (used for business entities)
 import com.mentorme.app.data.model.Booking
@@ -18,6 +21,7 @@ import com.mentorme.app.data.model.User
 import kotlinx.coroutines.flow.Flow
 import com.mentorme.app.data.dto.profile.ProfileCreateResponse
 import com.mentorme.app.domain.usecase.onboarding.RequiredProfileParams
+import com.mentorme.app.domain.usecase.profile.UpdateProfileParams
 
 interface AuthRepository {
 
@@ -46,25 +50,39 @@ interface MentorRepository {
 interface BookingRepository {
     suspend fun createBooking(
         mentorId: String,
-        scheduledAt: String,
-        duration: Int,
-        topic: String,
+        occurrenceId: String,
+        topic: String? = null,
         notes: String? = null
     ): AppResult<Booking>
 
     suspend fun getBookings(
+        role: String? = null,
         status: String? = null,
         page: Int = 1,
         limit: Int = 10
     ): AppResult<BookingListResponse>
 
+    suspend fun updateBooking(
+        bookingId: String,
+        updateRequest: UpdateBookingRequest
+    ): AppResult<Booking>
+
     suspend fun getBookingById(bookingId: String): AppResult<Booking>
-    suspend fun updateBooking(bookingId: String, status: String? = null): AppResult<Booking>
+    suspend fun cancelBooking(bookingId: String, reason: String? = null): AppResult<Booking>
+    suspend fun resendIcs(bookingId: String): AppResult<String>
     suspend fun rateBooking(bookingId: String, rating: Int, feedback: String? = null): AppResult<Booking>
 }
 
 interface ProfileRepository {
+
+    suspend fun getMe(): AppResult<MePayload>
+
+    suspend fun updateProfile(
+        params: UpdateProfileParams
+    ): AppResult<Unit>
+
     suspend fun createRequiredProfile(
         params: RequiredProfileParams
     ): AppResult<ProfileCreateResponse>
 }
+

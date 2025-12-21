@@ -2,11 +2,13 @@ package com.mentorme.app.data.remote
 
 // DTO imports
 import com.mentorme.app.data.dto.AuthResponse
+import com.mentorme.app.data.dto.CancelBookingRequest
 import com.mentorme.app.data.dto.CreateBookingRequest
 import com.mentorme.app.data.dto.LoginRequest
 import com.mentorme.app.data.dto.Message as ApiMessage
 import com.mentorme.app.data.dto.RatingRequest
 import com.mentorme.app.data.dto.RegisterRequest
+import com.mentorme.app.data.dto.ResendIcsResponse
 import com.mentorme.app.data.dto.SendMessageRequest
 import com.mentorme.app.data.dto.UpdateBookingRequest
 import com.mentorme.app.data.dto.availability.UpdateSlotRequest
@@ -21,7 +23,6 @@ import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.model.User
 import retrofit2.Response
 import retrofit2.http.*
-import kotlin.jvm.JvmSuppressWildcards
 
 interface MentorMeApi {
 
@@ -57,29 +58,39 @@ interface MentorMeApi {
 
     // Booking endpoints
     @POST("bookings")
-    suspend fun createBooking(@Body bookingRequest: CreateBookingRequest): Response<Booking>
+    suspend fun createBooking(@Body bookingRequest: CreateBookingRequest): Response<ApiEnvelope<Booking>>
 
     @GET("bookings")
     suspend fun getBookings(
+        @Query("role") role: String? = null,
         @Query("status") status: String? = null,
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 10
-    ): Response<com.mentorme.app.data.dto.BookingListResponse>
+    ): Response<ApiEnvelope<com.mentorme.app.data.dto.BookingListResponse>>
 
     @GET("bookings/{id}")
-    suspend fun getBookingById(@Path("id") bookingId: String): Response<Booking>
+    suspend fun getBookingById(@Path("id") bookingId: String): Response<ApiEnvelope<Booking>>
 
     @PUT("bookings/{id}")
     suspend fun updateBooking(
         @Path("id") bookingId: String,
         @Body updateRequest: UpdateBookingRequest
-    ): Response<Booking>
+    ): Response<ApiEnvelope<Booking>>
+
+    @POST("bookings/{id}/cancel")
+    suspend fun cancelBooking(
+        @Path("id") bookingId: String,
+        @Body cancelRequest: CancelBookingRequest
+    ): Response<ApiEnvelope<Booking>>
+
+    @POST("bookings/{id}/resend-ics")
+    suspend fun resendIcs(@Path("id") bookingId: String): Response<ApiEnvelope<ResendIcsResponse>>
 
     @POST("bookings/{id}/rate")
     suspend fun rateBooking(
         @Path("id") bookingId: String,
         @Body ratingRequest: RatingRequest
-    ): Response<Booking>
+    ): Response<ApiEnvelope<Booking>>
 
     // Availability endpoints
 

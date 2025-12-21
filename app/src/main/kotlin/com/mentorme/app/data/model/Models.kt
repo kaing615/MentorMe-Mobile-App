@@ -84,19 +84,28 @@ data class AvailabilitySlot(
     val isBooked: Boolean
 )
 
-// -------- Booking status từ web: 'pending' | 'confirmed' | 'completed' | 'cancelled'
+// -------- Booking status from API: 'PaymentPending' | 'Confirmed' | 'Failed' | 'Cancelled' | 'Completed'
 enum class BookingStatus {
     @SerializedName("pending")
     PENDING,
+
+    @SerializedName("paymentPending")
+    PAYMENT_PENDING,  // ✅ Mới
+
     @SerializedName("confirmed")
     CONFIRMED,
+
     @SerializedName("completed")
     COMPLETED,
+
     @SerializedName("cancelled")
-    CANCELLED
+    CANCELLED,
+
+    @SerializedName("failed")
+    FAILED  // ✅ Mới
 }
 
-// -------- Booking (web: menteeId/mentorId, date, startTime, endTime, price, notes?, createdAt)
+// -------- Booking (API response fields)
 data class Booking(
     @SerializedName("id")
     val id: String,
@@ -115,9 +124,13 @@ data class Booking(
     @SerializedName("price")
     val price: Double,
     @SerializedName("notes")
-    val notes: String? = null,
+    val notes: String?,
     @SerializedName("createdAt")
-    val createdAt: String      // ISO-8601 string
+    val createdAt: String,     // ISO-8601
+    @SerializedName("rating")
+    val rating: Int?  = null,
+    @SerializedName("feedback")
+    val feedback: String?  = null
 )
 
 // -------- Review

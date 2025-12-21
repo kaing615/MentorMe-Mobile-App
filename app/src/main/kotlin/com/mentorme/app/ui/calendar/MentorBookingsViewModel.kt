@@ -27,7 +27,7 @@ class MentorBookingsViewModel @Inject constructor(
             try {
                 val resp = api.getBookings(page = 1, limit = 50)
                 if (resp.isSuccessful) {
-                    val list = resp.body()?.bookings.orEmpty()
+                    val list = resp.body()?.data?.bookings.orEmpty()
                     _bookings.value = list.filter { it.mentorId == mentorId }
                     Logx.d(TAG) { "refresh success count=${_bookings.value.size}" }
                 } else {

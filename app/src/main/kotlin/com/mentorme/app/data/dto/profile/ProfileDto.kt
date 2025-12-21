@@ -23,6 +23,11 @@ data class CreatedProfilePayload(
 data class ProfileDto(
     @SerializedName("_id") val id: String?,
     @SerializedName("user") val user: String?,
+
+    // ✅ Thêm 2 fields mới
+    @SerializedName("fullName") val fullName: String?,
+    @SerializedName("phone") val phone: String?,
+
     @SerializedName("location") val location: String?,
     @SerializedName("category") val category: String?,
     @SerializedName("avatarUrl") val avatarUrl: String?,

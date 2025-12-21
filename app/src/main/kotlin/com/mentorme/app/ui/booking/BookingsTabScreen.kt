@@ -37,7 +37,7 @@ fun BookingsTabScreen(
 ) {
     val tabs = listOf(
         BookingStatus.CONFIRMED to "Sắp tới",
-        BookingStatus.PENDING to "Chờ duyệt",
+        BookingStatus.PAYMENT_PENDING to "Chờ thanh toán",
         BookingStatus.COMPLETED to "Hoàn thành",
         BookingStatus.CANCELLED to "Đã hủy",
     )

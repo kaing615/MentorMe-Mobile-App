@@ -1,15 +1,18 @@
-import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import transporter from "../utils/emailService";
 import nodemailer from "nodemailer";
 import redis from "../utils/redis";
+import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
+import { Request, Response } from "express";
+import jwt, { SignOptions } from "jsonwebtoken";
+import nodemailer from "nodemailer";
 import { asyncHandler } from "../handlers/async.handler";
 import responseHandler from "../handlers/response.handler";
-import User, { IUser } from "../models/user.model";
-import { randomInt, randomBytes, createHash, randomUUID } from "crypto";
-import jwt, { SignOptions } from "jsonwebtoken";
 import getTokenFromReq from "../middlewares/auth.middleware";
 import Profile from "../models/profile.model";
+import User, { IUser } from "../models/user.model";
+import transporter from "../utils/emailService";
+import redis from "../utils/redis";
 
 const OTP_TTL_SEC = 10 * 60;
 const OTP_MAX_ATTEMPTS = 5;
@@ -459,6 +462,12 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
     return responseHandler.unauthorized(res, null, "Invalid email or password");
   }
 
+  // Kiểm tra tài khoản có bị block không
+  if ((user as any).isBlocked) {
+    console.log("🚫 Account is blocked:", email);
+    return responseHandler.forbidden(res, null, "Your account has been blocked. Please contact support.");
+  }
+
   if (user.status === "verifying") {
     console.log("⏳ Account verifying (resend OTP):", email);
     try {
@@ -660,6 +669,559 @@ export const getCurrentUser = asyncHandler(
   }
 );
 
+
+export const adminLogin = asyncHandler(async (req: Request, res: Response) => {
+  const { username, password } = req.body;
+  
+  const user = await User.findOne({ 
+    email: username, // hoặc userName: username
+    role: { $in: ['admin', 'root'] } 
+  });
+  
+  if (!user || !(await bcrypt.compare(password, (user as any).passwordHash))) {
+    return responseHandler.unauthorized(res, null, "Invalid credentials");
+  }
+
+  // Kiểm tra tài khoản có bị block không
+  if ((user as any).isBlocked) {
+    return responseHandler.forbidden(res, null, "Your account has been blocked. Please contact administrator.");
+  }
+  
+  const token = jwt.sign(
+    { id: String(user._id), email: user.email, role: user.role },
+    process.env.JWT_SECRET!,
+    jwtOpts()
+  );
+  
+  return responseHandler.ok(res, { 
+    accessToken: token, 
+    role: user.role,
+    userId: String(user._id),
+    email: user.email
+  }, "Login successful");
+});
+
+export const getAllUsers = asyncHandler(async (req: Request, res: Response) => {
+  const { filter = '{}', range = '[0,9]', sort = '["createdAt","DESC"]' } = req.query;
+  
+  const filterObj = JSON.parse(filter as string);
+  const [start, end] = JSON.parse(range as string);
+  const [sortField, sortOrder] = JSON.parse(sort as string);
+  
+  const query: any = {};
+  if (filterObj.q) {
+    query.$or = [
+      { name: { $regex: filterObj.q, $options: 'i' } },
+      { email: { $regex: filterObj.q, $options: 'i' } },
+      { userName: { $regex: filterObj.q, $options: 'i' } }
+    ];
+  }
+  if (filterObj.role) query.role = filterObj.role;
+  if (filterObj.status) query.status = filterObj.status;
+  if (filterObj.isBlocked !== undefined) query.isBlocked = filterObj.isBlocked === 'true';
+  
+  const total = await User.countDocuments(query);
+  const users = await User.find(query)
+    .select('-passwordHash')
+    .sort({ [sortField]: sortOrder === 'DESC' ? -1 : 1 })
+    .skip(start)
+    .limit(end - start + 1);
+  
+  res.set('Content-Range', `users ${start}-${end}/${total}`);
+  res.set('Access-Control-Expose-Headers', 'Content-Range');
+  return res.json(users.map(u => ({ ...u.toObject(), id: u._id })));
+});
+
+export const getUserById = asyncHandler(async (req: Request, res: Response) => {
+  const user = await User.findById(req.params.id).select('-passwordHash');
+  if (!user) return responseHandler.notFound(res, null, "User not found");
+  return res.json({ ...user.toObject(), id: user._id });
+});
+
+export const createUser = asyncHandler(async (req: Request, res: Response) => {
+  const { email, userName, name, role, password, status } = req.body;
+  const currentUser = (req as any).user;
+  
+  if (!email || !userName) {
+    return responseHandler.badRequest(res, null, "Email and userName are required");
+  }
+  
+  // Chỉ root mới được tạo admin/root
+  if (['admin', 'root'].includes(role) && currentUser?.role !== 'root') {
+    return responseHandler.forbidden(res, null, "Only root user can create admin accounts");
+  }
+  
+  // Kiểm tra email đã tồn tại chưa
+  const existing = await User.findOne({ email });
+  if (existing) {
+    return responseHandler.conflict(res, null, "Email already exists");
+  }
+  
+  // Tạo password: nếu không có thì random
+  const finalPassword = password || `Pass${randomInt(100000, 999999)}!`;
+  const passwordHash = await bcrypt.hash(finalPassword, 12);
+  
+  const user = await User.create({
+    email,
+    userName,
+    name: name || userName,
+    passwordHash,
+    role: role || 'mentee',
+    status: status || 'active', // Admin tạo thì active luôn
+    isBlocked: false,
+  });
+  
+  // Gửi email thông báo tài khoản mới với password
+  try {
+    const from = `"MentorMe" <${process.env.SMTP_USER}>`;
+    await transporter.sendMail({
+      to: email,
+      from,
+      subject: "Welcome to MentorMe - Your Account Details",
+      text:
+        `Hi ${name || userName},\n\n` +
+        `Your MentorMe account has been created by an administrator.\n\n` +
+        `Login Details:\n` +
+        `Username: ${userName}\n` +
+        `Email: ${email}\n` +
+        `Password: ${finalPassword}\n\n` +
+        `Please change your password after your first login.\n\n` +
+        `Login at: ${process.env.API_BASE_URL || 'http://localhost:4000'}\n\n` +
+        `— MentorMe Team`,
+      html: `
+  <div style="background:#f6f8fb;padding:32px 12px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" width="560" style="max-width:560px;background:#ffffff;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05);overflow:hidden;">
+      <tr>
+        <td style="padding:28px 28px 0;">
+          <div style="font-size:18px;font-weight:700;color:#111">MentorMe</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:4px;">Welcome to MentorMe</div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:20px 28px 0;">
+          <p style="margin:0 0 8px;font-size:16px;">Hi ${name || userName},</p>
+          <p style="margin:0 0 16px;line-height:1.6;color:#374151">
+            Your MentorMe account has been created by an administrator. Here are your login details:
+          </p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:12px 28px;">
+          <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;">
+            <div style="margin-bottom:8px;">
+              <strong style="color:#111;">Username:</strong> 
+              <span style="color:#374151;">${userName}</span>
+            </div>
+            <div style="margin-bottom:8px;">
+              <strong style="color:#111;">Email:</strong> 
+              <span style="color:#374151;">${email}</span>
+            </div>
+            <div>
+              <strong style="color:#111;">Password:</strong> 
+              <code style="background:#fff;padding:4px 8px;border-radius:4px;font-family:monospace;color:#dc2626;">${finalPassword}</code>
+            </div>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 28px 20px;">
+          <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.6">
+            ⚠️ Please change your password after your first login for security.
+          </p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 28px 28px;">
+          <hr style="border:none;border-top:1px solid #eef2f7;margin:0 0 12px;">
+          <div style="font-size:12px;color:#9ca3af;">
+            © ${new Date().getFullYear()} MentorMe. All rights reserved.
+          </div>
+        </td>
+      </tr>
+    </table>
+  </div>
+      `,
+    });
+    console.log(`✉️ Welcome email sent to ${email}`);
+  } catch (emailError: any) {
+    console.error("Failed to send welcome email:", emailError);
+    // Không fail request nếu email lỗi, user vẫn được tạo
+  }
+  
+  return res.status(201).json({ ...user.toObject(), id: user._id });
+});
+
+export const updateUser = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const updates = req.body;
+  const currentUser = (req as any).user;
+  
+  delete updates.id;
+  delete updates.passwordHash;
+  
+  // Lấy thông tin user đang được sửa
+  const targetUser = await User.findById(id);
+  if (!targetUser) return responseHandler.notFound(res, null, "User not found");
+  
+  // Admin không được thay đổi role của admin/root khác
+  if (currentUser?.role === 'admin') {
+    if (['admin', 'root'].includes(targetUser.role as string)) {
+      return responseHandler.forbidden(res, null, "You cannot modify admin accounts");
+    }
+    // Ngăn admin thay đổi role thành admin/root
+    if (updates.role && ['admin', 'root'].includes(updates.role)) {
+      return responseHandler.forbidden(res, null, "Only root user can change roles to admin");
+    }
+  }
+  
+  // Chỉ root mới được thay đổi role thành admin/root
+  if (updates.role && ['admin', 'root'].includes(updates.role) && currentUser?.role !== 'root') {
+    return responseHandler.forbidden(res, null, "Only root user can assign admin roles");
+  }
+  
+  const user = await User.findByIdAndUpdate(id, updates, { new: true }).select('-passwordHash');
+  if (!user) return responseHandler.notFound(res, null, "User not found");
+  return res.json({ ...user.toObject(), id: user._id });
+});
+
+export const deleteUser = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const currentUser = (req as any).user;
+  
+  const user = await User.findById(id);
+  if (!user) return responseHandler.notFound(res, null, "User not found");
+  
+  // Admin không được xóa admin/root khác
+  if (currentUser?.role === 'admin') {
+    if (['admin', 'root'].includes((user as any).role)) {
+      return responseHandler.forbidden(res, null, "You cannot delete admin accounts");
+    }
+  }
+  
+  // Không cho xóa root user
+  if ((user as any).role === 'root') {
+    return responseHandler.forbidden(res, null, "Root user cannot be deleted");
+  }
+  
+  await User.findByIdAndDelete(id);
+  
+  // Có thể thêm logic xóa dữ liệu liên quan (profile, bookings, etc.)
+  await Profile.deleteOne({ user: id });
+  
+  return res.json({ ...user.toObject(), id: user._id });
+});
+
+export const changeUserPassword = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { password } = req.body;
+  const currentUser = (req as any).user;
+  
+  if (!password || password.length < 6) {
+    return responseHandler.badRequest(res, null, "Password must be at least 6 characters");
+  }
+  
+  const user = await User.findById(id);
+  if (!user) return responseHandler.notFound(res, null, "User not found");
+  
+  // Admin không được đổi password của admin/root khác (trừ khi là root)
+  if (currentUser?.role === 'admin') {
+    if (['admin', 'root'].includes((user as any).role)) {
+      return responseHandler.forbidden(res, null, "You cannot change password of admin accounts");
+    }
+  }
+  
+  // Hash password mới
+  const passwordHash = await bcrypt.hash(password, 12);
+  await User.findByIdAndUpdate(id, { passwordHash });
+  
+  return responseHandler.ok(res, { id }, "Password changed successfully");
+});
+
+export const changeMyPassword = asyncHandler(async (req: Request, res: Response) => {
+  const { currentPassword, newPassword } = req.body;
+  const currentUser = (req as any).user;
+  
+  if (!currentPassword || !newPassword) {
+    return responseHandler.badRequest(res, null, "Current password and new password are required");
+  }
+  
+  if (newPassword.length < 6) {
+    return responseHandler.badRequest(res, null, "New password must be at least 6 characters");
+  }
+  
+  const user = await User.findById(currentUser.id);
+  if (!user) return responseHandler.notFound(res, null, "User not found");
+  
+  // Verify current password
+  const match = await bcrypt.compare(currentPassword, (user as any).passwordHash);
+  if (!match) {
+    return responseHandler.unauthorized(res, null, "Current password is incorrect");
+  }
+  
+  // Hash and update new password
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await User.findByIdAndUpdate(currentUser.id, { passwordHash });
+  
+  return responseHandler.ok(res, null, "Your password has been changed successfully");
+});
+
+export const approveMentor = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const currentUser = (req as any).user;
+  
+  const user = await User.findById(id);
+  if (!user) return responseHandler.notFound(res, null, "User not found");
+  
+  if ((user as any).role !== 'mentor') {
+    return responseHandler.badRequest(res, null, "User is not a mentor");
+  }
+  
+  if ((user as any).status !== 'pending-mentor') {
+    return responseHandler.badRequest(res, null, "Mentor is not in pending status");
+  }
+  
+  await User.findByIdAndUpdate(id, { status: 'active' });
+  
+  // Gửi email thông báo được duyệt
+  try {
+    await transporter.sendMail({
+      to: user.email,
+      from: `"MentorMe" <${process.env.SMTP_USER}>`,
+      subject: "MentorMe • Mentor Application Approved ✅",
+      text: `Hi ${user.name || user.userName},\n\nCongratulations! Your mentor application has been approved.\nYou can now login and start mentoring.\n\n— MentorMe Team`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f7fafc;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f7fafc; padding: 40px 20px;">
+            <tr>
+              <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.07);">
+                  <!-- Header -->
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%); padding: 48px 40px; text-align: center;">
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="text-align: center;">
+                            <div style="background-color: rgba(255,255,255,0.2); width: 64px; height: 64px; border-radius: 16px; margin: 0 auto 16px; display: inline-flex; align-items: center; justify-content: center; backdrop-filter: blur(10px);">
+                              <span style="color: #ffffff; font-size: 32px; font-weight: 700;">M</span>
+                            </div>
+                            <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.5px;">MentorMe</h1>
+                            <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 14px; font-weight: 500;">Empowering Growth Through Mentorship</p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  
+                  <!-- Success Icon -->
+                  <tr>
+                    <td style="padding: 48px 40px 24px; text-align: center;">
+                      <div style="width: 96px; height: 96px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 50%; margin: 0 auto; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 8px 16px rgba(16, 185, 129, 0.3);">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M20 6L9 17L4 12" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      </div>
+                    </td>
+                  </tr>
+                  
+                  <!-- Content -->
+                  <tr>
+                    <td style="padding: 0 40px 40px; text-align: center;">
+                      <h2 style="color: #111827; margin: 0 0 16px; font-size: 28px; font-weight: 700;">Congratulations! 🎉</h2>
+                      <p style="color: #6b7280; margin: 0 0 12px; font-size: 16px; line-height: 1.6;">
+                        Hi <strong style="color: #111827;">${user.name || user.userName}</strong>,
+                      </p>
+                      <p style="color: #6b7280; margin: 0 0 32px; font-size: 16px; line-height: 1.7;">
+                        Your mentor application has been <strong style="color: #10b981;">approved</strong>! You're now part of our amazing community of mentors. Log in to your dashboard and start making a difference.
+                      </p>
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td align="center">
+                            <a href="${process.env.CLIENT_URL || 'https://mentorme.com'}/signin" style="display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4); transition: all 0.3s;">Get Started →</a>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  
+                  <!-- Divider -->
+                  <tr>
+                    <td style="padding: 0 40px;">
+                      <div style="border-top: 1px solid #e5e7eb;"></div>
+                    </td>
+                  </tr>
+                  
+                  <!-- Footer -->
+                  <tr>
+                    <td style="padding: 32px 40px; text-align: center;">
+                      <p style="color: #9ca3af; margin: 0 0 8px; font-size: 14px; line-height: 1.6;">
+                        Questions? Reach out to us at <a href="mailto:support@mentorme.com" style="color: #6366f1; text-decoration: none;">support@mentorme.com</a>
+                      </p>
+                      <p style="color: #9ca3af; margin: 0; font-size: 14px;">
+                        © 2025 MentorMe. All rights reserved.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `,
+    });
+  } catch (emailError) {
+    console.error("Failed to send approval email:", emailError);
+  }
+  
+  return responseHandler.ok(res, { id }, "Mentor approved successfully");
+});
+
+export const rejectMentor = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { reason } = req.body;
+  
+  const user = await User.findById(id);
+  if (!user) return responseHandler.notFound(res, null, "User not found");
+  
+  if ((user as any).role !== 'mentor') {
+    return responseHandler.badRequest(res, null, "User is not a mentor");
+  }
+  
+  if ((user as any).status !== 'pending-mentor') {
+    return responseHandler.badRequest(res, null, "Mentor is not in pending status");
+  }
+  
+  // Chuyển về mentee hoặc xóa tùy yêu cầu - ở đây chuyển về mentee
+  await User.findByIdAndUpdate(id, { role: 'mentee', status: 'active' });
+  
+  // Gửi email thông báo bị từ chối
+  try {
+    await transporter.sendMail({
+      to: user.email,
+      from: `"MentorMe" <${process.env.SMTP_USER}>`,
+      subject: "MentorMe • Mentor Application Update",
+      text: `Hi ${user.name || user.userName},\n\nThank you for your interest in becoming a mentor.\nUnfortunately, your application was not approved at this time.\n${reason ? `\nReason: ${reason}` : ''}\n\nYou can continue using MentorMe as a mentee.\n\n— MentorMe Team`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f7fafc;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f7fafc; padding: 40px 20px;">
+            <tr>
+              <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.07);">
+                  <!-- Header -->
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%); padding: 48px 40px; text-align: center;">
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="text-align: center;">
+                            <div style="background-color: rgba(255,255,255,0.2); width: 64px; height: 64px; border-radius: 16px; margin: 0 auto 16px; display: inline-flex; align-items: center; justify-content: center; backdrop-filter: blur(10px);">
+                              <span style="color: #ffffff; font-size: 32px; font-weight: 700;">M</span>
+                            </div>
+                            <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.5px;">MentorMe</h1>
+                            <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 14px; font-weight: 500;">Empowering Growth Through Mentorship</p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  
+                  <!-- Info Icon -->
+                  <tr>
+                    <td style="padding: 48px 40px 24px; text-align: center;">
+                      <div style="width: 96px; height: 96px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border-radius: 50%; margin: 0 auto; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 8px 16px rgba(245, 158, 11, 0.3);">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <circle cx="12" cy="12" r="10" stroke="white" stroke-width="2"/>
+                          <path d="M12 8V12" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                          <circle cx="12" cy="16" r="1" fill="white"/>
+                        </svg>
+                      </div>
+                    </td>
+                  </tr>
+                  
+                  <!-- Content -->
+                  <tr>
+                    <td style="padding: 0 40px 40px; text-align: center;">
+                      <h2 style="color: #111827; margin: 0 0 16px; font-size: 28px; font-weight: 700;">Application Update</h2>
+                      <p style="color: #6b7280; margin: 0 0 12px; font-size: 16px; line-height: 1.6;">
+                        Hi <strong style="color: #111827;">${user.name || user.userName}</strong>,
+                      </p>
+                      <p style="color: #6b7280; margin: 0 0 24px; font-size: 16px; line-height: 1.7;">
+                        Thank you for your interest in becoming a mentor on MentorMe. After careful review, we regret to inform you that your application was not approved at this time.
+                      </p>
+                      ${reason ? `
+                        <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-left: 4px solid #f59e0b; padding: 20px; margin: 0 0 24px; text-align: left; border-radius: 8px; box-shadow: 0 2px 4px rgba(245, 158, 11, 0.1);">
+                          <p style="color: #92400e; margin: 0 0 8px; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Reason</p>
+                          <p style="color: #78350f; margin: 0; font-size: 15px; line-height: 1.6;">
+                            ${reason}
+                          </p>
+                        </div>
+                      ` : ''}
+                      <p style="color: #6b7280; margin: 0 0 32px; font-size: 16px; line-height: 1.7;">
+                        You can continue using MentorMe as a mentee and reapply in the future.
+                      </p>
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td align="center">
+                            <a href="${process.env.CLIENT_URL || 'https://mentorme.com'}/signin" style="display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);">Continue as Mentee →</a>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  
+                  <!-- Divider -->
+                  <tr>
+                    <td style="padding: 0 40px;">
+                      <div style="border-top: 1px solid #e5e7eb;"></div>
+                    </td>
+                  </tr>
+                  
+                  <!-- Footer -->
+                  <tr>
+                    <td style="padding: 32px 40px; text-align: center;">
+                      <p style="color: #9ca3af; margin: 0 0 8px; font-size: 14px; line-height: 1.6;">
+                        Questions? Reach out to us at <a href="mailto:support@mentorme.com" style="color: #6366f1; text-decoration: none;">support@mentorme.com</a>
+                      </p>
+                      <p style="color: #9ca3af; margin: 0; font-size: 14px;">
+                        © 2025 MentorMe. All rights reserved.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `,
+    });
+  } catch (emailError) {
+    console.error("Failed to send rejection email:", emailError);
+  }
+  
+  return responseHandler.ok(res, { id }, "Mentor application rejected");
+});
+
+export const getPendingMentorsCount = asyncHandler(async (req: Request, res: Response) => {
+  const count = await User.countDocuments({ 
+    role: 'mentor', 
+    status: 'pending-mentor' 
+  });
+  
+  return responseHandler.ok(res, { count }, "Pending mentors count retrieved");
+});
+
 export default {
   signUpMentee,
   verifyEmailOtp,
@@ -667,4 +1229,17 @@ export default {
   signIn,
   signOut,
   getCurrentUser,
+  adminLogin,
+  getAllUsers,
+  getUserById,
+  createUser,
+  updateUser,
+  deleteUser,
+  changeUserPassword,
+  changeMyPassword,
+  approveMentor,
+  rejectMentor,
+  getPendingMentorsCount,
 };
+
+

@@ -1,4 +1,3 @@
-// path: src/controllers/booking.controller.ts
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { asyncHandler } from '../handlers/async.handler';

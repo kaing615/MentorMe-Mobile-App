@@ -1,27 +1,27 @@
 package com.mentorme.app.ui.booking
 
-import androidx.lifecycle. ViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mentorme.app.core.utils.AppResult
-import com.mentorme. app.data.model.Booking
-import com.mentorme.app.domain.usecase.calendar. CreateBookingUseCase
-import com.mentorme.app.domain. usecase.calendar.GetMentorAvailabilityUseCase
-import dagger.hilt. android.lifecycle.HiltViewModel
+import com.mentorme.app.data.model.Booking
+import com.mentorme.app.domain.usecase.calendar.CreateBookingUseCase
+import com.mentorme.app.domain.usecase.calendar.GetMentorAvailabilityUseCase
+import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import kotlinx.coroutines. flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx. coroutines.launch
-import com.mentorme.app.core. utils.Logx
+import kotlinx.coroutines.launch
+import com.mentorme.app.core.utils.Logx
 import com.mentorme.app.data.dto.availability.ApiEnvelope
 
 @HiltViewModel
 class BookingFlowViewModel @Inject constructor(
     private val getMentorAvailability: GetMentorAvailabilityUseCase,
-    private val createBookingUseCase:  CreateBookingUseCase
+    private val createBookingUseCase: CreateBookingUseCase
 ) : ViewModel() {
 
     sealed interface UiState<out T> {
-        data object Idle :  UiState<Nothing>
+        data object Idle : UiState<Nothing>
         data object Loading : UiState<Nothing>
         data class Success<T>(val data: T) : UiState<T>
         data class Error(val message: String) : UiState<Nothing>
@@ -29,14 +29,14 @@ class BookingFlowViewModel @Inject constructor(
 
     data class TimeSlotUi(
         val occurrenceId: String,  // ✅ Thêm occurrenceId
-        val date:  String,
+        val date: String,
         val startTime: String,
         val endTime: String,
         val startLabel: String,
         val endLabel: String
     )
 
-    private val _state:  MutableStateFlow<UiState<Map<String, List<TimeSlotUi>>>> =
+    private val _state: MutableStateFlow<UiState<Map<String, List<TimeSlotUi>>>> =
         MutableStateFlow(UiState.Idle)
     val state: StateFlow<UiState<Map<String, List<TimeSlotUi>>>> = _state
 
@@ -63,12 +63,12 @@ class BookingFlowViewModel @Inject constructor(
                                     )
                                 }
                         }
-                    Logx. d("BookingFlowVM") { "load() success mentorId=$mentorId days=${slots. keys.size}" }
+                    Logx.d("BookingFlowVM") { "load() success mentorId=$mentorId days=${slots.keys.size}" }
                     _state.value = UiState.Success(slots)
                 }
                 is AppResult.Error -> {
-                    Logx. e("BookingFlowVM", { "load() error mentorId=$mentorId msg=${result. throwable}" })
-                    _state.value = UiState. Error(result.throwable)
+                    Logx.e("BookingFlowVM", { "load() error mentorId=$mentorId msg=${result.throwable}" })
+                    _state.value = UiState.Error(result.throwable)
                 }
                 AppResult.Loading -> Unit
             }

@@ -50,8 +50,8 @@ fun SessionsTab(bookings: List<Booking>) {
                 BookingStatus.PENDING   -> Color(0xFFF59E0B) to "⏳ Chờ duyệt"
                 BookingStatus.COMPLETED -> Color(0xFF14B8A6) to "🎉 Hoàn thành"
                 BookingStatus.CANCELLED -> Color(0xFFEF4444) to "❌ Đã hủy"
-                BookingStatus.PAYMENT_PENDING -> TODO()
-                BookingStatus.FAILED -> TODO()
+                BookingStatus.PAYMENT_PENDING -> Color(0xFFF59E0B) to "💳 Chờ thanh toán"
+                BookingStatus.FAILED -> Color(0xFFEF4444) to "⚠️ Thanh toán thất bại"
             }
 
             LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {

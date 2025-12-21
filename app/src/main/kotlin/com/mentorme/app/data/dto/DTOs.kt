@@ -1,6 +1,6 @@
 package com.mentorme.app.data.dto
 
-import com.google. gson.annotations.SerializedName
+import com.google.gson.annotations.SerializedName
 import com.mentorme.app.data.model.*
 
 // Auth DTOs

@@ -1,14 +1,14 @@
 package com.mentorme.app.data.repository.impl
 
 import com.mentorme.app.core.utils.AppResult
-import com.mentorme. app.data. dto.BookingListResponse
+import com.mentorme.app.data.dto.BookingListResponse
 import com.mentorme.app.data.dto.CreateBookingRequest
-import com.mentorme.app. data.dto.MentorListResponse
+import com.mentorme.app.data.dto.MentorListResponse
 import com.mentorme.app.data.dto.RatingRequest
 import com.mentorme.app.data.dto.UpdateBookingRequest
-import com.mentorme.app. data.model.Booking
+import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.model.Mentor
-import com.mentorme.app.data. remote.MentorMeApi
+import com.mentorme.app.data.remote.MentorMeApi
 import com.mentorme.app.data.repository.BookingRepository
 import com.mentorme.app.data.repository.MentorRepository
 import javax.inject.Inject

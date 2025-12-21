@@ -1,4 +1,7 @@
 import bcrypt from "bcryptjs";
+import transporter from "../utils/emailService";
+import nodemailer from "nodemailer";
+import redis from "../utils/redis";
 import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
 import { Request, Response } from "express";
 import jwt, { SignOptions } from "jsonwebtoken";

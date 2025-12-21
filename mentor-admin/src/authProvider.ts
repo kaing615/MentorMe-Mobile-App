@@ -11,12 +11,23 @@ export const authProvider: AuthProvider = {
       body: JSON.stringify({ username, password }),
     });
 
-    if (!res.ok) throw new Error("Login failed");
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ message: "Login failed" }));
+      throw new Error(error.message || "Login failed");
+    }
 
-    const data = await res.json();
-    // Ví dụ data: { accessToken, role }
+    const response = await res.json();
+    // Backend trả về: { success: true, data: { accessToken, role }, message: "..." }
+    const data = response.data || response;
+    
+    if (!data.accessToken) {
+      throw new Error("No access token received");
+    }
+    
     localStorage.setItem("access_token", data.accessToken);
-    localStorage.setItem("role", data.role ?? "admin");
+    localStorage.setItem("role", data.role || "admin");
+    
+    return Promise.resolve();
   },
 
   async logout() {

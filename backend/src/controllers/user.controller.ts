@@ -931,6 +931,34 @@ export const changeUserPassword = asyncHandler(async (req: Request, res: Respons
   return responseHandler.ok(res, { id }, "Password changed successfully");
 });
 
+export const changeMyPassword = asyncHandler(async (req: Request, res: Response) => {
+  const { currentPassword, newPassword } = req.body;
+  const currentUser = (req as any).user;
+  
+  if (!currentPassword || !newPassword) {
+    return responseHandler.badRequest(res, null, "Current password and new password are required");
+  }
+  
+  if (newPassword.length < 6) {
+    return responseHandler.badRequest(res, null, "New password must be at least 6 characters");
+  }
+  
+  const user = await User.findById(currentUser.id);
+  if (!user) return responseHandler.notFound(res, null, "User not found");
+  
+  // Verify current password
+  const match = await bcrypt.compare(currentPassword, (user as any).passwordHash);
+  if (!match) {
+    return responseHandler.unauthorized(res, null, "Current password is incorrect");
+  }
+  
+  // Hash and update new password
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await User.findByIdAndUpdate(currentUser.id, { passwordHash });
+  
+  return responseHandler.ok(res, null, "Your password has been changed successfully");
+});
+
 export default {
   signUpMentee,
   verifyEmailOtp,
@@ -945,6 +973,7 @@ export default {
   updateUser,
   deleteUser,
   changeUserPassword,
+  changeMyPassword,
 };
 
 

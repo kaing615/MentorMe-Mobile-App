@@ -37,6 +37,7 @@ router.post("/admin/login", userController.adminLogin);
 
 router.get("/", auth, requireRoles("admin", "root"), userController.getAllUsers);
 router.post("/", auth, requireRoles("admin", "root"), userController.createUser);
+router.put("/change-password", auth, requireRoles("admin", "root"), userController.changeMyPassword);
 router.get("/:id", auth, requireRoles("admin", "root"), userController.getUserById);
 router.put("/:id", auth, requireRoles("admin", "root"), userController.updateUser);
 router.put("/:id/password", auth, requireRoles("admin", "root"), userController.changeUserPassword);

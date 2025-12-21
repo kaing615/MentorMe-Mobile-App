@@ -22,6 +22,8 @@ tags:
     description: Booking flow (create, list, detail, cancel, mentor confirm/decline)
   - name: Mentors
     description: Danh sách và chi tiết mentor (public discovery)
+  - name: Notifications
+    description: Device token registration and push notifications
 
 components:
   securitySchemes:
@@ -165,6 +167,47 @@ components:
       type: object
       properties:
         reason: { type: string }
+
+    DeviceTokenRegisterRequest:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+        platform: { type: string, enum: [android, ios, web] }
+        deviceId: { type: string }
+
+    DeviceTokenUnregisterRequest:
+      type: object
+      properties:
+        token: { type: string }
+
+    PushTestRequest:
+      type: object
+      properties:
+        title: { type: string }
+        body: { type: string }
+        data:
+          type: object
+          additionalProperties: { type: string }
+
+    PushToUserRequest:
+      type: object
+      required: [userId, title, body]
+      properties:
+        userId: { type: string }
+        title: { type: string }
+        body: { type: string }
+        data:
+          type: object
+          additionalProperties: { type: string }
+
+    PushResult:
+      type: object
+      properties:
+        sent: { type: integer, example: 1 }
+        failed: { type: integer, example: 0 }
+        invalid: { type: integer, example: 0 }
+        skipped: { type: integer, example: 0 }
 
 
     ApiResponse:
@@ -1652,6 +1695,143 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+
+  # ===== NOTIFICATIONS =====
+  /notifications/devices:
+    post:
+      tags: [Notifications]
+      summary: Register device token for push notifications
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeviceTokenRegisterRequest" }
+      responses:
+        "200":
+          description: Token registered
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          token: { type: string }
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /notifications/devices/unregister:
+    post:
+      tags: [Notifications]
+      summary: Unregister device token(s)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeviceTokenUnregisterRequest" }
+      responses:
+        "200":
+          description: Tokens removed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          removed: { type: integer, example: 1 }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /notifications/push/test:
+    post:
+      tags: [Notifications]
+      summary: Send a test push to the current user
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PushTestRequest" }
+      responses:
+        "200":
+          description: Push sent
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/PushResult" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /notifications/push:
+    post:
+      tags: [Notifications]
+      summary: Send a push notification to a user (admin/root)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PushToUserRequest" }
+      responses:
+        "200":
+          description: Push sent
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/PushResult" }
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
 
 
   # ===== MENTORS (PUBLIC) =====

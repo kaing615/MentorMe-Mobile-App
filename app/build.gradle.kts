@@ -4,7 +4,8 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.kapt")
     id("com.google.dagger.hilt.android")
-    id ("kotlin-parcelize")
+    id("kotlin-parcelize")
+    id("com.google.gms.google-services")
 }
 
 

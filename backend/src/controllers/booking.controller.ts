@@ -353,7 +353,7 @@ export const cancelBooking = asyncHandler(async (req: Request, res: Response) =>
   }
 
   const minutesToStart = Math.floor((startTime.getTime() - now.getTime()) / 60000);
-  if (isMentee && LATE_CANCEL_MINUTES > 0 && minutesToStart < LATE_CANCEL_MINUTES) {
+  if (LATE_CANCEL_MINUTES > 0 && minutesToStart < LATE_CANCEL_MINUTES) {
     if (LATE_CANCEL_ACTION === 'block') {
       return badRequest(
         res,

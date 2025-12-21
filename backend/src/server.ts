@@ -53,7 +53,7 @@ async function startServer() {
 
     await connectMongoDB();
 
-    startBookingJobs();
+    await startBookingJobs();
 
     server.listen(PORT, () => {
       console.log(`Server is running on http://localhost:${PORT}`);
@@ -71,7 +71,7 @@ startServer();
 const shutdown = async () => {
   try {
     server.close(() => console.log("HTTP server closed"));
-    stopBookingJobs();
+    await stopBookingJobs();
     if (redis.isOpen) await redis.quit();
     if (mongoose.connection.readyState === 1) await mongoose.connection.close();
     console.log("Cleaned up Redis and MongoDB connections");

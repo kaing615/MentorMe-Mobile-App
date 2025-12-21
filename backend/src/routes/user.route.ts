@@ -1,6 +1,7 @@
 import { Router } from "express";
 import userController from "../controllers/user.controller";
 import { validate } from "../handlers/request.handler";
+import { auth, requireRoles } from "../middlewares/auth.middleware";
 import {
   signInValidator,
   signUpMenteeValidator,
@@ -34,8 +35,11 @@ router.post("/signout", userController.signOut);
 // Admin routes
 router.post("/admin/login", userController.adminLogin);
 
-router.get("/", userController.getAllUsers);
-router.get("/:id", userController.getUserById);
-router.put("/:id", userController.updateUser);
+router.get("/", auth, requireRoles("admin", "root"), userController.getAllUsers);
+router.post("/", auth, requireRoles("admin", "root"), userController.createUser);
+router.get("/:id", auth, requireRoles("admin", "root"), userController.getUserById);
+router.put("/:id", auth, requireRoles("admin", "root"), userController.updateUser);
+router.put("/:id/password", auth, requireRoles("admin", "root"), userController.changeUserPassword);
+router.delete("/:id", auth, requireRoles("admin", "root"), userController.deleteUser);
 
 export default router;

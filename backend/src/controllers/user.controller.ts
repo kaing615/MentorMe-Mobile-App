@@ -459,6 +459,12 @@ export const signIn = asyncHandler(async (req: Request, res: Response) => {
     return responseHandler.unauthorized(res, null, "Invalid email or password");
   }
 
+  // Kiểm tra tài khoản có bị block không
+  if ((user as any).isBlocked) {
+    console.log("🚫 Account is blocked:", email);
+    return responseHandler.forbidden(res, null, "Your account has been blocked. Please contact support.");
+  }
+
   if (user.status === "verifying") {
     console.log("⏳ Account verifying (resend OTP):", email);
     try {
@@ -666,11 +672,16 @@ export const adminLogin = asyncHandler(async (req: Request, res: Response) => {
   
   const user = await User.findOne({ 
     email: username, // hoặc userName: username
-    role: { $in: ['admin', 'moderator'] } 
+    role: { $in: ['admin', 'root'] } 
   });
   
   if (!user || !(await bcrypt.compare(password, (user as any).passwordHash))) {
     return responseHandler.unauthorized(res, null, "Invalid credentials");
+  }
+
+  // Kiểm tra tài khoản có bị block không
+  if ((user as any).isBlocked) {
+    return responseHandler.forbidden(res, null, "Your account has been blocked. Please contact administrator.");
   }
   
   const token = jwt.sign(
@@ -721,15 +732,203 @@ export const getUserById = asyncHandler(async (req: Request, res: Response) => {
   return res.json({ ...user.toObject(), id: user._id });
 });
 
+export const createUser = asyncHandler(async (req: Request, res: Response) => {
+  const { email, userName, name, role, password, status } = req.body;
+  const currentUser = (req as any).user;
+  
+  if (!email || !userName) {
+    return responseHandler.badRequest(res, null, "Email and userName are required");
+  }
+  
+  // Chỉ root mới được tạo admin/root
+  if (['admin', 'root'].includes(role) && currentUser?.role !== 'root') {
+    return responseHandler.forbidden(res, null, "Only root user can create admin accounts");
+  }
+  
+  // Kiểm tra email đã tồn tại chưa
+  const existing = await User.findOne({ email });
+  if (existing) {
+    return responseHandler.conflict(res, null, "Email already exists");
+  }
+  
+  // Tạo password: nếu không có thì random
+  const finalPassword = password || `Pass${randomInt(100000, 999999)}!`;
+  const passwordHash = await bcrypt.hash(finalPassword, 12);
+  
+  const user = await User.create({
+    email,
+    userName,
+    name: name || userName,
+    passwordHash,
+    role: role || 'mentee',
+    status: status || 'active', // Admin tạo thì active luôn
+    isBlocked: false,
+  });
+  
+  // Gửi email thông báo tài khoản mới với password
+  try {
+    const from = `"MentorMe" <${process.env.SMTP_USER}>`;
+    await transporter.sendMail({
+      to: email,
+      from,
+      subject: "Welcome to MentorMe - Your Account Details",
+      text:
+        `Hi ${name || userName},\n\n` +
+        `Your MentorMe account has been created by an administrator.\n\n` +
+        `Login Details:\n` +
+        `Username: ${userName}\n` +
+        `Email: ${email}\n` +
+        `Password: ${finalPassword}\n\n` +
+        `Please change your password after your first login.\n\n` +
+        `Login at: ${process.env.API_BASE_URL || 'http://localhost:4000'}\n\n` +
+        `— MentorMe Team`,
+      html: `
+  <div style="background:#f6f8fb;padding:32px 12px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" width="560" style="max-width:560px;background:#ffffff;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05);overflow:hidden;">
+      <tr>
+        <td style="padding:28px 28px 0;">
+          <div style="font-size:18px;font-weight:700;color:#111">MentorMe</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:4px;">Welcome to MentorMe</div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:20px 28px 0;">
+          <p style="margin:0 0 8px;font-size:16px;">Hi ${name || userName},</p>
+          <p style="margin:0 0 16px;line-height:1.6;color:#374151">
+            Your MentorMe account has been created by an administrator. Here are your login details:
+          </p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:12px 28px;">
+          <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;">
+            <div style="margin-bottom:8px;">
+              <strong style="color:#111;">Username:</strong> 
+              <span style="color:#374151;">${userName}</span>
+            </div>
+            <div style="margin-bottom:8px;">
+              <strong style="color:#111;">Email:</strong> 
+              <span style="color:#374151;">${email}</span>
+            </div>
+            <div>
+              <strong style="color:#111;">Password:</strong> 
+              <code style="background:#fff;padding:4px 8px;border-radius:4px;font-family:monospace;color:#dc2626;">${finalPassword}</code>
+            </div>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 28px 20px;">
+          <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.6">
+            ⚠️ Please change your password after your first login for security.
+          </p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 28px 28px;">
+          <hr style="border:none;border-top:1px solid #eef2f7;margin:0 0 12px;">
+          <div style="font-size:12px;color:#9ca3af;">
+            © ${new Date().getFullYear()} MentorMe. All rights reserved.
+          </div>
+        </td>
+      </tr>
+    </table>
+  </div>
+      `,
+    });
+    console.log(`✉️ Welcome email sent to ${email}`);
+  } catch (emailError: any) {
+    console.error("Failed to send welcome email:", emailError);
+    // Không fail request nếu email lỗi, user vẫn được tạo
+  }
+  
+  return res.status(201).json({ ...user.toObject(), id: user._id });
+});
+
 export const updateUser = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   const updates = req.body;
+  const currentUser = (req as any).user;
+  
   delete updates.id;
   delete updates.passwordHash;
+  
+  // Lấy thông tin user đang được sửa
+  const targetUser = await User.findById(id);
+  if (!targetUser) return responseHandler.notFound(res, null, "User not found");
+  
+  // Admin không được thay đổi role của admin/root khác
+  if (currentUser?.role === 'admin') {
+    if (['admin', 'root'].includes(targetUser.role as string)) {
+      return responseHandler.forbidden(res, null, "You cannot modify admin accounts");
+    }
+    // Ngăn admin thay đổi role thành admin/root
+    if (updates.role && ['admin', 'root'].includes(updates.role)) {
+      return responseHandler.forbidden(res, null, "Only root user can change roles to admin");
+    }
+  }
+  
+  // Chỉ root mới được thay đổi role thành admin/root
+  if (updates.role && ['admin', 'root'].includes(updates.role) && currentUser?.role !== 'root') {
+    return responseHandler.forbidden(res, null, "Only root user can assign admin roles");
+  }
   
   const user = await User.findByIdAndUpdate(id, updates, { new: true }).select('-passwordHash');
   if (!user) return responseHandler.notFound(res, null, "User not found");
   return res.json({ ...user.toObject(), id: user._id });
+});
+
+export const deleteUser = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const currentUser = (req as any).user;
+  
+  const user = await User.findById(id);
+  if (!user) return responseHandler.notFound(res, null, "User not found");
+  
+  // Admin không được xóa admin/root khác
+  if (currentUser?.role === 'admin') {
+    if (['admin', 'root'].includes((user as any).role)) {
+      return responseHandler.forbidden(res, null, "You cannot delete admin accounts");
+    }
+  }
+  
+  // Không cho xóa root user
+  if ((user as any).role === 'root') {
+    return responseHandler.forbidden(res, null, "Root user cannot be deleted");
+  }
+  
+  await User.findByIdAndDelete(id);
+  
+  // Có thể thêm logic xóa dữ liệu liên quan (profile, bookings, etc.)
+  await Profile.deleteOne({ user: id });
+  
+  return res.json({ ...user.toObject(), id: user._id });
+});
+
+export const changeUserPassword = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { password } = req.body;
+  const currentUser = (req as any).user;
+  
+  if (!password || password.length < 6) {
+    return responseHandler.badRequest(res, null, "Password must be at least 6 characters");
+  }
+  
+  const user = await User.findById(id);
+  if (!user) return responseHandler.notFound(res, null, "User not found");
+  
+  // Admin không được đổi password của admin/root khác (trừ khi là root)
+  if (currentUser?.role === 'admin') {
+    if (['admin', 'root'].includes((user as any).role)) {
+      return responseHandler.forbidden(res, null, "You cannot change password of admin accounts");
+    }
+  }
+  
+  // Hash password mới
+  const passwordHash = await bcrypt.hash(password, 12);
+  await User.findByIdAndUpdate(id, { passwordHash });
+  
+  return responseHandler.ok(res, { id }, "Password changed successfully");
 });
 
 export default {
@@ -742,7 +941,10 @@ export default {
   adminLogin,
   getAllUsers,
   getUserById,
+  createUser,
   updateUser,
+  deleteUser,
+  changeUserPassword,
 };
 
 

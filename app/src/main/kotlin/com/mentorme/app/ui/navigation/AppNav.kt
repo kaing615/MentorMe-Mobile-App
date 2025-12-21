@@ -51,6 +51,7 @@ import com.mentorme.app.ui.auth.AuthScreen
 import com.mentorme.app.ui.auth.RegisterPayload
 import com.mentorme.app.ui.chat.ChatScreen
 import com.mentorme.app.ui.chat.MessagesScreen
+import com.mentorme.app.ui.notifications.NotificationsScreen
 import com.mentorme.app.ui.profile.*
 import androidx.navigation.compose.composable
 import com.mentorme.app.ui.wallet.TopUpScreen
@@ -85,6 +86,7 @@ object Routes {
     const val MentorProfile = "mentor_profile"
 
     const val Calendar = "calendar"
+    const val Notifications = "notifications"
     const val Messages = "messages"
     const val Profile = "profile"
     const val Chat = "chat"
@@ -466,6 +468,10 @@ fun AppNav(
                         })
                     }
 
+                    composable(Routes.Notifications) {
+                        NotificationsScreen(onBack = { nav.popBackStack() })
+                    }
+
                     // Route khung chat + ẩn bottom bar
                     composable("${Routes.Chat}/{conversationId}") { backStackEntry ->
                         val convId = backStackEntry.arguments?.getString("conversationId") ?: return@composable
@@ -479,6 +485,7 @@ fun AppNav(
                     composable(Routes.Profile) {
                         ProfileScreen(
                             user = UserHeader(fullName = "Nguyễn Văn A", email = "a@example.com", role = UserRole.MENTEE),
+                            onOpenNotifications = { nav.navigate(Routes.Notifications) },
                             onOpenTopUp = { nav.navigate(Routes.TopUp) },
                             onOpenWithdraw = { nav.navigate(Routes.Withdraw) },
                             onOpenChangeMethod = { nav.navigate(Routes.PaymentMethods) },

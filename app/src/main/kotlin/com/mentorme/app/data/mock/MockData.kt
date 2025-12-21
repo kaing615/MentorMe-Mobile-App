@@ -8,6 +8,9 @@ object MockData {
     // Helper: chuyển Date bên web -> ISO string cố định
     private fun d(y: Int, m: Int, day: Int) =
         "%04d-%02d-%02dT00:00:00Z".format(y, m, day)
+    private fun t(hoursAgo: Int): Long =
+        System.currentTimeMillis() - (hoursAgo * 60L * 60L * 1000L)
+
 
     // ===== Current user (mentee) — map từ mockCurrentUser (web)
     val mockCurrentUser: User = User(
@@ -345,5 +348,44 @@ object MockData {
 
     val currentMenteeName: String
         get() = mockCurrentUser.fullName
+
+    // ===== Mock Notifications =====
+    val mockNotifications: List<NotificationItem> = listOf(
+        NotificationItem(
+            title = "Booking xác nhận",
+            body = "Mentor John Doe đã xác nhận buổi tư vấn của bạn.",
+            type = NotificationType.BOOKING_CONFIRMED,
+            timestamp = t(2),
+            read = false
+        ),
+        NotificationItem(
+            title = "Nhắc lịch 1h",
+            body = "Buổi tư vấn với Sarah Wilson sẽ bắt đầu sau 1 giờ nữa.",
+            type = NotificationType.BOOKING_REMINDER,
+            timestamp = t(5),
+            read = false
+        ),
+        NotificationItem(
+            title = "Lịch bị hủy",
+            body = "Buổi tư vấn với David Chen đã bị hủy. Vui lòng chọn lịch khác.",
+            type = NotificationType.BOOKING_CANCELLED,
+            timestamp = t(9),
+            read = true
+        ),
+        NotificationItem(
+            title = "Tin nhắn mới",
+            body = "Bạn có 1 tin nhắn mới từ mentor.",
+            type = NotificationType.MESSAGE,
+            timestamp = t(12),
+            read = true
+        ),
+        NotificationItem(
+            title = "MentorMe",
+            body = "Cập nhật mới: Hỗ trợ đặt lịch nhanh hơn.",
+            type = NotificationType.SYSTEM,
+            timestamp = t(24),
+            read = true
+        )
+    )
 
 }

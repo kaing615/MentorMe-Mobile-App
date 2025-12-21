@@ -195,6 +195,7 @@ fun mockProfile(user: UserHeader): UserProfile {
 fun ProfileScreen(
     user: UserHeader,
     onOpenSettings: (() -> Unit)? = null,
+    onOpenNotifications: (() -> Unit)? = null,
     onOpenTopUp: () -> Unit = {},
     onOpenWithdraw: () -> Unit = {},
     onOpenChangeMethod: () -> Unit = {},
@@ -335,6 +336,7 @@ fun ProfileScreen(
                         2 -> StatsTab(userRole = user.role, profile = profile)
                         3 -> SettingsTab(
                             onOpenSettings = onOpenSettings,
+                            onOpenNotifications = onOpenNotifications,
                             onOpenCSBM = null,
                             onOpenDKSD = null,
                             onOpenLHHT = null,
@@ -774,6 +776,7 @@ private fun StatsTab(userRole: UserRole, profile: UserProfile) {
 @Composable
 private fun SettingsTab(
     onOpenSettings: (() -> Unit)?,
+    onOpenNotifications: (() -> Unit)? = null,
     onOpenCSBM: (() -> Unit)? = null,   // Chính sách bảo mật
     onOpenDKSD: (() -> Unit)? = null,   // Điều khoản sử dụng
     onOpenLHHT: (() -> Unit)? = null,   // Liên hệ hỗ trợ
@@ -792,6 +795,9 @@ private fun SettingsTab(
                 SettingSwitchRow("Email thông báo","Nhận email về booking và tin nhắn", true)
                 SettingSwitchRow("Thông báo push","Nhận thông báo trên thiết bị", true)
                 SettingSwitchRow("Tin nhắn marketing","Nhận thông tin khuyến mãi", false)
+                SettingLinkItem(Icons.Outlined.Notifications, "Xem thông báo") {
+                    onOpenNotifications?.invoke()
+                }
             }
         }
 

@@ -50,6 +50,7 @@ dependencies {
     implementation(libs.material)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.database.ktx)
+    implementation(libs.firebase.messaging.ktx)
     // Icon set
     implementation("androidx.compose.material:material-icons-extended")
 

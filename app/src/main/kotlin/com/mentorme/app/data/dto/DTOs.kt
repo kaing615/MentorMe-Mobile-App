@@ -41,7 +41,10 @@ data class MentorListResponse(
     val totalPages: Int
 )
 
+// ✅ Thêm field id (occurrenceId)
 data class AvailabilitySlot(
+    @SerializedName("id")
+    val id: String?  = null,
     @SerializedName("date")
     val date: String,
     @SerializedName("startTime")
@@ -56,12 +59,10 @@ data class AvailabilitySlot(
 data class CreateBookingRequest(
     @SerializedName("mentorId")
     val mentorId: String,
-    @SerializedName("scheduledAt")
-    val scheduledAt: String,
-    @SerializedName("duration")
-    val duration: Int,
+    @SerializedName("occurrenceId")  // ✅ Sửa từ scheduledAt sang occurrenceId
+    val occurrenceId: String,
     @SerializedName("topic")
-    val topic: String,
+    val topic: String?  = null,  // ✅ Optional
     @SerializedName("notes")
     val notes: String? = null
 )
@@ -91,6 +92,17 @@ data class RatingRequest(
     val rating: Int,
     @SerializedName("feedback")
     val feedback: String? = null
+)
+
+data class ResendIcsResponse(
+    @SerializedName("success")
+    val success: Boolean,
+    @SerializedName("message")
+    val message: String?
+)
+data class CancelBookingRequest(
+    @SerializedName("reason")
+    val reason: String? = null
 )
 
 // Message DTOs

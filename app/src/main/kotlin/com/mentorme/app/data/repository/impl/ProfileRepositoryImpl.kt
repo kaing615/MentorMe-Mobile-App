@@ -5,6 +5,8 @@ import com.mentorme.app.data.dto.profile.ProfileCreateResponse
 import com.mentorme.app.data.network.api.profile.ProfileApiService
 import com.mentorme.app.data.repository.ProfileRepository
 import com.mentorme.app.domain.usecase.onboarding.RequiredProfileParams
+import com.mentorme.app.domain.usecase.profile.UpdateProfileParams
+import com.mentorme.app.data.dto.profile.MePayload
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -19,6 +21,35 @@ import javax.inject.Singleton
 class ProfileRepositoryImpl @Inject constructor(
     private val api: ProfileApiService
 ) : ProfileRepository {
+    override suspend fun getMe(): AppResult<MePayload> {
+        return try {
+            val res = api.getMe()
+            if (res.isSuccessful) {
+                val me = res.body()?.data
+                if (me != null) AppResult.success(me)
+                else AppResult.failure(Exception("Empty profile"))
+            } else {
+                AppResult.failure(Exception("HTTP ${res.code()} ${res.message()}"))
+            }
+        } catch (e: Exception) {
+            AppResult.failure(e)
+        }
+    }
+
+    override suspend fun updateProfile(
+        params: UpdateProfileParams
+    ): AppResult<Unit> {
+        return try {
+            val res = api.updateProfile(params)
+            if (res.isSuccessful) {
+                AppResult.success(Unit)
+            } else {
+                AppResult.failure(Exception("HTTP ${res.code()} ${res.message()}"))
+            }
+        } catch (e: Exception) {
+            AppResult.failure(e)
+        }
+    }
 
     override suspend fun createRequiredProfile(
         params: RequiredProfileParams

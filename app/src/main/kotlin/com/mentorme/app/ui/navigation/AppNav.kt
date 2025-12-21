@@ -525,15 +525,21 @@ fun AppNav(
                         }
                     }
 
-                    composable("bookingSummary/{mentorId}/{date}/{time}/{duration}") { backStackEntry ->
+                    composable("bookingSummary/{mentorId}/{date}/{time}/{duration}/{occurrenceId}") { backStackEntry ->
                         val mentorId = backStackEntry.arguments?.getString("mentorId") ?: return@composable
-                        val date = backStackEntry.arguments?.getString("date") ?: ""
+                        val date = backStackEntry.arguments?. getString("date") ?: ""
                         val time = backStackEntry.arguments?.getString("time") ?: ""
-                        val duration = backStackEntry.arguments?.getString("duration")?.toIntOrNull() ?: 60
-                        val mentor = MockData.mockMentors.find { it.id == mentorId }
+                        val duration = backStackEntry.arguments?.getString("duration")?. toIntOrNull() ?: 60
+                        val occurrenceId = backStackEntry.arguments?.getString("occurrenceId")
 
-                        // ViewModel glue (data-only)
-                        val vm = hiltViewModel<com.mentorme.app.ui.booking.BookingFlowViewModel>()
+                        if (occurrenceId. isNullOrBlank()) {
+                            // Handle error:  no occurrence ID
+                            LaunchedEffect(Unit) { nav.popBackStack() }
+                            return@composable
+                        }
+
+                        val mentor = MockData.mockMentors.find { it.id == mentorId }
+                        val vm = hiltViewModel<com.mentorme.app. ui.booking.BookingFlowViewModel>()
                         val ctx = LocalContext.current
 
                         mentor?.let { m ->
@@ -548,51 +554,34 @@ fun AppNav(
                                 ),
                                 currentUserId = "current-user-id",
                                 onConfirmed = {
-                                    // Compute endTime (HH:mm) from start time and duration, without changing UI.
-                                    val endTime = run {
-                                        try {
-                                            val parts = time.split(":")
-                                            val cal = java.util.Calendar.getInstance()
-                                            cal.set(java.util.Calendar.HOUR_OF_DAY, parts[0].toInt())
-                                            cal.set(java.util.Calendar.MINUTE, parts[1].toInt())
-                                            cal.add(java.util.Calendar.MINUTE, duration)
-                                            String.format(java.util.Locale.US, "%02d:%02d", cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE))
-                                        } catch (_: Exception) { "00:00" }
-                                    }
                                     when (val res = vm.createBooking(
                                         mentorId = mentorId,
-                                        date = date,
-                                        startTime = time,
-                                        endTime = endTime,
+                                        occurrenceId = occurrenceId,
                                         topic = "Mentor Session",
                                         notes = ""
                                     )) {
                                         is com.mentorme.app.core.utils.AppResult.Success -> {
                                             nav.popBackStack(route = Routes.Home, inclusive = false)
                                         }
-                                        is com.mentorme.app.core.utils.AppResult.Error -> {
+                                        is com.mentorme.app. core.utils.AppResult.Error -> {
                                             val msg = res.throwable
-                                            // Parse HTTP status code from message shaped like: "HTTP <code>: ..."
-                                            val code = msg.substringAfter("HTTP ", "").substringBefore(":").toIntOrNull()
+                                            val code = msg. substringAfter("HTTP ", "").substringBefore(": ").toIntOrNull()
                                             when (code) {
                                                 401 -> {
-                                                    // Login required → reuse existing Auth navigation
                                                     nav.navigate(Routes.Auth) {
                                                         popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
                                                         launchSingleTop = true
                                                     }
                                                 }
                                                 409, 422 -> {
-                                                    // Conflict: slot already taken → toast (no UI changes)
-                                                    Toast.makeText(ctx, "Khung giờ đã được đặt. Vui lòng chọn thời gian khác.", Toast.LENGTH_LONG).show()
+                                                    Toast.makeText(ctx, "Khung giờ đã được đặt.  Vui lòng chọn thời gian khác.", Toast. LENGTH_LONG).show()
                                                 }
                                                 else -> {
-                                                    // Generic error
-                                                    Toast.makeText(ctx, msg.ifBlank { "Có lỗi xảy ra, vui lòng thử lại." }, Toast.LENGTH_LONG).show()
+                                                    Toast.makeText(ctx, msg. ifBlank { "Có lỗi xảy ra, vui lòng thử lại." }, Toast.LENGTH_LONG).show()
                                                 }
                                             }
                                         }
-                                        com.mentorme.app.core.utils.AppResult.Loading -> Unit
+                                        com.mentorme.app.core. utils.AppResult.Loading -> Unit
                                     }
                                 },
                                 onBack = { nav.popBackStack() }
@@ -665,7 +654,7 @@ fun AppNav(
                                 onBack = { nav.popBackStack() },
                                 onSaved = { updated ->
                                     nav.previousBackStackEntry?.savedStateHandle?.set("edited_payment_method", updated)
-                                    nav.popBackStack()
+                                    nav. popBackStack()
                                 }
                             )
                         }

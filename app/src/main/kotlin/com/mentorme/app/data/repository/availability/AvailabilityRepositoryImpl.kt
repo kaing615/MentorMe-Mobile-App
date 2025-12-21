@@ -18,9 +18,9 @@ class AvailabilityRepositoryImpl @Inject constructor(
             val fromIsoUtc = java.time.LocalDate.now().atStartOfDay(zone).toInstant().toString()
             val toIsoUtc = java.time.LocalDate.now().plusDays(30).atTime(23, 59, 59).atZone(zone).toInstant().toString()
 
-            Logx. d("AvailabilityRepo") { "getMentorAvailability mentorId=$mentorId from=$fromIsoUtc to=$toIsoUtc includeClosed=true" }
+            Logx.d("AvailabilityRepo") { "getMentorAvailability mentorId=$mentorId from=$fromIsoUtc to=$toIsoUtc includeClosed=true" }
             val idOk = mentorId.length >= 16 && mentorId.matches(Regex("^[A-Za-z0-9_-]+$"))
-            if (!idOk) Logx.d("AvailabilityRepo") { "WARN suspicious mentorId:  '$mentorId' (len=${mentorId.length})" }
+            if (!idOk) x.d("AvailabilityRepo") { "WARN suspicious mentorId:  '$mentorId' (len=${mentorId.length})" }
 
             val res = api.getPublicAvailabilityCalendar(mentorId, fromIsoUtc, toIsoUtc, includeClosed = true)
             if (!res.isSuccessful) {

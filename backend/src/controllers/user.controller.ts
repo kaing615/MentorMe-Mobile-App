@@ -5,14 +5,11 @@ import redis from "../utils/redis";
 import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
 import { Request, Response } from "express";
 import jwt, { SignOptions } from "jsonwebtoken";
-import nodemailer from "nodemailer";
 import { asyncHandler } from "../handlers/async.handler";
 import responseHandler from "../handlers/response.handler";
 import getTokenFromReq from "../middlewares/auth.middleware";
 import Profile from "../models/profile.model";
 import User, { IUser } from "../models/user.model";
-import transporter from "../utils/emailService";
-import redis from "../utils/redis";
 
 const OTP_TTL_SEC = 10 * 60;
 const OTP_MAX_ATTEMPTS = 5;

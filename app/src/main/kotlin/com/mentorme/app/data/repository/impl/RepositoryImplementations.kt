@@ -42,7 +42,7 @@ class MentorRepositoryImpl @Inject constructor(
             )
             if (res.isSuccessful) {
                 val payload = res.body()?.data
-                val total = payload?.total?:  0
+                val total = payload?.total?:0
                 val currentPage = payload?.page?:page
                 val currentLimit = payload?.limit?:limit
                 val totalPages = if (currentLimit > 0) ((total + currentLimit - 1) / currentLimit) else 0
@@ -62,13 +62,13 @@ class MentorRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getMentorById(mentorId:  String): AppResult<Mentor> {
+    override suspend fun getMentorById(mentorId: String): AppResult<Mentor> {
         return try {
             val response = api.getMentor(mentorId)
             if (response.isSuccessful) {
                 AppResult.failure(Exception("Legacy MentorRepository.getMentorById not supported with current API (use SearchMentorsUseCase)."))
             } else {
-                AppResult.failure(Exception("Failed to get mentor:  ${response.message()}"))
+                AppResult.failure(Exception("Failed to get mentor: ${response.message()}"))
             }
         } catch (e: Exception) {
             AppResult.failure(e)
@@ -110,7 +110,7 @@ class BookingRepositoryImpl @Inject constructor(
 
     override suspend fun getBookings(
         role: String?,
-        status:  String?,
+        status: String?,
         page: Int,
         limit: Int
     ): AppResult<BookingListResponse> {

@@ -38,9 +38,12 @@ router.post("/admin/login", userController.adminLogin);
 router.get("/", auth, requireRoles("admin", "root"), userController.getAllUsers);
 router.post("/", auth, requireRoles("admin", "root"), userController.createUser);
 router.put("/change-password", auth, requireRoles("admin", "root"), userController.changeMyPassword);
+router.get("/pending-mentors/count", auth, requireRoles("admin", "root"), userController.getPendingMentorsCount);
 router.get("/:id", auth, requireRoles("admin", "root"), userController.getUserById);
 router.put("/:id", auth, requireRoles("admin", "root"), userController.updateUser);
 router.put("/:id/password", auth, requireRoles("admin", "root"), userController.changeUserPassword);
+router.put("/:id/approve", auth, requireRoles("admin", "root"), userController.approveMentor);
+router.put("/:id/reject", auth, requireRoles("admin", "root"), userController.rejectMentor);
 router.delete("/:id", auth, requireRoles("admin", "root"), userController.deleteUser);
 
 export default router;

@@ -3,7 +3,6 @@ import { Router } from 'express';
 import availabilityRouter from './availability.route';
 import bookingRouter from './booking.route';
 import mentorRouter from './mentor.route';
-import bookingRouter from './booking.route';
 import paymentRouter from './payment.route';
 import profileRouter from './profile.route';
 import reportRouter from './report.route';

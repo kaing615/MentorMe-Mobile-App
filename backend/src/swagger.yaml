@@ -26,6 +26,8 @@ tags:
     description: Device token registration and push notifications
   - name: Mentors
     description: Danh sách và chi tiết mentor (public discovery)
+  - name: Wallet
+    description: Quản lý ví điện tử của mentee (nạp tiền, trừ tiền, xem lịch sử giao dịch)
 
 components:
   securitySchemes:
@@ -82,8 +84,10 @@ components:
         role:      { type: string, example: "Mobile Engineer" }
         company:   { type: string, example: "UIT" }
         rating:    { type: number, format: float, example: 4.7 }
-        ratingCount:{ type: integer, example: 123 }
-        hourlyRate:{ type: integer, example: 250000 }
+        ratingCount: { type: integer, example: 123 }
+        hourlyRate:
+          type: integer
+          example: 250000
         skills:
           type: array
           items: { type: string }
@@ -1971,6 +1975,255 @@ paths:
               examples:
                 not_found:
                   value: { message: "Mentor not found", code: "NOT_FOUND", data: null }
+
+  /wallet/me:
+    get:
+      summary: Lấy thông tin ví của người dùng hiện tại (auto-create nếu chưa có)
+      tags: [Wallet]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "OK" }
+                  data:
+                    type: object
+                    properties:
+                      walletId: { type: string, nullable: true, example: "68e0f6de7f19db9cfeb0df48" }
+                      balance: { type: integer, example: 1000000, description: "Balance in VND" }
+                      currency: { type: string, example: "VND", enum: ["VND", "USD"] }
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden - Not a mentee
+
+  /wallet/topups/mock:
+    post:
+      summary: Mock topup - Nạp tiền vào ví (CREDIT + MANUAL_TOPUP)
+      tags: [Wallet]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, clientRequestId]
+              properties:
+                amount:
+                  type: number
+                  example: 500000
+                  description: "Số tiền nạp (VND)"
+                currency:
+                  type: string
+                  example: "VND"
+                  enum: ["VND", "USD"]
+                  description: "Loại tiền tệ (optional, default VND)"
+                clientRequestId:
+                  type: string
+                  example: "topup-uuid-12345"
+                  description: "ID để đảm bảo idempotency (unique per request)"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Created" }
+                  data:
+                    type: object
+                    properties:
+                      idempotent: { type: boolean, example: false }
+                      wallet:
+                        type: object
+                        properties:
+                          walletId: { type: string }
+                          balance: { type: integer, example: 1500000 }
+                          currency: { type: string, example: "VND" }
+                      transaction:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          type: { type: string, example: "CREDIT" }
+                          source: { type: string, example: "MANUAL_TOPUP" }
+                          amount: { type: integer, example: 500000 }
+                          currency: { type: string, example: "VND" }
+                          balanceBefore: { type: integer, example: 1000000 }
+                          balanceAfter: { type: integer, example: 1500000 }
+                          referenceType: { type: string, nullable: true }
+                          referenceId: { type: string, nullable: true }
+                          createdAt: { type: string, format: date-time }
+        "200":
+          description: OK (idempotent - transaction already exists)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "OK" }
+                  data:
+                    type: object
+                    properties:
+                      idempotent: { type: boolean, example: true }
+        "400":
+          description: Bad Request
+        "403":
+          description: Forbidden
+
+  /wallet/debits/mock:
+    post:
+      summary: Mock debit - Trừ tiền từ ví (DEBIT + MANUAL_WITHDRAW)
+      tags: [Wallet]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, clientRequestId]
+              properties:
+                amount:
+                  type: number
+                  example: 200000
+                  description: "Số tiền trừ (VND)"
+                currency:
+                  type: string
+                  example: "VND"
+                  enum: ["VND", "USD"]
+                  description: "Loại tiền tệ (optional, default VND)"
+                clientRequestId:
+                  type: string
+                  example: "debit-uuid-12345"
+                  description: "ID để đảm bảo idempotency (unique per request)"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Created" }
+                  data:
+                    type: object
+                    properties:
+                      idempotent: { type: boolean, example: false }
+                      wallet:
+                        type: object
+                        properties:
+                          walletId: { type: string }
+                          balance: { type: integer, example: 1300000 }
+                          currency: { type: string, example: "VND" }
+                      transaction:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          type: { type: string, example: "DEBIT" }
+                          source: { type: string, example: "MANUAL_WITHDRAW" }
+                          amount: { type: integer, example: 200000 }
+                          currency: { type: string, example: "VND" }
+                          balanceBefore: { type: integer, example: 1500000 }
+                          balanceAfter: { type: integer, example: 1300000 }
+                          referenceType: { type: string, nullable: true }
+                          referenceId: { type: string, nullable: true }
+                          createdAt: { type: string, format: date-time }
+        "200":
+          description: OK (idempotent - transaction already exists)
+        "400":
+          description: Bad Request (INSUFFICIENT_BALANCE or validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "INSUFFICIENT_BALANCE" }
+        "403":
+          description: Forbidden
+
+  /wallet/transactions:
+    get:
+      summary: Lấy lịch sử giao dịch của ví (cursor-based pagination)
+      tags: [Wallet]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 50
+          description: Số giao dịch mỗi page (default 20, max 50)
+        - in: query
+          name: cursor
+          schema:
+            type: string
+          description: ISO timestamp để pagination (lấy từ nextCursor của response trước)
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: ["CREDIT", "DEBIT", "REFUND"]
+          description: Filter theo type (optional)
+        - in: query
+          name: source
+          schema:
+            type: string
+            enum: ["MANUAL_TOPUP", "MANUAL_WITHDRAW", "BOOKING_PAYMENT", "BOOKING_REFUND"]
+          description: Filter theo source (optional)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "OK" }
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string }
+                            type: { type: string, enum: ["CREDIT", "DEBIT", "REFUND"] }
+                            source: { type: string, enum: ["MANUAL_TOPUP", "MANUAL_WITHDRAW", "BOOKING_PAYMENT", "BOOKING_REFUND"] }
+                            amount: { type: integer, example: 500000 }
+                            currency: { type: string, example: "VND" }
+                            balanceBefore: { type: integer, example: 1000000 }
+                            balanceAfter: { type: integer, example: 1500000 }
+                            referenceType: { type: string, nullable: true }
+                            referenceId: { type: string, nullable: true }
+                            createdAt: { type: string, format: date-time }
+                      nextCursor:
+                        type: string
+                        nullable: true
+                        example: "2025-12-08T10:30:00.000Z"
+                        description: "ISO timestamp để lấy trang tiếp theo (null nếu hết)"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden - Not a mentee
 
 security:
   - BearerAuth: []

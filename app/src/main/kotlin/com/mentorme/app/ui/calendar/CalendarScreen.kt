@@ -344,7 +344,7 @@ private fun BookingCard(
                         .liquidGlass(radius = 12.dp)
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text("⏱️ ${minutes} phút", color = Color.White)
+                    Text("${minutes} phút", color = Color.White)
                 }
 
                 Spacer(Modifier.weight(1f))
@@ -355,7 +355,7 @@ private fun BookingCard(
                         .liquidGlass(radius = 12.dp)
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text("💰 \$${"%.2f".format(booking.price)}", color = Color.White)
+                    Text("\$${"%.2f".format(booking.price)}", color = Color.White)
                 }
             }
 

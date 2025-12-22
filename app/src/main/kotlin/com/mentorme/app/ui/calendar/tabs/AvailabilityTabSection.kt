@@ -87,8 +87,8 @@ fun AvailabilityTabSection(
             val nowPlusSkew = java.time.ZonedDateTime.now(zone).plusSeconds(30)
             val startZdt = java.time.LocalTime.parse(startHHMM).atDate(selectedDate).atZone(zone)
             val endZdt = java.time.LocalTime.parse(endHHMM).atDate(selectedDate).atZone(zone)
-            val sErr = if (startZdt.isBefore(nowPlusSkew)) "⏳ Giờ bắt đầu phải ở tương lai" else null
-            val eErr = if (endZdt.isBefore(nowPlusSkew)) "⏳ Giờ kết thúc phải ở tương lai" else null
+            val sErr = if (startZdt.isBefore(nowPlusSkew)) "Giờ bắt đầu phải ở tương lai" else null
+            val eErr = if (endZdt.isBefore(nowPlusSkew)) "Giờ kết thúc phải ở tương lai" else null
             Pair(sErr, eErr)
         } catch (e: Exception) {
             Pair(null, null)
@@ -106,7 +106,7 @@ fun AvailabilityTabSection(
                     contentAlignment = Alignment.Center
                 ) { Icon(Icons.Default.CalendarToday, null, tint = Color.White) }
                 Spacer(Modifier.width(8.dp))
-                Text("📅 Lịch trống của bạn", color = Color.White)
+                Text("Lịch trống của bạn", color = Color.White)
             }
             Spacer(Modifier.weight(1f))
             MMPrimaryButton(onClick = {
@@ -114,7 +114,7 @@ fun AvailabilityTabSection(
                 showAdd = true
             }) {
                 Icon(Icons.Default.Add, null, tint = Color.White)
-                Spacer(Modifier.width(6.dp)); Text("✨ Thêm lịch", color = Color.White)
+                Spacer(Modifier.width(6.dp)); Text("Thêm lịch", color = Color.White)
             }
         }
 
@@ -128,7 +128,7 @@ fun AvailabilityTabSection(
                         contentAlignment = Alignment.Center
                     ) { Icon(Icons.Default.CalendarToday, null, tint = Color.White.copy(.7f)) }
                     Spacer(Modifier.height(8.dp))
-                    Text("📅 Chưa có lịch trống", color = Color.White)
+                    Text("Chưa có lịch trống", color = Color.White)
                     Text(
                         "Hãy thêm lịch trống để mentee có thể đặt hẹn tư vấn cá nhân với bạn!",
                         color = Color.White.copy(.7f)
@@ -154,7 +154,7 @@ fun AvailabilityTabSection(
                                         text = slot.description ?: "Phiên ${if (slot.sessionType=="video") "Video Call" else "Trực tiếp"}",
                                         color = Color.White
                                     )
-                                    Text("📅 ${slot.date}  •  ${slot.startTime} - ${slot.endTime}",
+                                    Text("${slot.date}  •  ${slot.startTime} - ${slot.endTime}",
                                         color = Color.White.copy(.7f))
                                 }
 
@@ -172,9 +172,9 @@ fun AvailabilityTabSection(
                                 ) {
                                     Text(
                                         when {
-                                            !slot.isActive -> "⏸️ Tạm dừng"
-                                            slot.isBooked  -> "📅 Đã đặt"
-                                            else           -> "✨ Còn trống"
+                                            !slot.isActive -> "Tạm dừng"
+                                            slot.isBooked  -> "Đã đặt"
+                                            else           -> "Còn trống"
                                         },
                                         color = Color.White
                                     )
@@ -183,22 +183,22 @@ fun AvailabilityTabSection(
 
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    InfoChip("⏱️ Thời lượng", "${slot.duration} phút", Modifier.weight(1f))
+                                    InfoChip("Thời lượng", "${slot.duration} phút", Modifier.weight(1f))
                                     InfoChip(
-                                        "💎 Giá tư vấn",
+                                        "Giá tư vấn",
                                         numberFormat.format((HOURLY * slot.duration) / 60),
                                         Modifier.weight(1f)
                                     )
                                 }
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                     InfoChip(
-                                        "🎯 Hình thức",
-                                        if (slot.sessionType=="video") "💻 Video Call" else "🤝 Trực tiếp",
+                                        "Hình thức",
+                                        if (slot.sessionType=="video") "Video Call" else "Trực tiếp",
                                         Modifier.weight(1f)
                                     )
                                     InfoChip(
-                                        "📊 Trạng thái",
-                                        if (slot.isBooked) "📅 Đã đặt" else "✨ Trống",
+                                        "Trạng thái",
+                                        if (slot.isBooked) "Đã đặt" else "Trống",
                                         Modifier.weight(1f)
                                     )
                                 }
@@ -206,7 +206,7 @@ fun AvailabilityTabSection(
 
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 MMButton(
-                                    text = "✏️ Sửa",
+                                    text = "Sửa",
                                     size = MMButtonSize.Compact,
                                     onClick = {
                                         // Prefill form from slot
@@ -221,12 +221,12 @@ fun AvailabilityTabSection(
                                     }
                                 )
                                 MMButton(
-                                    text = if (slot.isActive) "⏸️ Tạm dừng" else "▶️ Kích hoạt",
+                                    text = if (slot.isActive) "Tạm dừng" else "Kích hoạt",
                                     onClick = { onToggle(slot.backendSlotId) },
                                     size = MMButtonSize.Compact
                                 )
                                 MMButton(
-                                    text = "🗑️ Xóa",
+                                    text = "Xóa",
                                     onClick = {
                                         if (!slot.isBooked) {
                                             onDelete(slot.backendSlotId)
@@ -250,8 +250,8 @@ fun AvailabilityTabSection(
         var bufAfterDigits  by rememberSaveable(showAdd) { mutableStateOf(lastBufAfter) }
 
         AvailabilityDialog(
-            title = "✨ Thêm lịch trống mới",
-            primaryText = "✨ Thêm lịch",
+            title = "Thêm lịch trống mới",
+            primaryText = "Thêm lịch",
             dateDigits = dateDigits,
             startDigits = startDigits,
             endDigits = endDigits,
@@ -283,7 +283,7 @@ fun AvailabilityTabSection(
                 val (sErr, eErr) = futureErrors(dateIso, startHHMM, endHHMM)
                 startErr = sErr; endErr = eErr
                 if (sErr != null || eErr != null) {
-                    Toast.makeText(context, "⏳ Vui lòng chọn thời gian ở tương lai.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Vui lòng chọn thời gian ở tương lai.", Toast.LENGTH_SHORT).show()
                     return@AvailabilityDialog
                 }
 
@@ -315,8 +315,8 @@ fun AvailabilityTabSection(
     // ===== Dialog: SỬA =====
     if (showEdit && editingSlot != null) {
         AvailabilityDialog(
-            title = "✏️ Chỉnh sửa lịch trống",
-            primaryText = "🛠️ Cập nhật",
+            title = "Chỉnh sửa lịch trống",
+            primaryText = "Cập nhật",
             dateDigits = dateDigits,
             startDigits = startDigits,
             endDigits = endDigits,
@@ -343,7 +343,7 @@ fun AvailabilityTabSection(
                 val (sErr, eErr) = futureErrors(dateIso, startHHMM, endHHMM)
                 startErr = sErr; endErr = eErr
                 if (sErr != null || eErr != null) {
-                    Toast.makeText(context, "⏳ Vui lòng chọn thời gian ở tương lai.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Vui lòng chọn thời gian ở tương lai.", Toast.LENGTH_SHORT).show()
                     return@AvailabilityDialog
                 }
 

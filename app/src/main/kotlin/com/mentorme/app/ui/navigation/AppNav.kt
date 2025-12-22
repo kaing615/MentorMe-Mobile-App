@@ -471,7 +471,6 @@ fun AppNav(
 
                     composable(Routes.Profile) {
                         ProfileScreen(
-                            user = UserHeader(fullName = "Nguyễn Văn A", email = "a@example.com", role = UserRole.MENTEE),
                             onOpenTopUp = { nav.navigate(Routes.TopUp) },
                             onOpenWithdraw = { nav.navigate(Routes.Withdraw) },
                             onOpenChangeMethod = { nav.navigate(Routes.PaymentMethods) },
@@ -517,12 +516,12 @@ fun AppNav(
                         }
                     }
 
-                    composable("bookingSummary/{mentorId}/{date}/{time}/{duration}") { backStackEntry ->
+                    composable("bookingSummary/{mentorId}/{date}/{time}/{duration}/{occurrenceId}") { backStackEntry ->
                         val mentorId = backStackEntry.arguments?.getString("mentorId") ?: return@composable
-                        val date = backStackEntry.arguments?.getString("date") ?: ""
+                        val date = backStackEntry.arguments?. getString("date") ?: ""
                         val time = backStackEntry.arguments?.getString("time") ?: ""
-                        val duration = backStackEntry.arguments?.getString("duration")?.toIntOrNull() ?: 60
-                        val mentor = MockData.mockMentors.find { it.id == mentorId }
+                        val duration = backStackEntry.arguments?.getString("duration")?. toIntOrNull() ?: 60
+                        val occurrenceId = backStackEntry.arguments?.getString("occurrenceId")
 
                         val vm = hiltViewModel<com.mentorme.app.ui.booking.BookingFlowViewModel>()
                         val ctx = LocalContext.current
@@ -554,16 +553,14 @@ fun AppNav(
 
                                     when (val res = vm.createBooking(
                                         mentorId = mentorId,
-                                        date = date,
-                                        startTime = time,
-                                        endTime = endTime,
+                                        occurrenceId = occurrenceId,
                                         topic = "Mentor Session",
                                         notes = ""
                                     )) {
                                         is com.mentorme.app.core.utils.AppResult.Success -> {
                                             nav.popBackStack(route = Routes.Home, inclusive = false)
                                         }
-                                        is com.mentorme.app.core.utils.AppResult.Error -> {
+                                        is com.mentorme.app. core.utils.AppResult.Error -> {
                                             val msg = res.throwable
                                             val code = msg.substringAfter("HTTP ", "").substringBefore(":").toIntOrNull()
                                             when (code) {
@@ -581,7 +578,7 @@ fun AppNav(
                                                 }
                                             }
                                         }
-                                        com.mentorme.app.core.utils.AppResult.Loading -> Unit
+                                        com.mentorme.app.core. utils.AppResult.Loading -> Unit
                                     }
                                 },
                                 onBack = { nav.popBackStack() }
@@ -649,7 +646,7 @@ fun AppNav(
                                 onBack = { nav.popBackStack() },
                                 onSaved = { updated ->
                                     nav.previousBackStackEntry?.savedStateHandle?.set("edited_payment_method", updated)
-                                    nav.popBackStack()
+                                    nav. popBackStack()
                                 }
                             )
                         }

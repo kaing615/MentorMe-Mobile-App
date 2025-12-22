@@ -1,4 +1,4 @@
-import mongoose, {
+import {
   Document,
   HydratedDocument,
   model,
@@ -9,10 +9,12 @@ import mongoose, {
 export interface IUser extends Document {
   _id: Types.ObjectId;
   userName: string;
+  name?: string;
   email: string;
   passwordHash: string;
-  role: "mentee" | "mentor" | "admin";
+  role: "mentee" | "mentor" | "admin" | "root";
   status: "active" | "pending-mentor" | "verifying" | "onboarding";
+  isBlocked: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -20,11 +22,12 @@ export interface IUser extends Document {
 const userSchema: Schema<IUser> = new Schema(
   {
     userName: { type: String, required: true },
+    name: { type: String },
     email: { type: String, required: true, unique: true },
     passwordHash: { type: String, required: true },
     role: {
       type: String,
-      enum: ["mentee", "mentor", "admin"],
+      enum: ["mentee", "mentor", "admin", "root"],
       default: "mentee",
     },
     status: {
@@ -32,6 +35,7 @@ const userSchema: Schema<IUser> = new Schema(
       enum: ["active", "verifying", "pending-mentor", "onboarding"],
       default: "verifying",
     },
+    isBlocked: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

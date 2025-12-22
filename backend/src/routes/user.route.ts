@@ -1,12 +1,11 @@
-import { requireRoles, auth } from "../middlewares/auth.middleware";
 import { Router } from "express";
-import responseHandler from "../handlers/response.handler";
-import { validate } from "../handlers/request.handler";
 import userController from "../controllers/user.controller";
+import { validate } from "../handlers/request.handler";
+import { auth, requireRoles } from "../middlewares/auth.middleware";
 import {
+  signInValidator,
   signUpMenteeValidator,
   signUpMentorValidator,
-  signInValidator,
   verifyOtpValidator,
 } from "../middlewares/validators/user.validator";
 
@@ -32,5 +31,70 @@ router.post(
   userController.verifyEmailOtp
 );
 router.post("/signout", userController.signOut);
+
+// Admin routes
+router.post("/admin/login", userController.adminLogin);
+
+router.get(
+  "/",
+  auth,
+  requireRoles("admin", "root"),
+  userController.getAllUsers
+);
+router.get("/me", auth, userController.getCurrentUser);
+router.post(
+  "/",
+  auth,
+  requireRoles("admin", "root"),
+  userController.createUser
+);
+router.put(
+  "/change-password",
+  auth,
+  requireRoles("admin", "root"),
+  userController.changeMyPassword
+);
+router.get(
+  "/pending-mentors/count",
+  auth,
+  requireRoles("admin", "root"),
+  userController.getPendingMentorsCount
+);
+router.get(
+  "/:id",
+  auth,
+  requireRoles("admin", "root"),
+  userController.getUserById
+);
+router.put(
+  "/:id",
+  auth,
+  requireRoles("admin", "root"),
+  userController.updateUser
+);
+router.put(
+  "/:id/password",
+  auth,
+  requireRoles("admin", "root"),
+  userController.changeUserPassword
+);
+router.put(
+  "/:id/approve",
+  auth,
+  requireRoles("admin", "root"),
+  userController.approveMentor
+);
+router.put(
+  "/:id/reject",
+  auth,
+  requireRoles("admin", "root"),
+  userController.rejectMentor
+);
+router.delete(
+  "/:id",
+  auth,
+  requireRoles("admin", "root"),
+  userController.deleteUser
+);
 
 export default router;

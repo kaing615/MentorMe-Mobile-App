@@ -52,7 +52,7 @@ async function startServer() {
 
     await connectMongoDB();
 
-    server.listen(PORT, () => {
+    server.listen(PORT, "0.0.0.0", () => {
       console.log(`Server is running on http://localhost:${PORT}`);
       console.log(`API docs: http://localhost:${PORT}/api-docs`);
     });

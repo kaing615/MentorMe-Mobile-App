@@ -106,11 +106,15 @@ async function sendOtpEmail(
     });
     console.log("OTP email sent:", info.messageId);
     console.log("MessageId:", info.messageId);
-    console.log("Preview URL:", nodemailer.getTestMessageUrl(info));
+    console.log("Code:", codeSpaced);
     return info;
-  } catch (error) {
-    console.error("Failed to send OTP email:", error);
-    throw new Error("Failed to send verification email");
+  } catch (error: any) {
+    console.error("⚠️ SMTP failed, OTP still valid:", error.message);
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("🔐 OTP (DEV):", code);
+    }
+    return;
   }
 }
 

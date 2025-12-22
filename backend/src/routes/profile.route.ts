@@ -1,8 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
-import profileController, {
-  createRequiredProfile,
-} from "../controllers/profile.controller";
+import profileController from "../controllers/profile.controller";
 import { auth, requireRoles } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -17,6 +15,32 @@ router.post(
   auth,
   upload.single("avatar"),
   profileController.createRequiredProfile
+);
+
+router.get("/me", auth, profileController.getMyProfile);
+
+router.put(
+  "/me",
+  auth,
+  upload.single("avatar"),
+  profileController.updateMyProfile
+);
+
+router.get("/:id", profileController.getPublicProfile);
+
+// Admin routes
+router.get(
+  "/",
+  auth,
+  requireRoles("admin", "root"),
+  profileController.getAllProfiles
+);
+
+router.delete(
+  "/:id",
+  auth,
+  requireRoles("admin", "root"),
+  profileController.deleteProfile
 );
 
 export default router;

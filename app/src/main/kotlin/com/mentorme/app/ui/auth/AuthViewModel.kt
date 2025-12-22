@@ -44,14 +44,15 @@ class AuthViewModel @Inject constructor(
         dataStoreManager.saveToken(token)
         Log.d(TAG, "💾 Token saved request: $token")
 
-        // đợi token thực sự được ghi
-        var confirmed: String? = null
-        repeat(5) { // thử lại tối đa 5 lần, mỗi lần 100ms
+        repeat(10) {
             delay(100)
-            confirmed = dataStoreManager.getToken().first()
-            if (!confirmed.isNullOrBlank()) return@repeat
+            val confirmed = dataStoreManager.getToken().first()
+            if (confirmed == token) {
+                Log.d(TAG, "📦 Token confirmed: $confirmed")
+                return
+            }
         }
-        Log.d(TAG, "📦 Token confirmed in DataStore: $confirmed")
+        Log.e(TAG, "❌ Token not confirmed after retries")
     }
 
     fun signUp(
@@ -131,6 +132,9 @@ class AuthViewModel @Inject constructor(
 
     fun signIn(email: String, password: String) {
         viewModelScope.launch {
+            dataStoreManager.clearToken()
+            dataStoreManager.clearUserInfo()
+            delay(150)
             Log.d(TAG, "🔥 SIGNIN CALLED - EMAIL: $email")
             _authState.value = _authState.value.copy(
                 isLoading = true,
@@ -396,6 +400,15 @@ class AuthViewModel @Inject constructor(
 
     fun clearFlowHint() {
         _authState.value = _authState.value.copy(flowHint = null)
+    }
+
+    fun logout() {
+        viewModelScope.launch {
+            signOutUseCase()
+            dataStoreManager.clearToken()
+            dataStoreManager.clearUserInfo()
+            _authState.value = AuthState()
+        }
     }
 
     // Helper to extract verificationId from AuthData

@@ -126,9 +126,9 @@ fun SearchMentorScreen(
             val priceMin = (priceStart * 50_000).takeIf { it > 0 }
             val priceMax = (priceEnd * 50_000).takeIf { it > 0 }
             val res = searchUC(
-                q = query.ifBlank { null },
-                skills = skills,
-                minRating = minRatingArg,
+                q = query.takeIf { it.isNotBlank() },
+                skills = selectedSkills,
+                minRating = minRating.takeIf { it > 0f },
                 priceMin = priceMin,
                 priceMax = priceMax,
                 sort = sortName,
@@ -149,7 +149,7 @@ fun SearchMentorScreen(
         }
 
         // Use remote mentors if available, else fallback
-        val listForUi = if (remoteMentors.isNotEmpty()) remoteMentors else mentors
+        val listForUi = remoteMentors
 
         // Log to verify calendar ID flows through Ui layer
         LaunchedEffect(listForUi) {

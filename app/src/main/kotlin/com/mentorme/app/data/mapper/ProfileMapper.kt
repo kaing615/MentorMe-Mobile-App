@@ -8,6 +8,7 @@ import java.time.Instant
 import java.util.Locale
 import java.util.TimeZone
 import java.util.Date
+import android.util.Log
 
 private val UTC_TZ:  TimeZone = TimeZone. getTimeZone("UTC")
 private val ISO_MS = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply { timeZone = UTC_TZ }
@@ -29,6 +30,15 @@ fun MePayload.toUi(): Pair<UserProfile, UserRole> {
 
     val p = profile
     val u = user
+
+    Log.d("ProfileMapper", "Mapping MePayload to UI")
+    Log.d("ProfileMapper", "user. name: ${u?.name}")
+    Log.d("ProfileMapper", "user.userName: ${u?.userName}")
+    Log.d("ProfileMapper", "profile.fullName: ${p?.fullName}")
+    Log.d("ProfileMapper", "profile.phone: ${p?.phone}")
+    Log.d("ProfileMapper", "profile.location: ${p?.location}")
+    Log.d("ProfileMapper", "profile.bio: ${p?.bio}")
+    Log.d("ProfileMapper", "profile.avatarUrl: ${p?.avatarUrl}")
 
     val ui = UserProfile(
         id = p?.id ?: u?. id ?: "",

@@ -20,7 +20,7 @@ class AvailabilityRepositoryImpl @Inject constructor(
 
             Logx.d("AvailabilityRepo") { "getMentorAvailability mentorId=$mentorId from=$fromIsoUtc to=$toIsoUtc includeClosed=true" }
             val idOk = mentorId.length >= 16 && mentorId.matches(Regex("^[A-Za-z0-9_-]+$"))
-            if (!idOk) x.d("AvailabilityRepo") { "WARN suspicious mentorId:  '$mentorId' (len=${mentorId.length})" }
+            if (!idOk) Logx.d("AvailabilityRepo") { "WARN suspicious mentorId:  '$mentorId' (len=${mentorId.length})" }
 
             val res = api.getPublicAvailabilityCalendar(mentorId, fromIsoUtc, toIsoUtc, includeClosed = true)
             if (!res.isSuccessful) {

@@ -7,6 +7,12 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.MonetizationOn
+import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -44,7 +50,7 @@ fun MentorCalendarScreen(
 ) {
     // --- Tabs: 0 = Availability, 1 = Bookings, 2 = Sessions ---
     var activeTab by remember { mutableStateOf(0) }
-    val tabLabels = listOf("📅 Lịch trống", "📋 Booking", "💬 Phiên học")
+    val tabLabels = listOf("Lịch trống", "Booking", "Phiên học")
 
     // --- ViewModel for Availability ---
     val vm = androidx.hilt.navigation.compose.hiltViewModel<com.mentorme.app.ui.calendar.MentorCalendarViewModel>()
@@ -201,9 +207,9 @@ fun MentorCalendarScreen(
                         if (startInstant == null || endInstant == null) {
                             toast("Giờ không hợp lệ."); return@AvailabilityTabSection
                         }
-                        if (startInstant.isBefore(nowSkew)) { toast("⏳ Giờ bắt đầu phải ở tương lai"); return@AvailabilityTabSection }
-                        if (endInstant.isBefore(nowSkew))   { toast("⏳ Giờ kết thúc phải ở tương lai"); return@AvailabilityTabSection }
-                        if (!endInstant.isAfter(startInstant)) { toast("⚠️ Giờ kết thúc phải sau giờ bắt đầu"); return@AvailabilityTabSection }
+                        if (startInstant.isBefore(nowSkew)) { toast("Giờ bắt đầu phải ở tương lai"); return@AvailabilityTabSection }
+                        if (endInstant.isBefore(nowSkew))   { toast("Giờ kết thúc phải ở tương lai"); return@AvailabilityTabSection }
+                        if (!endInstant.isAfter(startInstant)) { toast("Giờ kết thúc phải sau giờ bắt đầu"); return@AvailabilityTabSection }
 
                         val res = vm.addSlot(
                             mentorId = mentorId,
@@ -219,7 +225,7 @@ fun MentorCalendarScreen(
                             is com.mentorme.app.core.utils.AppResult.Success -> {
                                 val pr = res.data
                                 if (pr.skippedConflict > 0) toast("Một số lịch bị bỏ qua vì trùng/buffer.")
-                                else toast("✨ Đã xuất bản lịch")
+                                else toast("Đã xuất bản lịch")
                             }
                             is com.mentorme.app.core.utils.AppResult.Error -> {
                                 val raw = res.throwable
@@ -257,9 +263,9 @@ fun MentorCalendarScreen(
                     val endInstant = runCatching { java.time.Instant.parse(endUtc) }.getOrNull()
                     val nowSkew = nowMinusSkew()
                     if (startInstant == null || endInstant == null) { toast("Giờ không hợp lệ."); return@AvailabilityTabSection }
-                    if (startInstant.isBefore(nowSkew)) { toast("⏳ Giờ bắt đầu phải ở tương lai"); return@AvailabilityTabSection }
-                    if (endInstant.isBefore(nowSkew))   { toast("⏳ Giờ kết thúc phải ở tương lai"); return@AvailabilityTabSection }
-                    if (!endInstant.isAfter(startInstant)) { toast("⚠️ Giờ kết thúc phải sau giờ bắt đầu"); return@AvailabilityTabSection }
+                    if (startInstant.isBefore(nowSkew)) { toast("Giờ bắt đầu phải ở tương lai"); return@AvailabilityTabSection }
+                    if (endInstant.isBefore(nowSkew))   { toast("Giờ kết thúc phải ở tương lai"); return@AvailabilityTabSection }
+                    if (!endInstant.isAfter(startInstant)) { toast("Giờ kết thúc phải sau giờ bắt đầu"); return@AvailabilityTabSection }
 
                     val patch = com.mentorme.app.data.dto.availability.UpdateSlotRequest(
                         title = composedTitle,
@@ -274,7 +280,7 @@ fun MentorCalendarScreen(
                         scope.launch {
                             vm.updateSlotMeta(slotId, patch) { res ->
                                 when (res) {
-                                    is com.mentorme.app.core.utils.AppResult.Success -> toast("✅ Đã cập nhật lịch trống!")
+                                    is com.mentorme.app.core.utils.AppResult.Success -> toast("Đã cập nhật lịch trống!")
                                     is com.mentorme.app.core.utils.AppResult.Error -> toast(com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(res.throwable))
                                     com.mentorme.app.core.utils.AppResult.Loading -> Unit
                                 }
@@ -292,7 +298,7 @@ fun MentorCalendarScreen(
                     scope.launch {
                         vm.updateSlotMeta(id, com.mentorme.app.data.dto.availability.UpdateSlotRequest(action = action)) { res ->
                             when (res) {
-                                is com.mentorme.app.core.utils.AppResult.Success -> toast(if (action == "pause") "⏸️ Đã tạm dừng lịch" else "▶️ Đã kích hoạt lịch")
+                                is com.mentorme.app.core.utils.AppResult.Success -> toast(if (action == "pause") "Đã tạm dừng lịch" else "Đã kích hoạt lịch")
                                 is com.mentorme.app.core.utils.AppResult.Error -> toast(com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(res.throwable))
                                 com.mentorme.app.core.utils.AppResult.Loading -> Unit
                             }
@@ -307,10 +313,10 @@ fun MentorCalendarScreen(
                     scope.launch {
                         vm.deleteSlot(id) { res ->
                             when (res) {
-                                is com.mentorme.app.core.utils.AppResult.Success -> toast("🗑️ Đã xóa lịch trống")
+                                is com.mentorme.app.core.utils.AppResult.Success -> toast("Đã xóa lịch trống")
                                 is com.mentorme.app.core.utils.AppResult.Error -> {
                                     val raw = res.throwable
-                                    if (raw.contains("409")) toast("⚠️ Slot có booking trong tương lai, không thể xóa.")
+                                    if (raw.contains("409")) toast("Slot có booking trong tương lai, không thể xóa.")
                                     else toast(com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(raw))
                                 }
                                 com.mentorme.app.core.utils.AppResult.Loading -> Unit
@@ -348,14 +354,14 @@ private fun StatsOverview(
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatCard(
-                emoji = "📅",
+                icon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = Color(0xFF93C5FD)) },
                 title = "Lịch còn trống",
                 value = availabilityOpen.toString(),
                 tint = Color(0xFF93C5FD),
                 modifier = Modifier.weight(1f).height(110.dp)
             )
             StatCard(
-                emoji = "✨",
+                icon = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF34D399)) },
                 title = "Đã xác nhận",
                 value = confirmedCount.toString(),
                 tint = Color(0xFF34D399),
@@ -364,14 +370,14 @@ private fun StatsOverview(
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatCard(
-                emoji = "💰",
+                icon = { Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = Color(0xFF34D399)) },
                 title = "Đã thu",
                 value = nf.format(totalPaid),
                 tint = Color(0xFF34D399),
                 modifier = Modifier.weight(1f).height(110.dp)
             )
             StatCard(
-                emoji = "⏳",
+                icon = { Icon(Icons.Default.HourglassEmpty, contentDescription = null, tint = Color(0xFFF59E0B)) },
                 title = "Chờ thanh toán",
                 value = nf.format(totalPending),
                 tint = Color(0xFFF59E0B),

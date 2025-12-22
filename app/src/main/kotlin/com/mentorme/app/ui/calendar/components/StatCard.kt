@@ -16,7 +16,7 @@ import com.mentorme.app.ui.theme.LiquidGlassCard
 
 @Composable
 fun StatCard(
-    emoji: String,
+    icon: @Composable () -> Unit,
     title: String,
     value: String,
     tint: Color,
@@ -36,10 +36,10 @@ fun StatCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(36.dp)
                         .background(tint.copy(alpha = 0.18f), RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center
-                ) { Text(emoji) }
+                ) { icon() }
 
                 Text(
                     value,

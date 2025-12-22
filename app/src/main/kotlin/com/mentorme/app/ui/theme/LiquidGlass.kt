@@ -295,7 +295,7 @@ fun LiquidGlassLogo(
             contentDescription = "MentorMe",
             modifier = Modifier
                 .align(Alignment.Center)
-                .size(size * 100)
+                .size(size * logoScale)
         )
     }
 }

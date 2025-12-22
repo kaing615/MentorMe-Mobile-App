@@ -40,7 +40,8 @@ data class BookingDraft(
     val time: String = "",
     val durationMin: Int = 60,
     val notes: String = "",
-    val hourlyRate: Double = 0.0
+    val hourlyRate: Double = 0.0,
+    val occurrenceId: String = ""
 )
 
 data class PriceBreakdown(val subtotal: Double, val tax: Double, val fee: Double, val total: Double)
@@ -195,6 +196,7 @@ fun BookingChooseTimeScreen(
     mentor: Mentor,
     availableDates: List<String>,
     availableTimes: List<String>,
+    groupedSlots: Map<String, List<com.mentorme.app.ui.booking.BookingFlowViewModel.TimeSlotUi>> = emptyMap(),
     onNext: (BookingDraft) -> Unit,
     onClose: (() -> Unit)? = null
 ) {
@@ -249,7 +251,9 @@ fun BookingChooseTimeScreen(
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 MMPrimaryButton(onClick = {
                     if (date.isNotBlank() && time.isNotBlank()) {
-                        onNext(BookingDraft(mentor.id, date, time, duration, notes, mentor.hourlyRate))
+                        // Find the occurrenceId for the selected date and time
+                        val occurrenceId = groupedSlots[date]?.find { it.startLabel == time }?.occurrenceId ?: ""
+                        onNext(BookingDraft(mentor.id, date, time, duration, notes, mentor.hourlyRate, occurrenceId))
                     }
                 }) { Text("Tiếp tục") }
             }

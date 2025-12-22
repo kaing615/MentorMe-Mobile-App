@@ -549,8 +549,9 @@ fun AppNav(
                                 mentor = m,
                                 availableDates = availableDates,
                                 availableTimes = availableTimes,
+                                groupedSlots = grouped,
                                 onNext = { d: BookingDraft ->
-                                    nav.navigate("bookingSummary/${m.id}/${d.date}/${d.time}/${d.durationMin}")
+                                    nav.navigate("bookingSummary/${m.id}/${d.date}/${d.time}/${d.durationMin}/${d.occurrenceId}")
                                 },
                                 onClose = { nav.popBackStack() }
                             )
@@ -582,7 +583,8 @@ fun AppNav(
                                     date = date,
                                     time = time,
                                     durationMin = duration,
-                                    hourlyRate = m.hourlyRate
+                                    hourlyRate = m.hourlyRate,
+                                    occurrenceId = occurrenceId ?: ""
                                 ),
                                 currentUserId = "current-user-id",
                                 onConfirmed = {

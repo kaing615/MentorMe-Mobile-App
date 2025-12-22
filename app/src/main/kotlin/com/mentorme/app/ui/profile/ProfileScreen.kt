@@ -48,7 +48,9 @@ import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Cached
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.ui.graphics.Brush

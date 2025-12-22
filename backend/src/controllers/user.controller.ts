@@ -872,7 +872,7 @@ export const createUser = asyncHandler(async (req: Request, res: Response) => {
     console.error("Failed to send welcome email:", emailError);
     // Không fail request nếu email lỗi, user vẫn được tạo
   }
-
+  
   return res.status(201).json({ ...user.toObject(), id: user._id });
 });
 
@@ -1355,3 +1355,5 @@ export default {
   rejectMentor,
   getPendingMentorsCount,
 };
+
+

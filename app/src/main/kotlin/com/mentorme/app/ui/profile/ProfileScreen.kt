@@ -85,7 +85,7 @@ private val oneDecimalUS = DecimalFormat("#.#").apply {
     decimalFormatSymbols = DecimalFormatSymbols(Locale.US)  // dùng dấu chấm
 }
 
-/** 1_000 -> 1K, 1_000_000 -> 1M.Giữ 1 chữ số thập phân, bỏ .0 nếu không cần.*/
+/** 1_000 -> 1K, 1_000_000 -> 1M. Giữ 1 chữ số thập phân, bỏ .0 nếu không cần. */
 fun formatMoneyShortVnd(amount: Long, withCurrency: Boolean = false): String {
     val abs = kotlin.math.abs(amount)
     val sign = if (amount < 0) "-" else ""
@@ -197,8 +197,9 @@ fun mockProfile(user: UserHeader): UserProfile {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
-    vm: ProfileViewModel = androidx.hilt.navigation.compose.hiltViewModel(),
+    user: UserHeader,
     onOpenSettings: (() -> Unit)? = null,
+    onOpenNotifications: (() -> Unit)? = null,
     onOpenTopUp: () -> Unit = {},
     onOpenWithdraw: () -> Unit = {},
     onOpenChangeMethod: () -> Unit = {},
@@ -229,6 +230,7 @@ fun ProfileScreen(
                 .zIndex(-1f)
         )
 
+        // ✅ Toàn bộ nội dung dùng màu trắng mặc định
         CompositionLocalProvider(LocalContentColor provides Color.White) {
             Scaffold(
                 containerColor = Color.Transparent,
@@ -829,6 +831,7 @@ private fun StatsTab(userRole: UserRole, profile: UserProfile) {
 @Composable
 private fun SettingsTab(
     onOpenSettings: (() -> Unit)?,
+    onOpenNotifications: (() -> Unit)? = null,
     onOpenCSBM: (() -> Unit)? = null,   // Chính sách bảo mật
     onOpenDKSD: (() -> Unit)? = null,   // Điều khoản sử dụng
     onOpenLHHT: (() -> Unit)? = null,   // Liên hệ hỗ trợ
@@ -847,6 +850,9 @@ private fun SettingsTab(
                 SettingSwitchRow("Email thông báo","Nhận email về booking và tin nhắn", true)
                 SettingSwitchRow("Thông báo push","Nhận thông báo trên thiết bị", true)
                 SettingSwitchRow("Tin nhắn marketing","Nhận thông tin khuyến mãi", false)
+                SettingLinkItem(Icons.Outlined.Notifications, "Xem thông báo") {
+                    onOpenNotifications?.invoke()
+                }
             }
         }
 

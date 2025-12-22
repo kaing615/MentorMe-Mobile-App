@@ -3,7 +3,7 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../handlers/async.handler';
 import { ok, badRequest, notFound } from '../handlers/response.handler';
 import Booking from '../models/booking.model';
-import { confirmBooking, failBooking } from './booking.controller';
+import { confirmBooking, failBooking, markBookingPendingMentor } from './booking.controller';
 
 /**
  * POST /api/payments/webhook
@@ -31,8 +31,13 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
     switch (event) {
       case 'payment.success':
       case 'payment.completed':
-        await confirmBooking(bookingId);
-        console.log(`Payment confirmed for booking ${bookingId}`);
+        if ((process.env.MENTOR_CONFIRM_REQUIRED || 'false').toLowerCase() === 'true') {
+          await markBookingPendingMentor(bookingId);
+          console.log(`Payment captured, awaiting mentor confirmation for ${bookingId}`);
+        } else {
+          await confirmBooking(bookingId);
+          console.log(`Payment confirmed for booking ${bookingId}`);
+        }
         break;
 
       case 'payment.failed':

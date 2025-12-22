@@ -99,6 +99,7 @@ androidx-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "ui" }
 konform                           = { module = "com.github.zachklipp:konform", version.ref = "konform" }
 valiktor                          = { module = "org.valiktor:valiktor-core", version.ref = "valiktor" }
 firebase-database-ktx = { module = "com.google.firebase:firebase-database-ktx" }
+firebase-messaging-ktx = { module = "com.google.firebase:firebase-messaging-ktx" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
 hilt-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hilt" }

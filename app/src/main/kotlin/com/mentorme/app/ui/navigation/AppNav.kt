@@ -2,9 +2,13 @@ package com.mentorme.app.ui.navigation
 
 import android.annotation.SuppressLint
 import android.os.Build
+import android.Manifest
+import android.content.pm.PackageManager
 import android.util.Log
 import android.widget.Toast
 import androidx.annotation.RequiresApi
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +18,22 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.zIndex
+import androidx.core.content.ContextCompat
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.*
+import com.mentorme.app.ui.theme.LiquidBackground
+import com.mentorme.app.ui.layout.GlassBottomBar
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
+// Screens
+import com.mentorme.app.ui.auth.AuthScreen
+import com.mentorme.app.ui.home.HomeScreen
+import com.mentorme.app.ui.dashboard.MentorDashboardScreen
+import com.mentorme.app.ui.calendar.MentorCalendarScreen
+import com.mentorme.app.ui.chat.MentorMessagesScreen
+import com.mentorme.app.ui.profile.MentorProfileScreen
+import com.mentorme.app.ui.search.SearchMentorScreen
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -38,18 +58,42 @@ import com.mentorme.app.ui.dashboard.MentorDashboardScreen
 import com.mentorme.app.ui.home.HomeScreen
 import com.mentorme.app.ui.layout.GlassBottomBar
 import com.mentorme.app.ui.layout.UserUi
+import com.mentorme.app.ui.theme.LiquidBackground
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.navigation.compose.currentBackStackEntryAsState
+import com.mentorme.app.ui.auth.AuthScreen
+import com.mentorme.app.ui.auth.RegisterPayload
+import com.mentorme.app.ui.chat.ChatScreen
+import com.mentorme.app.ui.chat.MessagesScreen
+import com.mentorme.app.ui.notifications.NotificationsScreen
+import com.mentorme.app.ui.profile.*
+import androidx.navigation.compose.composable
+import com.mentorme.app.ui.wallet.TopUpScreen
+import com.mentorme.app.ui.wallet.WithdrawScreen
+import com.mentorme.app.ui.wallet.BankInfo
+import com.mentorme.app.ui.wallet.PaymentMethod
+import com.mentorme.app.ui.wallet.mockPaymentMethods
+import com.mentorme.app.ui.wallet.initialPaymentMethods
+import com.mentorme.app.ui.wallet.PaymentMethodScreen
+import com.mentorme.app.ui.wallet.AddPaymentMethodScreen
+import com.mentorme.app.ui.wallet.EditPaymentMethodScreen
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.unit.dp
 import com.mentorme.app.ui.onboarding.MenteeOnboardingScreen
 import com.mentorme.app.ui.onboarding.MentorOnboardingScreen
 import com.mentorme.app.ui.onboarding.PendingApprovalScreen
-import com.mentorme.app.ui.profile.ProfileScreen
-import com.mentorme.app.ui.profile.UserHeader
-import com.mentorme.app.ui.profile.UserRole
-import com.mentorme.app.ui.profile.MentorProfileScreen
-import com.mentorme.app.ui.search.SearchMentorScreen
-import com.mentorme.app.ui.theme.LiquidBackground
-import com.mentorme.app.ui.wallet.*
-import java.util.Calendar
-import java.util.Locale
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import com.mentorme.app.ui.session.SessionViewModel
 
 object Routes {
     const val Auth = "auth"
@@ -70,6 +114,7 @@ object Routes {
     }
 
     const val Calendar = "calendar"
+    const val Notifications = "notifications"
     const val Messages = "messages"
     const val Profile = "profile"
     const val Chat = "chat"
@@ -110,6 +155,35 @@ fun AppNav(
     var userRole by rememberSaveable { mutableStateOf("mentee") }
     var payMethods by remember { mutableStateOf(initialPaymentMethods()) }
     var authToken by rememberSaveable { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    var sessionReady by remember { mutableStateOf(false) }
+    val sessionVm = hiltViewModel<SessionViewModel>()
+    val sessionState by sessionVm.session.collectAsStateWithLifecycle()
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val permissionLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            Log.d("AppNav", "POST_NOTIFICATIONS granted=$granted")
+        }
+        LaunchedEffect(Unit) {
+            val granted = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
+    LaunchedEffect(sessionState) {
+        isLoggedIn = sessionState.isLoggedIn
+        if (!sessionState.role.isNullOrBlank()) {
+            userRole = sessionState.role!!
+        }
+        sessionReady = true
+    }
 
     LaunchedEffect(currentRoute) {
         Log.d("AppNav", "Current route changed to: $currentRoute")
@@ -185,6 +259,25 @@ fun AppNav(
             modifier = Modifier.fillMaxSize()
         ) { _ ->
             Box(modifier = Modifier.fillMaxSize()) {
+                if (!sessionReady) return@Box
+
+                LaunchedEffect(isLoggedIn, userRole, currentRoute) {
+                    if (isLoggedIn) {
+                        val target = if (userRole == "mentor") Routes.MentorDashboard else Routes.Home
+                        if (currentRoute == Routes.Auth) {
+                            nav.navigate(target) {
+                                popUpTo(Routes.Auth) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    } else if (currentRoute != Routes.Auth) {
+                        nav.navigate(Routes.Auth) {
+                            popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+
                 NavHost(
                     navController = nav,
                     startDestination = when {
@@ -363,6 +456,7 @@ fun AppNav(
 
                     // ✅ (A) composable base route: mentor_profile (default tab profile)
                     composable(Routes.MentorProfile) {
+                        val authVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
                         MentorProfileScreen(
                             startTarget = "profile",
                             onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
@@ -416,11 +510,13 @@ fun AppNav(
                             onViewStatistics = { Log.d("AppNav", "MentorProfile: onViewStatistics - TODO") },
                             onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
                             onLogout = {
-                                isLoggedIn = false
-                                userRole = "mentee"
-                                nav.navigate(Routes.Auth) {
-                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
-                                    launchSingleTop = true
+                                authVm.signOut {
+                                    isLoggedIn = false
+                                    userRole = "mentee"
+                                    nav.navigate(Routes.Auth) {
+                                        popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
                                 }
                             }
                         )
@@ -460,6 +556,11 @@ fun AppNav(
                         })
                     }
 
+                    composable(Routes.Notifications) {
+                        NotificationsScreen(onBack = { nav.popBackStack() })
+                    }
+
+                    // Route khung chat + ẩn bottom bar
                     composable("${Routes.Chat}/{conversationId}") { backStackEntry ->
                         val convId = backStackEntry.arguments?.getString("conversationId") ?: return@composable
                         ChatScreen(
@@ -470,17 +571,22 @@ fun AppNav(
                     }
 
                     composable(Routes.Profile) {
+                        val authVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
                         ProfileScreen(
+                            user = UserHeader(fullName = "Nguyễn Văn A", email = "a@example.com", role = UserRole.MENTEE),
+                            onOpenNotifications = { nav.navigate(Routes.Notifications) },
                             onOpenTopUp = { nav.navigate(Routes.TopUp) },
                             onOpenWithdraw = { nav.navigate(Routes.Withdraw) },
                             onOpenChangeMethod = { nav.navigate(Routes.PaymentMethods) },
                             onAddMethod = { nav.navigate(Routes.AddPaymentMethod) },
                             methods = payMethods,
                             onLogout = {
-                                isLoggedIn = false
-                                nav.navigate(Routes.Auth) {
-                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
-                                    launchSingleTop = true
+                                authVm.signOut {
+                                    isLoggedIn = false
+                                    nav.navigate(Routes.Auth) {
+                                        popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
                                 }
                             }
                         )

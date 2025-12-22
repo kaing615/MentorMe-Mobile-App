@@ -2,6 +2,7 @@
 <resources>
     <!-- App strings -->
     <string name="app_name">MentorMe</string>
+    <string name="mentorme_fcm_channel_id">mentorme_general</string>
 
     <!-- Authentication -->
     <string name="welcome_back">Welcome Back</string>

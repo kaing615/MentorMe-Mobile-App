@@ -21,23 +21,14 @@ interface ProfileApiService {
     @POST("profile/required")
     suspend fun createRequiredProfileMultipart(
         @PartMap fields: Map<String, @JvmSuppressWildcards RequestBody>,
-        @Part avatar: MultipartBody.Part?  = null
+        @Part avatar: MultipartBody.Part? = null
     ): Response<ProfileCreateResponse>
 
-    @GET("auth/me")
+    @GET("me")
     suspend fun getMe(): Response<ApiEnvelope<MePayload>>
 
-    @GET("profile/me")
-    suspend fun getMyProfile(): Response<ApiEnvelope<ProfileMePayload>>
-    @Multipart
-    @PUT("profile/me")
+    @PUT("me")
     suspend fun updateProfile(
-        @PartMap fields: Map<String, @JvmSuppressWildcards RequestBody>,
-        @Part avatar: MultipartBody.Part? = null
+        @Body params: UpdateProfileParams
     ): Response<ApiEnvelope<Unit>>
-
-    @GET("profile/{userId}")
-    suspend fun getPublicProfile(
-        @Path("userId") userId: String
-    ): Response<ApiEnvelope<ProfileDto>>
 }

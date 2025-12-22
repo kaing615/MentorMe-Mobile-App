@@ -74,4 +74,16 @@ class DataStoreManager @Inject constructor(
             preferences[USER_ROLE_KEY]
         }
     }
+
+    fun getFcmToken(): Flow<String?> {
+        return dataStore.data.map { preferences ->
+            preferences[FCM_TOKEN_KEY]
+        }
+    }
+
+    suspend fun saveFcmToken(token: String) {
+        dataStore.edit { preferences ->
+            preferences[FCM_TOKEN_KEY] = token
+        }
+    }
 }

@@ -3,7 +3,11 @@ package com.mentorme.app.ui.navigation
 import android.util.Log
 import android.annotation.SuppressLint
 import android.os.Build
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.annotation.RequiresApi
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -16,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
@@ -139,6 +144,24 @@ fun AppNav(
     var userRole by rememberSaveable { mutableStateOf("mentee") } // Track user role
     var payMethods by remember { mutableStateOf(initialPaymentMethods()) }
     var authToken by rememberSaveable { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val permissionLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            Log.d("AppNav", "POST_NOTIFICATIONS granted=$granted")
+        }
+        LaunchedEffect(Unit) {
+            val granted = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
 
     // Debug current route
     LaunchedEffect(currentRoute) {
@@ -278,10 +301,6 @@ fun AppNav(
                         )
                     }
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 0b24bb21 (feat(auth,onboarding,ui): implement auth flow, OTP, mentor/mentee onboarding; polish UI)
                     // ---------- ONBOARDING ----------
                     composable(Routes.Onboarding) { backStackEntry ->
                         val roleArg = backStackEntry.arguments?.getString("role") ?: userRole
@@ -402,6 +421,7 @@ fun AppNav(
                     }
 
                     composable(Routes.MentorProfile) {
+                        val authVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
                         MentorProfileScreen(
                             onEditProfile = {
                                 Log.d("AppNav", "Edit mentor profile - TODO")
@@ -423,11 +443,13 @@ fun AppNav(
                                 Log.d("AppNav", "Settings - TODO")
                             },
                             onLogout = {
-                                isLoggedIn = false
-                                userRole = "mentee"
-                                nav.navigate(Routes.Auth) {
-                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
-                                    launchSingleTop = true
+                                authVm.signOut {
+                                    isLoggedIn = false
+                                    userRole = "mentee"
+                                    nav.navigate(Routes.Auth) {
+                                        popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
                                 }
                             }
                         )
@@ -483,6 +505,7 @@ fun AppNav(
                     }
 
                     composable(Routes.Profile) {
+                        val authVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
                         ProfileScreen(
                             user = UserHeader(fullName = "Nguyễn Văn A", email = "a@example.com", role = UserRole.MENTEE),
                             onOpenNotifications = { nav.navigate(Routes.Notifications) },
@@ -492,10 +515,12 @@ fun AppNav(
                             onAddMethod = { nav.navigate(Routes.AddPaymentMethod) },
                             methods = payMethods,
                             onLogout = {
-                                isLoggedIn = false
-                                nav.navigate(Routes.Auth) {
-                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
-                                    launchSingleTop = true
+                                authVm.signOut {
+                                    isLoggedIn = false
+                                    nav.navigate(Routes.Auth) {
+                                        popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
                                 }
                             }
                         )

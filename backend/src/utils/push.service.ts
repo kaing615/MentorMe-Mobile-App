@@ -86,6 +86,12 @@ function chunk<T>(items: T[], size: number) {
   return batches;
 }
 
+function maskToken(token: string) {
+  if (!token) return '';
+  const tail = token.slice(-6);
+  return `...${tail}`;
+}
+
 export async function sendPushToTokens(
   tokens: string[],
   payload: PushPayload
@@ -113,6 +119,20 @@ export async function sendPushToTokens(
         body: payload.body,
       },
       data,
+    });
+
+    const responseDetails = response.responses.map((res, index) => ({
+      index,
+      token: maskToken(batch[index]),
+      success: res.success,
+      code: res.error?.code ?? null,
+      message: res.error?.message ?? null,
+    }));
+
+    console.log('[push] sendEachForMulticast', {
+      successCount: response.successCount,
+      failureCount: response.failureCount,
+      responses: responseDetails,
     });
 
     sent += response.successCount;

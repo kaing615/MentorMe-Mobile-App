@@ -1,4 +1,4 @@
-import { Queue, Worker, QueueScheduler } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
 import {
   processBookingReminders,
   processExpiredBookings,
@@ -10,7 +10,6 @@ const JOB_NAME = 'booking-tick';
 
 let queue: Queue | null = null;
 let worker: Worker | null = null;
-let scheduler: QueueScheduler | null = null;
 
 function getConnectionOptions() {
   return {
@@ -37,12 +36,10 @@ async function runBookingJobs() {
 }
 
 export async function startBookingJobs() {
-  if (queue || worker || scheduler) return;
+  if (queue || worker) return;
 
   const connection = getConnectionOptions();
   queue = new Queue(QUEUE_NAME, { connection });
-  scheduler = new QueueScheduler(QUEUE_NAME, { connection });
-
   const intervalSeconds = parseInt(process.env.BOOKING_JOB_INTERVAL_SECONDS || '60', 10) || 60;
   await queue.add(
     JOB_NAME,
@@ -73,10 +70,6 @@ export async function stopBookingJobs() {
   if (worker) {
     await worker.close();
     worker = null;
-  }
-  if (scheduler) {
-    await scheduler.close();
-    scheduler = null;
   }
   if (queue) {
     await queue.close();

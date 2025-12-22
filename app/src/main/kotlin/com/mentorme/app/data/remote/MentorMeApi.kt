@@ -17,6 +17,10 @@ import com.mentorme.app.data.dto.availability.CalendarPayload
 import com.mentorme.app.data.dto.mentors.MentorCardDto
 import com.mentorme.app.data.dto.mentors.MentorListPayloadDto
 import com.mentorme.app.data.dto.availability.PublishResult
+import com.mentorme.app.data.dto.notifications.DeviceTokenPayload
+import com.mentorme.app.data.dto.notifications.RegisterDeviceRequest
+import com.mentorme.app.data.dto.notifications.UnregisterDeviceRequest
+import com.mentorme.app.data.dto.notifications.UnregisterResult
 
 // Model imports
 import com.mentorme.app.data.model.Booking
@@ -161,4 +165,15 @@ interface MentorMeApi {
 
     @POST("messages")
     suspend fun sendMessage(@Body messageRequest: SendMessageRequest): Response<ApiMessage>
+
+    // Notifications
+    @POST("notifications/devices")
+    suspend fun registerDeviceToken(
+        @Body request: RegisterDeviceRequest
+    ): Response<ApiEnvelope<DeviceTokenPayload>>
+
+    @POST("notifications/devices/unregister")
+    suspend fun unregisterDeviceToken(
+        @Body request: UnregisterDeviceRequest
+    ): Response<ApiEnvelope<UnregisterResult>>
 }

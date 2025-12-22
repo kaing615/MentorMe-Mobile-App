@@ -20,8 +20,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import com.mentorme.app.core.datastore.DataStoreManager
+import com.mentorme.app.core.notifications.PushTokenManager
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
@@ -31,7 +35,8 @@ class AuthViewModel @Inject constructor(
     private val verifyOtpUseCase: VerifyOtpUseCase,
     private val resendOtpUseCase: ResendOtpUseCase,
     private val signOutUseCase: SignOutUseCase,
-    private val dataStoreManager: DataStoreManager
+    private val dataStoreManager: DataStoreManager,
+    private val pushTokenManager: PushTokenManager
 ) : ViewModel() {
 
     private val TAG = "AuthViewModel"
@@ -195,6 +200,16 @@ class AuthViewModel @Inject constructor(
                         userEmail = if (verifying) email else _authState.value.userEmail,
                         otpVerificationId = if (verifying) data?.verificationId else _authState.value.otpVerificationId
                     )
+
+                    FirebaseMessaging.getInstance().token
+                        .addOnSuccessListener { fcmToken ->
+                            viewModelScope.launch {
+                                pushTokenManager.onNewToken(fcmToken, null, "login")
+                            }
+                        }
+                        .addOnFailureListener { err ->
+                            Log.w(TAG, "Failed to fetch FCM token after login: ${err.message}")
+                        }
                 }
 
                 is AppResult.Error -> handleAuthError(result.throwable)
@@ -396,6 +411,31 @@ class AuthViewModel @Inject constructor(
 
     fun clearFlowHint() {
         _authState.value = _authState.value.copy(flowHint = null)
+    }
+
+    fun signOut(onComplete: (() -> Unit)? = null) {
+        viewModelScope.launch {
+            _authState.value = _authState.value.copy(isLoading = true, error = null)
+
+            withContext(Dispatchers.IO) {
+                try {
+                    pushTokenManager.unregisterStoredToken("logout")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Unregister token failed: ${e.message}")
+                }
+            }
+
+            when (val result = signOutUseCase.invoke()) {
+                is AppResult.Error -> Log.w(TAG, "Sign out API failed: ${result.throwable}")
+                else -> Unit
+            }
+
+            dataStoreManager.clearToken()
+            dataStoreManager.clearUserInfo()
+
+            _authState.value = AuthState()
+            onComplete?.invoke()
+        }
     }
 
     // Helper to extract verificationId from AuthData

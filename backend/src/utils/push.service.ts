@@ -17,6 +17,7 @@ export interface PushResult {
 }
 
 const MAX_TOKENS_PER_BATCH = 500;
+const DEFAULT_ANDROID_CHANNEL_ID = 'mentorme_general';
 let cachedApp: admin.app.App | null = null;
 
 function parseServiceAccount(raw: string) {
@@ -119,6 +120,13 @@ export async function sendPushToTokens(
         body: payload.body,
       },
       data,
+      android: {
+        priority: 'high',
+        notification: {
+          channelId: DEFAULT_ANDROID_CHANNEL_ID,
+          sound: 'default',
+        },
+      },
     });
 
     const responseDetails = response.responses.map((res, index) => ({

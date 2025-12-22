@@ -26,6 +26,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
 import com.mentorme.app.ui.theme.LiquidBackground
 import com.mentorme.app.ui.layout.GlassBottomBar
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 // Screens
 import com.mentorme.app.ui.auth.AuthScreen
@@ -79,6 +80,7 @@ import com.mentorme.app.ui.onboarding.PendingApprovalScreen
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
+import com.mentorme.app.ui.session.SessionViewModel
 
 object Routes {
     const val Auth = "auth"
@@ -145,6 +147,9 @@ fun AppNav(
     var payMethods by remember { mutableStateOf(initialPaymentMethods()) }
     var authToken by rememberSaveable { mutableStateOf<String?>(null) }
     val context = LocalContext.current
+    var sessionReady by remember { mutableStateOf(false) }
+    val sessionVm = hiltViewModel<SessionViewModel>()
+    val sessionState by sessionVm.session.collectAsStateWithLifecycle()
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         val permissionLauncher = rememberLauncherForActivityResult(
@@ -161,6 +166,14 @@ fun AppNav(
                 permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
+    }
+
+    LaunchedEffect(sessionState) {
+        isLoggedIn = sessionState.isLoggedIn
+        if (!sessionState.role.isNullOrBlank()) {
+            userRole = sessionState.role!!
+        }
+        sessionReady = true
     }
 
     // Debug current route
@@ -240,6 +253,25 @@ fun AppNav(
             modifier = Modifier.fillMaxSize()
         ) { _ ->
             Box(modifier = Modifier.fillMaxSize()) {
+                if (!sessionReady) return@Box
+
+                LaunchedEffect(isLoggedIn, userRole, currentRoute) {
+                    if (isLoggedIn) {
+                        val target = if (userRole == "mentor") Routes.MentorDashboard else Routes.Home
+                        if (currentRoute == Routes.Auth) {
+                            nav.navigate(target) {
+                                popUpTo(Routes.Auth) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    } else if (currentRoute != Routes.Auth) {
+                        nav.navigate(Routes.Auth) {
+                            popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+
                 NavHost(
                     navController = nav,
                     startDestination = when {

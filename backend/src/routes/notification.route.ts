@@ -7,12 +7,14 @@ import {
   unregisterDeviceToken,
   sendTestPush,
   sendPushToUserId,
+  listDeviceTokens,
 } from '../controllers/notification.controller';
 import {
   registerDeviceTokenRules,
   unregisterDeviceTokenRules,
   sendTestPushRules,
   sendPushToUserIdRules,
+  listDeviceTokensRules,
 } from '../middlewares/validators/notification.validator';
 
 const router = Router();
@@ -25,6 +27,14 @@ router.post(
   unregisterDeviceTokenRules,
   validate,
   unregisterDeviceToken
+);
+router.get(
+  '/devices',
+  auth,
+  requireRoles('admin', 'root'),
+  listDeviceTokensRules,
+  validate,
+  listDeviceTokens
 );
 
 // Push helpers

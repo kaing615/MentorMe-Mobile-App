@@ -1,5 +1,5 @@
 // path: src/middlewares/validators/notification.validator.ts
-import { body } from 'express-validator';
+import { body, query } from 'express-validator';
 
 const platformValues = ['android', 'ios', 'web'];
 
@@ -71,4 +71,28 @@ export const sendPushToUserIdRules = [
     .optional()
     .custom((value) => isPlainObject(value))
     .withMessage('data must be an object'),
+];
+
+export const listDeviceTokensRules = [
+  query('userId').optional().isMongoId().withMessage('userId must be a valid ID'),
+  query('platform')
+    .optional()
+    .isString()
+    .trim()
+    .toLowerCase()
+    .isIn(platformValues)
+    .withMessage('platform must be android, ios, or web'),
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 200 })
+    .withMessage('limit must be 1-200'),
+  query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('page must be >= 1'),
+  query('includeToken')
+    .optional()
+    .isBoolean()
+    .toBoolean()
+    .withMessage('includeToken must be boolean'),
 ];

@@ -36,6 +36,7 @@ class MentorMeMessagingService : FirebaseMessagingService() {
             ?: "You have a new update."
         val type = NotificationType.fromKey(message.data["type"])
 
+        Log.d(TAG, "FCM message received: title=$title body=$body data=${message.data}")
         NotificationHelper.showNotification(this, title, body, type)
         NotificationStore.add(
             NotificationItem(

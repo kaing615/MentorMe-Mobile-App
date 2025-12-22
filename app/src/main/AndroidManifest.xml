@@ -17,6 +17,9 @@
         android:fullBackupContent="@xml/backup_rules"
         tools:targetApi="31"
         android:usesCleartextTraffic="true">
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="@string/mentorme_fcm_channel_id" />
         <activity
             android:name="com.mentorme.app.MainActivity"
             android:windowSoftInputMode="adjustResize"

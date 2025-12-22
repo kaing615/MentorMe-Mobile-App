@@ -136,6 +136,9 @@ class AuthViewModel @Inject constructor(
 
     fun signIn(email: String, password: String) {
         viewModelScope.launch {
+            dataStoreManager.clearToken()
+            dataStoreManager.clearUserInfo()
+            delay(150)
             Log.d(TAG, "🔥 SIGNIN CALLED - EMAIL: $email")
             _authState.value = _authState.value.copy(
                 isLoading = true,

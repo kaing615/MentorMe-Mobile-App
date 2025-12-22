@@ -324,6 +324,7 @@ export const getBookingById = asyncHandler(async (req: Request, res: Response) =
  */
 export const cancelBooking = asyncHandler(async (req: Request, res: Response) => {
   const userId = (req as any).user?.id;
+  const userRole = (req as any).user?.role;
   if (!userId) return badRequest(res, 'Unauthorized');
 
   const { id } = req.params;

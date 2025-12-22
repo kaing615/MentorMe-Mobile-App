@@ -24,6 +24,8 @@ tags:
     description: Danh sách và chi tiết mentor (public discovery)
   - name: Notifications
     description: Device token registration and push notifications
+  - name: Mentors
+    description: Danh sách và chi tiết mentor (public discovery)
 
 components:
   securitySchemes:

@@ -20,7 +20,6 @@ class DataStoreManager @Inject constructor(
         private val USER_EMAIL_KEY = stringPreferencesKey("user_email")
         private val USER_NAME_KEY = stringPreferencesKey("user_name")
         private val USER_ROLE_KEY = stringPreferencesKey("user_role")
-        private val FCM_TOKEN_KEY = stringPreferencesKey("fcm_token")
     }
 
     fun getToken(): Flow<String?> {

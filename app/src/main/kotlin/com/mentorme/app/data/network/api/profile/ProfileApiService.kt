@@ -10,6 +10,8 @@ import retrofit2.http.POST
 import retrofit2.http.Part
 import retrofit2.http.PartMap
 import com.mentorme.app.data.dto.profile.MePayload
+import com.mentorme.app.data.dto.profile.ProfileDto
+import com.mentorme.app.data.dto.profile.ProfileMePayload
 import com.mentorme.app.domain.usecase.profile.UpdateProfileParams
 import retrofit2.http.*
 

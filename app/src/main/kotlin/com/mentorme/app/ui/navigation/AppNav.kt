@@ -346,7 +346,12 @@ fun AppNav(
                     // ---------- MENTOR SCREENS ----------
                     composable(Routes.MentorDashboard) {
                         MentorDashboardScreen(
-                            onViewSchedule = { nav.navigate(Routes.MentorCalendar) },
+                            onViewSchedule = {
+                                nav.navigate(Routes.MentorCalendar) {
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
                             onViewStudents = {
                                 Log.d("AppNav", "Navigate to students list - TODO")
                             },
@@ -359,8 +364,18 @@ fun AppNav(
                             onJoinSession = { sessionId ->
                                 Log.d("AppNav", "Join session $sessionId - TODO")
                             },
-                            onViewAllSessions = { nav.navigate(Routes.MentorCalendar) },
-                            onUpdateProfile = { nav.navigate(Routes.MentorProfile) }
+                            onViewAllSessions = {
+                                nav.navigate(Routes.MentorCalendar) {
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            onUpdateProfile = {
+                                nav.navigate(Routes.MentorProfile) {
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
                         )
                     }
 
@@ -398,25 +413,38 @@ fun AppNav(
                     composable(Routes.MentorProfile) {
                         MentorProfileScreen(
                             onEditProfile = {
+                                Log.d("AppNav", "MentorProfile: onEditProfile")
                                 Log.d("AppNav", "Edit mentor profile - TODO")
                             },
                             onViewEarnings = {
+                                Log.d("AppNav", "MentorProfile: onViewEarnings")
                                 Log.d("AppNav", "View earnings - TODO")
                             },
                             onViewReviews = {
+                                Log.d("AppNav", "MentorProfile: onViewReviews")
                                 Log.d("AppNav", "View reviews - TODO")
                             },
-                            onUpdateAvailability = { nav.navigate(Routes.MentorCalendar) },
+                            onUpdateAvailability = {
+                                Log.d("AppNav", "MentorProfile: onUpdateAvailability -> navigate MentorCalendar")
+                                nav.navigate(Routes.MentorCalendar) {
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
                             onManageServices = {
+                                Log.d("AppNav", "MentorProfile: onManageServices")
                                 Log.d("AppNav", "Manage services - TODO")
                             },
                             onViewStatistics = {
+                                Log.d("AppNav", "MentorProfile: onViewStatistics")
                                 Log.d("AppNav", "View statistics - TODO")
                             },
                             onSettings = {
+                                Log.d("AppNav", "MentorProfile: onSettings")
                                 Log.d("AppNav", "Settings - TODO")
                             },
                             onLogout = {
+                                Log.d("AppNav", "MentorProfile: onLogout")
                                 isLoggedIn = false
                                 userRole = "mentee"
                                 nav.navigate(Routes.Auth) {

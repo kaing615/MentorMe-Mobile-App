@@ -1,6 +1,7 @@
 package com.mentorme.app.ui.layout
 
 import android.annotation.SuppressLint
+import android.util.Log
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -69,14 +70,6 @@ private val mentorNavItems = listOf(
     NavItem("mentor_profile",   "Cá nhân",   Icons.Filled.Person)
 )
 
-// Helper function để map mentor_home thành home cho bottom bar
-private fun mapRouteForBottomBar(route: String?): String {
-    return when (route) {
-        "mentor_home" -> "home"  // Map mentor_home thành home cho bottom navigation
-        else -> route ?: "home"
-    }
-}
-
 // ===== Public API =====
 @Composable
 fun GlassBottomBar(
@@ -85,7 +78,8 @@ fun GlassBottomBar(
     modifier: Modifier = Modifier
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
-    val current = backStackEntry?.destination
+    val currentDestination = backStackEntry?.destination
+    val currentRoute = currentDestination?.route
 
     val shape = RoundedCornerShape(24.dp)
 
@@ -117,17 +111,33 @@ fun GlassBottomBar(
             val navItems = if (userRole == "mentor") mentorNavItems else menteeNavItems
 
             navItems.forEach { item ->
-                val selected = current.isSelected(item.route, userRole)
+                val selected = currentDestination.isSelected(item.route)
+
                 GlassBarItem(
                     selected = selected,
                     label = item.label,
                     icon = item.icon,
                     badge = item.badge
                 ) {
-                    if (!selected) {
-                        // Xác định route đích dựa trên role và item được click
-                        val targetRoute = getTargetRoute(item.route, userRole)
+                    // ✅ FIX: Không dựa vào `selected` để quyết định navigate.
+                    // `selected` có thể bị tính sai khi restoreState/saveState hoặc route có args.
+                    val targetRoute = getTargetRoute(item.route, userRole)
 
+                    Log.d(
+                        "GlassBottomBar",
+                        "tap label='${item.label}' itemRoute='${item.route}' currentRoute='${currentRoute}' targetRoute='${targetRoute}' role='${userRole}'"
+                    )
+
+                    // So sánh route hiện tại với route đích để tránh navigate lặp.
+                    if (currentRoute != targetRoute) {
+                        // ✅ Nếu destination đã tồn tại trong back stack thì pop về luôn (ổn định hơn restoreState).
+                        val popped = navController.popBackStack(targetRoute, inclusive = false)
+                        if (popped) {
+                            Log.d("GlassBottomBar", "popBackStack -> $targetRoute")
+                            return@GlassBarItem
+                        }
+
+                        Log.d("GlassBottomBar", "navigate -> $targetRoute")
                         navController.navigate(targetRoute) {
                             popUpTo(navController.graph.findStartDestination().id) {
                                 saveState = true
@@ -213,29 +223,17 @@ private fun GlassBarItem(
 }
 
 // ===== Helpers =====
-private fun NavDestination?.isSelected(route: String, userRole: String): Boolean {
+private fun NavDestination?.isSelected(route: String): Boolean {
     return when (route) {
         // Mentor routes
-        "mentor_dashboard" -> {
-            this?.hierarchy?.any { it.route == "mentor_dashboard" || it.route == "mentor_home" } == true
-        }
-        "mentor_calendar" -> {
-            this?.hierarchy?.any { it.route == "mentor_calendar" } == true
-        }
-        "mentor_messages" -> {
-            this?.hierarchy?.any { it.route == "mentor_messages" } == true
-        }
-        "mentor_profile" -> {
-            this?.hierarchy?.any { it.route == "mentor_profile" } == true
-        }
+        "mentor_dashboard" -> this?.hierarchy?.any { it.route == "mentor_dashboard" } == true
+        "mentor_calendar" -> this?.hierarchy?.any { it.route == "mentor_calendar" } == true
+        "mentor_messages" -> this?.hierarchy?.any { it.route == "mentor_messages" } == true
+        "mentor_profile" -> this?.hierarchy?.any { it.route == "mentor_profile" } == true
+
         // Mentee routes
-        "home" -> {
-            // Home item được selected khi ở route "home" HOẶC "mentor_home"
-            this?.hierarchy?.any { it.route == "home" || it.route == "mentor_home" } == true
-        }
-        else -> {
-            this?.hierarchy?.any { it.route == route } == true
-        }
+        "home" -> this?.hierarchy?.any { it.route == "home" } == true
+        else -> this?.hierarchy?.any { it.route == route } == true
     }
 }
 
@@ -246,12 +244,14 @@ private fun getTargetRoute(route: String, userRole: String): String {
         "mentor_calendar" -> "mentor_calendar"
         "mentor_messages" -> "mentor_messages"
         "mentor_profile" -> "mentor_profile"
+
         // Mentee routes
-        "home" -> if (userRole == "mentor") "mentor_home" else "home"
+        "home" -> "home"
         "search" -> "search"
         "calendar" -> "calendar"
         "messages" -> "messages"
         "profile" -> "profile"
+
         else -> if (userRole == "mentor") "mentor_dashboard" else "home"
     }
 }

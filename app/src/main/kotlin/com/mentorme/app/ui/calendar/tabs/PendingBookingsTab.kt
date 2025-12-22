@@ -53,7 +53,7 @@ fun PendingBookingsTab(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "⏱️  Booking chờ duyệt",
+                text = "Booking chờ duyệt",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleLarge
@@ -95,7 +95,7 @@ fun PendingBookingsTab(
                             }
                             Spacer(Modifier.height(16.dp))
                             Text(
-                                text = "⏳ Không có booking chờ duyệt",
+                                text = "Không có booking chờ duyệt",
                                 color = Color.White,
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.ExtraBold,
@@ -133,14 +133,14 @@ fun PendingBookingsTab(
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
                                     Text(
-                                        "📝 $topic",
+                                        "$topic",
                                         color = Color.White,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Spacer(Modifier.height(4.dp))
                                     Text(
-                                        "👤 Với $menteeName   •   👨‍🏫 $mentorName",
+                                        "👤 Với $menteeName   •   $mentorName",
                                         color = Color.White.copy(.85f),
                                         style = MaterialTheme.typography.bodySmall
                                     )
@@ -152,16 +152,16 @@ fun PendingBookingsTab(
                                         .background(pillColor.copy(.25f))
                                         .border(BorderStroke(1.dp, pillColor.copy(.45f)), RoundedCornerShape(12.dp))
                                         .padding(horizontal = 10.dp, vertical = 6.dp)
-                                ) { Text("⏳ Chờ duyệt", color = Color.White, fontWeight = FontWeight.Medium) }
+                                ) { Text("Chờ duyệt", color = Color.White, fontWeight = FontWeight.Medium) }
                             }
 
                             // Info
-                            InfoRow("📅 Ngày & giờ", "${b.date} • ${b.startTime}")
-                            InfoRow("⏱️ Thời lượng", "${durationMinutes(b.startTime, b.endTime)} phút")
-                            InfoRow("💎 Giá tư vấn", "${b.price.toInt()} đ")
+                            InfoRow("Ngày & giờ", "${b.date} • ${b.startTime}")
+                            InfoRow("Thời lượng", "${durationMinutes(b.startTime, b.endTime)} phút")
+                            InfoRow("Giá tư vấn", "${b.price.toInt()} đ")
                             InfoRow(
-                                "🎯 Hình thức",
-                                if (sessionType == "in-person") "🤝 Trực tiếp" else "💻 Video Call"
+                                "Hình thức",
+                                if (sessionType == "in-person") "Trực tiếp" else "Video Call"
                             )
 
                             // Payment
@@ -183,9 +183,9 @@ fun PendingBookingsTab(
                                         )
                                     }
                                     val (bg, label) = if (isPaid)
-                                        Color(0xFF22C55E) to "✅ Đã thanh toán"
+                                        Color(0xFF22C55E) to "Đã thanh toán"
                                     else
-                                        Color(0xFFF59E0B) to "⏳ Chờ thanh toán"
+                                        Color(0xFFF59E0B) to "Chờ thanh toán"
 
                                     Box(
                                         modifier = Modifier
@@ -200,7 +200,7 @@ fun PendingBookingsTab(
                             // Actions
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 MMButton(
-                                    text = "✅ Chấp nhận booking",
+                                    text = "Chấp nhận booking",
                                     onClick = {
                                         onAccept(b.id)
                                         // Hiện notify
@@ -213,7 +213,7 @@ fun PendingBookingsTab(
                                         .height(48.dp)
                                 )
                                 MMGhostButton(
-                                    text = "❌ Từ chối",
+                                    text = "Từ chối",
                                     onClick = { onReject(b.id) },
                                     modifier = Modifier
                                         .fillMaxWidth()

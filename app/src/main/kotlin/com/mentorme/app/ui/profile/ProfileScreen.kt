@@ -76,12 +76,16 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.mentorme.app.data.network.api.profile.ProfileApiService
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.material3.CircularProgressIndicator
 
 private val oneDecimalUS = DecimalFormat("#.#").apply {
     decimalFormatSymbols = DecimalFormatSymbols(Locale.US)  // dùng dấu chấm
 }
 
-/** 1_000 -> 1K, 1_000_000 -> 1M. Giữ 1 chữ số thập phân, bỏ .0 nếu không cần. */
+/** 1_000 -> 1K, 1_000_000 -> 1M.Giữ 1 chữ số thập phân, bỏ .0 nếu không cần.*/
 fun formatMoneyShortVnd(amount: Long, withCurrency: Boolean = false): String {
     val abs = kotlin.math.abs(amount)
     val sign = if (amount < 0) "-" else ""
@@ -162,7 +166,7 @@ fun mockProfile(user: UserHeader): UserProfile {
             email = user.email,
             phone = "+84 123 456 789",
             location = "Hồ Chí Minh, Việt Nam",
-            bio = "Senior Developer với 8+ năm kinh nghiệm trong lĩnh vực Frontend và Backend. Đã mentor cho 100+ mentees và giúp họ phát triển sự nghiệp trong công nghệ.",
+            bio = "Senior Developer với 8+ năm kinh nghiệm trong lĩnh vực Frontend và Backend.Đã mentor cho 100+ mentees và giúp họ phát triển sự nghiệp trong công nghệ.",
             joinDate = GregorianCalendar(2022, Calendar.MARCH, 15).time,
             totalSessions = 156,
             totalSpent = 0L,
@@ -176,7 +180,7 @@ fun mockProfile(user: UserHeader): UserProfile {
             email = user.email,
             phone = "+84 123 456 789",
             location = "Hồ Chí Minh, Việt Nam",
-            bio = "Tôi là một developer đang học hỏi và phát triển kỹ năng trong lĩnh vực technology. Mong muốn được học hỏi từ những mentor giỏi để có thể phát triển sự nghiệp.",
+            bio = "Tôi là một developer đang học hỏi và phát triển kỹ năng trong lĩnh vực technology.Mong muốn được học hỏi từ những mentor giỏi để có thể phát triển sự nghiệp.",
             joinDate = GregorianCalendar(2023, Calendar.JUNE, 15).time,
             totalSessions = 12,
             totalSpent = 8_500_000L,
@@ -193,7 +197,7 @@ fun mockProfile(user: UserHeader): UserProfile {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
-    user: UserHeader,
+    vm: ProfileViewModel = androidx.hilt.navigation.compose.hiltViewModel(),
     onOpenSettings: (() -> Unit)? = null,
     onOpenTopUp: () -> Unit = {},
     onOpenWithdraw: () -> Unit = {},
@@ -204,20 +208,27 @@ fun ProfileScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var profile by remember { mutableStateOf(mockProfile(user)) }
-    var isEditing by remember { mutableStateOf(false) }
-    var edited by remember { mutableStateOf(profile) }
-    var selectedTab by remember { mutableIntStateOf(0) } // 0=Profile 1=Stats 2=Settings
+
+    // ✅ FIX 1: Collect state từ ViewModel thay vì tạo local state
+    val state by vm.state.collectAsState()
+
+    val profile = state.profile
+    val userRole = state.role ?: UserRole.MENTEE
+    val isLoading = state.loading
+    val isEditing = state.editing
+    val edited = state.edited
+
+    var selectedTab by remember { mutableIntStateOf(0) }
+
+    // ✅ FIX 2: Xóa LaunchedEffect gọi api.getMe() - ViewModel đã tự load trong init{}
 
     Box(Modifier.fillMaxSize()) {
-        // ✅ NỀN LIQUID giống ChatScreen
         com.mentorme.app.ui.theme.LiquidBackground(
             modifier = Modifier
                 .matchParentSize()
                 .zIndex(-1f)
         )
 
-        // ✅ Toàn bộ nội dung dùng màu trắng mặc định
         CompositionLocalProvider(LocalContentColor provides Color.White) {
             Scaffold(
                 containerColor = Color.Transparent,
@@ -248,14 +259,54 @@ fun ProfileScreen(
                     )
                 }
             ) { padding ->
+
+                // ✅ FIX 3: Hiển thị loading state
+                if (isLoading) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = Color.White)
+                    }
+                    return@Scaffold
+                }
+
+                // ✅ FIX 4: Hiển thị error state
+                state.error?.let { errorMsg ->
+                    Box(
+                        modifier = Modifier.fillMaxSize().padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Lỗi: $errorMsg", color = Color.White)
+                            Spacer(Modifier.height(12.dp))
+                            MMPrimaryButton(onClick = { vm.refresh() }) {
+                                Text("Thử lại")
+                            }
+                        }
+                    }
+                    return@Scaffold
+                }
+
+                // ✅ FIX 5: Kiểm tra profile null
+                if (profile == null) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Không có dữ liệu profile", color = Color.White)
+                    }
+                    return@Scaffold
+                }
+
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
                         .padding(horizontal = 16.dp)
-                        .padding(top = 12.dp, bottom = 92.dp) // chừa chỗ cho BottomBar
+                        .padding(top = 12.dp, bottom = 92.dp)
                 ) {
-                    // ---------- Tabs ----------
+                    // Tabs
                     com.mentorme.app.ui.theme.LiquidGlassCard(
                         modifier = Modifier.fillMaxWidth(),
                         radius = 22.dp
@@ -271,7 +322,7 @@ fun ProfileScreen(
                                         Modifier
                                             .tabIndicatorOffset(pos)
                                             .fillMaxHeight()
-                                            .padding(6.dp)                             // tạo khoảng trống để viền không đè text
+                                            .padding(6.dp)
                                             .border(
                                                 BorderStroke(
                                                     2.dp,
@@ -294,12 +345,12 @@ fun ProfileScreen(
                                     onClick = { selectedTab = i },
                                     selectedContentColor = Color.White,
                                     unselectedContentColor = Color.White.copy(alpha = .6f),
-                                    text = {
-                                        Text(
-                                            label,
-                                            fontWeight = if (selectedTab == i) FontWeight.SemiBold else FontWeight.Normal
-                                        )
-                                    }
+                                text = {
+                                    Text(
+                                        label,
+                                        fontWeight = if (selectedTab == i) FontWeight.SemiBold else FontWeight.Normal
+                                    )
+                                }
                                 )
                             }
                         }
@@ -311,18 +362,21 @@ fun ProfileScreen(
                         0 -> ProfileTab(
                             profile = profile,
                             isEditing = isEditing,
-                            edited = edited,
-                            onEditToggle = { isEditing = !isEditing; if (!isEditing) edited = profile },
-                            onChange = { edited = it },
+                            edited = edited ?: profile,
+                            onEditToggle = { vm.toggleEdit() },
+                            onChange = { newEdited -> vm.updateEdited { newEdited } },
                             onSave = {
-                                profile = edited
-                                isEditing = false
-                                scope.launch { snackbarHostState.showSnackbar("Cập nhật profile thành công!") }
+                                vm.save { success, msg ->
+                                    scope.launch {
+                                        if (success) {
+                                            snackbarHostState.showSnackbar("Cập nhật profile thành công!")
+                                        } else {
+                                            snackbarHostState.showSnackbar(msg ?: "Cập nhật thất bại")
+                                        }
+                                    }
+                                }
                             },
-                            onCancel = {
-                                edited = profile
-                                isEditing = false
-                            }
+                            onCancel = { vm.toggleEdit() }
                         )
                         1 -> WalletTab(
                             balance = 8500000L,
@@ -332,7 +386,8 @@ fun ProfileScreen(
                             onAddMethod = onAddMethod,
                             methods = methods
                         )
-                        2 -> StatsTab(userRole = user.role, profile = profile)
+                        // ✅ FIX 6: Dùng userRole từ ViewModel state thay vì user.role
+                        2 -> StatsTab(userRole = userRole, profile = profile)
                         3 -> SettingsTab(
                             onOpenSettings = onOpenSettings,
                             onOpenCSBM = null,
@@ -635,7 +690,7 @@ private fun WalletTab(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Phương thức thanh toán", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Bạn chưa thêm phương thức nào. Thêm một phương thức để sử dụng nhanh khi thanh toán.",
+                        "Bạn chưa thêm phương thức nào.Thêm một phương thức để sử dụng nhanh khi thanh toán.",
                         color = Color.White.copy(0.8f)
                     )
                     MMPrimaryButton(onClick = onAddMethod, modifier = Modifier.fillMaxWidth()) {
@@ -1053,7 +1108,7 @@ private fun SettingSwitchRow(
     }
 }
 
-/** Simple avatar with initial. Replace with Coil AsyncImage if you want. */
+/** Simple avatar with initial.Replace with Coil AsyncImage if you want.*/
 @Composable
 private fun AvatarCircle(initial: Char, size: Dp) {
     val ring = androidx.compose.ui.graphics.Brush.linearGradient(
@@ -1167,9 +1222,7 @@ private fun FlowRowWrap(
 @Composable
 private fun Preview_Mentee() {
     MaterialTheme(colorScheme = lightColorScheme()) {
-        ProfileScreen(
-            user = UserHeader(fullName = "Nguyễn Văn A", email = "a@example.com", role = UserRole.MENTEE)
-        )
+        ProfileScreen()
     }
 }
 
@@ -1177,9 +1230,7 @@ private fun Preview_Mentee() {
 @Composable
 private fun Preview_Mentor_Dark() {
     MaterialTheme(colorScheme = darkColorScheme()) {
-        ProfileScreen(
-            user = UserHeader(fullName = "Trần Thị Mentor", email = "mentor@example.com", role = UserRole.MENTOR)
-        )
+        ProfileScreen()
     }
 }
 

@@ -474,7 +474,6 @@ fun AppNav(
 
                     composable(Routes.Profile) {
                         ProfileScreen(
-                            user = UserHeader(fullName = "Nguyễn Văn A", email = "a@example.com", role = UserRole.MENTEE),
                             onOpenTopUp = { nav.navigate(Routes.TopUp) },
                             onOpenWithdraw = { nav.navigate(Routes.Withdraw) },
                             onOpenChangeMethod = { nav.navigate(Routes.PaymentMethods) },

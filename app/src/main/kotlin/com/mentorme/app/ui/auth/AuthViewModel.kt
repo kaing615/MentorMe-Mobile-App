@@ -159,11 +159,12 @@ class AuthViewModel @Inject constructor(
                     val roleStr = (roleStrFromData ?: parseRoleFromJwt(token))?.lowercase()
                     val role = if (roleStr == "mentor") UserRole.MENTOR else UserRole.MENTEE
 
-                    val isActive = data?.status == "active"
+                    val status = data?.status?.lowercase()
+                    val isActive = status == "active"
                     val authenticated = isActive && !token.isNullOrBlank()
-                    val pendingApproval = data?.status == "pending-mentor"
-                    val onboarding = data?.status == "onboarding"
-                    val verifying = data?.status == "verifying"
+                    val pendingApproval = status == "pending-mentor"
+                    val onboarding = status == "onboarding"
+                    val verifying = status == "verifying"
 
                     // NEW: persist and log mentorId (userId) for calendar consistency
                     val userId = data?.userId ?: data?.user?.id
@@ -184,6 +185,12 @@ class AuthViewModel @Inject constructor(
                         }
                     } else {
                         Log.w(TAG, "⚠️ No userId in sign-in response; calendar may not load correctly")
+                    }
+                    try {
+                        dataStoreManager.saveUserStatus(status)
+                        Log.d(TAG, "Saved user status=$status")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to save user status: ${e.message}")
                     }
 
                     _authState.value = _authState.value.copy(

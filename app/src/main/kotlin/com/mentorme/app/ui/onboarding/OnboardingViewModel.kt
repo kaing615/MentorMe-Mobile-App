@@ -96,12 +96,21 @@ class OnboardingViewModel @Inject constructor(
 
     private fun handleSuccess(resp: ProfileCreateResponse) {
         Log.d(TAG, "Onboarding success: $resp")
+        val next = resp.data?.next
+        val updatedStatus = resp.data?.updatedStatus?.lowercase()
+        val derivedStatus = updatedStatus ?: if (next == "/onboarding/review") "pending-mentor" else null
+        if (resp.success && !derivedStatus.isNullOrBlank()) {
+            viewModelScope.launch {
+                dataStoreManager.saveUserStatus(derivedStatus)
+            }
+        }
         _state.value = _state.value.copy(
             isLoading = false,
             error = null,
             success = resp.success,
-            next = resp.data?.next,
-            createdProfileId = resp.data?.profile?.id
+            next = next,
+            createdProfileId = resp.data?.profile?.id,
+            updatedStatus = derivedStatus
         )
     }
 
@@ -145,5 +154,6 @@ data class OnboardingState(
     val youtube: String? = null,
     val facebook: String? = null,
     val avatarPath: String? = null,
-    val avatarUrl: String? = null
+    val avatarUrl: String? = null,
+    val updatedStatus: String? = null
 )

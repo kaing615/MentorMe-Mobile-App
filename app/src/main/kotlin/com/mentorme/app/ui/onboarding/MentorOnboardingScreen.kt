@@ -49,9 +49,14 @@ fun MentorOnboardingScreen(
     }
 
     // Điều hướng theo next từ server (mentor thường next = /onboarding/review)
-    LaunchedEffect(ui.success, ui.next, ui.isLoading) {
+    LaunchedEffect(ui.success, ui.next, ui.updatedStatus, ui.isLoading) {
         if (!ui.isLoading && ui.success == true) {
-            if (ui.next == "/onboarding/review") onGoToReview() else onDoneGoHome()
+            val goToReview = ui.updatedStatus == "pending-mentor" || ui.next == "/onboarding/review"
+            when {
+                goToReview -> onGoToReview()
+                ui.updatedStatus == "active" || ui.updatedStatus.isNullOrBlank() -> onDoneGoHome()
+                else -> Unit
+            }
         }
     }
 

@@ -12,7 +12,8 @@ import kotlinx.coroutines.flow.stateIn
 
 data class SessionState(
     val isLoggedIn: Boolean = false,
-    val role: String? = null
+    val role: String? = null,
+    val status: String? = null
 )
 
 @HiltViewModel
@@ -22,11 +23,13 @@ class SessionViewModel @Inject constructor(
 
     val session: StateFlow<SessionState> = combine(
         dataStoreManager.getToken(),
-        dataStoreManager.getUserRole()
-    ) { token, role ->
+        dataStoreManager.getUserRole(),
+        dataStoreManager.getUserStatus()
+    ) { token, role, status ->
         SessionState(
             isLoggedIn = !token.isNullOrBlank(),
-            role = role
+            role = role,
+            status = status
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SessionState())
 }

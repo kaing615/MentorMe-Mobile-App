@@ -137,6 +137,7 @@ fun AppNav(
 
     var isLoggedIn by rememberSaveable { mutableStateOf(false) }
     var userRole by rememberSaveable { mutableStateOf("") }
+    var userStatus by rememberSaveable { mutableStateOf<String?>(null) }
     var payMethods by remember { mutableStateOf(initialPaymentMethods()) }
     var authToken by rememberSaveable { mutableStateOf<String?>(null) }
     val context = LocalContext.current
@@ -174,6 +175,8 @@ fun AppNav(
         } else {
             roleReady = userRole.isNotBlank()
         }
+        val statusFromSession = sessionState.status?.trim()
+        userStatus = statusFromSession?.ifBlank { null }
         sessionReady = true
     }
 
@@ -219,6 +222,11 @@ fun AppNav(
     }
 
     var overlayVisible by remember { mutableStateOf(false) }
+    val statusNormalized = userStatus?.lowercase()?.replace('_', '-')
+    val roleSafe = userRole.trim().ifBlank { "mentee" }.lowercase()
+    val needsOnboarding = statusNormalized == "onboarding"
+    val needsPendingApproval = statusNormalized == "pending-mentor"
+    val onboardingRoute = Routes.onboardingFor(roleSafe)
 
     Box(modifier = Modifier.fillMaxSize()) {
         LiquidBackground(
@@ -236,6 +244,8 @@ fun AppNav(
                     currentRoute?.startsWith("booking/") == true ||
                             currentRoute?.startsWith("bookingSummary/") == true
                 val hideForWallet = currentRoute?.startsWith("wallet/") == true
+                val hideForOnboarding = currentRoute == Routes.Onboarding
+                val hideForPendingApproval = currentRoute == Routes.PendingApproval
 
                 if (
                     !overlayVisible &&
@@ -244,7 +254,9 @@ fun AppNav(
                     currentRoute != Routes.Auth &&
                     !hideForChat &&
                     !hideForBooking &&
-                    !hideForWallet
+                    !hideForWallet &&
+                    !hideForOnboarding &&
+                    !hideForPendingApproval
                 ) {
                     GlassBottomBar(navController = nav, userRole = userRole)
                 }
@@ -254,14 +266,28 @@ fun AppNav(
             Box(modifier = Modifier.fillMaxSize()) {
                 if (!sessionReady || (isLoggedIn && !roleReady)) return@Box
 
-                LaunchedEffect(isLoggedIn, userRole, currentRoute, roleReady) {
+                LaunchedEffect(isLoggedIn, userRole, userStatus, currentRoute, roleReady) {
                     if (isLoggedIn && !roleReady) return@LaunchedEffect
                     if (isLoggedIn) {
-                        val target = if (userRole == "mentor") Routes.MentorDashboard else Routes.Home
-                        if (currentRoute == Routes.Auth) {
-                            nav.navigate(target) {
-                                popUpTo(Routes.Auth) { inclusive = true }
-                                launchSingleTop = true
+                        val target = if (userRole.equals("mentor", true)) Routes.MentorDashboard else Routes.Home
+                        when {
+                            needsOnboarding && currentRoute != Routes.Onboarding -> {
+                                nav.navigate(onboardingRoute) {
+                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                            needsPendingApproval && currentRoute != Routes.PendingApproval -> {
+                                nav.navigate(Routes.PendingApproval) {
+                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                            currentRoute == Routes.Auth -> {
+                                nav.navigate(target) {
+                                    popUpTo(Routes.Auth) { inclusive = true }
+                                    launchSingleTop = true
+                                }
                             }
                         }
                     } else if (currentRoute != Routes.Auth) {
@@ -276,7 +302,9 @@ fun AppNav(
                     navController = nav,
                     startDestination = when {
                         !isLoggedIn -> Routes.Auth
-                        userRole == "mentor" -> Routes.MentorDashboard
+                        needsOnboarding -> onboardingRoute
+                        needsPendingApproval -> Routes.PendingApproval
+                        userRole.equals("mentor", true) -> Routes.MentorDashboard
                         else -> Routes.Home
                     },
                     modifier = Modifier.fillMaxSize()

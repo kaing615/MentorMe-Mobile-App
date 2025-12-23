@@ -70,9 +70,25 @@ async function findConflicts(
     .lean();
 
   const hits: any[] = [];
+  const orphanIds: any[] = [];
   for (const r of rows) {
-    const otherBef = Number((r as any)?.slot?.bufferBeforeMin ?? 0);
-    const otherAft = Number((r as any)?.slot?.bufferAfterMin ?? 0);
+    const slotObj = (r as any)?.slot;
+    if (!slotObj) {
+      if ((r as any)?.status === 'booked') {
+        hits.push({
+          id: String(r._id),
+          start: new Date(r.start).toISOString(),
+          end:   new Date(r.end).toISOString(),
+          status: (r as any).status,
+          slot: null
+        });
+      } else {
+        orphanIds.push((r as any)?._id);
+      }
+      continue;
+    }
+    const otherBef = Number(slotObj?.bufferBeforeMin ?? 0);
+    const otherAft = Number(slotObj?.bufferAfterMin ?? 0);
     if (overlapWithBuffers(
       start, end, selfBef, selfAft,
       new Date(r.start), new Date(r.end), otherBef, otherAft
@@ -90,6 +106,9 @@ async function findConflicts(
         } : null
       });
     }
+  }
+  if (orphanIds.length > 0) {
+    await AvailabilityOccurrence.deleteMany({ _id: { $in: orphanIds } });
   }
   return hits;
 }
@@ -499,7 +518,7 @@ export const publishBatch = asyncHandler(async (req: Request, res: Response) => 
 
 /**
  * DELETE /availability/slots/:id
- * Hard delete a slot if it has no future booked occurrences
+ * Hard delete a slot if it has no future/ongoing booked occurrences
  */
 export const deleteSlot = asyncHandler(async (req: Request, res: Response) => {
   const mentorId = String((req as any).user?.id ?? (req as any).user?._id);
@@ -512,7 +531,7 @@ export const deleteSlot = asyncHandler(async (req: Request, res: Response) => {
   const now = new Date();
   const hasBooked = await AvailabilityOccurrence.exists({
     slot: slot._id,
-    start: { $gte: now },
+    end: { $gte: now },
     status: 'booked',
   });
 
@@ -520,8 +539,12 @@ export const deleteSlot = asyncHandler(async (req: Request, res: Response) => {
     return conflict(res, 'slot has booked occurrences');
   }
 
-  // Remove future occurrences (open/closed)
-  await AvailabilityOccurrence.deleteMany({ slot: slot._id, start: { $gte: now } });
+  // Remove future/ongoing occurrences (open/closed only)
+  await AvailabilityOccurrence.deleteMany({
+    slot: slot._id,
+    end: { $gte: now },
+    status: { $in: ['open', 'closed'] },
+  });
   // Hard delete slot
   await AvailabilitySlot.deleteOne({ _id: slot._id });
 

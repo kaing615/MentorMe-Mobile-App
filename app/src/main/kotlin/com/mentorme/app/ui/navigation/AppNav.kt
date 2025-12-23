@@ -233,6 +233,11 @@ fun AppNav(
     }
 
     var overlayVisible by remember { mutableStateOf(false) }
+    val statusNormalized = userStatus?.lowercase()?.replace('_', '-')
+    val roleSafe = userRole.trim().ifBlank { "mentee" }.lowercase()
+    val needsOnboarding = statusNormalized == "onboarding"
+    val needsPendingApproval = statusNormalized == "pending-mentor"
+    val onboardingRoute = Routes.onboardingFor(roleSafe)
 
     Box(modifier = Modifier.fillMaxSize()) {
         LiquidBackground(

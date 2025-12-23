@@ -333,13 +333,13 @@ fun MentorCalendarScreen(
                 bookings = bookings,
                 onAccept = { bookingId ->
                     bookingsVm.accept(bookingId) { ok ->
-                        toast(if (ok) "Ð? ch?p nh?n booking" else "Không th? ch?p nh?n booking")
+                        toast(if (ok) "Đã chấp nhận booking" else "Không thể chấp nhận booking")
                         if (ok) bookingsVm.refresh()
                     }
                 },
                 onReject = { bookingId ->
-                    bookingsVm.decline(bookingId, "Mentor t? ch?i") { ok ->
-                        toast(if (ok) "Ð? t? ch?i booking" else "Không th? t? ch?i booking")
+                    bookingsVm.decline(bookingId, "Mentor từ chối") { ok ->
+                        toast(if (ok) "Đã từ chối booking" else "Không thể từ chối booking")
                         if (ok) bookingsVm.refresh()
                     }
                 }

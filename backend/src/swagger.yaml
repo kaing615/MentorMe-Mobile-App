@@ -22,12 +22,12 @@ tags:
     description: Booking flow (create, list, detail, cancel, mentor confirm/decline)
   - name: Mentors
     description: Danh sách và chi tiết mentor (public discovery)
-  - name: Notifications
-    description: Device token registration and push notifications
-  - name: Mentors
-    description: Danh sách và chi tiết mentor (public discovery)
   - name: Wallet
     description: Quản lý ví điện tử của mentee (nạp tiền, trừ tiền, xem lịch sử giao dịch)
+  - name: MentorPayout
+    description: Payout requests for mentors (mock implementation)
+  - name: Webhooks
+    description: Mock webhooks from payout provider
 
 components:
   securitySchemes:
@@ -2229,6 +2229,270 @@ paths:
           description: Unauthorized
         "403":
           description: Forbidden - Not a mentee
+
+  /payouts/requests:
+    post:
+      summary: Mentor tạo yêu cầu payout (rút tiền từ wallet)
+      tags: [MentorPayout]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, clientRequestId]
+              properties:
+                amount:
+                  type: number
+                  example: 1000000
+                  description: "Số tiền muốn rút (VND)"
+                currency:
+                  type: string
+                  example: "VND"
+                  enum: ["VND", "USD"]
+                  description: "Loại tiền tệ (optional, default VND)"
+                clientRequestId:
+                  type: string
+                  example: "payout-req-uuid-12345"
+                  description: "ID để đảm bảo idempotency"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Created" }
+                  data:
+                    type: object
+                    properties:
+                      idempotent: { type: boolean, example: false }
+                      payout:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          amount: { type: integer, example: 1000000 }
+                          currency: { type: string, example: "VND" }
+                          status: { type: string, example: "PENDING" }
+                          attemptCount: { type: integer, example: 0 }
+                          externalId: { type: string, nullable: true }
+                          createdAt: { type: string, format: date-time }
+                          updatedAt: { type: string, format: date-time }
+        "200":
+          description: OK (idempotent)
+        "400":
+          description: Bad Request (INSUFFICIENT_BALANCE or validation error)
+        "403":
+          description: Forbidden - Not a mentor
+
+  /payouts/requests/me:
+    get:
+      summary: Mentor xem danh sách payout requests của mình
+      tags: [MentorPayout]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 50
+        - in: query
+          name: cursor
+          schema:
+            type: string
+          description: ISO timestamp for pagination
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: ["PENDING", "APPROVED", "PROCESSING", "PAID", "FAILED", "CANCELLED"]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "OK" }
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string }
+                            amount: { type: integer }
+                            currency: { type: string }
+                            status: { type: string }
+                            attemptCount: { type: integer }
+                            externalId: { type: string, nullable: true }
+                            createdAt: { type: string, format: date-time }
+                            updatedAt: { type: string, format: date-time }
+                      nextCursor: { type: string, nullable: true }
+        "403":
+          description: Forbidden - Not a mentor
+
+  /admin/payouts:
+    get:
+      summary: Admin xem tất cả payout requests
+      tags: [MentorPayout]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: cursor
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: mentorId
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "OK" }
+                  data:
+                    type: object
+                    properties:
+                      items: { type: array }
+                      nextCursor: { type: string, nullable: true }
+        "403":
+          description: Forbidden - Not admin
+
+  /admin/payouts/{id}/approve:
+    post:
+      summary: Admin duyệt payout request (DEBIT wallet và chuyển sang PROCESSING)
+      tags: [MentorPayout]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Payout request ID
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "OK" }
+                  data:
+                    type: object
+                    properties:
+                      payout:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          amount: { type: integer }
+                          currency: { type: string }
+                          status: { type: string, example: "PROCESSING" }
+                          attemptCount: { type: integer }
+                          externalId: { type: string }
+                          createdAt: { type: string }
+                          updatedAt: { type: string }
+        "400":
+          description: Bad Request (invalid status, insufficient balance, etc.)
+        "403":
+          description: Forbidden - Not admin
+        "404":
+          description: Payout not found
+
+  /admin/payouts/{id}/retry:
+    post:
+      summary: Admin retry payout đã FAILED hoặc PROCESSING
+      tags: [MentorPayout]
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+        "403":
+          description: Forbidden - Not admin
+        "404":
+          description: Payout not found
+
+  /webhooks/payout-provider:
+    post:
+      summary: Mock webhook từ payout provider (mark PAID hoặc FAILED)
+      tags: [Webhooks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [externalId, status]
+              properties:
+                externalId:
+                  type: string
+                  example: "PO-676c8e9f0000000000000001"
+                  description: "External ID của payout request"
+                status:
+                  type: string
+                  enum: ["PAID", "FAILED"]
+                  description: "Status từ provider"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      payout:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          status: { type: string }
+        "400":
+          description: Bad Request
+        "404":
+          description: Payout not found
 
 security:
   - BearerAuth: []

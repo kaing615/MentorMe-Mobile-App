@@ -1,12 +1,10 @@
 package com.mentorme.app.ui.navigation
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.annotation.RequiresApi
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
@@ -18,22 +16,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.zIndex
-import androidx.core.content.ContextCompat
-import androidx.navigation.NavGraph.Companion.findStartDestination
-import com.mentorme.app.ui.theme.LiquidBackground
-import com.mentorme.app.ui.layout.GlassBottomBar
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-
-// Screens
-import com.mentorme.app.ui.auth.AuthScreen
-import com.mentorme.app.ui.home.HomeScreen
-import com.mentorme.app.ui.dashboard.MentorDashboardScreen
-import com.mentorme.app.ui.calendar.MentorCalendarScreen
-import com.mentorme.app.ui.chat.MentorMessagesScreen
-import com.mentorme.app.ui.profile.MentorProfileScreen
-import com.mentorme.app.ui.search.SearchMentorScreen
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -48,7 +31,7 @@ import com.mentorme.app.ui.auth.RegisterPayload
 import com.mentorme.app.ui.booking.BookingChooseTimeScreen
 import com.mentorme.app.ui.booking.BookingDraft
 import com.mentorme.app.ui.booking.BookingSummaryScreen
-import com.mentorme.app.ui.calendar.MenteeCalendarScreen
+import com.mentorme.app.ui.calendar.CalendarScreen
 import com.mentorme.app.ui.calendar.MentorCalendarScreen
 import com.mentorme.app.ui.chat.ChatScreen
 import com.mentorme.app.ui.chat.MessagesScreen
@@ -57,16 +40,14 @@ import com.mentorme.app.ui.dashboard.MentorDashboardScreen
 import com.mentorme.app.ui.home.HomeScreen
 import com.mentorme.app.ui.layout.GlassBottomBar
 import com.mentorme.app.ui.layout.UserUi
-import com.mentorme.app.ui.notifications.NotificationsScreen
 import com.mentorme.app.ui.onboarding.MenteeOnboardingScreen
 import com.mentorme.app.ui.onboarding.MentorOnboardingScreen
 import com.mentorme.app.ui.onboarding.PendingApprovalScreen
-import com.mentorme.app.ui.profile.MentorProfileScreen
 import com.mentorme.app.ui.profile.ProfileScreen
 import com.mentorme.app.ui.profile.UserHeader
 import com.mentorme.app.ui.profile.UserRole
+import com.mentorme.app.ui.profile.MentorProfileScreen
 import com.mentorme.app.ui.search.SearchMentorScreen
-import com.mentorme.app.ui.session.SessionViewModel
 import com.mentorme.app.ui.theme.LiquidBackground
 import com.mentorme.app.ui.wallet.AddPaymentMethodScreen
 import com.mentorme.app.ui.wallet.BankInfo
@@ -134,8 +115,7 @@ fun AppNav(
     val currentRoute = backstack?.destination?.route
 
     var isLoggedIn by rememberSaveable { mutableStateOf(false) }
-    var userRole by rememberSaveable { mutableStateOf("") }
-    var userStatus by rememberSaveable { mutableStateOf<String?>(null) }
+    var userRole by rememberSaveable { mutableStateOf("mentee") }
     var payMethods by remember { mutableStateOf(initialPaymentMethods()) }
     var authToken by rememberSaveable { mutableStateOf<String?>(null) }
     val context = LocalContext.current
@@ -265,9 +245,7 @@ fun AppNav(
                     currentRoute != Routes.Auth &&
                     !hideForChat &&
                     !hideForBooking &&
-                    !hideForWallet &&
-                    !hideForOnboarding &&
-                    !hideForPendingApproval
+                    !hideForWallet
                 ) {
                     GlassBottomBar(navController = nav, userRole = userRole)
                 }
@@ -340,7 +318,6 @@ fun AppNav(
                             onNavigateToMenteeHome = {
                                 isLoggedIn = true
                                 userRole = "mentee"
-                                roleReady = true
                                 nav.navigate(Routes.Home) {
                                     popUpTo(Routes.Auth) { inclusive = true }
                                     launchSingleTop = true
@@ -349,7 +326,6 @@ fun AppNav(
                             onNavigateToMentorHome = {
                                 isLoggedIn = true
                                 userRole = "mentor"
-                                roleReady = true
                                 nav.navigate(Routes.MentorDashboard) {
                                     popUpTo(Routes.Auth) { inclusive = true }
                                     launchSingleTop = true
@@ -359,7 +335,6 @@ fun AppNav(
                                 authToken = tokenFromAuth
                                 val roleSafe = role ?: "mentee"
                                 userRole = roleSafe
-                                roleReady = true
                                 nav.navigate(Routes.onboardingFor(roleSafe)) {
                                     popUpTo(Routes.Auth) { inclusive = false }
                                     launchSingleTop = true
@@ -519,6 +494,44 @@ fun AppNav(
                             onViewStatistics = { Log.d("AppNav", "MentorProfile: onViewStatistics - TODO") },
                             onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
                             onLogout = {
+                                isLoggedIn = false
+                                userRole = "mentee"
+                                nav.navigate(Routes.Auth) {
+                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                    launchSingleTop = true
+                                }
+                            }
+                        )
+                    }
+
+                    // ✅ (B) composable query route: mentor_profile?target=...
+                    composable(
+                        route = Routes.MentorProfileWithTarget,
+                        arguments = listOf(
+                            navArgument("target") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = "profile"
+                            }
+                        )
+                    ) { backStackEntry ->
+                        val target = backStackEntry.arguments?.getString("target") ?: "profile"
+
+                        MentorProfileScreen(
+                            startTarget = target,
+                            onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
+                            onViewEarnings = { Log.d("AppNav", "MentorProfile: onViewEarnings - TODO") },
+                            onViewReviews = { Log.d("AppNav", "MentorProfile: onViewReviews - TODO") },
+                            onUpdateAvailability = {
+                                nav.navigate(Routes.MentorCalendar) {
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            onManageServices = { Log.d("AppNav", "MentorProfile: onManageServices - TODO") },
+                            onViewStatistics = { Log.d("AppNav", "MentorProfile: onViewStatistics - TODO") },
+                            onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
+                            onLogout = {
                                 authVm.signOut {
                                     isLoggedIn = false
                                     userRole = "mentee"
@@ -598,11 +611,6 @@ fun AppNav(
                         })
                     }
 
-                    composable(Routes.Notifications) {
-                        NotificationsScreen(onBack = { nav.popBackStack() })
-                    }
-
-                    // Route khung chat + ẩn bottom bar
                     composable("${Routes.Chat}/{conversationId}") { backStackEntry ->
                         val convId = backStackEntry.arguments?.getString("conversationId") ?: return@composable
                         ChatScreen(

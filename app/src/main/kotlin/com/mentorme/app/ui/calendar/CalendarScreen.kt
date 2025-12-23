@@ -392,15 +392,7 @@ private fun BookingCard(
                         .liquidGlass(radius = 12.dp)
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text("${booking.price.toInt()} đ", color = Color.White)
-                }
-            }
-
-            if (policyLabels.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    policyLabels.forEach { label ->
-                        PolicyTag(label)
-                    }
+                    Text("\$${"%.2f".format(booking.price)}", color = Color.White)
                 }
             }
 

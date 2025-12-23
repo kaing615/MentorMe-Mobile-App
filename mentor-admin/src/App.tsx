@@ -8,11 +8,12 @@ import { MyProfile } from "./MyProfile";
 import { BookingEdit, BookingList } from "./resources/bookings";
 import { ReportEdit, ReportList } from "./resources/reports";
 import { UserCreate, UserEdit, UserList } from "./resources/users";
+import { PayoutList } from "./resources/payouts";   // 👈 thêm
 
 export default function App() {
   return (
-    <Admin 
-      dataProvider={dataProvider} 
+    <Admin
+      dataProvider={dataProvider}
       authProvider={authProvider}
       layout={Layout}
     >
@@ -24,6 +25,14 @@ export default function App() {
       />
       <Resource name="bookings" list={BookingList} edit={BookingEdit} />
       <Resource name="reports" list={ReportList} edit={ReportEdit} />
+
+      {/* Resource mới cho payout admin */}
+      <Resource
+        name="admin/payouts"
+        options={{ label: "Mentor Payouts" }}
+        list={PayoutList}
+      />
+
       <CustomRoutes>
         <Route path="/my-profile" element={<MyProfile />} />
       </CustomRoutes>

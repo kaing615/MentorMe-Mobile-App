@@ -4,7 +4,7 @@ object NetworkConstants {
     // Thay đổi IP này thành IP máy tính chạy backend của bạn
     // Nếu chạy trên emulator, dùng 10.0.2.2
     // Nếu chạy trên device thật, dùng IP thật của máy tính
-    const val BASE_URL = "http://192.168.1.41:4000/api/v1/"
+    const val BASE_URL = "http://10.0.2.2:4000/api/v1/"
 
     // Headers
     const val CONTENT_TYPE = "Content-Type"

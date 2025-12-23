@@ -4,12 +4,16 @@ import { asyncHandler } from "../handlers/async.handler";
 import responseHandler from "../handlers/response.handler";
 import Wallet from "../models/wallet.model";
 import WalletTransaction from "../models/walletTransaction.model";
-import MentorPayoutRequest, { IMentorPayoutRequest } from "../models/mentorPayoutRequest.model";
+import MentorPayoutRequest, {
+  IMentorPayoutRequest,
+} from "../models/mentorPayoutRequest.model";
 
 const { ok, created, badRequest, notFound, forbidden } = responseHandler;
 
 function getUserId(req: Request): string | null {
-  return ((req as any).user?.id ?? (req as any).user?._id ?? null) as string | null;
+  return ((req as any).user?.id ?? (req as any).user?._id ?? null) as
+    | string
+    | null;
 }
 
 function getUserRole(req: Request): string | null {
@@ -196,7 +200,9 @@ export const adminApprovePayout = asyncHandler(
 
     try {
       // Load payout
-      const payout = await MentorPayoutRequest.findById(payoutId).session(session);
+      const payout = await MentorPayoutRequest.findById(payoutId).session(
+        session
+      );
 
       if (!payout) {
         await session.abortTransaction();
@@ -208,11 +214,16 @@ export const adminApprovePayout = asyncHandler(
       if (payout.status !== "PENDING") {
         await session.abortTransaction();
         session.endSession();
-        return badRequest(res, `Cannot approve payout with status ${payout.status}`);
+        return badRequest(
+          res,
+          `Cannot approve payout with status ${payout.status}`
+        );
       }
 
       // Load mentor wallet
-      const wallet = await Wallet.findOne({ userId: payout.mentorId }).session(session);
+      const wallet = await Wallet.findOne({
+        userId: payout.mentorId,
+      }).session(session);
 
       if (!wallet) {
         await session.abortTransaction();
@@ -240,6 +251,12 @@ export const adminApprovePayout = asyncHandler(
       wallet.balanceMinor = balanceAfter;
       await wallet.save({ session });
 
+      // Build idempotency key per payout to avoid duplicate key on (userId, source, idempotencyKey)
+      const payoutIdStr =
+        (payout as any)._id?.toString?.() ??
+        (payout as any).id?.toString?.() ??
+        "";
+
       // Create wallet transaction
       await WalletTransaction.create(
         [
@@ -254,6 +271,7 @@ export const adminApprovePayout = asyncHandler(
             balanceAfterMinor: balanceAfter,
             referenceType: "PAYOUT",
             referenceId: payout._id,
+            idempotencyKey: `payout:${payoutIdStr}`,
           },
         ],
         { session }
@@ -304,7 +322,10 @@ export const adminRetryPayout = asyncHandler(
 
     // Only allow retry for FAILED or PROCESSING
     if (payout.status !== "FAILED" && payout.status !== "PROCESSING") {
-      return badRequest(res, `Cannot retry payout with status ${payout.status}`);
+      return badRequest(
+        res,
+        `Cannot retry payout with status ${payout.status}`
+      );
     }
 
     payout.status = "PROCESSING";
@@ -369,7 +390,9 @@ export const handleMockPayoutWebhook = asyncHandler(
       session.startTransaction();
 
       try {
-        const wallet = await Wallet.findOne({ userId: payout.mentorId }).session(session);
+        const wallet = await Wallet.findOne({
+          userId: payout.mentorId,
+        }).session(session);
 
         if (!wallet) {
           await session.abortTransaction();

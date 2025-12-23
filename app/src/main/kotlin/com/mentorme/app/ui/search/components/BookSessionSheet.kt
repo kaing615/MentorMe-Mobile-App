@@ -1,6 +1,7 @@
 package com.mentorme.app.ui.search.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -15,27 +16,97 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.mentorme.app.domain.usecase.availability.GetPublicCalendarUseCase
+import com.mentorme.app.data.dto.availability.slotPriceVndOrNull
 import com.mentorme.app.ui.common.glassButtonColors
 import com.mentorme.app.ui.common.glassOutlinedTextFieldColors
 import com.mentorme.app.ui.home.Mentor as HomeMentor
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+private data class SlotChoice(
+    val occurrenceId: String,
+    val date: String,
+    val startTime: String,
+    val endTime: String,
+    val durationMins: Int,
+    val priceVnd: Long
+)
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface BookSessionDeps {
+    fun getPublicCalendarUseCase(): GetPublicCalendarUseCase
+}
 
 @Composable
 fun BookSessionContent(
     mentor: HomeMentor,
     onClose: () -> Unit,
-    onConfirm: (date: String, time: String, durationMins: Int, note: String) -> Unit
+    onConfirm: (
+        occurrenceId: String,
+        date: String,
+        startTime: String,
+        endTime: String,
+        priceVnd: Long,
+        note: String
+    ) -> Unit
 ) {
-    var date by remember { mutableStateOf("") }
-    var time by remember { mutableStateOf("") }
-    var duration by remember { mutableStateOf(60) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val deps = remember(context) { EntryPointAccessors.fromApplication(context, BookSessionDeps::class.java) }
+    val getCalendar = remember { deps.getPublicCalendarUseCase() }
+
+    var slots by remember { mutableStateOf<List<SlotChoice>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var selectedSlot by remember { mutableStateOf<SlotChoice?>(null) }
     var note by remember { mutableStateOf("") }
 
-    // Use VND pricing from mentor
-    val pricePerHourVnd = mentor.hourlyRate.toDouble()
-    val subtotal = pricePerHourVnd * duration / 60.0
-    val tax = subtotal * 0.10
-    val fee = 20_000.0
-    val total = subtotal + tax + fee
+    val nf = remember { java.text.NumberFormat.getCurrencyInstance(Locale("vi", "VN")) }
+    val dateFmt = remember { DateTimeFormatter.ofPattern("yyyy-MM-dd") }
+    val timeFmt = remember { DateTimeFormatter.ofPattern("HH:mm") }
+
+    LaunchedEffect(mentor.id) {
+        loading = true
+        val zone = ZoneId.systemDefault()
+        val todayStartLocal = java.time.LocalDate.now(zone).atStartOfDay(zone)
+        val fromIsoUtc = todayStartLocal.toInstant().toString()
+        val toIsoUtc = todayStartLocal.plusDays(30).withHour(23).withMinute(59).withSecond(59).toInstant().toString()
+
+        when (val res = getCalendar(mentor.id, fromIsoUtc, toIsoUtc, includeClosed = true)) {
+            is com.mentorme.app.core.utils.AppResult.Success -> {
+                val items = res.data
+                slots = items.mapNotNull { item ->
+                    val s = item.start ?: return@mapNotNull null
+                    val e = item.end ?: return@mapNotNull null
+                    if (item.status?.lowercase() != "open") return@mapNotNull null
+                    val startZ = runCatching { Instant.parse(s).atZone(zone) }.getOrNull() ?: return@mapNotNull null
+                    val endZ = runCatching { Instant.parse(e).atZone(zone) }.getOrNull() ?: return@mapNotNull null
+                    val duration = java.time.Duration.between(startZ, endZ).toMinutes().toInt()
+                    val occurrenceId = item.id?.ifBlank { null } ?: "${s}_${e}"
+                    SlotChoice(
+                        occurrenceId = occurrenceId,
+                        date = dateFmt.format(startZ),
+                        startTime = timeFmt.format(startZ),
+                        endTime = timeFmt.format(endZ),
+                        durationMins = duration,
+                        priceVnd = item.slotPriceVndOrNull()?.toLong() ?: 0L
+                    )
+                }
+                loading = false
+            }
+            is com.mentorme.app.core.utils.AppResult.Error -> {
+                slots = emptyList()
+                loading = false
+            }
+            com.mentorme.app.core.utils.AppResult.Loading -> Unit
+        }
+    }
 
     CompositionLocalProvider(LocalContentColor provides Color.White) {
         Column(
@@ -45,7 +116,7 @@ fun BookSessionContent(
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "🪄 Đặt lịch tư vấn",
+                    "Đặt lịch tư vấn",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
@@ -55,35 +126,45 @@ fun BookSessionContent(
 
             Spacer(Modifier.height(8.dp))
             Text("Với ${mentor.name}", style = MaterialTheme.typography.bodySmall)
-
             Spacer(Modifier.height(16.dp))
 
-            OutlinedTextField(
-                value = date,
-                onValueChange = { date = it },
-                label = { Text("Chọn ngày") },
-                singleLine = true,
-                colors = glassOutlinedTextFieldColors(),
-                modifier = Modifier.fillMaxWidth()
-            )
+            Text("Chọn khung giờ", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = time,
-                onValueChange = { time = it },
-                label = { Text("Chọn giờ") },
-                singleLine = true,
-                colors = glassOutlinedTextFieldColors(),
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = duration.toString(),
-                onValueChange = { v -> duration = v.toIntOrNull() ?: 60 },
-                label = { Text("Thời lượng (phút)") },
-                singleLine = true,
-                colors = glassOutlinedTextFieldColors(),
-                modifier = Modifier.fillMaxWidth()
-            )
+
+            when {
+                loading -> Text("Đang tải lịch trống...", color = Color.White.copy(alpha = 0.8f))
+                slots.isEmpty() -> Text("Chưa có lịch trống trong 30 ngày tới", color = Color.White.copy(alpha = 0.8f))
+                else -> {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        slots.forEach { slot ->
+                            Surface(
+                                color = if (selectedSlot?.occurrenceId == slot.occurrenceId) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { selectedSlot = slot }
+                            ) {
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text("${slot.date} • ${slot.startTime} - ${slot.endTime}")
+                                        Text(nf.format(slot.priceVnd), color = Color.White.copy(alpha = 0.7f))
+                                    }
+                                    if (selectedSlot?.occurrenceId == slot.occurrenceId) {
+                                        Icon(Icons.Default.Check, contentDescription = null)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
@@ -95,37 +176,6 @@ fun BookSessionContent(
             )
 
             Spacer(Modifier.height(16.dp))
-
-            Surface(
-                color = Color.White.copy(alpha = 0.12f),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(Modifier.padding(18.dp)) {
-                    Text("🧾 Chi tiết thanh toán", fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(8.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("${duration} phút × ${pricePerHourVnd.toLong()}₫/giờ")
-                        Text("${subtotal.toLong()}₫")
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Thuế (10%)")
-                        Text("${tax.toLong()}₫")
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Phí dịch vụ")
-                        Text("${fee.toLong()}₫")
-                    }
-                    HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Color(0x55FFFFFF))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Tổng cộng", fontWeight = FontWeight.Bold)
-                        Text("${total.toLong()}₫", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
             Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(
                     onClick = onClose,
@@ -134,8 +184,19 @@ fun BookSessionContent(
                     border = BorderStroke(1.dp, Color.White.copy(0.35f))
                 ) { Text("Hủy") }
                 Button(
-                    onClick = { onConfirm(date, time, duration, note) },
+                    onClick = {
+                        val slot = selectedSlot ?: return@Button
+                        onConfirm(
+                            slot.occurrenceId,
+                            slot.date,
+                            slot.startTime,
+                            slot.endTime,
+                            slot.priceVnd,
+                            note
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 46.dp),
+                    enabled = selectedSlot != null,
                     colors = glassButtonColors()
                 ) {
                     Icon(Icons.Default.Check, contentDescription = null)

@@ -3,6 +3,7 @@ package com.mentorme.app.data.repository.availability
 import com.mentorme.app.data.remote.MentorMeApi
 import com.mentorme.app.core.utils.AppResult
 import com.mentorme.app.core.utils.Logx
+import com.mentorme.app.data.dto.availability.slotPriceVndOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -42,6 +43,7 @@ class AvailabilityRepositoryImpl @Inject constructor(
                     date = sLoc.toLocalDate().toString(),
                     startTime = sLoc.format(HH_MM),
                     endTime = eLoc.format(HH_MM),
+                    priceVnd = it.slotPriceVndOrNull(),
                     isAvailable = (it.status?.lowercase() == "open")
                 )
             }

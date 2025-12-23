@@ -45,7 +45,6 @@ fun AvailabilityTabSection(
 ) {
     val context = LocalContext.current
     val numberFormat = remember { NumberFormat.getCurrencyInstance(java.util.Locale("vi","VN")) }
-    val HOURLY = 100_000
 
     // Persist last used buffer minutes across opens
     var lastBufBefore by rememberSaveable { mutableStateOf("0") }
@@ -57,6 +56,7 @@ fun AvailabilityTabSection(
     var endDigits by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("video") }
     var desc by remember { mutableStateOf(TextFieldValue("")) }
+    var priceDigits by remember { mutableStateOf("") }
     var startErr by remember { mutableStateOf<String?>(null) }
     var endErr by remember { mutableStateOf<String?>(null) }
 
@@ -75,7 +75,7 @@ fun AvailabilityTabSection(
     fun hhmmToDigits(hhmm: String) = hhmm.replace(":", "") // "09:30" -> "0930"
 
     fun resetForm() {
-        dateDigits = ""; startDigits = ""; endDigits = ""; type = "video"; desc = TextFieldValue("")
+        dateDigits = ""; startDigits = ""; endDigits = ""; type = "video"; desc = TextFieldValue(""); priceDigits = ""
         startErr = null; endErr = null
     }
 
@@ -186,7 +186,7 @@ fun AvailabilityTabSection(
                                     InfoChip("Thời lượng", "${slot.duration} phút", Modifier.weight(1f))
                                     InfoChip(
                                         "Giá tư vấn",
-                                        numberFormat.format((HOURLY * slot.duration) / 60),
+                                        if (slot.priceVnd > 0) numberFormat.format(slot.priceVnd) else "Chưa có giá",
                                         Modifier.weight(1f)
                                     )
                                 }
@@ -216,6 +216,7 @@ fun AvailabilityTabSection(
                                         endDigits = hhmmToDigits(slot.endTime)
                                         type = slot.sessionType
                                         desc = TextFieldValue(slot.description ?: "")
+                                        priceDigits = if (slot.priceVnd > 0) slot.priceVnd.toString() else ""
                                         startErr = null; endErr = null
                                         showEdit = true
                                     }
@@ -265,6 +266,8 @@ fun AvailabilityTabSection(
             onTypeChange = { type = it },
             onDescChange = { desc = it },
             onDismiss = { showAdd = false; startErr = null; endErr = null },
+            priceDigits = priceDigits,
+            onPriceChange = { priceDigits = it.filter(Char::isDigit).take(10) },
             // Inject buffer fields into dialog content
             bufBeforeDigits = bufBeforeDigits,
             bufAfterDigits = bufAfterDigits,
@@ -290,12 +293,14 @@ fun AvailabilityTabSection(
                 fun clamp(v: String): Int = v.filter(Char::isDigit).take(3).toIntOrNull()?.coerceIn(0,120) ?: 0
                 val bufBefore = clamp(bufBeforeDigits)
                 val bufAfter  = clamp(bufAfterDigits)
+                val priceVnd = priceDigits.filter(Char::isDigit).toLongOrNull()
 
                 val newSlot = NewSlotInput(
                     date = dateIso,
                     startTime = startHHMM,
                     endTime = endHHMM,
                     duration = duration,
+                    priceVnd = priceVnd,
                     description = desc.text.ifBlank { null },
                     sessionType = type,
                     bufferBeforeMin = bufBefore,
@@ -330,11 +335,14 @@ fun AvailabilityTabSection(
             onTypeChange = { type = it },
             onDescChange = { desc = it },
             onDismiss = { showEdit = false; editingSlot = null; resetForm(); startErr = null; endErr = null },
+            priceDigits = priceDigits,
+            onPriceChange = { priceDigits = it.filter(Char::isDigit).take(10) },
             onSubmit = {
                 val dateIso   = validateDateDigitsReturnIso(dateDigits)
                 val startHHMM = validateTimeDigitsReturnHHMM(startDigits)
                 val endHHMM   = validateTimeDigitsReturnHHMM(endDigits)
                 val duration  = durationFromDigits(startDigits, endDigits)
+                val parsedPrice = priceDigits.filter(Char::isDigit).toLongOrNull()
 
                 if (dateIso == null) { Toast.makeText(context, "Ngày không hợp lệ.", Toast.LENGTH_SHORT).show(); return@AvailabilityDialog }
                 if (startHHMM == null || endHHMM == null) { Toast.makeText(context, "Giờ không hợp lệ.", Toast.LENGTH_SHORT).show(); return@AvailabilityDialog }
@@ -353,6 +361,7 @@ fun AvailabilityTabSection(
                     startTime = startHHMM,
                     endTime = endHHMM,
                     duration = duration,
+                    priceVnd = parsedPrice ?: base.priceVnd,
                     description = desc.text.ifBlank { null },
                     sessionType = type,
                     // preserve backend ids for mutation
@@ -391,6 +400,9 @@ private fun AvailabilityDialog(
     onTypeChange: (String) -> Unit,
     onDescChange: (TextFieldValue) -> Unit,
     onDismiss: () -> Unit,
+    // Optional price field
+    priceDigits: String? = null,
+    onPriceChange: ((String) -> Unit)? = null,
     // Optional buffer fields: if provided, dialog renders buffer controls
     bufBeforeDigits: String? = null,
     bufAfterDigits: String? = null,
@@ -476,6 +488,19 @@ private fun AvailabilityDialog(
                     }
                 }
 
+                if (priceDigits != null && onPriceChange != null) {
+                    FormLabel("??  Giá (VND)")
+                    OutlinedTextField(
+                        value = priceDigits,
+                        onValueChange = onPriceChange,
+                        placeholder = { Text("Ví dụ: 250000") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
                 // Buffer fields (optional)
                 if (bufBeforeDigits != null && bufAfterDigits != null && onBufBeforeChange != null && onBufAfterChange != null) {
                     FormLabel("🧱 Khoảng đệm (Buffer)")
@@ -507,13 +532,11 @@ private fun AvailabilityDialog(
                     }
                 }
 
-                // Giá tham chiếu
+                // Giá cố định
                 LiquidGlassCard(radius = 18.dp, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp)) {
-                        Text("💎 Giá niêm yết", color = Color(0xFF0F172A))
-                        Text("${NumberFormat.getCurrencyInstance(java.util.Locale("vi","VN")).format(100_000)}/giờ",
-                            color = Color(0xFF059669))
-                        Text("ℹ️ Giá tự động tính theo thời lượng phiên", color = Color(0xFF64748B))
+                        Text("💰 Giá cố định", color = Color(0xFF0F172A))
+                        Text("Nhập giá theo VND cho khung giờ này.", color = Color(0xFF64748B))
                     }
                 }
 

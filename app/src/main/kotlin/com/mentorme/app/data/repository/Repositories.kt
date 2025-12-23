@@ -13,6 +13,7 @@ import com.mentorme.app.data.dto.auth.ResendOtpRequest
 import com.mentorme.app.data.dto.UpdateBookingRequest
 import com.mentorme.app.data.dto.availability.ApiEnvelope
 import com.mentorme.app.data.dto.profile.MePayload
+import com.mentorme.app.data.dto.profile.ProfileMePayload
 
 // Specific imports for Models (used for business entities)
 import com.mentorme.app.data.model.Booking
@@ -76,6 +77,8 @@ interface BookingRepository {
 interface ProfileRepository {
 
     suspend fun getMe(): AppResult<MePayload>
+
+    suspend fun getProfileMe(): AppResult<ProfileMePayload>
 
     suspend fun updateProfile(
         params: UpdateProfileParams

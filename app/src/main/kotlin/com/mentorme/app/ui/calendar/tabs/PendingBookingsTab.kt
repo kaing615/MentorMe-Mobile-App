@@ -141,7 +141,7 @@ fun PendingBookingsTab(
                                     )
                                     Spacer(Modifier.height(4.dp))
                                     Text(
-                                        "?? Mentee $menteeLabel",
+                                        "👤 Với $menteeName   •   $mentorName",
                                         color = Color.White.copy(.85f),
                                         style = MaterialTheme.typography.bodySmall
                                     )
@@ -160,9 +160,10 @@ fun PendingBookingsTab(
                             InfoRow("Ngày & giờ", "${b.date} • ${b.startTime}")
                             InfoRow("Thời lượng", "${durationMinutes(b.startTime, b.endTime)} phút")
                             InfoRow("Giá tư vấn", "${b.price.toInt()} đ")
-                            if (!deadline.isNullOrBlank()) {
-                                InfoRow("Auto-decline", deadline)
-                            }
+                            InfoRow(
+                                "Hình thức",
+                                if (sessionType == "in-person") "Trực tiếp" else "Video Call"
+                            )
 
                             // Payment
                             LiquidGlassCard(radius = 16.dp, modifier = Modifier.fillMaxWidth()) {

@@ -121,11 +121,12 @@ fun AppNav(
     val currentRoute = backstack?.destination?.route
 
     var isLoggedIn by rememberSaveable { mutableStateOf(false) }
-    var userRole by rememberSaveable { mutableStateOf("mentee") }
+    var userRole by rememberSaveable { mutableStateOf("") }
     var payMethods by remember { mutableStateOf(initialPaymentMethods()) }
     var authToken by rememberSaveable { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     var sessionReady by remember { mutableStateOf(false) }
+    var roleReady by remember { mutableStateOf(false) }
     val sessionVm = hiltViewModel<SessionViewModel>()
     val sessionState by sessionVm.session.collectAsStateWithLifecycle()
 
@@ -148,8 +149,15 @@ fun AppNav(
 
     LaunchedEffect(sessionState) {
         isLoggedIn = sessionState.isLoggedIn
-        if (!sessionState.role.isNullOrBlank()) {
-            userRole = sessionState.role!!
+        val roleFromSession = sessionState.role
+        if (!roleFromSession.isNullOrBlank()) {
+            userRole = roleFromSession
+            roleReady = true
+        } else if (!sessionState.isLoggedIn) {
+            userRole = ""
+            roleReady = true
+        } else {
+            roleReady = userRole.isNotBlank()
         }
         sessionReady = true
     }
@@ -217,6 +225,7 @@ fun AppNav(
                 if (
                     !overlayVisible &&
                     isLoggedIn &&
+                    roleReady &&
                     currentRoute != Routes.Auth &&
                     !hideForChat &&
                     !hideForBooking &&
@@ -228,9 +237,10 @@ fun AppNav(
             modifier = Modifier.fillMaxSize()
         ) { _ ->
             Box(modifier = Modifier.fillMaxSize()) {
-                if (!sessionReady) return@Box
+                if (!sessionReady || (isLoggedIn && !roleReady)) return@Box
 
-                LaunchedEffect(isLoggedIn, userRole, currentRoute) {
+                LaunchedEffect(isLoggedIn, userRole, currentRoute, roleReady) {
+                    if (isLoggedIn && !roleReady) return@LaunchedEffect
                     if (isLoggedIn) {
                         val target = if (userRole == "mentor") Routes.MentorDashboard else Routes.Home
                         if (currentRoute == Routes.Auth) {
@@ -273,6 +283,7 @@ fun AppNav(
                             onNavigateToMenteeHome = {
                                 isLoggedIn = true
                                 userRole = "mentee"
+                                roleReady = true
                                 nav.navigate(Routes.Home) {
                                     popUpTo(Routes.Auth) { inclusive = true }
                                     launchSingleTop = true
@@ -281,6 +292,7 @@ fun AppNav(
                             onNavigateToMentorHome = {
                                 isLoggedIn = true
                                 userRole = "mentor"
+                                roleReady = true
                                 nav.navigate(Routes.MentorDashboard) {
                                     popUpTo(Routes.Auth) { inclusive = true }
                                     launchSingleTop = true
@@ -290,6 +302,7 @@ fun AppNav(
                                 authToken = tokenFromAuth
                                 val roleSafe = role ?: "mentee"
                                 userRole = roleSafe
+                                roleReady = true
                                 nav.navigate(Routes.onboardingFor(roleSafe)) {
                                     popUpTo(Routes.Auth) { inclusive = false }
                                     launchSingleTop = true

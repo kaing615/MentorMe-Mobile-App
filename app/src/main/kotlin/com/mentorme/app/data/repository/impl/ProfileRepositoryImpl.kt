@@ -22,6 +22,14 @@ class ProfileRepositoryImpl @Inject constructor(
     private val api: ProfileApiService
 ) : ProfileRepository {
 
+    private fun cleanErrorBody(raw: String?): String? {
+        if (raw.isNullOrBlank()) return null
+        val trimmed = raw.trim()
+        val looksLikeHtml = trimmed.contains("<!DOCTYPE html", ignoreCase = true) ||
+            trimmed.contains("<html", ignoreCase = true)
+        return if (looksLikeHtml) null else trimmed
+    }
+
     override suspend fun getMe(): AppResult<MePayload> {
         return try {
             val res = api.getMe()
@@ -40,8 +48,9 @@ class ProfileRepositoryImpl @Inject constructor(
                     AppResult.failure(Exception("Empty profile"))
                 }
             } else {
-                val errorBody = res.errorBody()?.string()
-                AppResult.failure(Exception("HTTP ${res.code()}: $errorBody"))
+                val errorBody = cleanErrorBody(res.errorBody()?.string())
+                val suffix = errorBody?.let { ": $it" }.orEmpty()
+                AppResult.failure(Exception("HTTP ${res.code()}$suffix"))
             }
         } catch (e: Exception) {
             android.util.Log.e("ProfileRepo", "getMe exception", e)
@@ -89,8 +98,9 @@ class ProfileRepositoryImpl @Inject constructor(
             if (resp.isSuccessful) {
                 AppResult.success(Unit)
             } else {
-                val errorBody = resp.errorBody()?.string()
-                AppResult.failure("HTTP ${resp.code()}: $errorBody")
+                val errorBody = cleanErrorBody(resp.errorBody()?.string())
+                val suffix = errorBody?.let { ": $it" }.orEmpty()
+                AppResult.failure("HTTP ${resp.code()}$suffix")
             }
         } catch (e: Exception) {
             AppResult.failure(e.message ?: "Update failed")
@@ -169,8 +179,9 @@ class ProfileRepositoryImpl @Inject constructor(
                 resp.body()?.let { AppResult.success(it) }
                     ?: AppResult.failure("Response body is null")
             } else {
-                val errorBody = resp.errorBody()?.string()
-                AppResult.failure("HTTP ${resp.code()}: $errorBody")
+                val errorBody = cleanErrorBody(resp.errorBody()?.string())
+                val suffix = errorBody?.let { ": $it" }.orEmpty()
+                AppResult.failure("HTTP ${resp.code()}$suffix")
             }
         } catch (e: Exception) {
             AppResult.failure(e.message ?:  "Failed to create profile")

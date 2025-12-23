@@ -22,10 +22,10 @@ interface ProfileApiService {
         @Part avatar: MultipartBody.Part? = null
     ): Response<ProfileCreateResponse>
 
-    @GET("me")
+    @GET("auth/me")
     suspend fun getMe(): Response<ApiEnvelope<MePayload>>
 
-    @PUT("me")
+    @PUT("profile/me")
     suspend fun updateProfile(
         @Body params: UpdateProfileParams
     ): Response<ApiEnvelope<Unit>>

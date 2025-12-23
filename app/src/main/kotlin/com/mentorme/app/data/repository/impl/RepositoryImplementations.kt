@@ -11,6 +11,9 @@ import com.mentorme.app.data.model.Mentor
 import com.mentorme.app.data.remote.MentorMeApi
 import com.mentorme.app.data.repository.BookingRepository
 import com.mentorme.app.data.repository.MentorRepository
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -81,6 +84,26 @@ class BookingRepositoryImpl @Inject constructor(
     private val api: MentorMeApi
 ) : BookingRepository {
 
+    private fun normalizeBookingLocalTime(booking: Booking): Booking {
+        val startIso = booking.startTimeIso
+        val endIso = booking.endTimeIso
+        if (startIso.isNullOrBlank() || endIso.isNullOrBlank()) return booking
+
+        val zone = ZoneId.systemDefault()
+        val start = runCatching { Instant.parse(startIso).atZone(zone) }.getOrNull() ?: return booking
+        val end = runCatching { Instant.parse(endIso).atZone(zone) }.getOrNull() ?: return booking
+        val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
+
+        return booking.copy(
+            date = start.toLocalDate().toString(),
+            startTime = start.format(timeFmt),
+            endTime = end.format(timeFmt)
+        )
+    }
+
+    private fun normalizeBookingList(list: List<Booking>): List<Booking> =
+        list.map(::normalizeBookingLocalTime)
+
     override suspend fun createBooking(
         mentorId: String,
         occurrenceId: String,
@@ -95,7 +118,7 @@ class BookingRepositoryImpl @Inject constructor(
                 val envelope = response.body()
                 val booking = envelope?.data
                 if (booking != null) {
-                    AppResult.success(booking)
+                    AppResult.success(normalizeBookingLocalTime(booking))
                 } else {
                     AppResult.failure(Exception("Empty response body"))
                 }
@@ -121,7 +144,9 @@ class BookingRepositoryImpl @Inject constructor(
                 val envelope = response.body()
                 val bookingList = envelope?.data
                 if (bookingList != null) {
-                    AppResult.success(bookingList)
+                    AppResult.success(
+                        bookingList.copy(bookings = normalizeBookingList(bookingList.bookings))
+                    )
                 } else {
                     AppResult.failure(Exception("Empty response body"))
                 }
@@ -141,7 +166,7 @@ class BookingRepositoryImpl @Inject constructor(
                 val envelope = response.body()
                 val booking = envelope?.data
                 if (booking != null) {
-                    AppResult.success(booking)
+                    AppResult.success(normalizeBookingLocalTime(booking))
                 } else {
                     AppResult.failure(Exception("Booking not found"))
                 }
@@ -164,7 +189,7 @@ class BookingRepositoryImpl @Inject constructor(
                 val envelope = response.body()
                 val booking = envelope?.data
                 if (booking != null) {
-                    AppResult.success(booking)
+                    AppResult.success(normalizeBookingLocalTime(booking))
                 } else {
                     AppResult.failure(Exception("Empty response body"))
                 }
@@ -207,7 +232,7 @@ class BookingRepositoryImpl @Inject constructor(
                 val envelope = response.body()
                 val booking = envelope?.data
                 if (booking != null) {
-                    AppResult.success(booking)
+                    AppResult.success(normalizeBookingLocalTime(booking))
                 } else {
                     AppResult.failure(Exception("Empty response body"))
                 }
@@ -225,7 +250,7 @@ class BookingRepositoryImpl @Inject constructor(
             val response = api.cancelBooking(bookingId, req)
             if (response.isSuccessful) {
                 val booking = response.body()?.data
-                if (booking != null) AppResult.success(booking)
+                if (booking != null) AppResult.success(normalizeBookingLocalTime(booking))
                 else AppResult.failure(Exception("Empty response body"))
             } else {
                 val err = response.errorBody()?.string()

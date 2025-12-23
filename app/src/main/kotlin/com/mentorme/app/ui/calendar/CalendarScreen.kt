@@ -29,8 +29,6 @@ import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.theme.liquidGlass
 import com.mentorme.app.ui.components.ui.MMButton
 import java.util.Calendar
-import com.mentorme.app.ui.components.ui.MMPrimaryButton
-import com.mentorme.app.ui.components.ui.MMGhostButton
 import androidx.compose.ui.graphics.Brush
 
 // ---------- Helpers (API 24 friendly) ----------
@@ -61,6 +59,12 @@ private fun minutesToHHmm(mins: Int): String {
 
 private fun addMinutes(hhmm: String, plus: Int) = minutesToHHmm(hhmmToMinutes(hhmm) + plus)
 
+private fun formatIsoShort(iso: String?): String? {
+    if (iso.isNullOrBlank()) return null
+    val cleaned = iso.trim().replace("T", " ").removeSuffix("Z")
+    return if (cleaned.length >= 16) cleaned.substring(0, 16) else cleaned
+}
+
 private fun isFutureOrNow(date: String, time: String, nowDate: String, nowTime: String) =
     when {
         date > nowDate -> true
@@ -90,6 +94,7 @@ fun CalendarScreen(
     onJoinSession: (Booking) -> Unit = {},
     onRate: (Booking) -> Unit = {},
     onRebook: (Booking) -> Unit = {},
+    onPay: (Booking) -> Unit = {},
     onCancel: (Booking) -> Unit = {}
 ) {
     var active by remember { mutableStateOf(CalTab.Upcoming) }
@@ -106,8 +111,10 @@ fun CalendarScreen(
     }
 
     val pending = remember(bookings) {
-        bookings.filter { it.status == BookingStatus.PENDING }
-            .sortedWith(compareBy({ it.date }, { it.startTime }))
+        bookings.filter {
+            it.status == BookingStatus.PENDING_MENTOR ||
+                    it.status == BookingStatus.PAYMENT_PENDING
+        }.sortedWith(compareBy({ it.date }, { it.startTime }))
     }
 
     val completed = remember(bookings, nowDate, nowTime) {
@@ -118,8 +125,11 @@ fun CalendarScreen(
     }
 
     val cancelled = remember(bookings) {
-        bookings.filter { it.status == BookingStatus.CANCELLED }
-            .sortedWith(compareByDescending<Booking> { it.date }.thenByDescending { it.startTime })
+        bookings.filter {
+            it.status == BookingStatus.CANCELLED ||
+                    it.status == BookingStatus.DECLINED ||
+                    it.status == BookingStatus.FAILED
+        }.sortedWith(compareByDescending<Booking> { it.date }.thenByDescending { it.startTime })
     }
 
     // Layout như HomeScreen - LazyColumn thay vì Scaffold
@@ -214,6 +224,7 @@ fun CalendarScreen(
                     onJoin = onJoinSession,
                     onRate = onRate,
                     onRebook = onRebook,
+                    onPay = onPay,
                     onCancel = onCancel
                 )
             }
@@ -262,12 +273,13 @@ private fun BookingCard(
     onJoin: (Booking) -> Unit,
     onRate: (Booking) -> Unit,
     onRebook: (Booking) -> Unit,
-    onCancel: (Booking) -> Unit
+    onCancel: (Booking) -> Unit,
+    onPay: (Booking) -> Unit
 ) {
     val mentor = remember(booking.mentorId) {
         MockData.mockMentors.firstOrNull { it.id == booking.mentorId }
     }
-    val mentorName = mentor?.fullName ?: "Mentor"
+    val mentorLabel = mentor?.fullName ?: "Mentor ${booking.mentorId.takeLast(6)}"
     val mentorAvatar = mentor?.avatar
 
     val dateToday = todayDate()
@@ -277,6 +289,24 @@ private fun BookingCard(
             (now >= addMinutes(booking.startTime, -10)) &&
             (now <= booking.endTime)
 
+    val lateCancelLabel = if (booking.lateCancel == true) {
+        val minutes = booking.lateCancelMinutes?.let { " (${it}m)" } ?: ""
+        "Hủy muộn$minutes"
+    } else {
+        null
+    }
+
+    val mentorDeadline = formatIsoShort(booking.mentorResponseDeadline)
+    val payExpires = formatIsoShort(booking.expiresAt)
+    val reminder24h = formatIsoShort(booking.reminder24hSentAt)
+    val reminder1h = formatIsoShort(booking.reminder1hSentAt)
+    val policyLabels = listOfNotNull(
+        if (booking.status == BookingStatus.PENDING_MENTOR) mentorDeadline?.let { "Mentor deadline: $it" } else null,
+        if (booking.status == BookingStatus.PAYMENT_PENDING) payExpires?.let { "Pay expires: $it" } else null,
+        reminder24h?.let { "Reminder 24h: $it" },
+        reminder1h?.let { "Reminder 1h: $it" }
+    )
+
     LiquidGlassCard(
         modifier = Modifier.fillMaxWidth(),
         radius = 22.dp
@@ -285,12 +315,11 @@ private fun BookingCard(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Header với Avatar và Info
+            // Header v?i Avatar và Info
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Avatar placeholder như HomeScreen
                 Box(
                     modifier = Modifier
                         .size(44.dp)
@@ -306,7 +335,7 @@ private fun BookingCard(
                         )
                     } else {
                         Text(
-                            text = mentorName.split(" ").map { it.first() }.take(2).joinToString(""),
+                            text = mentorLabel.split(" ").map { it.first() }.take(2).joinToString(""),
                             color = Color.White,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold
@@ -316,7 +345,7 @@ private fun BookingCard(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        mentorName,
+                        mentorLabel,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -329,6 +358,18 @@ private fun BookingCard(
                 }
 
                 StatusPill(booking.status)
+            }
+
+            if (booking.status == BookingStatus.CANCELLED && lateCancelLabel != null) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFFF59E0B).copy(alpha = 0.25f))
+                        .border(BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.45f)), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(lateCancelLabel, color = Color.White)
+                }
             }
 
             // Duration và Price
@@ -355,14 +396,34 @@ private fun BookingCard(
                         .liquidGlass(radius = 12.dp)
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
-                    Text("\$${"%.2f".format(booking.price)}", color = Color.White)
+                    Text("${booking.price.toInt()} đ", color = Color.White)
+                }
+            }
+
+            if (policyLabels.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    policyLabels.forEach { label ->
+                        PolicyTag(label)
+                    }
                 }
             }
 
             // Action Buttons
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 when (booking.status) {
-                    BookingStatus.PENDING -> {
+                    BookingStatus.PAYMENT_PENDING -> {
+                        MMButton(
+                            text = "Thanh toán (test)",
+                            onClick = { onPay(booking) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        MMGhostButton(
+                            text = "Hủy",
+                            onClick = { onCancel(booking) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    BookingStatus.PENDING_MENTOR -> {
                         MMButton(
                             text = "Hủy yêu cầu",
                             onClick = { onCancel(booking) },
@@ -396,16 +457,26 @@ private fun BookingCard(
                             modifier = Modifier.weight(1f)
                         )
                     }
-                    BookingStatus.CANCELLED -> {
+                    BookingStatus.CANCELLED,
+                    BookingStatus.DECLINED -> {
                         MMButton(
                             text = "Đặt lại",
                             onClick = { onRebook(booking) },
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
-
-                    BookingStatus.PAYMENT_PENDING -> TODO()
-                    BookingStatus.FAILED -> TODO()
+                    BookingStatus.FAILED -> {
+                        MMButton(
+                            text = "Thử lại",
+                            onClick = { onPay(booking) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        MMGhostButton(
+                            text = "Đặt lại",
+                            onClick = { onRebook(booking) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
         }
@@ -415,12 +486,13 @@ private fun BookingCard(
 @Composable
 private fun StatusPill(status: BookingStatus) {
     val (label, dot, emoji) = when (status) {
-        BookingStatus.PENDING   -> Triple("Chờ duyệt", Color(0xFFF59E0B), "⏳")
+        BookingStatus.PAYMENT_PENDING -> Triple("Chờ thanh toán", Color(0xFFF59E0B), "💳")
+        BookingStatus.PENDING_MENTOR -> Triple("Chờ mentor", Color(0xFFF59E0B), "⏳")
         BookingStatus.CONFIRMED -> Triple("Xác nhận", Color(0xFF10B981), "✅")
         BookingStatus.COMPLETED -> Triple("Hoàn thành", Color(0xFF8B5CF6), "🎉")
         BookingStatus.CANCELLED -> Triple("Đã hủy", Color(0xFFEF4444), "❌")
-        BookingStatus.PAYMENT_PENDING -> TODO()
-        BookingStatus.FAILED -> TODO()
+        BookingStatus.DECLINED -> Triple("Từ chối", Color(0xFFEF4444), "🚫")
+        BookingStatus.FAILED -> Triple("Thất bại", Color(0xFFEF4444), "⚠️")
     }
 
     Box(
@@ -451,7 +523,24 @@ private fun StatusPill(status: BookingStatus) {
     }
 }
 
-// Custom Ghost Button để match với MMButton style
+@Composable
+private fun PolicyTag(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White.copy(alpha = 0.06f))
+            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), RoundedCornerShape(12.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text = text,
+            color = Color.White.copy(alpha = 0.85f),
+            style = MaterialTheme.typography.labelSmall
+        )
+    }
+}
+
 @Composable
 private fun MMGhostButton(
     text: String,
@@ -475,3 +564,7 @@ private fun MMGhostButton(
         )
     }
 }
+
+
+
+

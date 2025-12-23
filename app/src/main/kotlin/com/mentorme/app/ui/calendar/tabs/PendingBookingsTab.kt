@@ -16,17 +16,21 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.model.BookingStatus
-import com.mentorme.app.data.mock.MockData
 import com.mentorme.app.ui.calendar.components.InfoRow
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.components.ui.MMButton
-import com.mentorme.app.ui.components.ui.MMGhostButton
 import com.mentorme.app.ui.theme.liquidGlass
 import kotlinx.coroutines.launch
 
 private fun durationMinutes(start: String, end: String): Int {
     fun toMin(hhmm: String) = hhmm.split(":").let { it[0].toInt() * 60 + it[1].toInt() }
     return toMin(end) - toMin(start)
+}
+
+private fun formatIsoShort(iso: String?): String? {
+    if (iso.isNullOrBlank()) return null
+    val cleaned = iso.trim().replace("T", " ").removeSuffix("Z")
+    return if (cleaned.length >= 16) cleaned.substring(0, 16) else cleaned
 }
 
 @Composable
@@ -41,7 +45,7 @@ fun PendingBookingsTab(
 
     // Lọc + sort các booking chờ duyệt
     val pending = remember(bookings) {
-        bookings.filter { it.status == BookingStatus.PENDING }
+        bookings.filter { it.status == BookingStatus.PENDING_MENTOR }
             .sortedWith(compareBy({ it.date }, { it.startTime }))
     }
 
@@ -117,13 +121,10 @@ fun PendingBookingsTab(
             // === LIST CÁC BOOKING CHỜ DUYỆT ===
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 pending.forEach { b ->
-                    val extra = MockData.bookingExtras[b.id]
-                    val topic = extra?.topic ?: "Booking"
-                    val sessionType = extra?.sessionType ?: "video"
-                    val isPaid = extra?.paymentStatus == "paid"
-                    val menteeName = MockData.currentMenteeName
-                    val mentorName = MockData.mentorNameById(b.mentorId)
-
+                    val topic = b.topic ?: "Booking"
+                    val isPaid = b.status == BookingStatus.PENDING_MENTOR || b.status == BookingStatus.CONFIRMED
+                    val menteeLabel = if (b.menteeId.length > 6) "...${b.menteeId.takeLast(6)}" else b.menteeId
+                    val deadline = formatIsoShort(b.mentorResponseDeadline)
                     LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
                         Column(
                             Modifier.padding(14.dp),
@@ -140,7 +141,7 @@ fun PendingBookingsTab(
                                     )
                                     Spacer(Modifier.height(4.dp))
                                     Text(
-                                        "👤 Với $menteeName   •   $mentorName",
+                                        "?? Mentee $menteeLabel",
                                         color = Color.White.copy(.85f),
                                         style = MaterialTheme.typography.bodySmall
                                     )
@@ -159,10 +160,9 @@ fun PendingBookingsTab(
                             InfoRow("Ngày & giờ", "${b.date} • ${b.startTime}")
                             InfoRow("Thời lượng", "${durationMinutes(b.startTime, b.endTime)} phút")
                             InfoRow("Giá tư vấn", "${b.price.toInt()} đ")
-                            InfoRow(
-                                "Hình thức",
-                                if (sessionType == "in-person") "Trực tiếp" else "Video Call"
-                            )
+                            if (!deadline.isNullOrBlank()) {
+                                InfoRow("Auto-decline", deadline)
+                            }
 
                             // Payment
                             LiquidGlassCard(radius = 16.dp, modifier = Modifier.fillMaxWidth()) {
@@ -259,3 +259,7 @@ private fun MMGhostButton(
         )
     }
 }
+
+
+
+

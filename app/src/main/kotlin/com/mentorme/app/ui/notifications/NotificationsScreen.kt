@@ -47,7 +47,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mentorme.app.core.notifications.NotificationHelper
 import com.mentorme.app.core.notifications.NotificationStore
-import com.mentorme.app.data.mock.MockData
 import com.mentorme.app.data.model.NotificationItem
 import com.mentorme.app.data.model.NotificationType
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
@@ -72,7 +71,6 @@ fun NotificationsScreen(
     }
 
     LaunchedEffect(Unit) {
-        NotificationStore.seed(MockData.mockNotifications)
         hasPermission = NotificationHelper.hasPostPermission(context)
     }
 

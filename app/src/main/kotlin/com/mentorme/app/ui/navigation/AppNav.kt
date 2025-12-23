@@ -33,7 +33,7 @@ import com.mentorme.app.ui.auth.RegisterPayload
 import com.mentorme.app.ui.booking.BookingChooseTimeScreen
 import com.mentorme.app.ui.booking.BookingDraft
 import com.mentorme.app.ui.booking.BookingSummaryScreen
-import com.mentorme.app.ui.calendar.CalendarScreen
+import com.mentorme.app.ui.calendar.MenteeCalendarScreen
 import com.mentorme.app.ui.calendar.MentorCalendarScreen
 import com.mentorme.app.ui.chat.ChatScreen
 import com.mentorme.app.ui.chat.MessagesScreen
@@ -513,13 +513,7 @@ fun AppNav(
                     }
 
                     composable(Routes.Calendar) {
-                        CalendarScreen(
-                            bookings = MockData.mockBookings,
-                            onJoinSession = { /* TODO */ },
-                            onRate = { /* TODO */ },
-                            onRebook = { b -> nav.navigate("booking/${b.mentorId}") },
-                            onCancel = { /* TODO */ }
-                        )
+                        MenteeCalendarScreen()
                     }
 
                     composable(Routes.Messages) {
@@ -587,7 +581,11 @@ fun AppNav(
                                 availableDates = availableDates,
                                 availableTimes = availableTimes,
                                 onNext = { d: BookingDraft ->
-                                    nav.navigate("bookingSummary/${m.id}/${d.date}/${d.time}/${d.durationMin}")
+                                    val occurrenceId = grouped[d.date]
+                                        ?.firstOrNull { it.startLabel == d.time || it.startTime == d.time }
+                                        ?.occurrenceId
+                                        ?: "${d.date}_${d.time}"
+                                    nav.navigate("bookingSummary/${m.id}/${d.date}/${d.time}/${d.durationMin}/${occurrenceId}")
                                 },
                                 onClose = { nav.popBackStack() }
                             )
@@ -599,10 +597,16 @@ fun AppNav(
                         val date = backStackEntry.arguments?. getString("date") ?: ""
                         val time = backStackEntry.arguments?.getString("time") ?: ""
                         val duration = backStackEntry.arguments?.getString("duration")?. toIntOrNull() ?: 60
-                        val occurrenceId = backStackEntry.arguments?.getString("occurrenceId")
+                        val occurrenceIdRaw = backStackEntry.arguments?.getString("occurrenceId")
+                        val occurrenceId = if (occurrenceIdRaw.isNullOrBlank()) {
+                            "${date}_${time}"
+                        } else {
+                            occurrenceIdRaw
+                        }
 
                         val vm = hiltViewModel<com.mentorme.app.ui.booking.BookingFlowViewModel>()
                         val ctx = LocalContext.current
+                        val mentor = MockData.mockMentors.find { it.id == mentorId }
 
                         mentor?.let { m ->
                             BookingSummaryScreen(

@@ -16,6 +16,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,7 +25,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mentorme.app.data.model.BookingStatus
-import com.mentorme.app.data.mock.MockData
 import com.mentorme.app.ui.calendar.components.SegmentedTabs
 import com.mentorme.app.ui.calendar.components.StatCard
 import com.mentorme.app.ui.calendar.tabs.AvailabilityTabSection
@@ -54,9 +54,11 @@ fun MentorCalendarScreen(
 
     // --- ViewModel for Availability ---
     val vm = androidx.hilt.navigation.compose.hiltViewModel<com.mentorme.app.ui.calendar.MentorCalendarViewModel>()
+    val bookingsVm = androidx.hilt.navigation.compose.hiltViewModel<com.mentorme.app.ui.calendar.MentorBookingsViewModel>()
 
-    // Observe availability state only
+    // Observe availability + bookings state
     val slotsState = vm.slots.collectAsState()
+    val mentorBookings = bookingsVm.bookings.collectAsStateWithLifecycle()
 
     // Resolve mentorId: always from DataStore (no nav arg)
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -84,27 +86,26 @@ fun MentorCalendarScreen(
         Logx.d("MentorCalendarScreen") { "Loading window for mentorId=$mentorId, from=$fromIsoUtc, to=$toIsoUtc" }
         try {
             vm.loadWindow(mentorId, fromIsoUtc, toIsoUtc)
+            bookingsVm.refresh()
         } catch (t: Throwable) {
             val msg = com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(t.message)
             android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
         }
     }
 
-    // ---- Summary metrics based on (now empty) bookings for tabs ----
-    val emptyBookings = remember { emptyList<com.mentorme.app.data.model.Booking>() }
+    // ---- Summary metrics based on mentor bookings ----
+    val bookings = mentorBookings.value
     val availabilityOpen = remember(slotsState.value) { slotsState.value.count { it.isActive && !it.isBooked } }
-    val confirmedCount = remember(emptyBookings) { emptyBookings.count { it.status == BookingStatus.CONFIRMED } }
+    val confirmedCount = remember(bookings) { bookings.count { it.status == BookingStatus.CONFIRMED } }
 
-    val totalPaid = remember(emptyBookings) {
-        emptyBookings
+    val totalPaid = remember(bookings) {
+        bookings
             .filter { it.status == BookingStatus.COMPLETED }
-            .filter { MockData.bookingExtras[it.id]?.paymentStatus == "paid" }
             .sumOf { it.price.toInt() }
     }
-    val totalPending = remember(emptyBookings) {
-        emptyBookings
-            .filter { it.status == BookingStatus.PENDING || it.status == BookingStatus.CONFIRMED }
-            .filter { MockData.bookingExtras[it.id]?.paymentStatus != "paid" }
+    val totalPending = remember(bookings) {
+        bookings
+            .filter { it.status == BookingStatus.PAYMENT_PENDING }
             .sumOf { it.price.toInt() }
     }
 
@@ -164,7 +165,9 @@ fun MentorCalendarScreen(
                         }
                     }
                 }
-                // Do not fetch bookings (backend not available yet)
+                if (index != 0) {
+                    bookingsVm.refresh()
+                }
                 activeTab = index
             }
         )
@@ -327,11 +330,21 @@ fun MentorCalendarScreen(
 
             )
             1 -> PendingBookingsTab(
-                bookings = emptyBookings,
-                onAccept = { _ -> },
-                onReject = { _ -> }
+                bookings = bookings,
+                onAccept = { bookingId ->
+                    bookingsVm.accept(bookingId) { ok ->
+                        toast(if (ok) "Ð? ch?p nh?n booking" else "Không th? ch?p nh?n booking")
+                        if (ok) bookingsVm.refresh()
+                    }
+                },
+                onReject = { bookingId ->
+                    bookingsVm.decline(bookingId, "Mentor t? ch?i") { ok ->
+                        toast(if (ok) "Ð? t? ch?i booking" else "Không th? t? ch?i booking")
+                        if (ok) bookingsVm.refresh()
+                    }
+                }
             )
-            2 -> SessionsTab(bookings = emptyBookings)
+            2 -> SessionsTab(bookings = bookings)
         }
 
         // chừa chỗ đáy để né dashboard
@@ -386,3 +399,4 @@ private fun StatsOverview(
         }
     }
 }
+

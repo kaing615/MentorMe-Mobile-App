@@ -7,7 +7,6 @@ import com.mentorme.app.data.network.api.profile.ProfileApiService
 import com.mentorme.app.data.repository.ProfileRepository
 import com.mentorme.app.domain.usecase.onboarding.RequiredProfileParams
 import com.mentorme.app.domain.usecase.profile.UpdateProfileParams
-import com.mentorme.app.data.dto.profile.MePayload
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull

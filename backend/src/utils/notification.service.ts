@@ -87,3 +87,66 @@ export async function notifyBookingCancelled(data: NotificationData, cancelledBy
     { bookingId, menteeId, startTime: dateStr, cancelledBy }
   );
 }
+
+export async function notifyBookingReminder(data: NotificationData) {
+  const { bookingId, mentorId, menteeId, mentorName, menteeName, startTime } = data;
+  const dateStr = startTime.toISOString();
+
+  await createNotification(
+    menteeId,
+    'booking_reminder',
+    'Upcoming Session',
+    `Reminder: your session with ${mentorName} starts at ${dateStr}.`,
+    { bookingId, mentorId, startTime: dateStr }
+  );
+
+  await createNotification(
+    mentorId,
+    'booking_reminder',
+    'Upcoming Session',
+    `Reminder: your session with ${menteeName} starts at ${dateStr}.`,
+    { bookingId, menteeId, startTime: dateStr }
+  );
+}
+
+export async function notifyBookingPending(data: NotificationData) {
+  const { bookingId, mentorId, menteeId, mentorName, menteeName, startTime } = data;
+  const dateStr = startTime.toISOString();
+
+  await createNotification(
+    menteeId,
+    'booking_pending',
+    'Booking Awaiting Confirmation',
+    `Your booking with ${mentorName} is awaiting mentor confirmation for ${dateStr}.`,
+    { bookingId, mentorId, startTime: dateStr }
+  );
+
+  await createNotification(
+    mentorId,
+    'booking_pending',
+    'Confirm New Booking',
+    `${menteeName} requested a session on ${dateStr}. Please confirm or decline.`,
+    { bookingId, menteeId, startTime: dateStr }
+  );
+}
+
+export async function notifyBookingDeclined(data: NotificationData) {
+  const { bookingId, mentorId, menteeId, mentorName, menteeName, startTime } = data;
+  const dateStr = startTime.toISOString();
+
+  await createNotification(
+    menteeId,
+    'booking_declined',
+    'Booking Declined',
+    `Your booking with ${mentorName} for ${dateStr} was declined.`,
+    { bookingId, mentorId, startTime: dateStr }
+  );
+
+  await createNotification(
+    mentorId,
+    'booking_declined',
+    'Booking Declined',
+    `You declined the session with ${menteeName} on ${dateStr}.`,
+    { bookingId, menteeId, startTime: dateStr }
+  );
+}

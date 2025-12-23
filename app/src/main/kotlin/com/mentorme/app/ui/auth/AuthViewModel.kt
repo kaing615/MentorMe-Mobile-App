@@ -20,8 +20,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import com.mentorme.app.core.datastore.DataStoreManager
+import com.mentorme.app.core.notifications.PushTokenManager
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
@@ -31,7 +35,8 @@ class AuthViewModel @Inject constructor(
     private val verifyOtpUseCase: VerifyOtpUseCase,
     private val resendOtpUseCase: ResendOtpUseCase,
     private val signOutUseCase: SignOutUseCase,
-    private val dataStoreManager: DataStoreManager
+    private val dataStoreManager: DataStoreManager,
+    private val pushTokenManager: PushTokenManager
 ) : ViewModel() {
 
     private val TAG = "AuthViewModel"
@@ -44,15 +49,14 @@ class AuthViewModel @Inject constructor(
         dataStoreManager.saveToken(token)
         Log.d(TAG, "💾 Token saved request: $token")
 
-        repeat(10) {
+        // đợi token thực sự được ghi
+        var confirmed: String? = null
+        repeat(5) { // thử lại tối đa 5 lần, mỗi lần 100ms
             delay(100)
-            val confirmed = dataStoreManager.getToken().first()
-            if (confirmed == token) {
-                Log.d(TAG, "📦 Token confirmed: $confirmed")
-                return
-            }
+            confirmed = dataStoreManager.getToken().first()
+            if (!confirmed.isNullOrBlank()) return@repeat
         }
-        Log.e(TAG, "❌ Token not confirmed after retries")
+        Log.d(TAG, "📦 Token confirmed in DataStore: $confirmed")
     }
 
     fun signUp(
@@ -151,20 +155,21 @@ class AuthViewModel @Inject constructor(
                         saveAndConfirmToken(token)
                     }
 
-                    val roleStrFromData = data?.role
-                    val roleStr = roleStrFromData ?: parseRoleFromJwt(token)
+                    val roleStrFromData = data?.role ?: data?.user?.role
+                    val roleStr = (roleStrFromData ?: parseRoleFromJwt(token))?.lowercase()
                     val role = if (roleStr == "mentor") UserRole.MENTOR else UserRole.MENTEE
 
-                    val isActive = data?.status == "active"
+                    val status = data?.status?.lowercase()
+                    val isActive = status == "active"
                     val authenticated = isActive && !token.isNullOrBlank()
-                    val pendingApproval = data?.status == "pending-mentor"
-                    val onboarding = data?.status == "onboarding"
-                    val verifying = data?.status == "verifying"
+                    val pendingApproval = status == "pending-mentor"
+                    val onboarding = status == "onboarding"
+                    val verifying = status == "verifying"
 
                     // NEW: persist and log mentorId (userId) for calendar consistency
-                    val userId = data?.userId
-                    val emailResolved = data?.email ?: email
-                    val userName = data?.userName ?: email.substringBefore("@")
+                    val userId = data?.userId ?: data?.user?.id
+                    val emailResolved = data?.email ?: data?.user?.email ?: email
+                    val userName = data?.userName ?: data?.user?.username ?: email.substringBefore("@")
                     val roleStrPersist = roleStr ?: (if (role == UserRole.MENTOR) "mentor" else "mentee")
                     if (!userId.isNullOrBlank()) {
                         try {
@@ -180,6 +185,12 @@ class AuthViewModel @Inject constructor(
                         }
                     } else {
                         Log.w(TAG, "⚠️ No userId in sign-in response; calendar may not load correctly")
+                    }
+                    try {
+                        dataStoreManager.saveUserStatus(status)
+                        Log.d(TAG, "Saved user status=$status")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to save user status: ${e.message}")
                     }
 
                     _authState.value = _authState.value.copy(
@@ -199,6 +210,16 @@ class AuthViewModel @Inject constructor(
                         userEmail = if (verifying) email else _authState.value.userEmail,
                         otpVerificationId = if (verifying) data?.verificationId else _authState.value.otpVerificationId
                     )
+
+                    FirebaseMessaging.getInstance().token
+                        .addOnSuccessListener { fcmToken ->
+                            viewModelScope.launch {
+                                pushTokenManager.onNewToken(fcmToken, null, "login")
+                            }
+                        }
+                        .addOnFailureListener { err ->
+                            Log.w(TAG, "Failed to fetch FCM token after login: ${err.message}")
+                        }
                 }
 
                 is AppResult.Error -> handleAuthError(result.throwable)
@@ -402,12 +423,28 @@ class AuthViewModel @Inject constructor(
         _authState.value = _authState.value.copy(flowHint = null)
     }
 
-    fun logout() {
+    fun signOut(onComplete: (() -> Unit)? = null) {
         viewModelScope.launch {
-            signOutUseCase()
+            _authState.value = _authState.value.copy(isLoading = true, error = null)
+
+            withContext(Dispatchers.IO) {
+                try {
+                    pushTokenManager.unregisterStoredToken("logout")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Unregister token failed: ${e.message}")
+                }
+            }
+
+            when (val result = signOutUseCase.invoke()) {
+                is AppResult.Error -> Log.w(TAG, "Sign out API failed: ${result.throwable}")
+                else -> Unit
+            }
+
             dataStoreManager.clearToken()
             dataStoreManager.clearUserInfo()
+
             _authState.value = AuthState()
+            onComplete?.invoke()
         }
     }
 

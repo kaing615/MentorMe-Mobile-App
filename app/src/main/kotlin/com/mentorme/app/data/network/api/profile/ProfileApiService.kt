@@ -10,8 +10,6 @@ import retrofit2.http.POST
 import retrofit2.http.Part
 import retrofit2.http.PartMap
 import com.mentorme.app.data.dto.profile.MePayload
-import com.mentorme.app.data.dto.profile.ProfileDto
-import com.mentorme.app.data.dto.profile.ProfileMePayload
 import com.mentorme.app.domain.usecase.profile.UpdateProfileParams
 import retrofit2.http.*
 
@@ -21,23 +19,21 @@ interface ProfileApiService {
     @POST("profile/required")
     suspend fun createRequiredProfileMultipart(
         @PartMap fields: Map<String, @JvmSuppressWildcards RequestBody>,
-        @Part avatar: MultipartBody.Part?  = null
+        @Part avatar: MultipartBody.Part? = null
     ): Response<ProfileCreateResponse>
 
     @GET("auth/me")
     suspend fun getMe(): Response<ApiEnvelope<MePayload>>
 
-    @GET("profile/me")
-    suspend fun getMyProfile(): Response<ApiEnvelope<ProfileMePayload>>
-    @Multipart
     @PUT("profile/me")
     suspend fun updateProfile(
+        @Body params: UpdateProfileParams
+    ): Response<ApiEnvelope<Unit>>
+
+    @Multipart
+    @PUT("profile/me")
+    suspend fun updateProfileMultipart(
         @PartMap fields: Map<String, @JvmSuppressWildcards RequestBody>,
         @Part avatar: MultipartBody.Part? = null
     ): Response<ApiEnvelope<Unit>>
-
-    @GET("profile/{userId}")
-    suspend fun getPublicProfile(
-        @Path("userId") userId: String
-    ): Response<ApiEnvelope<ProfileDto>>
 }

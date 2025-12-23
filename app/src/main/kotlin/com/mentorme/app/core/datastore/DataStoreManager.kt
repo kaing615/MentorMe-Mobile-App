@@ -20,6 +20,8 @@ class DataStoreManager @Inject constructor(
         private val USER_EMAIL_KEY = stringPreferencesKey("user_email")
         private val USER_NAME_KEY = stringPreferencesKey("user_name")
         private val USER_ROLE_KEY = stringPreferencesKey("user_role")
+        private val USER_STATUS_KEY = stringPreferencesKey("user_status")
+        private val FCM_TOKEN_KEY = stringPreferencesKey("fcm_token")
     }
 
     fun getToken(): Flow<String?> {
@@ -66,12 +68,41 @@ class DataStoreManager @Inject constructor(
             preferences.remove(USER_EMAIL_KEY)
             preferences.remove(USER_NAME_KEY)
             preferences.remove(USER_ROLE_KEY)
+            preferences.remove(USER_STATUS_KEY)
         }
     }
 
     fun getUserRole(): Flow<String?> {
         return dataStore.data.map { preferences ->
             preferences[USER_ROLE_KEY]
+        }
+    }
+
+    fun getUserStatus(): Flow<String?> {
+        return dataStore.data.map { preferences ->
+            preferences[USER_STATUS_KEY]
+        }
+    }
+
+    suspend fun saveUserStatus(status: String?) {
+        dataStore.edit { preferences ->
+            if (status.isNullOrBlank()) {
+                preferences.remove(USER_STATUS_KEY)
+            } else {
+                preferences[USER_STATUS_KEY] = status
+            }
+        }
+    }
+
+    fun getFcmToken(): Flow<String?> {
+        return dataStore.data.map { preferences ->
+            preferences[FCM_TOKEN_KEY]
+        }
+    }
+
+    suspend fun saveFcmToken(token: String) {
+        dataStore.edit { preferences ->
+            preferences[FCM_TOKEN_KEY] = token
         }
     }
 }

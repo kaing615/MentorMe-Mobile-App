@@ -10,7 +10,10 @@ export const createBookingRules = [
 
 export const getBookingsRules = [
   query('role').optional().isIn(['mentee', 'mentor']).withMessage('role must be mentee or mentor'),
-  query('status').optional().isIn(['PaymentPending', 'Confirmed', 'Failed', 'Cancelled', 'Completed']).withMessage('invalid status'),
+  query('status')
+    .optional()
+    .isIn(['PaymentPending', 'PendingMentor', 'Confirmed', 'Failed', 'Cancelled', 'Declined', 'Completed'])
+    .withMessage('invalid status'),
   query('page').optional().isInt({ min: 1 }).toInt(),
   query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
 ];
@@ -26,4 +29,13 @@ export const cancelBookingRules = [
 
 export const resendIcsRules = [
   param('id').isMongoId().withMessage('id must be a valid booking ID'),
+];
+
+export const mentorConfirmRules = [
+  param('id').isMongoId().withMessage('id must be a valid booking ID'),
+];
+
+export const mentorDeclineRules = [
+  param('id').isMongoId().withMessage('id must be a valid booking ID'),
+  body('reason').optional().isString().trim().isLength({ max: 500 }).withMessage('reason must be at most 500 characters'),
 ];

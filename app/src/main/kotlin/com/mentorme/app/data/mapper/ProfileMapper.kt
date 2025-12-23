@@ -9,6 +9,7 @@ import java.util.Locale
 import java.util.TimeZone
 import java.util.Date
 import android.util.Log
+import androidx.core.text.HtmlCompat
 
 private val UTC_TZ:  TimeZone = TimeZone. getTimeZone("UTC")
 private val ISO_MS = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply { timeZone = UTC_TZ }
@@ -20,6 +21,22 @@ private fun parseIsoDateOrNow(src: String?): Date {
     return runCatching { ISO_MS.parse(src) }
         .getOrElse { runCatching { ISO_NO_MS.parse(src) }.getOrNull() }
         ?: Date()
+}
+
+private val HTML_TAG_REGEX = Regex("</?[a-zA-Z][^>]*>")
+private val HTML_ENTITY_REGEX = Regex("&[a-zA-Z]{2,8};")
+
+private fun cleanHtmlText(value: String?): String? {
+    if (value.isNullOrBlank()) return null
+    val trimmed = value.trim()
+    val looksLikeHtml = HTML_TAG_REGEX.containsMatchIn(trimmed) || HTML_ENTITY_REGEX.containsMatchIn(trimmed)
+    val text = if (looksLikeHtml) {
+        HtmlCompat.fromHtml(trimmed, HtmlCompat.FROM_HTML_MODE_LEGACY).toString()
+    } else {
+        trimmed
+    }
+    val cleaned = text.replace('\u00A0', ' ').trim()
+    return cleaned.ifBlank { null }
 }
 
 fun MePayload.toUi(): Pair<UserProfile, UserRole> {
@@ -51,7 +68,7 @@ fun MePayload.toUi(): Pair<UserProfile, UserRole> {
         email = u?.email.orEmpty(),
         phone = p?.phone,
         location = p?.location,
-        bio = p?.bio?.takeIf { it.isNotBlank() } ?: p?.description,
+        bio = cleanHtmlText(p?.bio?.takeIf { it.isNotBlank() } ?: p?.description),
         avatar = p?.avatarUrl,
         joinDate = parseIsoDateOrNow(u?.createdAt),
         totalSessions = 0,

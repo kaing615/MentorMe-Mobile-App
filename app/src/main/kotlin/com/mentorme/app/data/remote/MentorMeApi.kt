@@ -6,6 +6,8 @@ import com.mentorme.app.data.dto.CancelBookingRequest
 import com.mentorme.app.data.dto.CreateBookingRequest
 import com.mentorme.app.data.dto.LoginRequest
 import com.mentorme.app.data.dto.Message as ApiMessage
+import com.mentorme.app.data.dto.MentorDeclineRequest
+import com.mentorme.app.data.dto.PaymentWebhookRequest
 import com.mentorme.app.data.dto.RatingRequest
 import com.mentorme.app.data.dto.RegisterRequest
 import com.mentorme.app.data.dto.ResendIcsResponse
@@ -17,6 +19,10 @@ import com.mentorme.app.data.dto.availability.CalendarPayload
 import com.mentorme.app.data.dto.mentors.MentorCardDto
 import com.mentorme.app.data.dto.mentors.MentorListPayloadDto
 import com.mentorme.app.data.dto.availability.PublishResult
+import com.mentorme.app.data.dto.notifications.DeviceTokenPayload
+import com.mentorme.app.data.dto.notifications.RegisterDeviceRequest
+import com.mentorme.app.data.dto.notifications.UnregisterDeviceRequest
+import com.mentorme.app.data.dto.notifications.UnregisterResult
 
 // Model imports
 import com.mentorme.app.data.model.Booking
@@ -92,6 +98,22 @@ interface MentorMeApi {
         @Body ratingRequest: RatingRequest
     ): Response<ApiEnvelope<Booking>>
 
+    @POST("bookings/{id}/mentor-confirm")
+    suspend fun mentorConfirmBooking(
+        @Path("id") bookingId: String
+    ): Response<ApiEnvelope<Booking>>
+
+    @POST("bookings/{id}/mentor-decline")
+    suspend fun mentorDeclineBooking(
+        @Path("id") bookingId: String,
+        @Body request: MentorDeclineRequest
+    ): Response<ApiEnvelope<Booking>>
+
+    @POST("payments/webhook")
+    suspend fun simulatePaymentWebhook(
+        @Body request: PaymentWebhookRequest
+    ): Response<ApiEnvelope<Map<String, Any>>>
+
     // Availability endpoints
 
     /**
@@ -161,4 +183,15 @@ interface MentorMeApi {
 
     @POST("messages")
     suspend fun sendMessage(@Body messageRequest: SendMessageRequest): Response<ApiMessage>
+
+    // Notifications
+    @POST("notifications/devices")
+    suspend fun registerDeviceToken(
+        @Body request: RegisterDeviceRequest
+    ): Response<ApiEnvelope<DeviceTokenPayload>>
+
+    @POST("notifications/devices/unregister")
+    suspend fun unregisterDeviceToken(
+        @Body request: UnregisterDeviceRequest
+    ): Response<ApiEnvelope<UnregisterResult>>
 }

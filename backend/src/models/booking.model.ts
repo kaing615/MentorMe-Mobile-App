@@ -1,7 +1,14 @@
 // path: src/models/booking.model.ts
 import { Schema, model, Types, Document } from 'mongoose';
 
-export type TBookingStatus = 'PaymentPending' | 'Confirmed' | 'Failed' | 'Cancelled' | 'Completed';
+export type TBookingStatus =
+  | 'PaymentPending'
+  | 'PendingMentor'
+  | 'Confirmed'
+  | 'Failed'
+  | 'Cancelled'
+  | 'Declined'
+  | 'Completed';
 
 export interface IBooking extends Document {
   _id: Types.ObjectId;
@@ -17,8 +24,13 @@ export interface IBooking extends Document {
   meetingLink?: string;
   location?: string;
   expiresAt?: Date;
+  mentorResponseDeadline?: Date;
+  reminder24hSentAt?: Date;
+  reminder1hSentAt?: Date;
   cancelledBy?: Types.ObjectId;
   cancelReason?: string;
+  lateCancel?: boolean;
+  lateCancelMinutes?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,7 +45,7 @@ const BookingSchema = new Schema<IBooking>(
     price: { type: Number, required: true, min: 0 },
     status: {
       type: String,
-      enum: ['PaymentPending', 'Confirmed', 'Failed', 'Cancelled', 'Completed'],
+      enum: ['PaymentPending', 'PendingMentor', 'Confirmed', 'Failed', 'Cancelled', 'Declined', 'Completed'],
       default: 'PaymentPending',
       index: true,
     },
@@ -42,8 +54,13 @@ const BookingSchema = new Schema<IBooking>(
     meetingLink: { type: String, trim: true },
     location: { type: String, trim: true },
     expiresAt: { type: Date, index: true },
+    mentorResponseDeadline: { type: Date, index: true },
+    reminder24hSentAt: { type: Date },
+    reminder1hSentAt: { type: Date },
     cancelledBy: { type: Schema.Types.ObjectId, ref: 'User' },
     cancelReason: { type: String, trim: true },
+    lateCancel: { type: Boolean, default: false },
+    lateCancelMinutes: { type: Number, min: 0 },
   },
   { timestamps: true }
 );
@@ -53,7 +70,7 @@ BookingSchema.index(
   { occurrence: 1 },
   {
     unique: true,
-    partialFilterExpression: { status: { $nin: ['Failed', 'Cancelled', 'Completed'] } },
+    partialFilterExpression: { status: { $nin: ['Failed', 'Cancelled', 'Declined', 'Completed'] } },
   }
 );
 

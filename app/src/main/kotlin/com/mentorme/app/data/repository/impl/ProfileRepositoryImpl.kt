@@ -3,8 +3,6 @@ package com.mentorme.app.data.repository.impl
 import com.mentorme.app.core.utils.AppResult
 import com.mentorme.app.data.dto.profile.ProfileCreateResponse
 import com.mentorme.app.data.dto.profile.MePayload
-import com.mentorme.app.data.dto.profile.MeUserDto
-import com.mentorme.app.data.dto.profile.ProfileDto
 import com.mentorme.app.data.network.api.profile.ProfileApiService
 import com.mentorme.app.data.repository.ProfileRepository
 import com.mentorme.app.domain.usecase.onboarding.RequiredProfileParams
@@ -23,94 +21,36 @@ import javax.inject.Singleton
 class ProfileRepositoryImpl @Inject constructor(
     private val api: ProfileApiService
 ) : ProfileRepository {
+
+    private fun cleanErrorBody(raw: String?): String? {
+        if (raw.isNullOrBlank()) return null
+        val trimmed = raw.trim()
+        val looksLikeHtml = trimmed.contains("<!DOCTYPE html", ignoreCase = true) ||
+            trimmed.contains("<html", ignoreCase = true)
+        return if (looksLikeHtml) null else trimmed
+    }
+
     override suspend fun getMe(): AppResult<MePayload> {
         return try {
             val res = api.getMe()
-            if (res.isSuccessful) {
-                val me = res.body()?.data
-                if (me != null) AppResult.success(me)
-                else AppResult.failure(Exception("Empty profile"))
-            } else {
-                AppResult.failure(Exception("HTTP ${res.code()} ${res.message()}"))
-            }
-        } catch (e: Exception) {
-            AppResult.failure(e)
-        }
-    }
-
-    override suspend fun updateProfile(
-        params: UpdateProfileParams
-    ): AppResult<Unit> {
-        return try {
-            val res = api.updateProfile(params)
-            if (res.isSuccessful) {
-                AppResult.success(Unit)
-            } else {
-                AppResult.failure(Exception("HTTP ${res.code()} ${res.message()}"))
-            }
-        } catch (e: Exception) {
-            AppResult.failure(e)
-        }
-    }
-
-    override suspend fun getMe(): AppResult<MePayload> {
-        return try {
-            val res = api.getMyProfile()
 
             android.util.Log.d("ProfileRepo", "getMe HTTP code: ${res.code()}")
 
             if (res.isSuccessful) {
-                val profileMePayload = res.body()?.data
-                val profileMe = profileMePayload?.profile
+                val me = res.body()?.data
+                if (me != null) {
+                    android.util.Log.d("ProfileRepo", "Mapped fullName: ${me.profile?.fullName}")
+                    android.util.Log.d("ProfileRepo", "Mapped phone: ${me.profile?.phone}")
+                    android.util.Log.d("ProfileRepo", "Mapped bio: ${me.profile?.bio}")
 
-                if (profileMe != null) {
-                    val mePayload = MePayload(
-                        user = profileMe.user?. let { embedded ->
-                            MeUserDto(
-                                id = embedded.id,
-                                email = embedded.email,
-                                role = embedded.role,
-                                userName = embedded.userName,
-                                name = profileMe.fullName,  // Dùng fullName từ profile
-                                createdAt = null
-                            )
-                        },
-                        profile = ProfileDto(
-                            id = profileMe.id,
-                            user = profileMe.user?.id,  // Chuyển object → string id
-                            fullName = profileMe.fullName,
-                            phone = profileMe.phone,
-                            location = profileMe.location,
-                            category = profileMe.category,
-                            avatarUrl = profileMe.avatarUrl,
-                            languages = profileMe.languages,
-                            links = profileMe.links,
-                            jobTitle = profileMe.jobTitle,
-                            experience = profileMe.experience,
-                            headline = profileMe.headline,
-                            mentorReason = profileMe.mentorReason,
-                            greatestAchievement = profileMe.greatestAchievement,
-                            bio = profileMe.bio,
-                            introVideo = profileMe.introVideo,
-                            description = profileMe.description,
-                            goal = profileMe.goal,
-                            education = profileMe.education,
-                            skills = profileMe.skills,
-                            profileCompleted = profileMe.profileCompleted
-                        )
-                    )
-
-                    android.util.Log.d("ProfileRepo", "Mapped fullName: ${mePayload.profile?. fullName}")
-                    android.util.Log.d("ProfileRepo", "Mapped phone: ${mePayload.profile?. phone}")
-                    android.util. Log.d("ProfileRepo", "Mapped bio: ${mePayload.profile?. bio}")
-
-                    AppResult.success(mePayload)
+                    AppResult.success(me)
                 } else {
                     AppResult.failure(Exception("Empty profile"))
                 }
             } else {
-                val errorBody = res.errorBody()?.string()
-                AppResult.failure(Exception("HTTP ${res.code()}: $errorBody"))
+                val errorBody = cleanErrorBody(res.errorBody()?.string())
+                val suffix = errorBody?.let { ": $it" }.orEmpty()
+                AppResult.failure(Exception("HTTP ${res.code()}$suffix"))
             }
         } catch (e: Exception) {
             android.util.Log.e("ProfileRepo", "getMe exception", e)
@@ -145,7 +85,7 @@ class ProfileRepositoryImpl @Inject constructor(
             }
 
             // ✅ Dùng JavaFile (alias)
-            val avatarPart: MultipartBody.Part?  = params.avatarPath?.let { path ->
+            val avatarPart: MultipartBody.Part? = params.avatarPath?.let { path ->
                 val file = JavaFile(path)
                 if (file.exists()) {
                     val requestFile = file.asRequestBody("image/*".toMediaTypeOrNull())
@@ -153,13 +93,14 @@ class ProfileRepositoryImpl @Inject constructor(
                 } else null
             }
 
-            val resp = api.updateProfile(fields = parts, avatar = avatarPart)
+            val resp = api.updateProfileMultipart(fields = parts, avatar = avatarPart)
 
             if (resp.isSuccessful) {
                 AppResult.success(Unit)
             } else {
-                val errorBody = resp.errorBody()?.string()
-                AppResult.failure("HTTP ${resp.code()}: $errorBody")
+                val errorBody = cleanErrorBody(resp.errorBody()?.string())
+                val suffix = errorBody?.let { ": $it" }.orEmpty()
+                AppResult.failure("HTTP ${resp.code()}$suffix")
             }
         } catch (e: Exception) {
             AppResult.failure(e.message ?: "Update failed")
@@ -238,8 +179,9 @@ class ProfileRepositoryImpl @Inject constructor(
                 resp.body()?.let { AppResult.success(it) }
                     ?: AppResult.failure("Response body is null")
             } else {
-                val errorBody = resp.errorBody()?.string()
-                AppResult.failure("HTTP ${resp.code()}: $errorBody")
+                val errorBody = cleanErrorBody(resp.errorBody()?.string())
+                val suffix = errorBody?.let { ": $it" }.orEmpty()
+                AppResult.failure("HTTP ${resp.code()}$suffix")
             }
         } catch (e: Exception) {
             AppResult.failure(e.message ?:  "Failed to create profile")

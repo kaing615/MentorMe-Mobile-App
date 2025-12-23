@@ -1,10 +1,12 @@
 package com.mentorme.app.ui.navigation
 
 import android.annotation.SuppressLint
+import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
 import androidx.annotation.RequiresApi
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -70,6 +72,7 @@ object Routes {
     }
 
     const val Calendar = "calendar"
+    const val Notifications = "notifications"
     const val Messages = "messages"
     const val Profile = "profile"
     const val Chat = "chat"
@@ -110,6 +113,45 @@ fun AppNav(
     var userRole by rememberSaveable { mutableStateOf("mentee") }
     var payMethods by remember { mutableStateOf(initialPaymentMethods()) }
     var authToken by rememberSaveable { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    var sessionReady by remember { mutableStateOf(false) }
+    var roleReady by remember { mutableStateOf(false) }
+    val sessionVm = hiltViewModel<SessionViewModel>()
+    val sessionState by sessionVm.session.collectAsStateWithLifecycle()
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val permissionLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            Log.d("AppNav", "POST_NOTIFICATIONS granted=$granted")
+        }
+        LaunchedEffect(Unit) {
+            val granted = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
+    LaunchedEffect(sessionState) {
+        isLoggedIn = sessionState.isLoggedIn
+        val roleFromSession = sessionState.role
+        if (!roleFromSession.isNullOrBlank()) {
+            userRole = roleFromSession
+            roleReady = true
+        } else if (!sessionState.isLoggedIn) {
+            userRole = ""
+            roleReady = true
+        } else {
+            roleReady = userRole.isNotBlank()
+        }
+        val statusFromSession = sessionState.status?.trim()
+        userStatus = statusFromSession?.ifBlank { null }
+        sessionReady = true
+    }
 
     LaunchedEffect(currentRoute) {
         Log.d("AppNav", "Current route changed to: $currentRoute")
@@ -153,6 +195,11 @@ fun AppNav(
     }
 
     var overlayVisible by remember { mutableStateOf(false) }
+    val statusNormalized = userStatus?.lowercase()?.replace('_', '-')
+    val roleSafe = userRole.trim().ifBlank { "mentee" }.lowercase()
+    val needsOnboarding = statusNormalized == "onboarding"
+    val needsPendingApproval = statusNormalized == "pending-mentor"
+    val onboardingRoute = Routes.onboardingFor(roleSafe)
 
     Box(modifier = Modifier.fillMaxSize()) {
         LiquidBackground(
@@ -170,10 +217,13 @@ fun AppNav(
                     currentRoute?.startsWith("booking/") == true ||
                             currentRoute?.startsWith("bookingSummary/") == true
                 val hideForWallet = currentRoute?.startsWith("wallet/") == true
+                val hideForOnboarding = currentRoute == Routes.Onboarding
+                val hideForPendingApproval = currentRoute == Routes.PendingApproval
 
                 if (
                     !overlayVisible &&
                     isLoggedIn &&
+                    roleReady &&
                     currentRoute != Routes.Auth &&
                     !hideForChat &&
                     !hideForBooking &&
@@ -185,11 +235,47 @@ fun AppNav(
             modifier = Modifier.fillMaxSize()
         ) { _ ->
             Box(modifier = Modifier.fillMaxSize()) {
+                if (!sessionReady || (isLoggedIn && !roleReady)) return@Box
+
+                LaunchedEffect(isLoggedIn, userRole, userStatus, currentRoute, roleReady) {
+                    if (isLoggedIn && !roleReady) return@LaunchedEffect
+                    if (isLoggedIn) {
+                        val target = if (userRole.equals("mentor", true)) Routes.MentorDashboard else Routes.Home
+                        when {
+                            needsOnboarding && currentRoute != Routes.Onboarding -> {
+                                nav.navigate(onboardingRoute) {
+                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                            needsPendingApproval && currentRoute != Routes.PendingApproval -> {
+                                nav.navigate(Routes.PendingApproval) {
+                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                            currentRoute == Routes.Auth -> {
+                                nav.navigate(target) {
+                                    popUpTo(Routes.Auth) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                        }
+                    } else if (currentRoute != Routes.Auth) {
+                        nav.navigate(Routes.Auth) {
+                            popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+
                 NavHost(
                     navController = nav,
                     startDestination = when {
                         !isLoggedIn -> Routes.Auth
-                        userRole == "mentor" -> Routes.MentorDashboard
+                        needsOnboarding -> onboardingRoute
+                        needsPendingApproval -> Routes.PendingApproval
+                        userRole.equals("mentor", true) -> Routes.MentorDashboard
                         else -> Routes.Home
                     },
                     modifier = Modifier.fillMaxSize()
@@ -363,6 +449,7 @@ fun AppNav(
 
                     // ✅ (A) composable base route: mentor_profile (default tab profile)
                     composable(Routes.MentorProfile) {
+                        val authVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
                         MentorProfileScreen(
                             startTarget = "profile",
                             onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
@@ -416,11 +503,54 @@ fun AppNav(
                             onViewStatistics = { Log.d("AppNav", "MentorProfile: onViewStatistics - TODO") },
                             onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
                             onLogout = {
-                                isLoggedIn = false
-                                userRole = "mentee"
-                                nav.navigate(Routes.Auth) {
-                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                authVm.signOut {
+                                    isLoggedIn = false
+                                    userRole = "mentee"
+                                    nav.navigate(Routes.Auth) {
+                                        popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
+                                }
+                            }
+                        )
+                    }
+
+                    // ✅ (B) composable query route: mentor_profile?target=...
+                    composable(
+                        route = Routes.MentorProfileWithTarget,
+                        arguments = listOf(
+                            navArgument("target") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = "profile"
+                            }
+                        )
+                    ) { backStackEntry ->
+                        val authVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
+                        val target = backStackEntry.arguments?.getString("target") ?: "profile"
+
+                        MentorProfileScreen(
+                            startTarget = target,
+                            onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
+                            onViewEarnings = { Log.d("AppNav", "MentorProfile: onViewEarnings - TODO") },
+                            onViewReviews = { Log.d("AppNav", "MentorProfile: onViewReviews - TODO") },
+                            onUpdateAvailability = {
+                                nav.navigate(Routes.MentorCalendar) {
                                     launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            onManageServices = { Log.d("AppNav", "MentorProfile: onManageServices - TODO") },
+                            onViewStatistics = { Log.d("AppNav", "MentorProfile: onViewStatistics - TODO") },
+                            onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
+                            onLogout = {
+                                authVm.signOut {
+                                    isLoggedIn = false
+                                    userRole = "mentee"
+                                    nav.navigate(Routes.Auth) {
+                                        popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
                                 }
                             }
                         )
@@ -445,13 +575,7 @@ fun AppNav(
                     }
 
                     composable(Routes.Calendar) {
-                        CalendarScreen(
-                            bookings = MockData.mockBookings,
-                            onJoinSession = { /* TODO */ },
-                            onRate = { /* TODO */ },
-                            onRebook = { b -> nav.navigate("booking/${b.mentorId}") },
-                            onCancel = { /* TODO */ }
-                        )
+                        MenteeCalendarScreen()
                     }
 
                     composable(Routes.Messages) {
@@ -470,17 +594,24 @@ fun AppNav(
                     }
 
                     composable(Routes.Profile) {
+                        val authVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
+                        val profileVm = hiltViewModel<com.mentorme.app.ui.profile.ProfileViewModel>()
                         ProfileScreen(
+                            vm = profileVm,
+                            user = UserHeader(fullName = "Nguyễn Văn A", email = "a@example.com", role = UserRole.MENTEE),
+                            onOpenNotifications = { nav.navigate(Routes.Notifications) },
                             onOpenTopUp = { nav.navigate(Routes.TopUp) },
                             onOpenWithdraw = { nav.navigate(Routes.Withdraw) },
                             onOpenChangeMethod = { nav.navigate(Routes.PaymentMethods) },
                             onAddMethod = { nav.navigate(Routes.AddPaymentMethod) },
                             methods = payMethods,
                             onLogout = {
-                                isLoggedIn = false
-                                nav.navigate(Routes.Auth) {
-                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
-                                    launchSingleTop = true
+                                authVm.signOut {
+                                    isLoggedIn = false
+                                    nav.navigate(Routes.Auth) {
+                                        popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
                                 }
                             }
                         )
@@ -509,7 +640,11 @@ fun AppNav(
                                 availableDates = availableDates,
                                 availableTimes = availableTimes,
                                 onNext = { d: BookingDraft ->
-                                    nav.navigate("bookingSummary/${m.id}/${d.date}/${d.time}/${d.durationMin}")
+                                    val occurrenceId = grouped[d.date]
+                                        ?.firstOrNull { it.startLabel == d.time || it.startTime == d.time }
+                                        ?.occurrenceId
+                                        ?: "${d.date}_${d.time}"
+                                    nav.navigate("bookingSummary/${m.id}/${d.date}/${d.time}/${d.durationMin}/${occurrenceId}")
                                 },
                                 onClose = { nav.popBackStack() }
                             )
@@ -525,6 +660,7 @@ fun AppNav(
 
                         val vm = hiltViewModel<com.mentorme.app.ui.booking.BookingFlowViewModel>()
                         val ctx = LocalContext.current
+                        val mentor = MockData.mockMentors.find { it.id == mentorId }
 
                         mentor?.let { m ->
                             BookingSummaryScreen(

@@ -18,6 +18,8 @@ tags:
     description: Onboarding hồ sơ người dùng (tạo hồ sơ bắt buộc theo role + upload avatar) - Chỉnh sửa, xem hồ sơ sẽ có sau
   - name: Availability
     description: Quản lý slot trống của mentor (tạo draft, publish một lần hoặc lặp RRULE, xem lịch công khai)
+  - name: Bookings
+    description: Booking flow (create, list, detail, cancel, mentor confirm/decline)
   - name: Mentors
     description: Danh sách và chi tiết mentor (public discovery)
   - name: Wallet
@@ -112,6 +114,108 @@ components:
         end:          { type: string, format: date-time, example: "2025-11-03T08:00:00Z" }
         visibility:   { type: string, enum: [public, private] }
         action:       { type: string, enum: [pause, resume], description: "pause=đóng occurrences tương lai; resume=mở lại" }
+
+    BookingStatus:
+      type: string
+      enum: [PaymentPending, PendingMentor, Confirmed, Failed, Cancelled, Declined, Completed]
+
+    Booking:
+      type: object
+      properties:
+        id: { type: string, example: "66aa1b2c0000000000000001" }
+        menteeId: { type: string, example: "66aa1b2c0000000000000002" }
+        mentorId: { type: string, example: "66aa1b2c0000000000000003" }
+        occurrenceId: { type: string, example: "66aa1b2c0000000000000004" }
+        date: { type: string, example: "2025-11-03" }
+        startTime: { type: string, example: "07:30" }
+        endTime: { type: string, example: "08:00" }
+        startTimeIso: { type: string, format: date-time }
+        endTimeIso: { type: string, format: date-time }
+        status: { $ref: "#/components/schemas/BookingStatus" }
+        price: { type: number, example: 250000 }
+        topic: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        meetingLink: { type: string, nullable: true }
+        location: { type: string, nullable: true }
+        expiresAt: { type: string, format: date-time, nullable: true }
+        mentorResponseDeadline: { type: string, format: date-time, nullable: true }
+        reminder24hSentAt: { type: string, format: date-time, nullable: true }
+        reminder1hSentAt: { type: string, format: date-time, nullable: true }
+        lateCancel: { type: boolean, example: false }
+        lateCancelMinutes: { type: integer, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    BookingListPayload:
+      type: object
+      properties:
+        bookings:
+          type: array
+          items: { $ref: "#/components/schemas/Booking" }
+        total: { type: integer, example: 1 }
+        page: { type: integer, example: 1 }
+        totalPages: { type: integer, example: 1 }
+
+    CreateBookingRequest:
+      type: object
+      required: [mentorId, occurrenceId]
+      properties:
+        mentorId: { type: string }
+        occurrenceId: { type: string }
+        topic: { type: string }
+        notes: { type: string }
+
+    CancelBookingRequest:
+      type: object
+      properties:
+        reason: { type: string }
+
+    MentorDeclineRequest:
+      type: object
+      properties:
+        reason: { type: string }
+
+    DeviceTokenRegisterRequest:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+        platform: { type: string, enum: [android, ios, web] }
+        deviceId: { type: string }
+
+    DeviceTokenUnregisterRequest:
+      type: object
+      properties:
+        token: { type: string }
+
+    PushTestRequest:
+      type: object
+      properties:
+        title: { type: string }
+        body: { type: string }
+        data:
+          type: object
+          additionalProperties: { type: string }
+
+    PushToUserRequest:
+      type: object
+      required: [userId, title, body]
+      properties:
+        userId: { type: string }
+        title: { type: string }
+        body: { type: string }
+        data:
+          type: object
+          additionalProperties: { type: string }
+
+    PushResult:
+      type: object
+      properties:
+        sent: { type: integer, example: 1 }
+        failed: { type: integer, example: 0 }
+        invalid: { type: integer, example: 0 }
+        skipped: { type: integer, example: 0 }
+
+
     ApiResponse:
       type: object
       properties:
@@ -1290,6 +1394,451 @@ paths:
                   value: { message: "Invalid or missing from/to (ISO UTC expected)", code: "INVALID_RANGE", data: null }
                 calendar_400_min:
                   $ref: "#/components/examples/calendar_400_min"
+  # ===== BOOKINGS =====
+  /bookings:
+    post:
+      tags: [Bookings]
+      summary: Create booking (mentee)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBookingRequest"
+      responses:
+        "201":
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/Booking" }
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Mentor not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "409":
+          description: Slot not available or already booked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+    get:
+      tags: [Bookings]
+      summary: List bookings for current user
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: role
+          required: false
+          schema: { type: string, enum: [mentee, mentor] }
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum: [PaymentPending, PendingMentor, Confirmed, Failed, Cancelled, Declined, Completed]
+        - in: query
+          name: page
+          required: false
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+      responses:
+        "200":
+          description: Booking list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/BookingListPayload" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /bookings/{id}:
+    get:
+      tags: [Bookings]
+      summary: Get booking detail
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Booking detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/Booking" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Access denied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /bookings/{id}/cancel:
+    post:
+      tags: [Bookings]
+      summary: Cancel booking
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CancelBookingRequest" }
+      responses:
+        "200":
+          description: Booking cancelled
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/Booking" }
+        "400":
+          description: Invalid state or late cancellation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Access denied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /bookings/{id}/resend-ics:
+    post:
+      tags: [Bookings]
+      summary: Resend calendar invite for confirmed booking
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Calendar invite sent
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          sent: { type: boolean, example: true }
+        "400":
+          description: Invalid state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Access denied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /bookings/{id}/mentor-confirm:
+    post:
+      tags: [Bookings]
+      summary: Mentor confirms pending booking
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Booking confirmed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/Booking" }
+        "400":
+          description: Booking is not awaiting mentor confirmation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Mentor access required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /bookings/{id}/mentor-decline:
+    post:
+      tags: [Bookings]
+      summary: Mentor declines pending booking
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MentorDeclineRequest" }
+      responses:
+        "200":
+          description: Booking declined
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/Booking" }
+        "400":
+          description: Booking is not awaiting mentor confirmation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Mentor access required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+
+  # ===== NOTIFICATIONS =====
+  /notifications/devices:
+    post:
+      tags: [Notifications]
+      summary: Register device token for push notifications
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeviceTokenRegisterRequest" }
+      responses:
+        "200":
+          description: Token registered
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          token: { type: string }
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /notifications/devices/unregister:
+    post:
+      tags: [Notifications]
+      summary: Unregister device token(s)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeviceTokenUnregisterRequest" }
+      responses:
+        "200":
+          description: Tokens removed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          removed: { type: integer, example: 1 }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /notifications/push/test:
+    post:
+      tags: [Notifications]
+      summary: Send a test push to the current user
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PushTestRequest" }
+      responses:
+        "200":
+          description: Push sent
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/PushResult" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /notifications/push:
+    post:
+      tags: [Notifications]
+      summary: Send a push notification to a user (admin/root)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PushToUserRequest" }
+      responses:
+        "200":
+          description: Push sent
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/PushResult" }
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+
 
   # ===== MENTORS (PUBLIC) =====
   /mentors:

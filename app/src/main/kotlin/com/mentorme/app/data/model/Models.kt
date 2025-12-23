@@ -84,25 +84,31 @@ data class AvailabilitySlot(
     val isBooked: Boolean
 )
 
-// -------- Booking status from API: 'PaymentPending' | 'Confirmed' | 'Failed' | 'Cancelled' | 'Completed'
+// -------- Booking status from API: 'PaymentPending' | 'PendingMentor' | 'Confirmed' | 'Failed' | 'Cancelled' | 'Declined' | 'Completed'
 enum class BookingStatus {
-    @SerializedName("pending")
-    PENDING,
+    @SerializedName(value = "PaymentPending", alternate = ["paymentPending", "payment_pending"])
+    PAYMENT_PENDING,
 
-    @SerializedName("paymentPending")
-    PAYMENT_PENDING,  // ✅ Mới
+    @SerializedName(
+        value = "PendingMentor",
+        alternate = ["pending-mentor", "pending_mentor", "pending"]
+    )
+    PENDING_MENTOR,
 
-    @SerializedName("confirmed")
+    @SerializedName(value = "Confirmed", alternate = ["confirmed"])
     CONFIRMED,
 
-    @SerializedName("completed")
+    @SerializedName(value = "Completed", alternate = ["completed"])
     COMPLETED,
 
-    @SerializedName("cancelled")
+    @SerializedName(value = "Cancelled", alternate = ["cancelled"])
     CANCELLED,
 
-    @SerializedName("failed")
-    FAILED  // ✅ Mới
+    @SerializedName(value = "Failed", alternate = ["failed"])
+    FAILED,
+
+    @SerializedName(value = "Declined", alternate = ["declined"])
+    DECLINED
 }
 
 // -------- Booking (API response fields)
@@ -113,18 +119,42 @@ data class Booking(
     val menteeId: String,
     @SerializedName("mentorId")
     val mentorId: String,
+    @SerializedName("occurrenceId")
+    val occurrenceId: String? = null,
     @SerializedName("date")
     val date: String,          // "YYYY-MM-DD"
     @SerializedName("startTime")
     val startTime: String,     // "HH:mm"
     @SerializedName("endTime")
     val endTime: String,       // "HH:mm"
+    @SerializedName("startTimeIso")
+    val startTimeIso: String? = null,
+    @SerializedName("endTimeIso")
+    val endTimeIso: String? = null,
     @SerializedName("status")
     val status: BookingStatus,
     @SerializedName("price")
     val price: Double,
+    @SerializedName("topic")
+    val topic: String? = null,
     @SerializedName("notes")
     val notes: String?,
+    @SerializedName("meetingLink")
+    val meetingLink: String? = null,
+    @SerializedName("location")
+    val location: String? = null,
+    @SerializedName("expiresAt")
+    val expiresAt: String? = null,
+    @SerializedName("mentorResponseDeadline")
+    val mentorResponseDeadline: String? = null,
+    @SerializedName("reminder24hSentAt")
+    val reminder24hSentAt: String? = null,
+    @SerializedName("reminder1hSentAt")
+    val reminder1hSentAt: String? = null,
+    @SerializedName("lateCancel")
+    val lateCancel: Boolean? = null,
+    @SerializedName("lateCancelMinutes")
+    val lateCancelMinutes: Int? = null,
     @SerializedName("createdAt")
     val createdAt: String,     // ISO-8601
     @SerializedName("rating")
@@ -132,7 +162,6 @@ data class Booking(
     @SerializedName("feedback")
     val feedback: String?  = null
 )
-
 // -------- Review
 data class Review(
     @SerializedName("id")
@@ -224,3 +253,4 @@ data class Profile(
     @SerializedName("avatarUrl")
     val avatarUrl: String?
 )
+

@@ -46,8 +46,9 @@ private fun policyRowsFor(booking: Booking): List<Pair<String, String>> {
     if (!reminder24h.isNullOrBlank()) rows.add("Reminder 24h" to reminder24h)
     if (!reminder1h.isNullOrBlank()) rows.add("Reminder 1h" to reminder1h)
     if (booking.lateCancel == true) {
-        val minutes = booking.lateCancelMinutes?.let { "$it min" } ?: "late"
-        rows.add("Late cancel" to minutes)
+        val minutes = booking.lateCancelMinutes
+        val label = if (minutes != null) "(hủy trước giờ $minutes phút)" else "(hủy muộn)"
+        rows.add("Hủy muộn" to label)
     }
     return rows
 }

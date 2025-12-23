@@ -284,14 +284,15 @@ private fun BookingCard(
 
     val dateToday = todayDate()
     val now = nowHHmm()
+
     val canJoin = booking.status == BookingStatus.CONFIRMED &&
             booking.date == dateToday &&
             (now >= addMinutes(booking.startTime, -10)) &&
             (now <= booking.endTime)
 
     val lateCancelLabel = if (booking.lateCancel == true) {
-        val minutes = booking.lateCancelMinutes?.let { " (${it}m)" } ?: ""
-        "Hủy muộn$minutes"
+        val minutes = booking.lateCancelMinutes
+        if (minutes != null) "Hủy muộn (hủy trước giờ $minutes phút)" else "Hủy muộn"
     } else {
         null
     }

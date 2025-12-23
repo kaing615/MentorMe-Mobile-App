@@ -26,20 +26,15 @@ import com.mentorme.app.data.model.BookingStatus
 import com.mentorme.app.ui.calendar.components.InfoChip
 import com.mentorme.app.ui.calendar.components.InfoRow
 import com.mentorme.app.ui.calendar.core.durationMinutes
+import com.mentorme.app.core.time.formatIsoToLocalShort
 import com.mentorme.app.ui.theme.LiquidGlassCard
-
-private fun formatIsoShort(iso: String?): String? {
-    if (iso.isNullOrBlank()) return null
-    val cleaned = iso.trim().replace("T", " ").removeSuffix("Z")
-    return if (cleaned.length >= 16) cleaned.substring(0, 16) else cleaned
-}
 
 private fun policyRowsFor(booking: Booking): List<Pair<String, String>> {
     val rows = mutableListOf<Pair<String, String>>()
-    val mentorDeadline = formatIsoShort(booking.mentorResponseDeadline)
-    val payExpires = formatIsoShort(booking.expiresAt)
-    val reminder24h = formatIsoShort(booking.reminder24hSentAt)
-    val reminder1h = formatIsoShort(booking.reminder1hSentAt)
+    val mentorDeadline = formatIsoToLocalShort(booking.mentorResponseDeadline)
+    val payExpires = formatIsoToLocalShort(booking.expiresAt)
+    val reminder24h = formatIsoToLocalShort(booking.reminder24hSentAt)
+    val reminder1h = formatIsoToLocalShort(booking.reminder1hSentAt)
 
     if (!mentorDeadline.isNullOrBlank()) rows.add("Mentor deadline" to mentorDeadline)
     if (!payExpires.isNullOrBlank()) rows.add("Pay expires" to payExpires)

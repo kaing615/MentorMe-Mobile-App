@@ -28,6 +28,7 @@ import com.mentorme.app.data.mock.MockData
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.theme.liquidGlass
 import com.mentorme.app.ui.components.ui.MMButton
+import com.mentorme.app.core.time.formatIsoToLocalShort
 import java.util.Calendar
 import androidx.compose.ui.graphics.Brush
 
@@ -58,12 +59,6 @@ private fun minutesToHHmm(mins: Int): String {
 }
 
 private fun addMinutes(hhmm: String, plus: Int) = minutesToHHmm(hhmmToMinutes(hhmm) + plus)
-
-private fun formatIsoShort(iso: String?): String? {
-    if (iso.isNullOrBlank()) return null
-    val cleaned = iso.trim().replace("T", " ").removeSuffix("Z")
-    return if (cleaned.length >= 16) cleaned.substring(0, 16) else cleaned
-}
 
 private fun isFutureOrNow(date: String, time: String, nowDate: String, nowTime: String) =
     when {
@@ -297,10 +292,10 @@ private fun BookingCard(
         null
     }
 
-    val mentorDeadline = formatIsoShort(booking.mentorResponseDeadline)
-    val payExpires = formatIsoShort(booking.expiresAt)
-    val reminder24h = formatIsoShort(booking.reminder24hSentAt)
-    val reminder1h = formatIsoShort(booking.reminder1hSentAt)
+    val mentorDeadline = formatIsoToLocalShort(booking.mentorResponseDeadline)
+    val payExpires = formatIsoToLocalShort(booking.expiresAt)
+    val reminder24h = formatIsoToLocalShort(booking.reminder24hSentAt)
+    val reminder1h = formatIsoToLocalShort(booking.reminder1hSentAt)
     val policyLabels = listOfNotNull(
         if (booking.status == BookingStatus.PENDING_MENTOR) mentorDeadline?.let { "Mentor deadline: $it" } else null,
         if (booking.status == BookingStatus.PAYMENT_PENDING) payExpires?.let { "Pay expires: $it" } else null,

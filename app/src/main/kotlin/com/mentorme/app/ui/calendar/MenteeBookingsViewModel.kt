@@ -1,0 +1,78 @@
+package com.mentorme.app.ui.calendar
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.mentorme.app.core.utils.AppResult
+import com.mentorme.app.core.utils.Logx
+import com.mentorme.app.data.dto.PaymentWebhookRequest
+import com.mentorme.app.data.model.Booking
+import com.mentorme.app.data.remote.MentorMeApi
+import com.mentorme.app.data.repository.BookingRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+@HiltViewModel
+class MenteeBookingsViewModel @Inject constructor(
+    private val bookingRepository: BookingRepository,
+    private val api: MentorMeApi
+) : ViewModel() {
+
+    private val _bookings = MutableStateFlow<List<Booking>>(emptyList())
+    val bookings: StateFlow<List<Booking>> = _bookings.asStateFlow()
+
+    private val _loading = MutableStateFlow(false)
+    val loading: StateFlow<Boolean> = _loading.asStateFlow()
+
+    fun refresh() {
+        viewModelScope.launch {
+            _loading.value = true
+            Logx.d(TAG) { "refresh bookings (mentee)" }
+            when (val res = bookingRepository.getBookings(role = "mentee", page = 1, limit = 50)) {
+                is AppResult.Success -> _bookings.value = res.data.bookings
+                is AppResult.Error -> Logx.e(TAG, { "refresh failed: ${res.throwable}" })
+                AppResult.Loading -> Unit
+            }
+            _loading.value = false
+        }
+    }
+
+    fun cancelBooking(bookingId: String, reason: String?, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            val res = bookingRepository.cancelBooking(bookingId, reason)
+            when (res) {
+                is AppResult.Success -> {
+                    refresh()
+                    onResult(true, null)
+                }
+                is AppResult.Error -> onResult(false, res.throwable)
+                AppResult.Loading -> Unit
+            }
+        }
+    }
+
+    fun simulatePaymentSuccess(bookingId: String, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val resp = api.simulatePaymentWebhook(
+                    PaymentWebhookRequest(event = "payment.success", bookingId = bookingId)
+                )
+                if (resp.isSuccessful) {
+                    refresh()
+                    onResult(true, null)
+                } else {
+                    onResult(false, resp.errorBody()?.string())
+                }
+            } catch (t: Throwable) {
+                onResult(false, t.message)
+            }
+        }
+    }
+
+    private companion object {
+        const val TAG = "MenteeBookingsVM"
+    }
+}

@@ -182,7 +182,7 @@ object MockData {
             date = "2025-09-25",
             startTime = "09:00",
             endTime = "10:30",
-            status = BookingStatus.PENDING,
+            status = BookingStatus.PENDING_MENTOR,
             price = 112.50, // 1.5h * 75$/h
             notes = "System design interview preparation",
             createdAt = d(2025, 9, 17)
@@ -260,7 +260,7 @@ object MockData {
             date = "2025-09-30",
             startTime = "14:30",
             endTime = "15:30",
-            status = BookingStatus.PENDING,
+            status = BookingStatus.PENDING_MENTOR,
             price = 65.0,
             notes = "Design system deep dive",
             createdAt = d(2025, 9, 17)

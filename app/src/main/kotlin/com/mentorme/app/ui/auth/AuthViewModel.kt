@@ -155,20 +155,21 @@ class AuthViewModel @Inject constructor(
                         saveAndConfirmToken(token)
                     }
 
-                    val roleStrFromData = data?.role
-                    val roleStr = roleStrFromData ?: parseRoleFromJwt(token)
+                    val roleStrFromData = data?.role ?: data?.user?.role
+                    val roleStr = (roleStrFromData ?: parseRoleFromJwt(token))?.lowercase()
                     val role = if (roleStr == "mentor") UserRole.MENTOR else UserRole.MENTEE
 
-                    val isActive = data?.status == "active"
+                    val status = data?.status?.lowercase()
+                    val isActive = status == "active"
                     val authenticated = isActive && !token.isNullOrBlank()
-                    val pendingApproval = data?.status == "pending-mentor"
-                    val onboarding = data?.status == "onboarding"
-                    val verifying = data?.status == "verifying"
+                    val pendingApproval = status == "pending-mentor"
+                    val onboarding = status == "onboarding"
+                    val verifying = status == "verifying"
 
                     // NEW: persist and log mentorId (userId) for calendar consistency
-                    val userId = data?.userId
-                    val emailResolved = data?.email ?: email
-                    val userName = data?.userName ?: email.substringBefore("@")
+                    val userId = data?.userId ?: data?.user?.id
+                    val emailResolved = data?.email ?: data?.user?.email ?: email
+                    val userName = data?.userName ?: data?.user?.username ?: email.substringBefore("@")
                     val roleStrPersist = roleStr ?: (if (role == UserRole.MENTOR) "mentor" else "mentee")
                     if (!userId.isNullOrBlank()) {
                         try {
@@ -184,6 +185,12 @@ class AuthViewModel @Inject constructor(
                         }
                     } else {
                         Log.w(TAG, "⚠️ No userId in sign-in response; calendar may not load correctly")
+                    }
+                    try {
+                        dataStoreManager.saveUserStatus(status)
+                        Log.d(TAG, "Saved user status=$status")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to save user status: ${e.message}")
                     }
 
                     _authState.value = _authState.value.copy(

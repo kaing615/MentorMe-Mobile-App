@@ -76,6 +76,22 @@ data class UpdateBookingRequest(
     val notes: String? = null
 )
 
+data class MentorDeclineRequest(
+    @SerializedName("reason")
+    val reason: String? = null
+)
+
+data class PaymentWebhookRequest(
+    @SerializedName("event")
+    val event: String,
+    @SerializedName("bookingId")
+    val bookingId: String,
+    @SerializedName("paymentId")
+    val paymentId: String? = null,
+    @SerializedName("status")
+    val status: String? = null
+)
+
 data class BookingListResponse(
     @SerializedName("bookings")
     val bookings: List<Booking>,

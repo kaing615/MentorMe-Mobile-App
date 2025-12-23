@@ -345,10 +345,11 @@ fun BookingsScreenSimple(bookings: List<Booking>, onOpen: (Booking) -> Unit) {
 private fun StatusChipHomeStyle(status: BookingStatus) {
     val (color, text, emoji) = when (status) {
         BookingStatus.PAYMENT_PENDING -> Triple(Color(0xFFF59E0B), "Payment Pending", "💳")
-        BookingStatus.PENDING   -> Triple(Color(0xFF3B82F6), "Pending", "⏳")
+        BookingStatus.PENDING_MENTOR   -> Triple(Color(0xFF3B82F6), "Pending", "⏳")
         BookingStatus.CONFIRMED -> Triple(Color(0xFF10B981), "Confirmed", "✅")
         BookingStatus.COMPLETED -> Triple(Color(0xFF8B5CF6), "Completed", "🎉")
         BookingStatus.CANCELLED -> Triple(Color(0xFFEF4444), "Cancelled", "❌")
+        BookingStatus.DECLINED  -> Triple(Color(0xFFEF4444), "Declined", "🚫")
         BookingStatus.FAILED    -> Triple(Color(0xFFDC2626), "Failed", "⚠️")
     }
     Box(
@@ -361,3 +362,5 @@ private fun StatusChipHomeStyle(status: BookingStatus) {
         }
     }
 }
+
+

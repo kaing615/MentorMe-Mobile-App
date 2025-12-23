@@ -6,8 +6,6 @@ package com.mentorme.app.ui.profile
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -18,11 +16,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -36,8 +31,6 @@ import java.util.*
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
-import com.mentorme.app.ui.components.ui.MMGhostButton
-import com.mentorme.app.ui.components.ui.MMPrimaryButton
 import com.mentorme.app.ui.components.ui.MMTextField
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.theme.liquidGlass
@@ -52,34 +45,31 @@ import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.foundation.border
-import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
-import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material.icons.outlined.SupportAgent
-import com.mentorme.app.ui.components.ui.MMGhostButton
-import com.mentorme.app.ui.components.ui.MMPrimaryButton
 import com.mentorme.app.ui.wallet.PaymentMethod
 import com.mentorme.app.ui.wallet.PayProvider
 import com.mentorme.app.ui.wallet.initialPaymentMethods
-import com.mentorme.app.ui.wallet.mockPaymentMethods
 import androidx.compose.material.icons.outlined.Logout
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.mentorme.app.data.network.api.profile.ProfileApiService
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.draw.clip
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.mentorme.app.ui.components.ui.MMGhostButton
+import com.mentorme.app.ui.components.ui.MMPrimaryButton
 
 private val oneDecimalUS = DecimalFormat("#.#").apply {
     decimalFormatSymbols = DecimalFormatSymbols(Locale.US)  // dùng dấu chấm
@@ -197,6 +187,7 @@ fun mockProfile(user: UserHeader): UserProfile {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
+    vm: ProfileViewModel,
     user: UserHeader,
     onOpenSettings: (() -> Unit)? = null,
     onOpenNotifications: (() -> Unit)? = null,
@@ -1224,19 +1215,58 @@ private fun FlowRowWrap(
    Previews
    ======================= */
 
+@Composable
+fun ProfileScreenRoute(
+    vm: ProfileViewModel = hiltViewModel(),
+    user: UserHeader = UserHeader(
+        fullName = "User Demo",
+        email = "demo@example.com",
+        role = UserRole.MENTEE
+    ),
+    onOpenSettings: (() -> Unit)? = null,
+    onOpenNotifications: (() -> Unit)? = null,
+    onOpenTopUp: () -> Unit = {},
+    onOpenWithdraw: () -> Unit = {},
+    onOpenChangeMethod: () -> Unit = {},
+    onAddMethod: () -> Unit = {},
+    methods: List<PaymentMethod> = initialPaymentMethods(),
+    onLogout: () -> Unit = {}
+) {
+    ProfileScreen(
+        vm = vm,
+        user = user,
+        onOpenSettings = onOpenSettings,
+        onOpenNotifications = onOpenNotifications,
+        onOpenTopUp = onOpenTopUp,
+        onOpenWithdraw = onOpenWithdraw,
+        onOpenChangeMethod = onOpenChangeMethod,
+        onAddMethod = onAddMethod,
+        methods = methods,
+        onLogout = onLogout
+    )
+}
+
 @Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_NO)
 @Composable
 private fun Preview_Mentee() {
+    // Note: Preview without Hilt injection - requires manual mock
     MaterialTheme(colorScheme = lightColorScheme()) {
-        ProfileScreen()
+        // ProfileScreen requires ViewModel - preview is limited without Hilt
+        Box(Modifier.fillMaxSize()) {
+            Text("Preview requires Hilt setup")
+        }
     }
 }
 
 @Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun Preview_Mentor_Dark() {
+    // Note: Preview without Hilt injection - requires manual mock
     MaterialTheme(colorScheme = darkColorScheme()) {
-        ProfileScreen()
+        // ProfileScreen requires ViewModel - preview is limited without Hilt
+        Box(Modifier.fillMaxSize()) {
+            Text("Preview requires Hilt setup")
+        }
     }
 }
 

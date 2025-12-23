@@ -24,6 +24,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import com.mentorme.app.data.dto.availability.slotIdOrEmpty
+import com.mentorme.app.data.dto.availability.slotPriceVndOrNull
 
 @HiltViewModel
 class MentorCalendarViewModel @Inject constructor(
@@ -86,6 +87,7 @@ class MentorCalendarViewModel @Inject constructor(
                         val startHHmm = startLocal.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
                         val endHHmm = endLocal.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
                         val durationMin = java.time.Duration.between(startLocal, endLocal).toMinutes().toInt()
+                        val priceVnd = item.slotPriceVndOrNull()?.toLong() ?: 0L
 
                         com.mentorme.app.ui.calendar.core.AvailabilitySlot(
                             id = item.id.orEmpty(),
@@ -93,6 +95,7 @@ class MentorCalendarViewModel @Inject constructor(
                             startTime = startHHmm,
                             endTime = endHHmm,
                             duration = durationMin,
+                            priceVnd = priceVnd,
                             description = uiDesc,
                             isActive = isActive,
                             sessionType = sessionType,
@@ -120,6 +123,7 @@ class MentorCalendarViewModel @Inject constructor(
         endHHmm: String,   // HH:mm
         sessionType: String?,
         description: String?,
+        priceVnd: Long?,
         bufferBeforeMin: Int,
         bufferAfterMin: Int
     ): AppResult<com.mentorme.app.data.dto.availability.PublishResult> {
@@ -148,6 +152,7 @@ class MentorCalendarViewModel @Inject constructor(
                 exdates = emptyList(),
                 bufferBeforeMin = bufferBeforeMin,
                 bufferAfterMin = bufferAfterMin,
+                priceVnd = priceVnd?.toDouble(),
                 visibility = "public",
                 publishHorizonDays = 90
             )
@@ -233,6 +238,14 @@ class MentorCalendarViewModel @Inject constructor(
                                 )
                             } else it
                         }
+                    }
+                }
+            }
+            if (patch.priceVnd != null) {
+                val nextPrice = patch.priceVnd.toLong().coerceAtLeast(0L)
+                _slots.update { list ->
+                    list.map {
+                        if (it.backendSlotId == slotId) it.copy(priceVnd = nextPrice) else it
                     }
                 }
             }

@@ -18,6 +18,7 @@ export interface IAvailabilitySlot {
   visibility: TAvailabilityVisibility;
   status: TAvailabilityStatus;
   publishHorizonDays?: number;
+  priceVnd?: number | null;
 }
 
 const AvailabilitySlotSchema = new Schema<IAvailabilitySlot>(
@@ -34,7 +35,8 @@ const AvailabilitySlotSchema = new Schema<IAvailabilitySlot>(
     bufferAfterMin: { type: Number, default: 0 },
     visibility: { type: String, enum: ['public', 'private'], default: 'public' },
     status: { type: String, enum: ['draft', 'published', 'archived'], default: 'draft', index: true },
-    publishHorizonDays: { type: Number, default: 90 }
+    publishHorizonDays: { type: Number, default: 90 },
+    priceVnd: { type: Number, min: 0, default: null }
   },
   { timestamps: true }
 );

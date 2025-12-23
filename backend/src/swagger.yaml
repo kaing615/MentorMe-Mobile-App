@@ -112,6 +112,7 @@ components:
         timezone:     { type: string, example: "Asia/Ho_Chi_Minh" }
         start:        { type: string, format: date-time, example: "2025-11-03T07:30:00Z" }
         end:          { type: string, format: date-time, example: "2025-11-03T08:00:00Z" }
+        priceVnd:     { type: number, minimum: 0, example: 250000 }
         visibility:   { type: string, enum: [public, private] }
         action:       { type: string, enum: [pause, resume], description: "pause=đóng occurrences tương lai; resume=mở lại" }
 
@@ -575,9 +576,10 @@ components:
           type: array
           items: { type: string, format: date-time }
           description: "Danh sách ngày giờ (UTC) loại trừ – phải trùng với các lần phát sinh của RRULE"
-        bufferBeforeMin: { type: integer, example: 5 }
-        bufferAfterMin: { type: integer, example: 10 }
-        visibility: { type: string, enum: [public, private], example: public }
+          bufferBeforeMin: { type: integer, example: 5 }
+          bufferAfterMin: { type: integer, example: 10 }
+          priceVnd: { type: number, example: 250000 }
+          visibility: { type: string, enum: [public, private], example: public }
         status: { type: string, enum: [draft, published, archived], example: draft }
         publishHorizonDays: { type: integer, example: 45 }
         createdAt: { type: string, format: date-time }
@@ -609,9 +611,10 @@ components:
         exdates:
           type: array
           items: { type: string, format: date-time }
-        bufferBeforeMin: { type: integer, minimum: 0, example: 0 }
-        bufferAfterMin: { type: integer, minimum: 0, example: 0 }
-        visibility: { type: string, enum: [public, private], example: public }
+          bufferBeforeMin: { type: integer, minimum: 0, example: 0 }
+          bufferAfterMin: { type: integer, minimum: 0, example: 0 }
+          priceVnd: { type: number, minimum: 0, example: 250000 }
+          visibility: { type: string, enum: [public, private], example: public }
         publishHorizonDays: { type: integer, minimum: 1, maximum: 365, example: 90 }
       required: [timezone, start, end]
 
@@ -641,12 +644,14 @@ components:
         status:     { type: string, enum: [open, booked, closed], example: open }
         title:        { type: string, nullable: true, example: "[type=in-person] Tư vấn trực tiếp" }
         description:  { type: string, nullable: true, example: "Fix CV" }
+        priceVnd:     { type: number, nullable: true, example: 250000 }
         slot:
-          type: object
-          properties:
-            id:          { type: string, example: "00000000000000000000A001" }
-            title:       { type: string, nullable: true, example: "[type=in-person] Tư vấn trực tiếp" }
-            description: { type: string, nullable: true, example: "Fix CV" }
+            type: object
+            properties:
+              id:          { type: string, example: "00000000000000000000A001" }
+              title:       { type: string, nullable: true, example: "[type=in-person] Tư vấn trực tiếp" }
+              description: { type: string, nullable: true, example: "Fix CV" }
+              priceVnd:    { type: number, nullable: true, example: 250000 }
 
     CalendarPayload:
       type: object

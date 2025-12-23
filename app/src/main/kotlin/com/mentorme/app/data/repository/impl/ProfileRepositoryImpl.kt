@@ -3,6 +3,7 @@ package com.mentorme.app.data.repository.impl
 import com.mentorme.app.core.utils.AppResult
 import com.mentorme.app.data.dto.profile.ProfileCreateResponse
 import com.mentorme.app.data.dto.profile.MePayload
+import com.mentorme.app.data.dto.profile.ProfileMePayload
 import com.mentorme.app.data.network.api.profile.ProfileApiService
 import com.mentorme.app.data.repository.ProfileRepository
 import com.mentorme.app.domain.usecase.onboarding.RequiredProfileParams
@@ -54,6 +55,30 @@ class ProfileRepositoryImpl @Inject constructor(
             }
         } catch (e: Exception) {
             android.util.Log.e("ProfileRepo", "getMe exception", e)
+            AppResult.failure(e)
+        }
+    }
+
+    override suspend fun getProfileMe(): AppResult<ProfileMePayload> {
+        return try {
+            val res = api.getProfileMe()
+
+            android.util.Log.d("ProfileRepo", "getProfileMe HTTP code: ${res.code()}")
+
+            if (res.isSuccessful) {
+                val payload = res.body()?.data
+                if (payload != null) {
+                    AppResult.success(payload)
+                } else {
+                    AppResult.failure(Exception("Empty profile"))
+                }
+            } else {
+                val errorBody = cleanErrorBody(res.errorBody()?.string())
+                val suffix = errorBody?.let { ": $it" }.orEmpty()
+                AppResult.failure(Exception("HTTP ${res.code()}$suffix"))
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ProfileRepo", "getProfileMe exception", e)
             AppResult.failure(e)
         }
     }

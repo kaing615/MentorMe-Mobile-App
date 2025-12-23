@@ -51,6 +51,8 @@ data class AvailabilitySlot(
     val startTime: String,
     @SerializedName("endTime")
     val endTime: String,
+    @SerializedName("priceVnd")
+    val priceVnd: Double? = null,
     @SerializedName("isAvailable")
     val isAvailable: Boolean
 )

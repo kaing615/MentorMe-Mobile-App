@@ -70,9 +70,25 @@ async function findConflicts(
     .lean();
 
   const hits: any[] = [];
+  const orphanIds: any[] = [];
   for (const r of rows) {
-    const otherBef = Number((r as any)?.slot?.bufferBeforeMin ?? 0);
-    const otherAft = Number((r as any)?.slot?.bufferAfterMin ?? 0);
+    const slotObj = (r as any)?.slot;
+    if (!slotObj) {
+      if ((r as any)?.status === 'booked') {
+        hits.push({
+          id: String(r._id),
+          start: new Date(r.start).toISOString(),
+          end:   new Date(r.end).toISOString(),
+          status: (r as any).status,
+          slot: null
+        });
+      } else {
+        orphanIds.push((r as any)?._id);
+      }
+      continue;
+    }
+    const otherBef = Number(slotObj?.bufferBeforeMin ?? 0);
+    const otherAft = Number(slotObj?.bufferAfterMin ?? 0);
     if (overlapWithBuffers(
       start, end, selfBef, selfAft,
       new Date(r.start), new Date(r.end), otherBef, otherAft
@@ -90,6 +106,9 @@ async function findConflicts(
         } : null
       });
     }
+  }
+  if (orphanIds.length > 0) {
+    await AvailabilityOccurrence.deleteMany({ _id: { $in: orphanIds } });
   }
   return hits;
 }
@@ -128,6 +147,7 @@ export const createSlot = asyncHandler(async (req: Request, res: Response) => {
     bufferAfterMin = 0,
     visibility = 'public',
     publishHorizonDays = 90,
+    priceVnd,
   } = req.body as {
     title?: string;
     description?: string;
@@ -140,6 +160,7 @@ export const createSlot = asyncHandler(async (req: Request, res: Response) => {
     bufferAfterMin?: number;
     visibility?: 'public' | 'private';
     publishHorizonDays?: number;
+    priceVnd?: number;
   };
 
   // Defensive future-time checks (30s skew)
@@ -153,13 +174,30 @@ export const createSlot = asyncHandler(async (req: Request, res: Response) => {
     if (e < nowSkew) return badRequest(res, 'end must be in the future');
   }
 
+  const startDate = start ? new Date(start) : undefined;
+  const endDate = end ? new Date(end) : undefined;
+  const durationMs =
+    startDate && endDate ? endDate.getTime() - startDate.getTime() : 0;
+  const durationHours = Math.max(0, durationMs) / (1000 * 60 * 60);
+  const parsedPrice = priceVnd != null ? Number(priceVnd) : NaN;
+  let resolvedPriceVnd = 0;
+  if (Number.isFinite(parsedPrice)) {
+    resolvedPriceVnd = Math.max(0, parsedPrice);
+  } else {
+    const mentorProfile = await Profile.findOne({ user: mentorId })
+      .select('hourlyRateVnd')
+      .lean();
+    const hourlyRate = mentorProfile?.hourlyRateVnd ?? 0;
+    resolvedPriceVnd = Math.max(0, hourlyRate * durationHours);
+  }
+
   const doc = await AvailabilitySlot.create({
     mentor: mentorId,
     title,
     description,
     timezone,
-    start: start ? new Date(start) : undefined,
-    end: end ? new Date(end) : undefined,
+    start: startDate,
+    end: endDate,
     rrule: rrule ?? null,
     exdates: Array.isArray(exdates)
       ? exdates.map((d) => new Date(d))
@@ -169,6 +207,7 @@ export const createSlot = asyncHandler(async (req: Request, res: Response) => {
     visibility,
     status: 'draft',
     publishHorizonDays,
+    priceVnd: resolvedPriceVnd,
   });
 
   return created(res, { slot: doc });
@@ -479,7 +518,7 @@ export const publishBatch = asyncHandler(async (req: Request, res: Response) => 
 
 /**
  * DELETE /availability/slots/:id
- * Hard delete a slot if it has no future booked occurrences
+ * Hard delete a slot if it has no future/ongoing booked occurrences
  */
 export const deleteSlot = asyncHandler(async (req: Request, res: Response) => {
   const mentorId = String((req as any).user?.id ?? (req as any).user?._id);
@@ -492,7 +531,7 @@ export const deleteSlot = asyncHandler(async (req: Request, res: Response) => {
   const now = new Date();
   const hasBooked = await AvailabilityOccurrence.exists({
     slot: slot._id,
-    start: { $gte: now },
+    end: { $gte: now },
     status: 'booked',
   });
 
@@ -500,8 +539,12 @@ export const deleteSlot = asyncHandler(async (req: Request, res: Response) => {
     return conflict(res, 'slot has booked occurrences');
   }
 
-  // Remove future occurrences (open/closed)
-  await AvailabilityOccurrence.deleteMany({ slot: slot._id, start: { $gte: now } });
+  // Remove future/ongoing occurrences (open/closed only)
+  await AvailabilityOccurrence.deleteMany({
+    slot: slot._id,
+    end: { $gte: now },
+    status: { $in: ['open', 'closed'] },
+  });
   // Hard delete slot
   await AvailabilitySlot.deleteOne({ _id: slot._id });
 
@@ -525,7 +568,7 @@ export const updateSlot = asyncHandler(async (req: Request, res: Response) => {
   const prevEnd   = slot.end   ? new Date(slot.end)   : undefined;
   const prevRRule = slot.rrule ?? null;
 
-  const { title, description, timezone, start, end, visibility, action } = (req.body || {}) as {
+  const { title, description, timezone, start, end, visibility, action, priceVnd } = (req.body || {}) as {
     title?: string;
     description?: string;
     timezone?: string;
@@ -533,6 +576,7 @@ export const updateSlot = asyncHandler(async (req: Request, res: Response) => {
     end?: string;
     visibility?: 'public' | 'private';
     action?: 'pause' | 'resume';
+    priceVnd?: number;
   };
 
   // Apply partial meta updates
@@ -540,6 +584,12 @@ export const updateSlot = asyncHandler(async (req: Request, res: Response) => {
   if (typeof description === 'string') slot.description = description;
   if (typeof timezone === 'string' && timezone.trim()) slot.timezone = timezone.trim();
   if (typeof visibility === 'string') slot.visibility = visibility;
+  if (priceVnd != null) {
+    const parsedPrice = Number(priceVnd);
+    if (!Number.isNaN(parsedPrice)) {
+      slot.priceVnd = Math.max(0, parsedPrice);
+    }
+  }
 
   // Handle start/end updates with validation relative to each other
   let nextStart: Date | undefined = slot.start ? new Date(slot.start) : undefined;
@@ -737,6 +787,7 @@ export const updateSlot = asyncHandler(async (req: Request, res: Response) => {
     timezone: slot.timezone,
     visibility: slot.visibility,
     status: slot.status,
+    priceVnd: slot.priceVnd ?? 0,
   };
   return ok(res, data);
 });
@@ -761,6 +812,10 @@ export const getPublicCalendar = asyncHandler(
       const profileExists = await Profile.exists({ _id: mentorId });
       return notFound(res, 'Mentor not found');
     }
+    const mentorProfile = await Profile.findOne({ user: mentorId })
+      .select('hourlyRateVnd')
+      .lean();
+    const hourlyRate = mentorProfile?.hourlyRateVnd ?? 0;
 
     // Validate from/to: ISO & from < to
     if (!from || !to) {
@@ -783,12 +838,19 @@ export const getPublicCalendar = asyncHandler(
       .select('start end status slot')
       .populate({
         path: 'slot',
-        select: 'title description visibility status',
+        select: 'title description visibility status priceVnd',
       })
       .lean();
 
     const items = (docs || []).map((doc: any) => {
       const slot = doc.slot && typeof doc.slot === 'object' ? doc.slot : null;
+      let priceVnd =
+        typeof slot?.priceVnd === 'number' ? slot.priceVnd : null;
+      if (priceVnd == null && hourlyRate > 0) {
+        const durationMs = new Date(doc.end).getTime() - new Date(doc.start).getTime();
+        const durationHours = Math.max(0, durationMs) / (1000 * 60 * 60);
+        priceVnd = hourlyRate * durationHours;
+      }
       return {
         id: String(doc._id),
         start: new Date(doc.start).toISOString(),
@@ -796,14 +858,16 @@ export const getPublicCalendar = asyncHandler(
         status: doc.status,
         title: slot?.title ?? null,
         description: slot?.description ?? null,
+        priceVnd,
         // Cung cấp meta slot để FE có thể parse [type=...] và hiển thị Video/Trực tiếp
         slot: slot
           ? {
               id: String(slot._id ?? doc.slot),
               title: slot.title ?? null,
               description: slot.description ?? null,
+              priceVnd,
             }
-          : { id: String(doc.slot ?? ''), title: null, description: null },
+          : { id: String(doc.slot ?? ''), title: null, description: null, priceVnd: null },
       };
     });
 

@@ -10,6 +10,7 @@ data class AvailabilitySlot(
     val startTime: String,    // HH:mm
     val endTime: String,      // HH:mm
     val duration: Int,        // minutes
+    val priceVnd: Long,
     val description: String?,
     val isActive: Boolean,
     val sessionType: String,  // "video" | "in-person"
@@ -24,6 +25,7 @@ data class NewSlotInput(
     val startTime: String,     // HH:mm
     val endTime: String,       // HH:mm
     val duration: Int,         // minutes
+    val priceVnd: Long?,
     val description: String?,
     val sessionType: String,   // "video" | "in-person"
     val bufferBeforeMin: Int,  // 0..120

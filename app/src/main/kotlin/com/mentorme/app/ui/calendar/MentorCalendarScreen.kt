@@ -221,6 +221,7 @@ fun MentorCalendarScreen(
                             endHHmm = newSlot.endTime,
                             sessionType = newSlot.sessionType,
                             description = newSlot.description,
+                            priceVnd = newSlot.priceVnd,
                             bufferBeforeMin = newSlot.bufferBeforeMin,
                             bufferAfterMin = newSlot.bufferAfterMin
                         )
@@ -274,7 +275,8 @@ fun MentorCalendarScreen(
                         title = composedTitle,
                         description = desc,
                         start = startUtc,
-                        end = endUtc
+                        end = endUtc,
+                        priceVnd = updated.priceVnd.toDouble()
                     )
                     val slotId = updated.backendSlotId
                     if (slotId.isBlank()) {

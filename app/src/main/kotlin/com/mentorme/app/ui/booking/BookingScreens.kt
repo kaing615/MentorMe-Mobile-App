@@ -36,21 +36,13 @@ import com.mentorme.app.ui.components.ui.MMPrimaryButton
 
 data class BookingDraft(
     val mentorId: String,
-    val date: String = "",
-    val time: String = "",
-    val durationMin: Int = 60,
-    val notes: String = "",
-    val hourlyRate: Double = 0.0
+    val occurrenceId: String,
+    val date: String,
+    val startTime: String,
+    val endTime: String,
+    val priceVnd: Long,
+    val notes: String = ""
 )
-
-data class PriceBreakdown(val subtotal: Double, val tax: Double, val fee: Double, val total: Double)
-
-private fun calcPrice(rate: Double, minutes: Int): PriceBreakdown {
-    val sub = rate * minutes / 60.0
-    val tax = sub * 0.10
-    val fee = 2.99
-    return PriceBreakdown(sub, tax, fee, sub + tax + fee)
-}
 
 private fun toIsoNowUtc(): String {
     val formatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
@@ -58,30 +50,21 @@ private fun toIsoNowUtc(): String {
     return formatter.format(Date())
 }
 
-private fun plusMinutesHHmm(startHHmm: String, minutes: Int): String {
-    return try {
-        val parts = startHHmm.split(":")
-        val cal = Calendar.getInstance()
-        cal.set(Calendar.HOUR_OF_DAY, parts[0].toInt())
-        cal.set(Calendar.MINUTE, parts[1].toInt())
-        cal.add(Calendar.MINUTE, minutes)
-        String.format(Locale.US, "%02d:%02d", cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
-    } catch (e: Exception) {
-        "00:00"
-    }
+private fun formatVnd(amount: Long): String {
+    val nf = java.text.NumberFormat.getCurrencyInstance(Locale("vi", "VN"))
+    return nf.format(amount)
 }
 
-private fun buildBookingWebSchema(draft: BookingDraft, menteeId: String, price: PriceBreakdown): Booking {
-    val end = plusMinutesHHmm(draft.time, draft.durationMin)
+private fun buildBookingWebSchema(draft: BookingDraft, menteeId: String): Booking {
     return Booking(
         id = System.currentTimeMillis().toString(),
         menteeId = menteeId,
         mentorId = draft.mentorId,
         date = draft.date,
-        startTime = draft.time,
-        endTime = end,
+        startTime = draft.startTime,
+        endTime = draft.endTime,
         status = BookingStatus.CONFIRMED,
-        price = price.total,
+        price = draft.priceVnd.toDouble(),
         notes = draft.notes.ifBlank { null },
         createdAt = toIsoNowUtc()
     )
@@ -154,15 +137,13 @@ private fun buildBookingWebSchema(draft: BookingDraft, menteeId: String, price: 
     }
 }
 
-@Composable private fun PriceCardHomeStyle(p: PriceBreakdown) {
+@Composable private fun PriceCardHomeStyle(priceVnd: Long) {
     LiquidGlassCard(modifier = Modifier.fillMaxWidth(), radius = 24.dp) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("💰 Tóm tắt chi phí", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
-            Text("Tạm tính: \$${"%.2f".format(p.subtotal)}", color = Color.White.copy(alpha = 0.85f))
-            Text("Thuế (10%): \$${"%.2f".format(p.tax)}", color = Color.White.copy(alpha = 0.85f))
-            Text("Phí nền tảng: \$${"%.2f".format(p.fee)}", color = Color.White.copy(alpha = 0.85f))
+            Text("?? Giá buổi hẹn", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
             Divider(color = Color.White.copy(alpha = 0.3f))
-            Text("Tổng: \$${"%.2f".format(p.total)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(formatVnd(priceVnd), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("Giá này do mentor thiết lập cho khung giờ này.", color = Color.White.copy(alpha = 0.7f))
         }
     }
 }
@@ -193,16 +174,13 @@ private fun buildBookingWebSchema(draft: BookingDraft, menteeId: String, price: 
 @Composable
 fun BookingChooseTimeScreen(
     mentor: Mentor,
-    availableDates: List<String>,
-    availableTimes: List<String>,
+    slots: List<BookingFlowViewModel.TimeSlotUi>,
+    loading: Boolean,
+    errorMessage: String?,
     onNext: (BookingDraft) -> Unit,
     onClose: (() -> Unit)? = null
 ) {
-    var date by remember { mutableStateOf("") }
-    var time by remember { mutableStateOf("") }
-    var duration by remember { mutableStateOf(60) }
     var notes by remember { mutableStateOf("") }
-    val price = remember(duration, mentor.hourlyRate) { calcPrice(mentor.hourlyRate, duration) }
 
     LazyColumn(
         modifier = Modifier
@@ -226,34 +204,57 @@ fun BookingChooseTimeScreen(
         item {
             LiquidGlassCard(radius = 24.dp, modifier = Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("👨‍🏫", fontSize = MaterialTheme.typography.titleMedium.fontSize)
+                    Text("👋", fontSize = MaterialTheme.typography.titleMedium.fontSize)
                     Column {
                         Text("${mentor.fullName} • ${mentor.experience}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
-                        Text("Giá: \$${"%.2f".format(mentor.hourlyRate)}/giờ • ${"%.1f".format(mentor.rating)}★", color = Color.White.copy(alpha = 0.85f))
+                        Text("Giá theo lịch đã đặt", color = Color.White.copy(alpha = 0.85f))
                     }
                 }
             }
         }
 
-        item { SectionTitle("Chọn ngày") }
-        item { ChipRowHomeStyle(availableDates, date, { date = it }, "📅") }
-        item { SectionTitle("Chọn giờ") }
-        item { ChipRowHomeStyle(availableTimes, time, { time = it }, "🕐") }
-        item { SectionTitle("Thời lượng") }
-        item { DurationRowHomeStyle(listOf(30, 60, 90, 120), duration) { duration = it } }
-        item { SectionTitle("Ghi chú (tuỳ chọn)") }
-        item { LiquidGlassTextFieldHomeStyle(notes, { notes = it }, "Nhập ghi chú cho mentor...", Modifier.fillMaxWidth(), 3) }
-        item { PriceCardHomeStyle(price) }
+        item { SectionTitle("Chọn khung giờ") }
 
-        item {
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                MMPrimaryButton(onClick = {
-                    if (date.isNotBlank() && time.isNotBlank()) {
-                        onNext(BookingDraft(mentor.id, date, time, duration, notes, mentor.hourlyRate))
+        when {
+            loading -> {
+                item { Text("Đang tải lịch trống...", color = Color.White.copy(alpha = 0.85f)) }
+            }
+            !errorMessage.isNullOrBlank() -> {
+                item { Text(errorMessage, color = Color.White.copy(alpha = 0.85f)) }
+            }
+            slots.isEmpty() -> {
+                item { Text("Chưa có lịch trống trong 30 ngày tới", color = Color.White.copy(alpha = 0.85f)) }
+            }
+            else -> {
+                items(slots) { slot ->
+                    LiquidGlassCard(modifier = Modifier.fillMaxWidth(), radius = 22.dp) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text("${slot.date} • ${slot.startTime} - ${slot.endTime}", color = Color.White)
+                            Text(formatVnd(slot.priceVnd), color = Color.White.copy(alpha = 0.85f))
+                            MMPrimaryButton(onClick = {
+                                onNext(
+                                    BookingDraft(
+                                        mentorId = mentor.id,
+                                        occurrenceId = slot.occurrenceId,
+                                        date = slot.date,
+                                        startTime = slot.startTime,
+                                        endTime = slot.endTime,
+                                        priceVnd = slot.priceVnd,
+                                        notes = notes
+                                    )
+                                )
+                            }) { Text("Đặt lịch") }
+                        }
                     }
-                }) { Text("Tiếp tục") }
+                }
             }
         }
+
+        item { SectionTitle("Ghi chú (tùy chọn)") }
+        item { LiquidGlassTextFieldHomeStyle(notes, { notes = it }, "Nhập ghi chú cho mentor...", Modifier.fillMaxWidth(), 3) }
     }
 }
 
@@ -265,8 +266,6 @@ fun BookingSummaryScreen(
     onConfirmed: (Booking) -> Unit,
     onBack: () -> Unit
 ) {
-    val price = remember(draft) { calcPrice(draft.hourlyRate, draft.durationMin) }
-
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -285,13 +284,13 @@ fun BookingSummaryScreen(
                     Icon(Icons.Default.CalendarToday, null, tint = Color.White)
                     Column {
                         Text(mentor.fullName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
-                        Text("${draft.date} • ${draft.time} → ${plusMinutesHHmm(draft.time, draft.durationMin)} • ${draft.durationMin} phút", color = Color.White.copy(alpha = 0.85f))
+                        Text("${draft.date} • ${draft.startTime} - ${draft.endTime}", color = Color.White.copy(alpha = 0.85f))
                     }
                 }
             }
         }
 
-        item { PriceCardHomeStyle(price) }
+        item { PriceCardHomeStyle(draft.priceVnd) }
 
         if (draft.notes.isNotBlank()) {
             item {
@@ -308,7 +307,7 @@ fun BookingSummaryScreen(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 MMPrimaryButton(onClick = onBack, modifier = Modifier.weight(1f)) { Text("Quay lại") }
                 MMPrimaryButton(onClick = {
-                    val booking = buildBookingWebSchema(draft, currentUserId, price)
+                    val booking = buildBookingWebSchema(draft, currentUserId)
                     onConfirmed(booking)
                 }, modifier = Modifier.weight(1f)) { Text("Xác nhận") }
             }
@@ -332,7 +331,7 @@ fun BookingsScreenSimple(bookings: List<Booking>, onOpen: (Booking) -> Unit) {
                     Column(Modifier.weight(1f)) {
                         Text("Mentor Session", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
                         Text("${booking.date} • ${booking.startTime}–${booking.endTime}", color = Color.White.copy(alpha = 0.85f))
-                        Text("Price: \$${"%.2f".format(booking.price)}", color = Color.White.copy(alpha = 0.85f))
+                        Text("Giá: ${formatVnd(booking.price.toLong())}", color = Color.White.copy(alpha = 0.85f))
                     }
                     StatusChipHomeStyle(booking.status)
                 }

@@ -26,12 +26,14 @@ import androidx.compose.ui.unit.sp
 import com.mentorme.app.ui.home.Mentor as HomeMentor
 import com.mentorme.app.core.utils.Logx
 import com.mentorme.app.domain.usecase.availability.GetPublicCalendarUseCase
+import com.mentorme.app.data.dto.availability.slotPriceVndOrNull
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import java.time.*
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 // ===== Time helpers =====
 private val DATE_FMT: DateTimeFormatter =
@@ -86,10 +88,13 @@ fun MentorDetailSheet(
         when (val res = getCalendar(mentorId, fromIsoUtc, toIsoUtc, includeClosed = true)) {
             is com.mentorme.app.core.utils.AppResult.Success -> {
                 val items = res.data
+                val nf = java.text.NumberFormat.getCurrencyInstance(Locale("vi", "VN"))
                 slots = items.mapNotNull { item ->
                     val s = item.start ?: return@mapNotNull null
                     val e = item.end ?: return@mapNotNull null
-                    runCatching { formatSlotWindow(s, e) }.getOrNull()
+                    val base = runCatching { formatSlotWindow(s, e) }.getOrNull() ?: return@mapNotNull null
+                    val priceVnd = item.slotPriceVndOrNull()?.toLong() ?: 0L
+                    if (priceVnd > 0) "$base • ${nf.format(priceVnd)}" else base
                 }
                 loading = false
             }

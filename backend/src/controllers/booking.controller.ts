@@ -11,6 +11,7 @@ import {
 } from '../handlers/response.handler';
 import Booking, { TBookingStatus } from '../models/booking.model';
 import AvailabilityOccurrence from '../models/availabilityOccurrence.model';
+import AvailabilitySlot from '../models/availabilitySlot.model';
 import User from '../models/user.model';
 import Profile from '../models/profile.model';
 import redis from '../utils/redis';
@@ -197,12 +198,25 @@ export const createBooking = asyncHandler(async (req: Request, res: Response) =>
         return conflict(res, 'This slot already has an active booking');
       }
 
-      // Get mentor profile for pricing
-      const mentorProfile = await Profile.findOne({ user: mentorId }).select('hourlyRateVnd').lean();
-      const hourlyRate = mentorProfile?.hourlyRateVnd ?? 0;
-      const durationMs = new Date(occurrence.end).getTime() - new Date(occurrence.start).getTime();
-      const durationHours = durationMs / (1000 * 60 * 60);
-      const price = hourlyRate * durationHours;
+      // Get slot price first; fallback to mentor hourly rate if missing
+      const slot = await AvailabilitySlot.findById(occurrence.slot)
+        .select('priceVnd')
+        .session(session)
+        .lean();
+      const slotPrice = typeof slot?.priceVnd === 'number' ? slot.priceVnd : null;
+      let price = 0;
+      if (slotPrice != null) {
+        price = Math.max(0, slotPrice);
+      } else {
+        const mentorProfile = await Profile.findOne({ user: mentorId })
+          .select('hourlyRateVnd')
+          .session(session)
+          .lean();
+        const hourlyRate = mentorProfile?.hourlyRateVnd ?? 0;
+        const durationMs = new Date(occurrence.end).getTime() - new Date(occurrence.start).getTime();
+        const durationHours = durationMs / (1000 * 60 * 60);
+        price = Math.max(0, hourlyRate * durationHours);
+      }
 
       const expiresAt = new Date(Date.now() + BOOKING_EXPIRY_MINUTES * 60 * 1000);
 

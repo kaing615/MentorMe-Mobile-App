@@ -33,7 +33,7 @@ class MenteeBookingsViewModel @Inject constructor(
             Logx.d(TAG) { "refresh bookings (mentee)" }
             when (val res = bookingRepository.getBookings(role = "mentee", page = 1, limit = 50)) {
                 is AppResult.Success -> _bookings.value = res.data.bookings
-                is AppResult.Error -> Logx.e(TAG) { "refresh failed: ${res.throwable}" }
+                is AppResult.Error -> Logx.e(TAG, { "refresh failed: ${res.throwable}" })
                 AppResult.Loading -> Unit
             }
             _loading.value = false

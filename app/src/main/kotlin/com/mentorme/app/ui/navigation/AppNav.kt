@@ -538,7 +538,9 @@ fun AppNav(
 
                     composable(Routes.Profile) {
                         val authVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
+                        val profileVm = hiltViewModel<com.mentorme.app.ui.profile.ProfileViewModel>()
                         ProfileScreen(
+                            vm = profileVm,
                             user = UserHeader(fullName = "Nguyễn Văn A", email = "a@example.com", role = UserRole.MENTEE),
                             onOpenNotifications = { nav.navigate(Routes.Notifications) },
                             onOpenTopUp = { nav.navigate(Routes.TopUp) },

@@ -155,8 +155,8 @@ class AuthViewModel @Inject constructor(
                         saveAndConfirmToken(token)
                     }
 
-                    val roleStrFromData = data?.role
-                    val roleStr = roleStrFromData ?: parseRoleFromJwt(token)
+                    val roleStrFromData = data?.role ?: data?.user?.role
+                    val roleStr = (roleStrFromData ?: parseRoleFromJwt(token))?.lowercase()
                     val role = if (roleStr == "mentor") UserRole.MENTOR else UserRole.MENTEE
 
                     val isActive = data?.status == "active"
@@ -166,9 +166,9 @@ class AuthViewModel @Inject constructor(
                     val verifying = data?.status == "verifying"
 
                     // NEW: persist and log mentorId (userId) for calendar consistency
-                    val userId = data?.userId
-                    val emailResolved = data?.email ?: email
-                    val userName = data?.userName ?: email.substringBefore("@")
+                    val userId = data?.userId ?: data?.user?.id
+                    val emailResolved = data?.email ?: data?.user?.email ?: email
+                    val userName = data?.userName ?: data?.user?.username ?: email.substringBefore("@")
                     val roleStrPersist = roleStr ?: (if (role == UserRole.MENTOR) "mentor" else "mentee")
                     if (!userId.isNullOrBlank()) {
                         try {

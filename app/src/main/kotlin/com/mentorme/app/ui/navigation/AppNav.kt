@@ -1,12 +1,17 @@
 package com.mentorme.app.ui.navigation
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.content.pm.PackageManager
 import android.os.Build
 import android.Manifest
 import android.content.pm.PackageManager
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.layout.*
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
@@ -35,6 +40,7 @@ import com.mentorme.app.ui.chat.MentorMessagesScreen
 import com.mentorme.app.ui.profile.MentorProfileScreen
 import com.mentorme.app.ui.search.SearchMentorScreen
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -58,42 +64,27 @@ import com.mentorme.app.ui.dashboard.MentorDashboardScreen
 import com.mentorme.app.ui.home.HomeScreen
 import com.mentorme.app.ui.layout.GlassBottomBar
 import com.mentorme.app.ui.layout.UserUi
-import com.mentorme.app.ui.theme.LiquidBackground
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
-import androidx.navigation.compose.currentBackStackEntryAsState
-import com.mentorme.app.ui.auth.AuthScreen
-import com.mentorme.app.ui.auth.RegisterPayload
-import com.mentorme.app.ui.chat.ChatScreen
-import com.mentorme.app.ui.chat.MessagesScreen
 import com.mentorme.app.ui.notifications.NotificationsScreen
-import com.mentorme.app.ui.profile.*
-import androidx.navigation.compose.composable
-import com.mentorme.app.ui.wallet.TopUpScreen
-import com.mentorme.app.ui.wallet.WithdrawScreen
-import com.mentorme.app.ui.wallet.BankInfo
-import com.mentorme.app.ui.wallet.PaymentMethod
-import com.mentorme.app.ui.wallet.mockPaymentMethods
-import com.mentorme.app.ui.wallet.initialPaymentMethods
-import com.mentorme.app.ui.wallet.PaymentMethodScreen
-import com.mentorme.app.ui.wallet.AddPaymentMethodScreen
-import com.mentorme.app.ui.wallet.EditPaymentMethodScreen
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.ui.unit.dp
 import com.mentorme.app.ui.onboarding.MenteeOnboardingScreen
 import com.mentorme.app.ui.onboarding.MentorOnboardingScreen
 import com.mentorme.app.ui.onboarding.PendingApprovalScreen
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.compose.ui.platform.LocalContext
-import android.widget.Toast
+import com.mentorme.app.ui.profile.MentorProfileScreen
+import com.mentorme.app.ui.profile.ProfileScreen
+import com.mentorme.app.ui.profile.UserHeader
+import com.mentorme.app.ui.profile.UserRole
+import com.mentorme.app.ui.search.SearchMentorScreen
 import com.mentorme.app.ui.session.SessionViewModel
+import com.mentorme.app.ui.theme.LiquidBackground
+import com.mentorme.app.ui.wallet.AddPaymentMethodScreen
+import com.mentorme.app.ui.wallet.BankInfo
+import com.mentorme.app.ui.wallet.EditPaymentMethodScreen
+import com.mentorme.app.ui.wallet.PaymentMethod
+import com.mentorme.app.ui.wallet.PaymentMethodScreen
+import com.mentorme.app.ui.wallet.TopUpScreen
+import com.mentorme.app.ui.wallet.WithdrawScreen
+import com.mentorme.app.ui.wallet.initialPaymentMethods
+import java.util.Calendar
+import java.util.Locale
 
 object Routes {
     const val Auth = "auth"
@@ -472,11 +463,13 @@ fun AppNav(
                             onViewStatistics = { Log.d("AppNav", "MentorProfile: onViewStatistics - TODO") },
                             onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
                             onLogout = {
-                                isLoggedIn = false
-                                userRole = "mentee"
-                                nav.navigate(Routes.Auth) {
-                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
-                                    launchSingleTop = true
+                                authVm.signOut {
+                                    isLoggedIn = false
+                                    userRole = "mentee"
+                                    nav.navigate(Routes.Auth) {
+                                        popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
                                 }
                             }
                         )
@@ -493,6 +486,7 @@ fun AppNav(
                             }
                         )
                     ) { backStackEntry ->
+                        val authVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
                         val target = backStackEntry.arguments?.getString("target") ?: "profile"
 
                         MentorProfileScreen(

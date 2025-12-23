@@ -4,6 +4,7 @@ export interface IProfile extends Document {
   _id: mongoose.Types.ObjectId;
   user: mongoose.Types.ObjectId;
   fullName?: string;
+  phone?: string;
   jobTitle?: string;
   hourlyRateVnd?: number;
   location?: string;
@@ -45,6 +46,7 @@ const ProfileSchema: Schema<IProfile> = new Schema(
       // unique: true,
     },
     fullName: { type: String, trim: true, default: "" },
+    phone: { type: String, trim: true, default: "" },
     jobTitle: { type: String, trim: true, default: "" },
     hourlyRateVnd: { type: Number, default: 0 },
     location: { type: String, trim: true, default: "" },

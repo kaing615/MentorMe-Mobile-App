@@ -23,11 +23,15 @@ abstract class RepositoryModule {
     @Binds @Singleton
     abstract fun bindAuthRepository(impl: AuthRepositoryImpl): AuthRepository
 
-    @Binds @Singleton
-    abstract fun bindMentorRepository(impl: MentorRepositoryImpl): MentorRepository
+    @Binds
+    abstract fun bindMentorRepo(
+        impl: MentorRepositoryImpl
+    ): MentorRepository
 
-    @Binds @Singleton
-    abstract fun bindBookingRepository(impl: BookingRepositoryImpl): BookingRepository
+    @Binds
+    abstract fun bindBookingRepo(
+        impl: BookingRepositoryImpl
+    ): BookingRepository
 
     // Availability
     @Binds

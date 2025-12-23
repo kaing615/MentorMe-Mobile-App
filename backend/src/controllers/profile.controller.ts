@@ -15,6 +15,244 @@ function isHttpUrl(introVideo: string) {
   }
 }
 
+export const getMyProfile = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return responseHandler.unauthorized(res, null, "Unauthorized");
+    }
+
+    const profile = await Profile.findOne({ user: userId })
+      .populate("user", "email userName role status")
+      .lean();
+
+    if (!profile) {
+      return responseHandler.notFound(res, null, "Profile not found");
+    }
+
+    return responseHandler.ok(res, { profile }, "Profile fetched successfully");
+  }
+);
+
+export const updateMyProfile = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return responseHandler.unauthorized(res, null, "Unauthorized");
+    }
+
+    const {
+      fullName,
+      phone,
+      location,
+      bio,
+      languages,
+      skills,
+      jobTitle,
+      experience,
+      headline,
+      description,
+      goal,
+      education,
+      website,
+      twitter,
+      linkedin,
+      github,
+      youtube,
+      facebook,
+    } = req.body;
+
+    let profile = await Profile.findOne({ user: userId });
+
+    if (!profile) {
+      return responseHandler.notFound(
+        res,
+        null,
+        "Profile not found.  Please complete onboarding first."
+      );
+    }
+
+    if (fullName !== undefined) profile.fullName = fullName;
+    if (phone !== undefined) profile.phone = phone;
+    if (location !== undefined) profile.location = location;
+    if (bio !== undefined) profile.bio = bio;
+    if (jobTitle !== undefined) profile.jobTitle = jobTitle;
+    if (experience !== undefined) profile.experience = experience;
+    if (headline !== undefined) profile.headline = headline;
+    if (description !== undefined) profile.description = description;
+    if (goal !== undefined) profile.goal = goal;
+    if (education !== undefined) profile.education = education;
+
+    if (website !== undefined) profile.links.website = website;
+    if (twitter !== undefined) profile.links.twitter = twitter;
+    if (linkedin !== undefined) profile.links.linkedin = linkedin;
+    if (github !== undefined) profile.links.github = github;
+    if (youtube !== undefined) profile.links.youtube = youtube;
+    if (facebook !== undefined) profile.links.facebook = facebook;
+
+    if (languages !== undefined) {
+      profile.languages = Array.isArray(languages)
+        ? languages
+        : languages
+            .split(",")
+            .map((s: string) => s.trim())
+            .filter(Boolean);
+    }
+
+    if (skills !== undefined) {
+      profile.skills = Array.isArray(skills)
+        ? skills
+        : skills
+            .split(",")
+            .map((s: string) => s.trim())
+            .filter(Boolean);
+    }
+
+    if (req.file) {
+      try {
+        if (profile.avatarPublicId) {
+          try {
+            await cloudinary.deleteAsset(profile.avatarPublicId, "image", true);
+            console.log(`Deleted old avatar:  ${profile.avatarPublicId}`);
+          } catch (deleteError) {
+            console.warn("Failed to delete old avatar:", deleteError);
+          }
+        }
+
+        const uploadResult = await cloudinary.uploadImage(req.file.buffer, {
+          folder: "mentor-me-mobile-app/avatars",
+          transformation: [
+            { width: 400, height: 400, crop: "fill", gravity: "face" },
+            { quality: "auto", fetch_format: "auto" },
+          ],
+        });
+
+        profile.avatarUrl = uploadResult.secure_url;
+        profile.avatarPublicId = uploadResult.public_id;
+
+        console.log(`Uploaded new avatar: ${uploadResult.public_id}`);
+      } catch (uploadError: any) {
+        console.error("Avatar upload failed:", uploadError);
+        return responseHandler.internalServerError(
+          res,
+          null,
+          `Failed to upload avatar: ${uploadError.message || "Unknown error"}`
+        );
+      }
+    }
+
+    await profile.save();
+
+    return responseHandler.ok(res, { profile }, "Profile updated successfully");
+  }
+);
+
+export const getPublicProfile = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { userId } = req.params;
+
+    const profile = await Profile.findOne({ user: userId })
+      .populate("user", "email userName role")
+      .lean();
+
+    if (!profile) {
+      return responseHandler.notFound(res, null, "Profile not found");
+    }
+
+    const publicProfile = {
+      fullName: profile.fullName,
+      avatarUrl: profile.avatarUrl,
+      bio: profile.bio,
+      headline: profile.headline,
+      location: profile.location,
+      jobTitle: profile.jobTitle,
+      experience: profile.experience,
+      education: profile.education,
+      skills: profile.skills,
+      languages: profile.languages,
+      links: profile.links,
+    };
+
+    return responseHandler.ok(
+      res,
+      { profile: publicProfile },
+      "Public profile fetched"
+    );
+  }
+);
+
+export const getAllProfiles = asyncHandler(
+  async (req: Request, res: Response) => {
+    const {
+      filter = "{}",
+      range = "[0,9]",
+      sort = '["createdAt","DESC"]',
+    } = req.query;
+
+    const filterObj = JSON.parse(filter as string);
+    const [start, end] = JSON.parse(range as string);
+    const [sortField, sortOrder] = JSON.parse(sort as string);
+
+    const query: any = {};
+
+    if (filterObj.q) {
+      query.$or = [
+        { fullName: { $regex: filterObj.q, $options: "i" } },
+        { bio: { $regex: filterObj.q, $options: "i" } },
+        { headline: { $regex: filterObj.q, $options: "i" } },
+      ];
+    }
+
+    if (filterObj.category) query.category = filterObj.category;
+    if (filterObj.profileCompleted !== undefined) {
+      query.profileCompleted = filterObj.profileCompleted === "true";
+    }
+
+    const total = await Profile.countDocuments(query);
+    const profiles = await Profile.find(query)
+      .populate("user", "email userName role status")
+      .sort({ [sortField]: sortOrder === "DESC" ? -1 : 1 })
+      .skip(start)
+      .limit(end - start + 1)
+      .lean();
+
+    res.set("Content-Range", `profiles ${start}-${end}/${total}`);
+    res.set("Access-Control-Expose-Headers", "Content-Range");
+
+    return res.json(
+      profiles.map((p) => ({
+        ...p,
+        id: (p as any)._id,
+        userId: (p as any).user?._id,
+      }))
+    );
+  }
+);
+
+export const deleteProfile = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    const profile = await Profile.findById(id);
+    if (!profile) {
+      return responseHandler.notFound(res, null, "Profile not found");
+    }
+
+    if (profile.avatarPublicId) {
+      try {
+        await cloudinary.deleteAsset(profile.avatarPublicId, "image", true);
+        console.log(`🗑️ Deleted avatar: ${profile.avatarPublicId}`);
+      } catch (error) {
+        console.error("Failed to delete avatar from cloudinary:", error);
+      }
+    }
+
+    await Profile.findByIdAndDelete(id);
+
+    return responseHandler.ok(res, { id }, "Profile deleted successfully");
+  }
+);
+
 export const createRequiredProfile = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = (req as any).user.id;
@@ -239,4 +477,9 @@ export const createRequiredProfile = asyncHandler(
 
 export default {
   createRequiredProfile,
+  getMyProfile,
+  updateMyProfile,
+  getPublicProfile,
+  getAllProfiles,
+  deleteProfile,
 };

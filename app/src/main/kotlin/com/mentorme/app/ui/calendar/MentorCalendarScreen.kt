@@ -199,7 +199,7 @@ fun MentorCalendarScreen(
                 onAdd = { newSlot ->
                     if (mentorId.isBlank()) {
                         android.widget.Toast.makeText(context, "Vui lòng đăng nhập lại", android.widget.Toast.LENGTH_LONG).show()
-                        return@AvailabilityTabSection
+                        return@AvailabilityTabSection false
                     } else {
                         // Client guard: block past times with 30s skew
                         val startUtc = toIsoUtc(newSlot.date, newSlot.startTime, zone)
@@ -208,11 +208,11 @@ fun MentorCalendarScreen(
                         val endInstant = runCatching { java.time.Instant.parse(endUtc) }.getOrNull()
                         val nowSkew = nowMinusSkew()
                         if (startInstant == null || endInstant == null) {
-                            toast("Giờ không hợp lệ."); return@AvailabilityTabSection
+                            toast("Giờ không hợp lệ."); return@AvailabilityTabSection false
                         }
-                        if (startInstant.isBefore(nowSkew)) { toast("Giờ bắt đầu phải ở tương lai"); return@AvailabilityTabSection }
-                        if (endInstant.isBefore(nowSkew))   { toast("Giờ kết thúc phải ở tương lai"); return@AvailabilityTabSection }
-                        if (!endInstant.isAfter(startInstant)) { toast("Giờ kết thúc phải sau giờ bắt đầu"); return@AvailabilityTabSection }
+                        if (startInstant.isBefore(nowSkew)) { toast("Giờ bắt đầu phải ở tương lai"); return@AvailabilityTabSection false }
+                        if (endInstant.isBefore(nowSkew))   { toast("Giờ kết thúc phải ở tương lai"); return@AvailabilityTabSection false }
+                        if (!endInstant.isAfter(startInstant)) { toast("Giờ kết thúc phải sau giờ bắt đầu"); return@AvailabilityTabSection false }
 
                         val res = vm.addSlot(
                             mentorId = mentorId,
@@ -230,6 +230,7 @@ fun MentorCalendarScreen(
                                 val pr = res.data
                                 if (pr.skippedConflict > 0) toast("Một số lịch bị bỏ qua vì trùng/buffer.")
                                 else toast("Đã xuất bản lịch")
+                                true
                             }
                             is com.mentorme.app.core.utils.AppResult.Error -> {
                                 val raw = res.throwable
@@ -244,8 +245,9 @@ fun MentorCalendarScreen(
                                     422 -> toast("Khung giờ bị trùng/đã tồn tại")
                                     else -> toast(com.mentorme.app.core.utils.ErrorUtils.getUserFriendlyErrorMessage(raw))
                                 }
+                                false
                             }
-                            com.mentorme.app.core.utils.AppResult.Loading -> Unit
+                            com.mentorme.app.core.utils.AppResult.Loading -> false
                         }
                     }
                 },

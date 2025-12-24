@@ -34,6 +34,7 @@ import com.mentorme.app.ui.booking.BookingChooseTimeScreen
 import com.mentorme.app.ui.booking.BookingDetailScreen
 import com.mentorme.app.ui.booking.BookingDraft
 import com.mentorme.app.ui.booking.BookingSummaryScreen
+import com.mentorme.app.ui.calendar.CalendarTab
 import com.mentorme.app.ui.calendar.MenteeCalendarScreen
 import com.mentorme.app.ui.calendar.MentorCalendarScreen
 import com.mentorme.app.ui.chat.ChatScreen
@@ -81,6 +82,10 @@ object Routes {
     }
 
     const val Calendar = "calendar"
+    const val CalendarWithTab = "calendar?tab={tab}"
+    fun calendar(tab: String? = null): String {
+        return if (tab.isNullOrBlank()) Calendar else "calendar?tab=$tab"
+    }
     const val Notifications = "notifications"
     const val Messages = "messages"
     const val Profile = "profile"
@@ -603,8 +608,19 @@ fun AppNav(
                         )
                     }
 
-                    composable(Routes.Calendar) {
+                    composable(
+                        route = Routes.CalendarWithTab,
+                        arguments = listOf(
+                            navArgument("tab") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = "upcoming"
+                            }
+                        )
+                    ) { backStackEntry ->
+                        val tabArg = backStackEntry.arguments?.getString("tab")
                         MenteeCalendarScreen(
+                            startTab = CalendarTab.fromRouteArg(tabArg),
                             onOpenDetail = { booking ->
                                 nav.navigate(Screen.BookingDetail.createRoute(booking.id))
                             }
@@ -758,12 +774,10 @@ fun AppNav(
                                     notes = it.notes
                                 )) {
                                     is com.mentorme.app.core.utils.AppResult.Success -> {
-                                        val bookingId = res.data.id
-                                        nav.navigate(Screen.BookingDetail.createRoute(bookingId)) {
+                                        nav.navigate(Routes.calendar("pending")) {
                                             popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
                                             launchSingleTop = true
                                         }
-                                        nav.popBackStack(route = Routes.Home, inclusive = false)
                                     }
                                     is com.mentorme.app.core.utils.AppResult.Error -> {
                                         val msg = res.throwable

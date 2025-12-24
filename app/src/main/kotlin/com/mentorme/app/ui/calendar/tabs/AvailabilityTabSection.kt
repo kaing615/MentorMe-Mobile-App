@@ -475,6 +475,8 @@ private fun AvailabilityDialog(
                     color = Color.White
                 )
 
+                DialogSectionHeader("Bước 1: Chọn thời gian")
+
                 // Ngày
                 FormLabel("📅  Ngày")
                 OutlinedTextField(
@@ -538,6 +540,8 @@ private fun AvailabilityDialog(
                     }
                 }
 
+                DialogSectionHeader("Bước 2: Giá & khoảng đệm")
+
                 if (priceDigits != null && onPriceChange != null) {
                     FormLabel("??  Giá (VND)")
                     OutlinedTextField(
@@ -590,6 +594,8 @@ private fun AvailabilityDialog(
                     typeLabel = typeLabel
                 )
 
+                DialogSectionHeader("Bước 3: Mô tả")
+
                 // Mô tả
                 FormLabel("📝  Mô tả (tùy chọn)")
                 OutlinedTextField(
@@ -625,8 +631,24 @@ private fun AvailabilityDialog(
 }
 
 @Composable
+private fun DialogSectionHeader(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = Color.White,
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+@Composable
 private fun FormLabel(text: String) {
-    Text(text = text, color = Color(0xFF475569), modifier = Modifier.fillMaxWidth())
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        color = Color.White.copy(alpha = 0.8f),
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 @Composable

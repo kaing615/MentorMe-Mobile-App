@@ -11,6 +11,7 @@ import com.mentorme.app.data.model.Booking
 
 @Composable
 fun MenteeCalendarScreen(
+    startTab: CalendarTab = CalendarTab.Upcoming,
     onOpenDetail: (Booking) -> Unit = {}
 ) {
     val vm = hiltViewModel<MenteeBookingsViewModel>()
@@ -22,6 +23,7 @@ fun MenteeCalendarScreen(
     }
 
     CalendarScreen(
+        startTab = startTab,
         bookings = bookings.value,
         onJoinSession = { Toast.makeText(context, "Join chưa hỗ trợ", Toast.LENGTH_SHORT).show() },
         onRate = { Toast.makeText(context, "Đánh giá chưa hỗ trợ", Toast.LENGTH_SHORT).show() },

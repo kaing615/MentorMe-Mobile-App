@@ -582,13 +582,13 @@ private fun AvailabilityDialog(
                     }
                 }
 
-                // Giá cố định
-                LiquidGlassCard(radius = 18.dp, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text("💰 Giá cố định", color = Color(0xFF0F172A))
-                        Text("Nhập giá theo VND cho khung giờ này.", color = Color(0xFF64748B))
-                    }
-                }
+                AvailabilityPreviewCard(
+                    dateLabel = datePreview,
+                    timeLabel = timePreview,
+                    durationLabel = durationPreview?.let { "${it} phút" } ?: "—",
+                    priceLabel = pricePreview?.let { numberFormat.format(it) } ?: "Chưa có giá",
+                    typeLabel = typeLabel
+                )
 
                 // Mô tả
                 FormLabel("📝  Mô tả (tùy chọn)")
@@ -627,4 +627,77 @@ private fun AvailabilityDialog(
 @Composable
 private fun FormLabel(text: String) {
     Text(text = text, color = Color(0xFF475569), modifier = Modifier.fillMaxWidth())
+}
+
+@Composable
+private fun AvailabilityPreviewCard(
+    dateLabel: String,
+    timeLabel: String,
+    durationLabel: String,
+    priceLabel: String,
+    typeLabel: String
+) {
+    LiquidGlassCard(radius = 18.dp, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                "Xem trước lịch",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White
+            )
+            Text(
+                "$dateLabel • $timeLabel",
+                color = Color.White.copy(alpha = 0.85f)
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PreviewPill(typeLabel)
+                PreviewPill(durationLabel)
+                PreviewPill(priceLabel)
+            }
+            Text(
+                "Tối thiểu 30 phút. Bạn có thể chỉnh sửa sau khi tạo.",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White.copy(alpha = 0.65f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun PreviewPill(text: String) {
+    Surface(
+        color = Color.White.copy(alpha = 0.12f),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.28f))
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.White
+        )
+    }
+}
+
+private fun formatDatePreview(digits: String): String {
+    val cleaned = digits.filter(Char::isDigit).take(8)
+    if (cleaned.isBlank()) return "dd/MM/yyyy"
+    val d = cleaned.take(2)
+    val m = cleaned.drop(2).take(2)
+    val y = cleaned.drop(4).take(4)
+    return listOf(d, m, y).filter { it.isNotBlank() }.joinToString("/")
+}
+
+private fun formatTimeRangePreview(startDigits: String, endDigits: String): String {
+    val start = formatTimePreview(startDigits)
+    val end = formatTimePreview(endDigits)
+    return "$start - $end"
+}
+
+private fun formatTimePreview(digits: String): String {
+    val cleaned = digits.filter(Char::isDigit).take(4)
+    if (cleaned.isBlank()) return "--:--"
+    val h = cleaned.take(2)
+    val m = cleaned.drop(2).take(2)
+    return if (m.isBlank()) h else "$h:$m"
 }

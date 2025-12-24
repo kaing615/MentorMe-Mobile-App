@@ -1,17 +1,31 @@
-// path: src/controllers/payment.controller.ts
-import { Request, Response } from 'express';
-import { asyncHandler } from '../handlers/async.handler';
-import { ok, badRequest, notFound } from '../handlers/response.handler';
-import Booking from '../models/booking.model';
-import { confirmBooking, failBooking, markBookingPendingMentor } from './booking.controller';
-import { captureBookingPayment } from '../services/walletBooking.service';
+import { Request, Response } from "express";
+import { asyncHandler } from "../handlers/async.handler";
+import { ok, badRequest, notFound } from "../handlers/response.handler";
+import Booking from "../models/booking.model";
+import {
+  confirmBooking,
+  failBooking,
+  markBookingPendingMentor,
+} from "./booking.controller";
+import { captureBookingPayment } from "../services/walletBooking.service";
+
+const TERMINAL_BOOKING_STATUSES = new Set([
+  "Failed",
+  "Cancelled",
+  "Declined",
+  "Completed",
+]);
 
 /**
  * POST /api/payments/webhook
  * Handle payment gateway webhook events
+ *
+ * Rules:
+ * - payment.success: only acts when booking is PaymentPending
+ * - if booking is terminal or already moved state -> return 200 ignored (idempotent)
  */
 export const paymentWebhook = asyncHandler(async (req: Request, res: Response) => {
-  const { event, bookingId, paymentId, status, metadata } = req.body as {
+  const { event, bookingId } = req.body as {
     event: string;
     bookingId: string;
     paymentId?: string;
@@ -20,43 +34,88 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
   };
 
   if (!event || !bookingId) {
-    return badRequest(res, 'event and bookingId are required');
+    return badRequest(res, "event and bookingId are required");
   }
 
-  const booking = await Booking.findById(bookingId).lean();
-  if (!booking) {
-    return notFound(res, 'Booking not found');
-  }
+  // ✅ Do NOT lean(): we want fresh status checks (and possible re-fetch)
+  let booking = await Booking.findById(bookingId);
+  if (!booking) return notFound(res, "Booking not found");
+
+  const bookingStatus = String((booking as any).status);
 
   try {
     switch (event) {
-      case 'payment.success':
-      case 'payment.completed':
-        // Capture payment from mentee to mentor wallet
+      case "payment.success":
+      case "payment.completed": {
+        // ✅ Terminal -> ignore (gateway shouldn't retry forever)
+        if (TERMINAL_BOOKING_STATUSES.has(bookingStatus)) {
+          return ok(res, {
+            processed: true,
+            ignored: true,
+            reason: `booking is ${bookingStatus}`,
+            event,
+            bookingId,
+          });
+        }
+
+        // ✅ Only accept success when PaymentPending
+        if (bookingStatus !== "PaymentPending") {
+          return ok(res, {
+            processed: true,
+            ignored: true,
+            reason: `booking status=${bookingStatus}`,
+            event,
+            bookingId,
+          });
+        }
+
+        // Capture wallet transfer (idempotent)
         await captureBookingPayment(bookingId);
-        
-        if ((process.env.MENTOR_CONFIRM_REQUIRED || 'false').toLowerCase() === 'true') {
-          await markBookingPendingMentor(bookingId);
-          console.log(`Payment captured, awaiting mentor confirmation for ${bookingId}`);
+
+        // Re-fetch booking (avoid stale)
+        booking = await Booking.findById(bookingId);
+        if (!booking) return notFound(res, "Booking not found");
+
+        const needMentorConfirm =
+          (process.env.MENTOR_CONFIRM_REQUIRED || "false").toLowerCase() === "true";
+
+        // If already moved state by another webhook call, keep idempotent
+        if (needMentorConfirm) {
+          if (String((booking as any).status) !== "PendingMentor") {
+            await markBookingPendingMentor(bookingId);
+          }
         } else {
-          await confirmBooking(bookingId);
-          console.log(`Payment confirmed for booking ${bookingId}`);
+          if (String((booking as any).status) !== "Confirmed") {
+            await confirmBooking(bookingId);
+          }
+        }
+
+        break;
+      }
+
+      case "payment.failed":
+      case "payment.expired":
+      case "payment.cancelled": {
+        // Idempotent: if already terminal, do nothing
+        if (!TERMINAL_BOOKING_STATUSES.has(bookingStatus)) {
+          await failBooking(bookingId);
         }
         break;
-
-      case 'payment.failed':
-      case 'payment.expired':
-      case 'payment.cancelled':
-        await failBooking(bookingId);
-        console.log(`Payment failed for booking ${bookingId}, reason: ${event}`);
-        break;
+      }
 
       default:
-        console.log(`Unhandled payment event: ${event} for booking ${bookingId}`);
+        // ignore
+        break;
     }
   } catch (err: any) {
     console.error(`Failed to process payment webhook for ${bookingId}:`, err?.message);
-    return badRequest(res, 'Failed to process webhook');
+
+    const errorMessage =
+      process.env.NODE_ENV === "development"
+        ? `Failed to process webhook: ${err?.message || "Unknown error"}`
+        : "Failed to process webhook";
+
+    return badRequest(res, errorMessage);
   }
 
   return ok(res, { processed: true, event, bookingId });

@@ -17,8 +17,8 @@ async function retryTransaction<T>(
     } catch (error: any) {
       lastError = error;
       const isTransient =
-        error.errorLabels?.includes("TransientTransactionError") ||
-        error.message?.includes("WriteConflict");
+        error?.errorLabels?.includes("TransientTransactionError") ||
+        error?.message?.includes("WriteConflict");
       if (isTransient && attempt < maxRetries) {
         await new Promise((resolve) => setTimeout(resolve, 50 * attempt));
         continue;
@@ -52,21 +52,25 @@ async function getOrCreateWallet(
     { new: true, upsert: true, session }
   );
 
-  if (!wallet) {
-    throw new Error("WALLET_NOT_AVAILABLE");
-  }
-
-  if (wallet.status !== "ACTIVE") {
-    throw new Error("WALLET_LOCKED");
-  }
+  if (!wallet) throw new Error("WALLET_NOT_AVAILABLE");
+  if (wallet.status !== "ACTIVE") throw new Error("WALLET_LOCKED");
 
   return wallet;
 }
 
+// Booking statuses that must NEVER accept payment capture
+const TERMINAL_BOOKING_STATUSES = new Set([
+  "Failed",
+  "Cancelled",
+  "Declined",
+  "Completed",
+]);
 
 /**
- * Capture payment from mentee and credit mentor when booking is confirmed
- * Should be called BEFORE updating booking status to Confirmed/PendingMentor
+ * Capture payment from mentee and credit mentor.
+ * IMPORTANT:
+ * - Should be called when booking is still in PaymentPending.
+ * - Must be idempotent (duplicate webhook must not double charge).
  */
 export async function captureBookingPayment(bookingId: string): Promise<void> {
   await retryTransaction(async () => {
@@ -74,69 +78,75 @@ export async function captureBookingPayment(bookingId: string): Promise<void> {
     session.startTransaction();
 
     try {
-      // Load booking
+      // Load booking (inside txn)
       const booking = await Booking.findById(bookingId).session(session);
-      if (!booking) {
-        throw new Error("Booking not found");
+      if (!booking) throw new Error("Booking not found");
+
+      // ✅ Guard booking status (prevent capture after expiry/cancel/fail)
+      const status = String((booking as any).status);
+      if (TERMINAL_BOOKING_STATUSES.has(status)) {
+        const err: any = new Error(`BOOKING_TERMINAL:${status}`);
+        err.code = "BOOKING_TERMINAL";
+        throw err;
       }
 
-      const menteeId = String(booking.mentee);
-      const mentorId = String(booking.mentor);
-
-      // Determine amountMinor safely
-      const amountMinor = (booking as any).priceMinor
-        ? (booking as any).priceMinor
-        : Math.round(booking.price);
-      if (amountMinor <= 0) {
-        throw new Error("INVALID_AMOUNT");
-      }
-
-      const idempotencyKey = `booking_payment:${bookingId}`;
-
-      // Check idempotency - if transaction already exists, return success
-      let existingTxQuery = WalletTransaction.findOne({
-        userId: new mongoose.Types.ObjectId(menteeId),
-        source: "BOOKING_PAYMENT",
-        idempotencyKey,
-      });
-      if (session) existingTxQuery = existingTxQuery.session(session);
-      const existingTx = await existingTxQuery;
-
-      if (existingTx) {
-        // Already captured
+      // ✅ Only capture when PaymentPending.
+      // If already moved forward (Confirmed/PendingMentor) => idempotent ignore.
+      if (status !== "PaymentPending") {
         await session.commitTransaction();
         session.endSession();
         return;
       }
 
-      // Determine currency from booking if available, else from mentee wallet
-      let currency: "VND" | "USD" = (booking as any).currency || "VND";
+      const menteeId = String((booking as any).mentee);
+      const mentorId = String((booking as any).mentor);
 
-      // Get or create wallets
+      // Determine amount
+      const amountMinor =
+        (booking as any).priceMinor != null
+          ? Number((booking as any).priceMinor)
+          : Math.round(Number((booking as any).price));
+
+      if (!Number.isFinite(amountMinor) || amountMinor <= 0) {
+        throw new Error("INVALID_AMOUNT");
+      }
+
+      const idempotencyKey = `booking_payment:${bookingId}`;
+
+      // Idempotency check: mentee debit tx exists => already captured
+      const existingTx = await WalletTransaction.findOne({
+        userId: new mongoose.Types.ObjectId(menteeId),
+        source: "BOOKING_PAYMENT",
+        idempotencyKey,
+      }).session(session);
+
+      if (existingTx) {
+        await session.commitTransaction();
+        session.endSession();
+        return;
+      }
+
+      // Determine currency
+      let currency: "VND" | "USD" = ((booking as any).currency as any) || "VND";
+
+      // Get/create wallets
       const menteeWallet = await getOrCreateWallet(menteeId, currency, session);
       const mentorWallet = await getOrCreateWallet(mentorId, currency, session);
 
-      // Use menteeWallet currency if booking doesn't have one
-      if (!(booking as any).currency) {
-        currency = menteeWallet.currency;
-      }
+      // If booking currency is missing, use mentee wallet currency
+      if (!(booking as any).currency) currency = menteeWallet.currency;
 
-      // Validate currencies match
-      if (mentorWallet.currency !== currency) {
-        throw new Error("CURRENCY_MISMATCH");
-      }
+      // Currency match
+      if (mentorWallet.currency !== currency) throw new Error("CURRENCY_MISMATCH");
 
-      // Check mentee has sufficient balance
-      if (menteeWallet.balanceMinor < amountMinor) {
-        throw new Error("INSUFFICIENT_BALANCE");
-      }
+      // Balance check
+      if (menteeWallet.balanceMinor < amountMinor) throw new Error("INSUFFICIENT_BALANCE");
 
       // Debit mentee
       const menteeBalanceBefore = menteeWallet.balanceMinor;
       menteeWallet.balanceMinor -= amountMinor;
       await menteeWallet.save({ session });
 
-      // Create mentee debit transaction
       await WalletTransaction.create(
         [
           {
@@ -161,7 +171,6 @@ export async function captureBookingPayment(bookingId: string): Promise<void> {
       mentorWallet.balanceMinor += amountMinor;
       await mentorWallet.save({ session });
 
-      // Create mentor credit transaction
       await WalletTransaction.create(
         [
           {
@@ -186,11 +195,11 @@ export async function captureBookingPayment(bookingId: string): Promise<void> {
     } catch (error: any) {
       await session.abortTransaction();
       session.endSession();
-      // If duplicate key error on idempotencyKey unique index, treat as success
+
+      // Duplicate idempotencyKey unique index => treat as success
       if (
-        error.code === 11000 &&
-        (error.keyPattern?.idempotencyKey ||
-          error.message?.includes("idempotencyKey"))
+        error?.code === 11000 &&
+        (error?.keyPattern?.idempotencyKey || error?.message?.includes("idempotencyKey"))
       ) {
         return;
       }
@@ -200,8 +209,9 @@ export async function captureBookingPayment(bookingId: string): Promise<void> {
 }
 
 /**
- * Refund payment to mentee and debit mentor when booking is cancelled/declined
- * Should be called AFTER updating booking status to Cancelled/Declined
+ * Refund payment to mentee and debit mentor.
+ * Called AFTER booking is cancelled/declined.
+ * Must be idempotent.
  */
 export async function refundBookingPayment(bookingId: string): Promise<void> {
   await retryTransaction(async () => {
@@ -209,74 +219,56 @@ export async function refundBookingPayment(bookingId: string): Promise<void> {
     session.startTransaction();
 
     try {
-      // Load booking
       const booking = await Booking.findById(bookingId).session(session);
-      if (!booking) {
-        throw new Error("Booking not found");
-      }
+      if (!booking) throw new Error("Booking not found");
 
-      const menteeId = String(booking.mentee);
-      const mentorId = String(booking.mentor);
+      const menteeId = String((booking as any).mentee);
+      const mentorId = String((booking as any).mentor);
       const idempotencyKey = `booking_refund:${bookingId}`;
 
-      // Check idempotency - if refund transaction already exists, return success
-      let existingRefundQuery = WalletTransaction.findOne({
+      // Idempotency check: mentee refund tx exists => already refunded
+      const existingRefund = await WalletTransaction.findOne({
         userId: new mongoose.Types.ObjectId(menteeId),
         source: "BOOKING_REFUND",
         idempotencyKey,
-      });
-      if (session) existingRefundQuery = existingRefundQuery.session(session);
-      const existingRefund = await existingRefundQuery;
+      }).session(session);
 
       if (existingRefund) {
-        // Already refunded
         await session.commitTransaction();
         session.endSession();
         return;
       }
 
-      // Verify original payment exists
-      let originalPaymentQuery = WalletTransaction.findOne({
+      // Verify original payment exists (mentee DEBIT)
+      const originalPayment = await WalletTransaction.findOne({
         userId: new mongoose.Types.ObjectId(menteeId),
         source: "BOOKING_PAYMENT",
         referenceType: "BOOKING",
         referenceId: booking._id,
         type: "DEBIT",
-      });
-      if (session) originalPaymentQuery = originalPaymentQuery.session(session);
-      const originalPayment = await originalPaymentQuery;
+      }).session(session);
 
       if (!originalPayment) {
-        // No payment to refund - this is fine for bookings that failed before payment capture
+        // No payment captured => nothing to refund
         await session.commitTransaction();
         session.endSession();
         return;
       }
 
-      // Use original payment amount and currency
-      const amountMinor = originalPayment.amountMinor;
-      const currency = originalPayment.currency;
+      const amountMinor = Number(originalPayment.amountMinor);
+      const currency = originalPayment.currency as "VND" | "USD";
 
-      // Get wallets
       const menteeWallet = await getOrCreateWallet(menteeId, currency, session);
       const mentorWallet = await getOrCreateWallet(mentorId, currency, session);
 
-      // Validate currencies match
-      if (mentorWallet.currency !== currency) {
-        throw new Error("CURRENCY_MISMATCH");
-      }
-
-      // Check mentor has sufficient balance
-      if (mentorWallet.balanceMinor < amountMinor) {
-        throw new Error("MENTOR_INSUFFICIENT_BALANCE");
-      }
+      if (mentorWallet.currency !== currency) throw new Error("CURRENCY_MISMATCH");
+      if (mentorWallet.balanceMinor < amountMinor) throw new Error("MENTOR_INSUFFICIENT_BALANCE");
 
       // Debit mentor
       const mentorBalanceBefore = mentorWallet.balanceMinor;
       mentorWallet.balanceMinor -= amountMinor;
       await mentorWallet.save({ session });
 
-      // Create mentor debit transaction
       await WalletTransaction.create(
         [
           {
@@ -301,7 +293,6 @@ export async function refundBookingPayment(bookingId: string): Promise<void> {
       menteeWallet.balanceMinor += amountMinor;
       await menteeWallet.save({ session });
 
-      // Create mentee refund transaction
       await WalletTransaction.create(
         [
           {
@@ -326,11 +317,10 @@ export async function refundBookingPayment(bookingId: string): Promise<void> {
     } catch (error: any) {
       await session.abortTransaction();
       session.endSession();
-      // If duplicate key error on idempotencyKey unique index, treat as success
+
       if (
-        error.code === 11000 &&
-        (error.keyPattern?.idempotencyKey ||
-          error.message?.includes("idempotencyKey"))
+        error?.code === 11000 &&
+        (error?.keyPattern?.idempotencyKey || error?.message?.includes("idempotencyKey"))
       ) {
         return;
       }
@@ -338,3 +328,8 @@ export async function refundBookingPayment(bookingId: string): Promise<void> {
     }
   });
 }
+
+export default {
+  captureBookingPayment,
+  refundBookingPayment,
+};

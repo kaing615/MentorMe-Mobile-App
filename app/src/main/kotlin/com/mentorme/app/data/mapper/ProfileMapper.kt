@@ -1,7 +1,6 @@
 package com.mentorme.app.data.mapper
 
 import com.mentorme.app.data.dto.profile.MePayload
-import com.mentorme.app.data.dto.profile.ProfileMePayload
 import com.mentorme.app.ui. profile.UserProfile
 import com.mentorme.app.ui.profile.UserRole
 import java.text.SimpleDateFormat
@@ -61,9 +60,9 @@ fun MePayload.toUi(): Pair<UserProfile, UserRole> {
     val ui = UserProfile(
         id = p?.id ?: u?. id ?: "",
         fullName = when {
-            !p?. fullName.isNullOrBlank() -> p.fullName!!
-            !u?.name.isNullOrBlank() -> u.name!!
-            ! u?.userName.isNullOrBlank() -> u.userName!!
+            !p?. fullName.isNullOrBlank() -> p.fullName
+            !u?.name.isNullOrBlank() -> u.name
+            ! u?.userName.isNullOrBlank() -> u.userName
             else -> "Người dùng"
         },
         email = u?.email.orEmpty(),
@@ -80,33 +79,3 @@ fun MePayload.toUi(): Pair<UserProfile, UserRole> {
     return ui to role
 }
 
-fun ProfileMePayload.toUi(): Pair<UserProfile, UserRole> {
-    val p = profile
-    val u = p?.user
-
-    val role = when (u?.role?.lowercase(Locale.ROOT)) {
-        "mentor" -> UserRole.MENTOR
-        else -> UserRole.MENTEE
-    }
-
-    val ui = UserProfile(
-        id = p?.id ?: u?.id.orEmpty(),
-        fullName = when {
-            !p?.fullName.isNullOrBlank() -> p.fullName!!
-            !u?.userName.isNullOrBlank() -> u.userName!!
-            !u?.email.isNullOrBlank() -> u.email!!
-            else -> "Người dùng"
-        },
-        email = u?.email.orEmpty(),
-        phone = p?.phone,
-        location = p?.location,
-        bio = cleanHtmlText(p?.bio?.takeIf { it.isNotBlank() } ?: p?.description),
-        avatar = p?.avatarUrl,
-        joinDate = parseIsoDateOrNow(p?.createdAt ?: p?.updatedAt),
-        totalSessions = 0,
-        totalSpent = 0L,
-        interests = p?.skills ?: emptyList(),
-        preferredLanguages = p?.languages ?: emptyList()
-    )
-    return ui to role
-}

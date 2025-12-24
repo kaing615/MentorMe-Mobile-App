@@ -289,11 +289,16 @@ private fun BookingCard(
     onPay: (Booking) -> Unit,
     onOpen: (Booking) -> Unit
 ) {
-    val mentor = remember(booking.mentorId) {
+    val fallbackMentor = remember(booking.mentorId) {
         MockData.mockMentors.firstOrNull { it.id == booking.mentorId }
     }
-    val mentorLabel = mentor?.fullName ?: "Mentor ${booking.mentorId.takeLast(6)}"
-    val mentorAvatar = mentor?.avatar
+    val mentorLabel = listOf(
+        booking.mentorFullName,
+        booking.mentor?.fullName,
+        fallbackMentor?.fullName
+    ).firstOrNull { !it.isNullOrBlank() }?.trim()
+        ?: "Mentor ${booking.mentorId.takeLast(6)}"
+    val mentorAvatar = booking.mentor?.avatar ?: fallbackMentor?.avatar
 
     val dateToday = todayDate()
     val now = nowHHmm()

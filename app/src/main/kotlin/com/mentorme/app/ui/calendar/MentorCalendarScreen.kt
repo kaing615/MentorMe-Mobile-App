@@ -50,7 +50,7 @@ fun MentorCalendarScreen(
 ) {
     // --- Tabs: 0 = Availability, 1 = Bookings, 2 = Sessions ---
     var activeTab by remember { mutableStateOf(0) }
-    val tabLabels = listOf("Lịch trống", "Booking", "Phiên học")
+    val tabLabels = listOf("L\u1ecbch tr\u1ed1ng", "Booking", "Phi\u00ean h\u1ecdc")
 
     // --- Dialog states for availability (lifted from AvailabilityTabSection) ---
     var showAdd by remember { mutableStateOf(false) }

@@ -80,6 +80,7 @@ fun GlassBottomBar(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     val currentRoute = currentDestination?.route
+    val currentBaseRoute = currentRoute?.substringBefore("?")
 
     val shape = RoundedCornerShape(24.dp)
 
@@ -129,7 +130,7 @@ fun GlassBottomBar(
                     )
 
                     // So sánh route hiện tại với route đích để tránh navigate lặp.
-                    if (currentRoute != targetRoute) {
+                    if (currentBaseRoute != targetRoute) {
                         // ✅ Nếu destination đã tồn tại trong back stack thì pop về luôn (ổn định hơn restoreState).
                         val popped = navController.popBackStack(targetRoute, inclusive = false)
                         if (popped) {
@@ -224,17 +225,9 @@ private fun GlassBarItem(
 
 // ===== Helpers =====
 private fun NavDestination?.isSelected(route: String): Boolean {
-    return when (route) {
-        // Mentor routes
-        "mentor_dashboard" -> this?.hierarchy?.any { it.route == "mentor_dashboard" } == true
-        "mentor_calendar" -> this?.hierarchy?.any { it.route == "mentor_calendar" } == true
-        "mentor_messages" -> this?.hierarchy?.any { it.route == "mentor_messages" } == true
-        "mentor_profile" -> this?.hierarchy?.any { it.route == "mentor_profile" } == true
-
-        // Mentee routes
-        "home" -> this?.hierarchy?.any { it.route == "home" } == true
-        else -> this?.hierarchy?.any { it.route == route } == true
-    }
+    return this?.hierarchy?.any { destination ->
+        destination.route?.substringBefore("?") == route
+    } == true
 }
 
 private fun getTargetRoute(route: String, userRole: String): String {

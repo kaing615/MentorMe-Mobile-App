@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -76,17 +77,30 @@ private fun isPast(date: String, time: String, nowDate: String, nowTime: String)
     }
 
 // ---------- UI - HomeScreen Style ----------
-private enum class CalTab(val label: String) {
+enum class CalendarTab(val label: String) {
     Upcoming("Sắp tới"),
     Pending("Chờ duyệt"),
     Completed("Hoàn thành"),
-    Cancelled("Đã hủy")
+    Cancelled("Đã hủy");
+
+    companion object {
+        fun fromRouteArg(arg: String?): CalendarTab {
+            return when (arg?.lowercase()) {
+                "pending" -> Pending
+                "completed" -> Completed
+                "cancelled", "canceled" -> Cancelled
+                "upcoming" -> Upcoming
+                else -> Upcoming
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(
     bookings: List<Booking> = MockData.mockBookings,
+    startTab: CalendarTab = CalendarTab.Upcoming,
     onJoinSession: (Booking) -> Unit = {},
     onRate: (Booking) -> Unit = {},
     onRebook: (Booking) -> Unit = {},
@@ -94,7 +108,7 @@ fun CalendarScreen(
     onCancel: (Booking) -> Unit = {},
     onOpen: (Booking) -> Unit = {}
 ) {
-    var active by remember { mutableStateOf(CalTab.Upcoming) }
+    var active by rememberSaveable(startTab) { mutableStateOf(startTab) }
 
     val nowDate = remember { todayDate() }
     val nowTime = remember { nowHHmm() }
@@ -185,7 +199,7 @@ fun CalendarScreen(
                         }
                     }
                 ) {
-                    CalTab.values().forEachIndexed { i, tab ->
+                    CalendarTab.values().forEachIndexed { i, tab ->
                         Tab(
                             selected = i == active.ordinal,
                             onClick = { active = tab },
@@ -204,10 +218,10 @@ fun CalendarScreen(
 
         // Content based on selected tab
         val list = when (active) {
-            CalTab.Upcoming -> upcoming
-            CalTab.Pending -> pending
-            CalTab.Completed -> completed
-            CalTab.Cancelled -> cancelled
+            CalendarTab.Upcoming -> upcoming
+            CalendarTab.Pending -> pending
+            CalendarTab.Completed -> completed
+            CalendarTab.Cancelled -> cancelled
         }
 
         if (list.isEmpty()) {
@@ -231,12 +245,12 @@ fun CalendarScreen(
 }
 
 @Composable
-private fun EmptyState(tab: CalTab) {
+private fun EmptyState(tab: CalendarTab) {
     val (emoji, text) = when (tab) {
-        CalTab.Upcoming -> "📅" to "Chưa có lịch sắp tới"
-        CalTab.Pending -> "⏳" to "Không có booking chờ duyệt"
-        CalTab.Completed -> "✅" to "Chưa có phiên hoàn thành"
-        CalTab.Cancelled -> "❌" to "Không có lịch đã hủy"
+        CalendarTab.Upcoming -> "📅" to "Chưa có lịch sắp tới"
+        CalendarTab.Pending -> "⏳" to "Không có booking chờ duyệt"
+        CalendarTab.Completed -> "✅" to "Chưa có phiên hoàn thành"
+        CalendarTab.Cancelled -> "❌" to "Không có lịch đã hủy"
     }
 
     LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {

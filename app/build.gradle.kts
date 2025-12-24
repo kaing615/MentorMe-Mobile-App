@@ -80,6 +80,7 @@ dependencies {
     implementation(libs.androidx.compose.animation)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.foundation)
+    implementation(libs.foundation)
     kapt(libs.hilt.compiler)
 
     implementation(libs.retrofit)

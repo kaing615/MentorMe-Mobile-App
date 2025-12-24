@@ -489,14 +489,6 @@ export const cancelBooking = asyncHandler(async (req: Request, res: Response) =>
     console.error('Failed to send cancellation notifications:', err);
   }
 
-  // Refund payment to mentee (best effort)
-  try {
-    await refundBookingPayment(String(booking._id));
-  } catch (err) {
-    console.error('Failed to refund booking payment:', err);
-  }
-
-
   const userSummaries = await buildUserSummaryMap([
     String(booking.mentee),
     String(booking.mentor),

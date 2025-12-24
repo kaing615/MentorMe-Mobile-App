@@ -60,9 +60,9 @@ fun MePayload.toUi(): Pair<UserProfile, UserRole> {
     val ui = UserProfile(
         id = p?.id ?: u?. id ?: "",
         fullName = when {
-            !p?. fullName.isNullOrBlank() -> p.fullName!!
-            !u?.name.isNullOrBlank() -> u.name!!
-            ! u?.userName.isNullOrBlank() -> u.userName!!
+            !p?. fullName.isNullOrBlank() -> p.fullName
+            !u?.name.isNullOrBlank() -> u.name
+            ! u?.userName.isNullOrBlank() -> u.userName
             else -> "Người dùng"
         },
         email = u?.email.orEmpty(),
@@ -78,3 +78,4 @@ fun MePayload.toUi(): Pair<UserProfile, UserRole> {
     )
     return ui to role
 }
+

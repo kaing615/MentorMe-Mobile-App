@@ -29,13 +29,18 @@ private fun durationMinutes(start: String, end: String): Int {
 }
 
 private fun menteeDisplayName(booking: Booking): String {
-    val displayName = listOf(
+    val menteeId = booking.menteeId.trim()
+    val displayName = sequenceOf(
         booking.menteeFullName,
-        booking.mentee?.fullName
-    ).firstOrNull { !it.isNullOrBlank() }?.trim()
+        booking.mentee?.profile?.fullName,
+        booking.mentee?.fullName,
+        booking.mentee?.user?.fullName,
+        booking.mentee?.user?.userName
+    )
+        .mapNotNull { it?.trim() }
+        .firstOrNull { it.isNotEmpty() && it != menteeId }
 
-    return displayName
-        ?: if (booking.menteeId.length > 6) "...${booking.menteeId.takeLast(6)}" else booking.menteeId
+    return displayName ?: if (menteeId.length > 6) "...${menteeId.takeLast(6)}" else menteeId
 }
 
 @Composable

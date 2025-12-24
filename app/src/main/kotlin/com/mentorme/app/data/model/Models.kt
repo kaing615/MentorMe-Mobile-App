@@ -117,7 +117,7 @@ data class BookingUserSummary(
     val id: String? = null,
     @SerializedName(
         value = "fullName",
-        alternate = ["full_name", "fullname", "name"]
+        alternate = ["full_name", "fullname", "name", "userName", "username", "displayName"]
     )
     val fullName: String? = null,
     @SerializedName("avatar")
@@ -125,7 +125,39 @@ data class BookingUserSummary(
     @SerializedName("email")
     val email: String? = null,
     @SerializedName("role")
-    val role: UserRole? = null
+    val role: UserRole? = null,
+    @SerializedName("user")
+    val user: BookingUserAccount? = null,
+    @SerializedName("profile")
+    val profile: BookingUserProfile? = null
+)
+
+data class BookingUserAccount(
+    @SerializedName("id")
+    val id: String? = null,
+    @SerializedName(
+        value = "fullName",
+        alternate = ["full_name", "fullname", "name", "displayName"]
+    )
+    val fullName: String? = null,
+    @SerializedName(value = "userName", alternate = ["username"])
+    val userName: String? = null,
+    @SerializedName("email")
+    val email: String? = null,
+    @SerializedName("avatar")
+    val avatar: String? = null
+)
+
+data class BookingUserProfile(
+    @SerializedName("id")
+    val id: String? = null,
+    @SerializedName(
+        value = "fullName",
+        alternate = ["full_name", "fullname", "name", "displayName"]
+    )
+    val fullName: String? = null,
+    @SerializedName("avatarUrl")
+    val avatarUrl: String? = null
 )
 
 // -------- Booking (API response fields)

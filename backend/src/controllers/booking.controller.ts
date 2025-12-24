@@ -33,6 +33,7 @@ import {
   notifyBookingReminder,
 } from '../utils/notification.service';
 import { generateBookingIcs } from '../utils/ics.service';
+import { refundBookingPayment } from '../services/walletBooking.service';
 
 const BOOKING_EXPIRY_MINUTES = parseInt(process.env.BOOKING_EXPIRY_MINUTES || '15', 10) || 15;
 const LATE_CANCEL_MINUTES = parseInt(process.env.LATE_CANCEL_MINUTES || '1440', 10) || 1440;
@@ -398,6 +399,13 @@ export const cancelBooking = asyncHandler(async (req: Request, res: Response) =>
     console.error('Failed to send cancellation notifications:', err);
   }
 
+  // Refund payment to mentee (best effort)
+  try {
+    await refundBookingPayment(String(booking._id));
+  } catch (err) {
+    console.error('Failed to refund booking payment:', err);
+  }
+
   return ok(res, formatBookingResponse(booking), 'Booking cancelled');
 });
 
@@ -644,6 +652,13 @@ export async function declineBooking(
     ]);
   } catch (err) {
     console.error('Failed to send decline notifications:', err);
+  }
+
+  // Refund payment to mentee (best effort)
+  try {
+    await refundBookingPayment(String(booking._id));
+  } catch (err) {
+    console.error('Failed to refund booking payment:', err);
   }
 }
 

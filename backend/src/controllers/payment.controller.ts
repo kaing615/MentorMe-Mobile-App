@@ -4,6 +4,7 @@ import { asyncHandler } from '../handlers/async.handler';
 import { ok, badRequest, notFound } from '../handlers/response.handler';
 import Booking from '../models/booking.model';
 import { confirmBooking, failBooking, markBookingPendingMentor } from './booking.controller';
+import { captureBookingPayment } from '../services/walletBooking.service';
 
 /**
  * POST /api/payments/webhook
@@ -31,6 +32,9 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
     switch (event) {
       case 'payment.success':
       case 'payment.completed':
+        // Capture payment from mentee to mentor wallet
+        await captureBookingPayment(bookingId);
+        
         if ((process.env.MENTOR_CONFIRM_REQUIRED || 'false').toLowerCase() === 'true') {
           await markBookingPendingMentor(bookingId);
           console.log(`Payment captured, awaiting mentor confirmation for ${bookingId}`);

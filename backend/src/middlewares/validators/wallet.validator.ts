@@ -60,6 +60,8 @@ export const listTransactionsValidator: RequestHandler[] = [
       "MANUAL_WITHDRAW",
       "BOOKING_PAYMENT",
       "BOOKING_REFUND",
+      "MENTOR_PAYOUT",
+      "MENTOR_PAYOUT_REFUND",
     ])
     .withMessage("invalid transaction source"),
 ];

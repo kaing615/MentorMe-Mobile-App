@@ -129,14 +129,14 @@ fun PendingBookingsTab(
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
                                     Text(
-                                        "$topic",
+                                        topic,
                                         color = Color.White,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Spacer(Modifier.height(4.dp))
                                     Text(
-                                        "👤 Với $menteeName   •   $mentorName",
+                                        "👤 Mentee: ${menteeLabel}",
                                         color = Color.White.copy(.85f),
                                         style = MaterialTheme.typography.bodySmall
                                     )
@@ -157,7 +157,7 @@ fun PendingBookingsTab(
                             InfoRow("Giá tư vấn", "${b.price.toInt()} đ")
                             InfoRow(
                                 "Hình thức",
-                                if (sessionType == "in-person") "Trực tiếp" else "Video Call"
+                                if (!b.location.isNullOrBlank()) "Trực tiếp" else "Video Call"
                             )
 
                             // Payment

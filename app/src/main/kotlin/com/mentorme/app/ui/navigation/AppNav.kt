@@ -5,7 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
-import androidx.annotation.RequiresApi
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -16,7 +16,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.zIndex
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -31,7 +33,7 @@ import com.mentorme.app.ui.auth.RegisterPayload
 import com.mentorme.app.ui.booking.BookingChooseTimeScreen
 import com.mentorme.app.ui.booking.BookingDraft
 import com.mentorme.app.ui.booking.BookingSummaryScreen
-import com.mentorme.app.ui.calendar.CalendarScreen
+import com.mentorme.app.ui.calendar.MenteeCalendarScreen
 import com.mentorme.app.ui.calendar.MentorCalendarScreen
 import com.mentorme.app.ui.chat.ChatScreen
 import com.mentorme.app.ui.chat.MessagesScreen
@@ -39,7 +41,6 @@ import com.mentorme.app.ui.chat.MentorMessagesScreen
 import com.mentorme.app.ui.dashboard.MentorDashboardScreen
 import com.mentorme.app.ui.home.HomeScreen
 import com.mentorme.app.ui.layout.GlassBottomBar
-import com.mentorme.app.ui.layout.UserUi
 import com.mentorme.app.ui.onboarding.MenteeOnboardingScreen
 import com.mentorme.app.ui.onboarding.MentorOnboardingScreen
 import com.mentorme.app.ui.onboarding.PendingApprovalScreen
@@ -48,6 +49,7 @@ import com.mentorme.app.ui.profile.UserHeader
 import com.mentorme.app.ui.profile.UserRole
 import com.mentorme.app.ui.profile.MentorProfileScreen
 import com.mentorme.app.ui.search.SearchMentorScreen
+import com.mentorme.app.ui.session.SessionViewModel
 import com.mentorme.app.ui.theme.LiquidBackground
 import com.mentorme.app.ui.wallet.AddPaymentMethodScreen
 import com.mentorme.app.ui.wallet.BankInfo
@@ -57,6 +59,7 @@ import com.mentorme.app.ui.wallet.PaymentMethodScreen
 import com.mentorme.app.ui.wallet.TopUpScreen
 import com.mentorme.app.ui.wallet.WithdrawScreen
 import com.mentorme.app.ui.wallet.initialPaymentMethods
+import android.Manifest
 
 object Routes {
     const val Auth = "auth"
@@ -104,12 +107,10 @@ private fun goToSearch(nav: NavHostController) {
     }
 }
 
-@RequiresApi(Build.VERSION_CODES.O)
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun AppNav(
-    nav: NavHostController = rememberNavController(),
-    user: UserUi? = UserUi("Alice", avatar = null, role = "mentee")
+    nav: NavHostController = rememberNavController()
 ) {
     val backstack by nav.currentBackStackEntryAsState()
     val currentRoute = backstack?.destination?.route
@@ -117,10 +118,11 @@ fun AppNav(
     var isLoggedIn by rememberSaveable { mutableStateOf(false) }
     var userRole by rememberSaveable { mutableStateOf("mentee") }
     var payMethods by remember { mutableStateOf(initialPaymentMethods()) }
-    var authToken by rememberSaveable { mutableStateOf<String?>(null) }
-    val context = LocalContext.current
-    var sessionReady by remember { mutableStateOf(false) }
     var roleReady by remember { mutableStateOf(false) }
+    var sessionReady by remember { mutableStateOf(false) }
+    var userStatus by remember { mutableStateOf<String?>(null) }
+
+    val context = LocalContext.current
     val sessionVm = hiltViewModel<SessionViewModel>()
     val sessionState by sessionVm.session.collectAsStateWithLifecycle()
 
@@ -213,11 +215,6 @@ fun AppNav(
     }
 
     var overlayVisible by remember { mutableStateOf(false) }
-    val statusNormalized = userStatus?.lowercase()?.replace('_', '-')
-    val roleSafe = userRole.trim().ifBlank { "mentee" }.lowercase()
-    val needsOnboarding = statusNormalized == "onboarding"
-    val needsPendingApproval = statusNormalized == "pending-mentor"
-    val onboardingRoute = Routes.onboardingFor(roleSafe)
 
     Box(modifier = Modifier.fillMaxSize()) {
         LiquidBackground(
@@ -245,7 +242,9 @@ fun AppNav(
                     currentRoute != Routes.Auth &&
                     !hideForChat &&
                     !hideForBooking &&
-                    !hideForWallet
+                    !hideForWallet &&
+                    !hideForOnboarding &&
+                    !hideForPendingApproval
                 ) {
                     GlassBottomBar(navController = nav, userRole = userRole)
                 }
@@ -332,7 +331,6 @@ fun AppNav(
                                 }
                             },
                             onNavigateToOnboarding = { tokenFromAuth: String?, role: String? ->
-                                authToken = tokenFromAuth
                                 val roleSafe = role ?: "mentee"
                                 userRole = roleSafe
                                 nav.navigate(Routes.onboardingFor(roleSafe)) {
@@ -494,11 +492,13 @@ fun AppNav(
                             onViewStatistics = { Log.d("AppNav", "MentorProfile: onViewStatistics - TODO") },
                             onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
                             onLogout = {
-                                isLoggedIn = false
-                                userRole = "mentee"
-                                nav.navigate(Routes.Auth) {
-                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
-                                    launchSingleTop = true
+                                authVm.signOut {
+                                    isLoggedIn = false
+                                    userRole = "mentee"
+                                    nav.navigate(Routes.Auth) {
+                                        popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
                                 }
                             }
                         )
@@ -516,6 +516,7 @@ fun AppNav(
                         )
                     ) { backStackEntry ->
                         val target = backStackEntry.arguments?.getString("target") ?: "profile"
+                        val authVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
 
                         MentorProfileScreen(
                             startTarget = target,

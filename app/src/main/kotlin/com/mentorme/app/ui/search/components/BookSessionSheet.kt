@@ -14,7 +14,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Schedule
@@ -81,7 +80,7 @@ fun BookSessionContent(
         note: String
     ) -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val deps = remember(context) { EntryPointAccessors.fromApplication(context, BookSessionDeps::class.java) }
     val getCalendar = remember { deps.getPublicCalendarUseCase() }
     val getProfile = remember { deps.getPublicProfileUseCase() }
@@ -302,14 +301,14 @@ private fun MentorSummaryCard(
     val profileRole = profile?.jobTitle?.trim().orEmpty()
     val displayRole = if (profileRole.isNotBlank()) profileRole else mentor.role.ifBlank { "Mentor" }
     val company = mentor.company.trim().takeIf { it.isNotBlank() }
-    val headline = profile?.headline?.trim().takeIf { it.isNotBlank() }
+    val headline = profile?.headline?.trim()?.takeIf { it.isNotBlank() }
     val skills = (profile?.skills?.filter { it.isNotBlank() } ?: mentor.skills).filter { it.isNotBlank() }
     val languages = profile?.languages?.filter { it.isNotBlank() } ?: emptyList()
-    val avatarUrl = profile?.avatarUrl?.trim().takeIf { it.isNotBlank() }
+    val avatarUrl = profile?.avatarUrl?.trim()?.takeIf { it.isNotBlank() }
         ?: mentor.imageUrl.trim().takeIf { it.isNotBlank() }
     val initials = displayName
         .trim()
-        .split(Regex("\s+"))
+        .split(Regex("\\s+"))
         .filter { it.isNotBlank() }
         .mapNotNull { it.firstOrNull() }
         .take(2)

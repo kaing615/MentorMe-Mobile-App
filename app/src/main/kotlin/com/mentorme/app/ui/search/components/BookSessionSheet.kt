@@ -26,11 +26,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.mentorme.app.data.dto.availability.slotPriceVndOrNull
+import com.mentorme.app.data.dto.profile.ProfileDto
 import com.mentorme.app.domain.usecase.availability.GetPublicCalendarUseCase
+import com.mentorme.app.domain.usecase.profile.GetPublicProfileUseCase
 import com.mentorme.app.ui.common.glassOutlinedTextFieldColors
 import com.mentorme.app.ui.components.ui.MMGhostButton
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
@@ -44,6 +50,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.roundToLong
 
 private data class SlotChoice(
     val occurrenceId: String,
@@ -58,6 +65,7 @@ private data class SlotChoice(
 @InstallIn(SingletonComponent::class)
 interface BookSessionDeps {
     fun getPublicCalendarUseCase(): GetPublicCalendarUseCase
+    fun getPublicProfileUseCase(): GetPublicProfileUseCase
 }
 
 @Composable
@@ -76,12 +84,14 @@ fun BookSessionContent(
     val context = androidx.compose.ui.platform.LocalContext.current
     val deps = remember(context) { EntryPointAccessors.fromApplication(context, BookSessionDeps::class.java) }
     val getCalendar = remember { deps.getPublicCalendarUseCase() }
+    val getProfile = remember { deps.getPublicProfileUseCase() }
 
     var slots by remember { mutableStateOf<List<SlotChoice>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var selectedSlot by remember { mutableStateOf<SlotChoice?>(null) }
     var note by remember { mutableStateOf("") }
+    var profile by remember { mutableStateOf<ProfileDto?>(null) }
 
     val nf = remember { java.text.NumberFormat.getCurrencyInstance(Locale("vi", "VN")) }
     val dateFmt = remember { DateTimeFormatter.ofPattern("yyyy-MM-dd") }
@@ -106,13 +116,20 @@ fun BookSessionContent(
                     val endZ = runCatching { Instant.parse(e).atZone(zone) }.getOrNull() ?: return@mapNotNull null
                     val duration = java.time.Duration.between(startZ, endZ).toMinutes().toInt()
                     val occurrenceId = item.id?.ifBlank { null } ?: "${s}_${e}"
+                    val fallbackRate = mentor.hourlyRate.takeIf { it > 0 }
+                    val priceVnd = item.slotPriceVndOrNull()?.toLong()
+                        ?: fallbackRate?.let { rate ->
+                            val hours = duration.toDouble() / 60.0
+                            (rate * hours).roundToLong()
+                        }
+                        ?: 0L
                     SlotChoice(
                         occurrenceId = occurrenceId,
                         date = dateFmt.format(startZ),
                         startTime = timeFmt.format(startZ),
                         endTime = timeFmt.format(endZ),
                         durationMins = duration,
-                        priceVnd = item.slotPriceVndOrNull()?.toLong() ?: 0L
+                        priceVnd = priceVnd
                     )
                 }.sortedWith(compareBy({ it.date }, { it.startTime }))
                 loading = false
@@ -121,6 +138,23 @@ fun BookSessionContent(
                 slots = emptyList()
                 errorMessage = res.throwable
                 loading = false
+            }
+            com.mentorme.app.core.utils.AppResult.Loading -> Unit
+        }
+    }
+
+    LaunchedEffect(mentor.id) {
+        val idSafe = mentor.id.trim()
+        if (idSafe.isBlank()) {
+            profile = null
+            return@LaunchedEffect
+        }
+        profile = null
+        when (val res = getProfile(idSafe)) {
+            is com.mentorme.app.core.utils.AppResult.Success -> {
+                profile = res.data
+            }
+            is com.mentorme.app.core.utils.AppResult.Error -> {
             }
             com.mentorme.app.core.utils.AppResult.Loading -> Unit
         }
@@ -150,7 +184,7 @@ fun BookSessionContent(
                 IconButton(onClick = onClose) { Icon(Icons.Default.Close, null) }
             }
 
-            MentorSummaryCard(mentor = mentor, priceFormatter = nf)
+            MentorSummaryCard(mentor = mentor, profile = profile, priceFormatter = nf)
 
             SectionHeader(
                 title = "Bước 1: Chọn khung giờ",
@@ -258,7 +292,30 @@ private fun SectionHeader(title: String, caption: String? = null) {
 }
 
 @Composable
-private fun MentorSummaryCard(mentor: HomeMentor, priceFormatter: java.text.NumberFormat) {
+private fun MentorSummaryCard(
+    mentor: HomeMentor,
+    profile: ProfileDto?,
+    priceFormatter: java.text.NumberFormat
+) {
+    val profileName = profile?.fullName?.trim().orEmpty()
+    val displayName = if (profileName.isNotBlank()) profileName else mentor.name.ifBlank { "Mentor" }
+    val profileRole = profile?.jobTitle?.trim().orEmpty()
+    val displayRole = if (profileRole.isNotBlank()) profileRole else mentor.role.ifBlank { "Mentor" }
+    val company = mentor.company.trim().takeIf { it.isNotBlank() }
+    val headline = profile?.headline?.trim().takeIf { it.isNotBlank() }
+    val skills = (profile?.skills?.filter { it.isNotBlank() } ?: mentor.skills).filter { it.isNotBlank() }
+    val languages = profile?.languages?.filter { it.isNotBlank() } ?: emptyList()
+    val avatarUrl = profile?.avatarUrl?.trim().takeIf { it.isNotBlank() }
+        ?: mentor.imageUrl.trim().takeIf { it.isNotBlank() }
+    val initials = displayName
+        .trim()
+        .split(Regex("\s+"))
+        .filter { it.isNotBlank() }
+        .mapNotNull { it.firstOrNull() }
+        .take(2)
+        .joinToString("")
+    val subtitle = listOfNotNull(displayRole.takeIf { it.isNotBlank() }, company).joinToString(" • ")
+
     LiquidGlassCard(
         modifier = Modifier.fillMaxWidth(),
         radius = 24.dp,
@@ -280,21 +337,48 @@ private fun MentorSummaryCard(mentor: HomeMentor, priceFormatter: java.text.Numb
                         .background(Color.White.copy(alpha = 0.16f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Person, contentDescription = null, tint = Color.White)
+                    if (!avatarUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(avatarUrl)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.matchParentSize().clip(CircleShape)
+                        )
+                    } else {
+                        Text(
+                            text = initials,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        mentor.name,
+                        displayName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    Text(
-                        "${mentor.role} • ${mentor.company}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.75f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    if (subtitle.isNotBlank()) {
+                        Text(
+                            subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.75f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (!headline.isNullOrBlank()) {
+                        Text(
+                            headline,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.7f),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Row(
@@ -324,6 +408,25 @@ private fun MentorSummaryCard(mentor: HomeMentor, priceFormatter: java.text.Numb
                 icon = Icons.Default.AttachMoney,
                 text = "${priceFormatter.format(mentor.hourlyRate.toLong())}/giờ"
             )
+
+            if (skills.isNotEmpty()) {
+                Text(
+                    skills.take(4).joinToString(" • "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (languages.isNotEmpty()) {
+                Text(
+                    "Ngôn ngữ: ${languages.take(3).joinToString(", ")}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.65f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }

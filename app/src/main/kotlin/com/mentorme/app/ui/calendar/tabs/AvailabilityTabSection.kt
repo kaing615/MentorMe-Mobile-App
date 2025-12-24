@@ -18,12 +18,12 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.*
 import androidx.compose.material3.ExposedDropdownMenuDefaults.TrailingIcon
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -32,7 +32,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
@@ -103,7 +103,7 @@ fun AvailabilityTabSection(
             val sErr = if (startZdt.isBefore(nowPlusSkew)) "Giờ bắt đầu phải trong tương lai" else null
             val eErr = if (endZdt.isBefore(nowPlusSkew)) "Giờ kết thúc phải trong tương lai" else null
             Pair(sErr, eErr)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             Pair(null, null)
         }
     }
@@ -235,13 +235,13 @@ fun AvailabilityTabSection(
                                     onClick = {
                                         // Prefill form from slot
                                         editingSlot = slot
-                                        try {
-                                            selectedDate = LocalDate.parse(slot.date)
-                                            startTime = LocalTime.parse(slot.startTime)
-                                            endTime = LocalTime.parse(slot.endTime)
-                                        } catch (e: Exception) {
-                                            // ignore
-                                        }
+                        try {
+                            selectedDate = LocalDate.parse(slot.date)
+                            startTime = LocalTime.parse(slot.startTime)
+                            endTime = LocalTime.parse(slot.endTime)
+                        } catch (_: Exception) {
+                            // ignore
+                        }
                                         type = slot.sessionType
                                         desc = TextFieldValue(slot.description ?: "")
                                         priceDigits = if (slot.priceVnd > 0) slot.priceVnd.toString() else ""
@@ -441,24 +441,6 @@ private fun SlotStatusPill(slot: AvailabilitySlot) {
     }
 }
 
-@Composable
-private fun SlotStatusPill(slot: AvailabilitySlot) {
-    val (label, color) = when {
-        !slot.isActive -> "Tạm dừng" to Color(0xFF6B7280)
-        slot.isBooked -> "Đã đặt" to Color(0xFFEF4444)
-        else -> "Còn trống" to Color(0xFF22C55E)
-    }
-
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(color.copy(alpha = 0.18f))
-            .border(BorderStroke(1.dp, color.copy(alpha = 0.45f)), RoundedCornerShape(12.dp))
-            .padding(horizontal = 10.dp, vertical = 6.dp)
-    ) {
-        Text(label, color = Color.White, style = MaterialTheme.typography.labelMedium)
-    }
-}
 
 /**
  * Dialog dùng chung cho Thêm/Sửa để tránh lặp code
@@ -625,14 +607,14 @@ private fun AvailabilityDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "$title",
+                        text = title,
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                 }
                 
-                Divider(color = Color.White.copy(alpha = 0.15f), thickness = 1.dp)
+                HorizontalDivider(color = Color.White.copy(alpha = 0.15f), thickness = 1.dp)
 
                 DialogSectionHeader("📅 Bước 1: Chọn thời gian")
 
@@ -660,7 +642,7 @@ private fun AvailabilityDialog(
                         value = typeLabel,
                         onValueChange = {}, readOnly = true,
                         trailingIcon = { TrailingIcon(expanded = typeMenu) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
                         colors = glassOutlinedTextFieldColors()
                     )
@@ -714,7 +696,7 @@ private fun AvailabilityDialog(
                     }
                 }
 
-                Divider(color = Color.White.copy(alpha = 0.15f), thickness = 1.dp)
+                HorizontalDivider(color = Color.White.copy(alpha = 0.15f), thickness = 1.dp)
 
                 DialogSectionHeader("💰 Bước 2: Giá & khoảng đệm")
 
@@ -775,7 +757,7 @@ private fun AvailabilityDialog(
                     typeLabel = typeLabel
                 )
 
-                Divider(color = Color.White.copy(alpha = 0.15f), thickness = 1.dp)
+                HorizontalDivider(color = Color.White.copy(alpha = 0.15f), thickness = 1.dp)
 
                 DialogSectionHeader("📝 Bước 3: Mô tả")
 
@@ -840,16 +822,6 @@ private fun DialogSectionHeader(text: String) {
     }
 }
 
-@Composable
-private fun DialogSectionHeader(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.SemiBold,
-        color = Color.White,
-        modifier = Modifier.fillMaxWidth()
-    )
-}
 
 @Composable
 private fun FormLabel(text: String) {

@@ -2,6 +2,8 @@ import { Router } from "express";
 import { auth, requireRoles } from "../middlewares/auth.middleware";
 import payoutController from "../controllers/payout.controller";
 import { createPayoutRequestValidator } from "../middlewares/validators/payout.validator";
+import { validate } from "../handlers/request.handler";
+
 
 const router = Router();
 
@@ -13,6 +15,7 @@ router.post(
   auth,
   requireRoles(MENTOR_ROLE),
   createPayoutRequestValidator,
+  validate,
   payoutController.createPayoutRequest
 );
 

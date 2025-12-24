@@ -1,6 +1,7 @@
 import { Router } from "express";
 import payoutController from "../controllers/payout.controller";
 import { mockPayoutWebhookValidator } from "../middlewares/validators/payout.validator";
+import { validate } from "../handlers/request.handler";
 
 const router = Router();
 
@@ -8,6 +9,7 @@ const router = Router();
 router.post(
   "/payout-provider",
   mockPayoutWebhookValidator,
+  validate,
   payoutController.handleMockPayoutWebhook
 );
 

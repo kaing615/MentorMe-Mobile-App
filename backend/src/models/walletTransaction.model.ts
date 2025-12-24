@@ -94,7 +94,7 @@ const WalletTransactionSchema = new Schema<IWalletTransaction>(
     },
     idempotencyKey: {
       type: String,
-      default: null,
+      default: undefined, //fix duplicate key error for docs without this field
       index: true,
     },
     metadata: {

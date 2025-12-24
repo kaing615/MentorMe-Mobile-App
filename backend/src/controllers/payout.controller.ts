@@ -385,11 +385,40 @@ export const handleMockPayoutWebhook = asyncHandler(
         payout: mapPayoutToDto(payout),
       });
     } else if (status === "FAILED") {
-      // Refund to mentor wallet
+      // Refund to mentor wallet (IDEMPOTENT + SAFE)
       const session = await mongoose.startSession();
       session.startTransaction();
 
       try {
+        const payoutIdStr =
+          (payout as any)._id?.toString?.() ??
+          (payout as any).id?.toString?.() ??
+          "";
+
+        const refundKey = `payout_refund:${payoutIdStr}`;
+
+        // ✅ Idempotency gate FIRST (inside transaction)
+        const existingRefundTx = await WalletTransaction.findOne({
+          userId: payout.mentorId,
+          source: "MENTOR_PAYOUT_REFUND",
+          idempotencyKey: refundKey,
+        }).session(session);
+
+        if (existingRefundTx) {
+          // Already refunded, only ensure payout marked FAILED
+          payout.status = "FAILED";
+          await payout.save({ session });
+
+          await session.commitTransaction();
+          session.endSession();
+
+          return ok(res, {
+            message: "Refund already processed (idempotent)",
+            payout: mapPayoutToDto(payout),
+          });
+        }
+
+        // Load wallet
         const wallet = await Wallet.findOne({
           userId: payout.mentorId,
         }).session(session);
@@ -400,6 +429,13 @@ export const handleMockPayoutWebhook = asyncHandler(
           return badRequest(res, "WALLET_NOT_AVAILABLE");
         }
 
+        // ✅ BONUS: wallet status check
+        if (wallet.status !== "ACTIVE") {
+          await session.abortTransaction();
+          session.endSession();
+          return badRequest(res, "WALLET_LOCKED");
+        }
+
         // Credit back the amount
         const balanceBefore = wallet.balanceMinor;
         const balanceAfter = balanceBefore + payout.amountMinor;
@@ -407,13 +443,13 @@ export const handleMockPayoutWebhook = asyncHandler(
         wallet.balanceMinor = balanceAfter;
         await wallet.save({ session });
 
-        // Create refund transaction
+        // Insert refund tx
         await WalletTransaction.create(
           [
             {
               walletId: wallet._id,
               userId: payout.mentorId,
-              type: "CREDIT",
+              type: "REFUND",
               source: "MENTOR_PAYOUT_REFUND",
               amountMinor: payout.amountMinor,
               currency: payout.currency,
@@ -421,6 +457,7 @@ export const handleMockPayoutWebhook = asyncHandler(
               balanceAfterMinor: balanceAfter,
               referenceType: "PAYOUT",
               referenceId: payout._id,
+              idempotencyKey: refundKey,
             },
           ],
           { session }
@@ -437,9 +474,29 @@ export const handleMockPayoutWebhook = asyncHandler(
           message: "Payout marked as FAILED and amount refunded",
           payout: mapPayoutToDto(payout),
         });
-      } catch (err) {
+      } catch (err: any) {
         await session.abortTransaction();
         session.endSession();
+
+        // If duplicate key on idempotencyKey, treat as idempotent
+        if (
+          err?.code === 11000 &&
+          (err.keyPattern?.idempotencyKey ||
+            err.message?.includes("idempotencyKey"))
+        ) {
+          // best-effort mark FAILED (outside txn)
+          await MentorPayoutRequest.updateOne(
+            { _id: payout._id },
+            { $set: { status: "FAILED" } }
+          );
+          const latest = await MentorPayoutRequest.findById(payout._id);
+
+          return ok(res, {
+            message: "Refund already processed (idempotent)",
+            payout: latest ? mapPayoutToDto(latest as any) : mapPayoutToDto(payout),
+          });
+        }
+
         throw err;
       }
     } else {

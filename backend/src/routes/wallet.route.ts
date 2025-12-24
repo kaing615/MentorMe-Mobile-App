@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { auth, requireRoles } from "../middlewares/auth.middleware";
 import walletController from "../controllers/wallet.controller";
+import { validate } from "../handlers/request.handler";
+
 import {
   mockTopupValidator,
   mockDebitValidator,
@@ -19,6 +21,7 @@ router.post(
   auth,
   requireRoles(MENTEE_ROLE),
   mockTopupValidator,
+  validate,
   walletController.mockTopup
 );
 
@@ -27,6 +30,7 @@ router.post(
   auth,
   requireRoles(MENTEE_ROLE),
   mockDebitValidator,
+  validate,
   walletController.mockDebit
 );
 
@@ -35,6 +39,7 @@ router.get(
   auth,
   requireRoles(MENTEE_ROLE),
   listTransactionsValidator,
+  validate,
   walletController.listTransactions
 );
 

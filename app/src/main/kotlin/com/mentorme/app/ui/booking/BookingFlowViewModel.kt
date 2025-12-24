@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import com.mentorme.app.core.utils.Logx
+import com.mentorme.app.data.model.Booking
 
 @HiltViewModel
 class BookingFlowViewModel @Inject constructor(

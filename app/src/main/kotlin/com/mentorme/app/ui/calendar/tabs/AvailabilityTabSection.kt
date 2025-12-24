@@ -12,6 +12,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.*
 import androidx.compose.material3.ExposedDropdownMenuDefaults.TrailingIcon
 import androidx.compose.runtime.*
@@ -22,8 +24,10 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mentorme.app.ui.calendar.components.InfoChip
 import com.mentorme.app.ui.calendar.core.*
@@ -45,6 +49,11 @@ fun AvailabilityTabSection(
 ) {
     val context = LocalContext.current
     val numberFormat = remember { NumberFormat.getCurrencyInstance(java.util.Locale("vi","VN")) }
+    val totalCount = slots.size
+    val activeCount = slots.count { it.isActive }
+    val bookedCount = slots.count { it.isBooked }
+    val openCount = slots.count { it.isActive && !it.isBooked }
+    val pausedCount = totalCount - activeCount
 
     // Persist last used buffer minutes across opens
     var lastBufBefore by rememberSaveable { mutableStateOf("0") }
@@ -106,7 +115,12 @@ fun AvailabilityTabSection(
                     contentAlignment = Alignment.Center
                 ) { Icon(Icons.Default.CalendarToday, null, tint = Color.White) }
                 Spacer(Modifier.width(8.dp))
-                Text("Lịch trống của bạn", color = Color.White)
+                Text(
+                    "Thiết lập lịch booking",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
             Spacer(Modifier.weight(1f))
             MMPrimaryButton(onClick = {
@@ -114,7 +128,18 @@ fun AvailabilityTabSection(
                 showAdd = true
             }) {
                 Icon(Icons.Default.Add, null, tint = Color.White)
-                Spacer(Modifier.width(6.dp)); Text("Thêm lịch", color = Color.White)
+                Spacer(Modifier.width(6.dp)); Text("Tạo lịch", color = Color.White)
+            }
+        }
+
+        if (totalCount > 0) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                InfoChip("Tổng slot", totalCount.toString(), Modifier.weight(1f), center = true)
+                InfoChip("Còn trống", openCount.toString(), Modifier.weight(1f), center = true)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                InfoChip("Đã đặt", bookedCount.toString(), Modifier.weight(1f), center = true)
+                InfoChip("Tạm dừng", pausedCount.toString(), Modifier.weight(1f), center = true)
             }
         }
 
@@ -141,44 +166,37 @@ fun AvailabilityTabSection(
                     LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
 
+                            val sessionLabel = if (slot.sessionType == "video") "Video Call" else "Trực tiếp"
+                            val sessionIcon = if (slot.sessionType == "video") Icons.Default.Videocam else Icons.Default.LocationOn
+
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Box(
-                                    modifier = Modifier.size(26.dp).clip(RoundedCornerShape(10.dp))
+                                    modifier = Modifier.size(28.dp).clip(RoundedCornerShape(10.dp))
                                         .background(if (slot.sessionType == "video") Color(0x332467F1) else Color(0x3322C55E)),
                                     contentAlignment = Alignment.Center
-                                ) { Text(if (slot.sessionType == "video") "💻" else "🤝") }
+                                ) { Icon(sessionIcon, null, tint = Color.White, modifier = Modifier.size(16.dp)) }
 
-                                Spacer(Modifier.width(8.dp))
-                                Column(Modifier.weight(1f)) {
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                     Text(
-                                        text = slot.description ?: "Phiên ${if (slot.sessionType=="video") "Video Call" else "Trực tiếp"}",
+                                        text = slot.date,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
                                         color = Color.White
                                     )
-                                    Text("${slot.date}  •  ${slot.startTime} - ${slot.endTime}",
-                                        color = Color.White.copy(.7f))
-                                }
-
-                                val badgeBg = when {
-                                    !slot.isActive -> Color(0xFF6B7280)
-                                    slot.isBooked  -> Color(0xFFEF4444)
-                                    else           -> Color(0xFF22C55E)
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(badgeBg.copy(.25f))
-                                        .border(BorderStroke(1.dp, badgeBg.copy(.45f)), RoundedCornerShape(12.dp))
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                                ) {
                                     Text(
-                                        when {
-                                            !slot.isActive -> "Tạm dừng"
-                                            slot.isBooked  -> "Đã đặt"
-                                            else           -> "Còn trống"
-                                        },
-                                        color = Color.White
+                                        "${slot.startTime} - ${slot.endTime}",
+                                        color = Color.White.copy(.8f)
+                                    )
+                                    Text(
+                                        text = slot.description ?: "Phiên $sessionLabel",
+                                        color = Color.White.copy(.7f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
+
+                                SlotStatusPill(slot)
                             }
 
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -381,6 +399,25 @@ fun AvailabilityTabSection(
     }
 }
 
+@Composable
+private fun SlotStatusPill(slot: AvailabilitySlot) {
+    val (label, color) = when {
+        !slot.isActive -> "Tạm dừng" to Color(0xFF6B7280)
+        slot.isBooked -> "Đã đặt" to Color(0xFFEF4444)
+        else -> "Còn trống" to Color(0xFF22C55E)
+    }
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(color.copy(alpha = 0.18f))
+            .border(BorderStroke(1.dp, color.copy(alpha = 0.45f)), RoundedCornerShape(12.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Text(label, color = Color.White, style = MaterialTheme.typography.labelMedium)
+    }
+}
+
 /**
  * Dialog dùng chung cho Thêm/Sửa để tránh lặp code
  */
@@ -413,6 +450,12 @@ private fun AvailabilityDialog(
     onSubmit: () -> Unit
 ) {
     var typeMenu by remember { mutableStateOf(false) }
+    val numberFormat = remember { NumberFormat.getCurrencyInstance(java.util.Locale("vi", "VN")) }
+    val durationPreview = durationFromDigits(startDigits, endDigits)
+    val pricePreview = priceDigits?.filter(Char::isDigit)?.toLongOrNull()
+    val datePreview = formatDatePreview(dateDigits)
+    val timePreview = formatTimeRangePreview(startDigits, endDigits)
+    val typeLabel = if (type == "video") "Video Call" else "Trực tiếp"
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -425,7 +468,12 @@ private fun AvailabilityDialog(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(title)
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
 
                 // Ngày
                 FormLabel("📅  Ngày")

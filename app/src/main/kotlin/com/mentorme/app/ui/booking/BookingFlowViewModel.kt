@@ -3,7 +3,6 @@ package com.mentorme.app.ui.booking
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mentorme.app.core.utils.AppResult
-import com.mentorme.app.data.model.Booking
 import com.mentorme.app.domain.usecase.calendar.CreateBookingUseCase
 import com.mentorme.app.domain.usecase.calendar.GetMentorAvailabilityUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel

@@ -763,6 +763,7 @@ fun AppNav(
                                             popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
                                             launchSingleTop = true
                                         }
+                                        nav.popBackStack(route = Routes.Home, inclusive = false)
                                     }
                                     is com.mentorme.app.core.utils.AppResult.Error -> {
                                         val msg = res.throwable

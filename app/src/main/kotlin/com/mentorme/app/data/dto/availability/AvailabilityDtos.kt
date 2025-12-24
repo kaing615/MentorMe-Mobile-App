@@ -37,7 +37,8 @@ data class SlotDto(
     val bufferAfterMin: Int?,
     val visibility: String?,
     val status: String?,
-    val publishHorizonDays: Int?
+    val publishHorizonDays: Int?,
+    val priceVnd: Double?
 )
 // ---- END: Envelope & Slot payload (server-aligned) ----
 
@@ -51,12 +52,13 @@ data class CalendarPayload(
 // REPLACED: CalendarItemDto to support slot as String or Object
 // Backend can send either: "slot": "<id>" OR "slot": { _id/id, title, description }
 data class CalendarItemDto(
-    @SerializedName("_id") val id: String? = null,
+    @SerializedName(value = "id", alternate = ["_id"]) val id: String? = null,
     val start: String? = null,
     val end: String? = null,
     val status: String? = null,
     val title: String? = null,
     val description: String? = null,
+    val priceVnd: Double? = null,
     // Backend can send either: "slot": "<id>" OR "slot": { _id/id, title, description }
     @SerializedName("slot") val slotRaw: Any? = null
 )
@@ -71,6 +73,15 @@ fun CalendarItemDto.slotIdOrEmpty(): String {
             else -> ""
         }
         else -> ""
+    }
+}
+
+fun CalendarItemDto.slotPriceVndOrNull(): Double? {
+    priceVnd?.let { return it }
+    return when (val v = slotRaw) {
+        is Map<*, *> -> (v["priceVnd"] as? Number)?.toDouble()
+        is JsonObject -> if (v.has("priceVnd")) v.get("priceVnd").asDouble else null
+        else -> null
     }
 }
 
@@ -97,6 +108,8 @@ data class CreateSlotRequest(
     val bufferBeforeMin: Int? = 0,
     /** Minutes of buffer after the slot; default 0. */
     val bufferAfterMin: Int? = 0,
+    /** Fixed price for the slot (VND). */
+    val priceVnd: Double? = null,
     /** "public" | "private"; default "public". */
     val visibility: String? = "public",
     /** Days to expand recurrence into concrete occurrences; default 90. */
@@ -112,6 +125,7 @@ data class UpdateSlotRequest(
     val timezone: String? = null,
     val start: String? = null,
     val end: String? = null,
+    val priceVnd: Double? = null,
     val visibility: String? = null,
     /** action: "pause" | "resume" */
     val action: String? = null

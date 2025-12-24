@@ -3,6 +3,7 @@ package com.mentorme.app.ui.calendar
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,6 +16,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,6 +30,7 @@ import com.mentorme.app.data.mock.MockData
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.theme.liquidGlass
 import com.mentorme.app.ui.components.ui.MMButton
+import com.mentorme.app.core.time.formatIsoToLocalShort
 import java.util.Calendar
 import androidx.compose.ui.graphics.Brush
 
@@ -59,12 +62,6 @@ private fun minutesToHHmm(mins: Int): String {
 
 private fun addMinutes(hhmm: String, plus: Int) = minutesToHHmm(hhmmToMinutes(hhmm) + plus)
 
-private fun formatIsoShort(iso: String?): String? {
-    if (iso.isNullOrBlank()) return null
-    val cleaned = iso.trim().replace("T", " ").removeSuffix("Z")
-    return if (cleaned.length >= 16) cleaned.substring(0, 16) else cleaned
-}
-
 private fun isFutureOrNow(date: String, time: String, nowDate: String, nowTime: String) =
     when {
         date > nowDate -> true
@@ -80,24 +77,38 @@ private fun isPast(date: String, time: String, nowDate: String, nowTime: String)
     }
 
 // ---------- UI - HomeScreen Style ----------
-private enum class CalTab(val label: String) {
+enum class CalendarTab(val label: String) {
     Upcoming("Sắp tới"),
     Pending("Chờ duyệt"),
     Completed("Hoàn thành"),
-    Cancelled("Đã hủy")
+    Cancelled("Đã hủy");
+
+    companion object {
+        fun fromRouteArg(arg: String?): CalendarTab {
+            return when (arg?.lowercase()) {
+                "pending" -> Pending
+                "completed" -> Completed
+                "cancelled", "canceled" -> Cancelled
+                "upcoming" -> Upcoming
+                else -> Upcoming
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(
     bookings: List<Booking> = MockData.mockBookings,
+    startTab: CalendarTab = CalendarTab.Upcoming,
     onJoinSession: (Booking) -> Unit = {},
     onRate: (Booking) -> Unit = {},
     onRebook: (Booking) -> Unit = {},
     onPay: (Booking) -> Unit = {},
-    onCancel: (Booking) -> Unit = {}
+    onCancel: (Booking) -> Unit = {},
+    onOpen: (Booking) -> Unit = {}
 ) {
-    var active by remember { mutableStateOf(CalTab.Upcoming) }
+    var active by rememberSaveable(startTab) { mutableStateOf(startTab) }
 
     val nowDate = remember { todayDate() }
     val nowTime = remember { nowHHmm() }
@@ -188,7 +199,7 @@ fun CalendarScreen(
                         }
                     }
                 ) {
-                    CalTab.values().forEachIndexed { i, tab ->
+                    CalendarTab.values().forEachIndexed { i, tab ->
                         Tab(
                             selected = i == active.ordinal,
                             onClick = { active = tab },
@@ -207,10 +218,10 @@ fun CalendarScreen(
 
         // Content based on selected tab
         val list = when (active) {
-            CalTab.Upcoming -> upcoming
-            CalTab.Pending -> pending
-            CalTab.Completed -> completed
-            CalTab.Cancelled -> cancelled
+            CalendarTab.Upcoming -> upcoming
+            CalendarTab.Pending -> pending
+            CalendarTab.Completed -> completed
+            CalendarTab.Cancelled -> cancelled
         }
 
         if (list.isEmpty()) {
@@ -225,7 +236,8 @@ fun CalendarScreen(
                     onRate = onRate,
                     onRebook = onRebook,
                     onPay = onPay,
-                    onCancel = onCancel
+                    onCancel = onCancel,
+                    onOpen = onOpen
                 )
             }
         }
@@ -233,12 +245,12 @@ fun CalendarScreen(
 }
 
 @Composable
-private fun EmptyState(tab: CalTab) {
+private fun EmptyState(tab: CalendarTab) {
     val (emoji, text) = when (tab) {
-        CalTab.Upcoming -> "📅" to "Chưa có lịch sắp tới"
-        CalTab.Pending -> "⏳" to "Không có booking chờ duyệt"
-        CalTab.Completed -> "✅" to "Chưa có phiên hoàn thành"
-        CalTab.Cancelled -> "❌" to "Không có lịch đã hủy"
+        CalendarTab.Upcoming -> "📅" to "Chưa có lịch sắp tới"
+        CalendarTab.Pending -> "⏳" to "Không có booking chờ duyệt"
+        CalendarTab.Completed -> "✅" to "Chưa có phiên hoàn thành"
+        CalendarTab.Cancelled -> "❌" to "Không có lịch đã hủy"
     }
 
     LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
@@ -274,32 +286,39 @@ private fun BookingCard(
     onRate: (Booking) -> Unit,
     onRebook: (Booking) -> Unit,
     onCancel: (Booking) -> Unit,
-    onPay: (Booking) -> Unit
+    onPay: (Booking) -> Unit,
+    onOpen: (Booking) -> Unit
 ) {
-    val mentor = remember(booking.mentorId) {
+    val fallbackMentor = remember(booking.mentorId) {
         MockData.mockMentors.firstOrNull { it.id == booking.mentorId }
     }
-    val mentorLabel = mentor?.fullName ?: "Mentor ${booking.mentorId.takeLast(6)}"
-    val mentorAvatar = mentor?.avatar
+    val mentorLabel = listOf(
+        booking.mentorFullName,
+        booking.mentor?.fullName,
+        fallbackMentor?.fullName
+    ).firstOrNull { !it.isNullOrBlank() }?.trim()
+        ?: "Mentor ${booking.mentorId.takeLast(6)}"
+    val mentorAvatar = booking.mentor?.avatar ?: fallbackMentor?.avatar
 
     val dateToday = todayDate()
     val now = nowHHmm()
+
     val canJoin = booking.status == BookingStatus.CONFIRMED &&
             booking.date == dateToday &&
             (now >= addMinutes(booking.startTime, -10)) &&
             (now <= booking.endTime)
 
     val lateCancelLabel = if (booking.lateCancel == true) {
-        val minutes = booking.lateCancelMinutes?.let { " (${it}m)" } ?: ""
-        "Hủy muộn$minutes"
+        val minutes = booking.lateCancelMinutes
+        if (minutes != null) "Hủy muộn (hủy trước giờ $minutes phút)" else "Hủy muộn"
     } else {
         null
     }
 
-    val mentorDeadline = formatIsoShort(booking.mentorResponseDeadline)
-    val payExpires = formatIsoShort(booking.expiresAt)
-    val reminder24h = formatIsoShort(booking.reminder24hSentAt)
-    val reminder1h = formatIsoShort(booking.reminder1hSentAt)
+    val mentorDeadline = formatIsoToLocalShort(booking.mentorResponseDeadline)
+    val payExpires = formatIsoToLocalShort(booking.expiresAt)
+    val reminder24h = formatIsoToLocalShort(booking.reminder24hSentAt)
+    val reminder1h = formatIsoToLocalShort(booking.reminder1hSentAt)
     val policyLabels = listOfNotNull(
         if (booking.status == BookingStatus.PENDING_MENTOR) mentorDeadline?.let { "Mentor deadline: $it" } else null,
         if (booking.status == BookingStatus.PAYMENT_PENDING) payExpires?.let { "Pay expires: $it" } else null,
@@ -308,7 +327,9 @@ private fun BookingCard(
     )
 
     LiquidGlassCard(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onOpen(booking) },
         radius = 22.dp
     ) {
         Column(

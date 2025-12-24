@@ -16,6 +16,7 @@ export const createSlotRules = [
   body('exdates.*').optional().isISO8601(),
   body('bufferBeforeMin').optional().isInt({ min: 0, max: 120 }),
   body('bufferAfterMin').optional().isInt({ min: 0, max: 120 }),
+  body('priceVnd').optional().isFloat({ min: 0 }),
   body('publishHorizonDays').optional().isInt({ min: 1, max: 365 }).withMessage('publishHorizonDays must be 1-365'),
   body('visibility').optional().isIn(['public', 'private']),
   // Luôn yêu cầu start & end làm mốc base (kể cả khi có rrule) để biết duration & anchor
@@ -73,6 +74,7 @@ export const updateSlotRules = [
   body('rrule').optional().isString(),
   body('exdates').optional().isArray(),
   body('exdates.*').optional().isISO8601(),
+  body('priceVnd').optional().isFloat({ min: 0 }),
   body('start').optional().custom((value) => {
     if (value != null && !isISO(value)) throw new Error('start must be ISO UTC');
     return true;

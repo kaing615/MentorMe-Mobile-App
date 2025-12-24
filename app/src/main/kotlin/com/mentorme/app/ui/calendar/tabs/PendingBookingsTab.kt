@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.model.BookingStatus
 import com.mentorme.app.ui.calendar.components.InfoRow
+import com.mentorme.app.core.time.formatIsoToLocalShort
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.theme.liquidGlass
@@ -27,10 +28,19 @@ private fun durationMinutes(start: String, end: String): Int {
     return toMin(end) - toMin(start)
 }
 
-private fun formatIsoShort(iso: String?): String? {
-    if (iso.isNullOrBlank()) return null
-    val cleaned = iso.trim().replace("T", " ").removeSuffix("Z")
-    return if (cleaned.length >= 16) cleaned.substring(0, 16) else cleaned
+private fun menteeDisplayName(booking: Booking): String {
+    val menteeId = booking.menteeId.trim()
+    val displayName = sequenceOf(
+        booking.menteeFullName,
+        booking.mentee?.profile?.fullName,
+        booking.mentee?.fullName,
+        booking.mentee?.user?.fullName,
+        booking.mentee?.user?.userName
+    )
+        .mapNotNull { it?.trim() }
+        .firstOrNull { it.isNotEmpty() && it != menteeId }
+
+    return displayName ?: if (menteeId.length > 6) "...${menteeId.takeLast(6)}" else menteeId
 }
 
 @Composable
@@ -123,8 +133,8 @@ fun PendingBookingsTab(
                 pending.forEach { b ->
                     val topic = b.topic ?: "Booking"
                     val isPaid = b.status == BookingStatus.PENDING_MENTOR || b.status == BookingStatus.CONFIRMED
-                    val menteeLabel = if (b.menteeId.length > 6) "...${b.menteeId.takeLast(6)}" else b.menteeId
-                    val deadline = formatIsoShort(b.mentorResponseDeadline)
+                    val menteeLabel = menteeDisplayName(b)
+                    val deadline = formatIsoToLocalShort(b.mentorResponseDeadline)
                     LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
                         Column(
                             Modifier.padding(14.dp),
@@ -134,14 +144,14 @@ fun PendingBookingsTab(
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
                                     Text(
-                                        "$topic",
+                                        topic,
                                         color = Color.White,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Spacer(Modifier.height(4.dp))
                                     Text(
-                                        "👤 Với $menteeName   •   $mentorName",
+                                        "👤 Mentee: ${menteeLabel}",
                                         color = Color.White.copy(.85f),
                                         style = MaterialTheme.typography.bodySmall
                                     )
@@ -162,7 +172,7 @@ fun PendingBookingsTab(
                             InfoRow("Giá tư vấn", "${b.price.toInt()} đ")
                             InfoRow(
                                 "Hình thức",
-                                if (sessionType == "in-person") "Trực tiếp" else "Video Call"
+                                if (!b.location.isNullOrBlank()) "Trực tiếp" else "Video Call"
                             )
 
                             // Payment

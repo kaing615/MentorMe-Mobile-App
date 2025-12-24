@@ -26,30 +26,41 @@ import com.mentorme.app.data.model.BookingStatus
 import com.mentorme.app.ui.calendar.components.InfoChip
 import com.mentorme.app.ui.calendar.components.InfoRow
 import com.mentorme.app.ui.calendar.core.durationMinutes
+import com.mentorme.app.core.time.formatIsoToLocalShort
 import com.mentorme.app.ui.theme.LiquidGlassCard
-
-private fun formatIsoShort(iso: String?): String? {
-    if (iso.isNullOrBlank()) return null
-    val cleaned = iso.trim().replace("T", " ").removeSuffix("Z")
-    return if (cleaned.length >= 16) cleaned.substring(0, 16) else cleaned
-}
 
 private fun policyRowsFor(booking: Booking): List<Pair<String, String>> {
     val rows = mutableListOf<Pair<String, String>>()
-    val mentorDeadline = formatIsoShort(booking.mentorResponseDeadline)
-    val payExpires = formatIsoShort(booking.expiresAt)
-    val reminder24h = formatIsoShort(booking.reminder24hSentAt)
-    val reminder1h = formatIsoShort(booking.reminder1hSentAt)
+    val mentorDeadline = formatIsoToLocalShort(booking.mentorResponseDeadline)
+    val payExpires = formatIsoToLocalShort(booking.expiresAt)
+    val reminder24h = formatIsoToLocalShort(booking.reminder24hSentAt)
+    val reminder1h = formatIsoToLocalShort(booking.reminder1hSentAt)
 
-    if (!mentorDeadline.isNullOrBlank()) rows.add("Mentor deadline" to mentorDeadline)
-    if (!payExpires.isNullOrBlank()) rows.add("Pay expires" to payExpires)
-    if (!reminder24h.isNullOrBlank()) rows.add("Reminder 24h" to reminder24h)
-    if (!reminder1h.isNullOrBlank()) rows.add("Reminder 1h" to reminder1h)
+    if (!mentorDeadline.isNullOrBlank()) rows.add("Hạn phản hồi mentor" to mentorDeadline)
+    if (!payExpires.isNullOrBlank()) rows.add("Hết hạn thanh toán" to payExpires)
+    if (!reminder24h.isNullOrBlank()) rows.add("Nhắc 24h" to reminder24h)
+    if (!reminder1h.isNullOrBlank()) rows.add("Nhắc 1h" to reminder1h)
     if (booking.lateCancel == true) {
-        val minutes = booking.lateCancelMinutes?.let { "$it min" } ?: "late"
-        rows.add("Late cancel" to minutes)
+        val minutes = booking.lateCancelMinutes
+        val label = if (minutes != null) "(hủy trước giờ $minutes phút)" else "(hủy muộn)"
+        rows.add("Hủy muộn" to label)
     }
     return rows
+}
+
+private fun menteeDisplayName(booking: Booking): String {
+    val menteeId = booking.menteeId.trim()
+    val displayName = sequenceOf(
+        booking.menteeFullName,
+        booking.mentee?.profile?.fullName,
+        booking.mentee?.fullName,
+        booking.mentee?.user?.fullName,
+        booking.mentee?.user?.userName
+    )
+        .mapNotNull { it?.trim() }
+        .firstOrNull { it.isNotEmpty() && it != menteeId }
+
+    return displayName ?: if (menteeId.length > 6) "...${menteeId.takeLast(6)}" else menteeId
 }
 
 @Composable
@@ -58,9 +69,9 @@ fun SessionsTab(bookings: List<Booking>) {
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Tat ca phien tu van", color = Color.White, style = MaterialTheme.typography.titleLarge)
+        Text("Tất cả phiên tư vấn", color = Color.White, style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(6.dp))
-        Text("Quan ly va theo doi tat ca cac phien tu van cua ban", color = Color.White.copy(.7f))
+        Text("Quản lý và theo dõi tất cả các phiên tư vấn của bạn", color = Color.White.copy(.7f))
     }
     Spacer(Modifier.height(12.dp))
 
@@ -70,23 +81,23 @@ fun SessionsTab(bookings: List<Booking>) {
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         all.forEach { b ->
-            val topic = b.topic ?: "Phien tu van"
-            val menteeLabel = if (b.menteeId.length > 6) "...${b.menteeId.takeLast(6)}" else b.menteeId
+            val topic = b.topic ?: "Phiên tư vấn"
+            val menteeLabel = menteeDisplayName(b)
 
             val (statusColor, statusLabel) = when (b.status) {
-                BookingStatus.CONFIRMED -> Color(0xFF22C55E) to "Da xac nhan"
-                BookingStatus.PENDING_MENTOR -> Color(0xFFF59E0B) to "Cho duyet"
-                BookingStatus.COMPLETED -> Color(0xFF14B8A6) to "Hoan thanh"
-                BookingStatus.CANCELLED -> Color(0xFFEF4444) to "Da huy"
-                BookingStatus.PAYMENT_PENDING -> Color(0xFFF59E0B) to "Cho thanh toan"
-                BookingStatus.FAILED -> Color(0xFFEF4444) to "Thanh toan that bai"
-                BookingStatus.DECLINED -> Color(0xFFEF4444) to "Tu choi"
+                BookingStatus.CONFIRMED -> Color(0xFF22C55E) to "Đã xác nhận"
+                BookingStatus.PENDING_MENTOR -> Color(0xFFF59E0B) to "Chờ duyệt"
+                BookingStatus.COMPLETED -> Color(0xFF14B8A6) to "Hoàn thành"
+                BookingStatus.CANCELLED -> Color(0xFFEF4444) to "Đã hủy"
+                BookingStatus.PAYMENT_PENDING -> Color(0xFFF59E0B) to "Chờ thanh toán"
+                BookingStatus.FAILED -> Color(0xFFEF4444) to "Thanh toán thất bại"
+                BookingStatus.DECLINED -> Color(0xFFEF4444) to "Từ chối"
             }
             val (payColor, payLabel) = when (b.status) {
-                BookingStatus.PAYMENT_PENDING -> Color(0xFFF59E0B) to "Cho thanh toan"
-                BookingStatus.FAILED, BookingStatus.DECLINED -> Color(0xFFEF4444) to "Thanh toan that bai"
-                BookingStatus.CANCELLED -> Color(0xFFEF4444) to "Da huy"
-                else -> Color(0xFF22C55E) to "Da thanh toan"
+                BookingStatus.PAYMENT_PENDING -> Color(0xFFF59E0B) to "Chờ thanh toán"
+                BookingStatus.FAILED, BookingStatus.DECLINED -> Color(0xFFEF4444) to "Thanh toán thất bại"
+                BookingStatus.CANCELLED -> Color(0xFFEF4444) to "Đã hủy"
+                else -> Color(0xFF22C55E) to "Đã thanh toán"
             }
 
             LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
@@ -95,7 +106,7 @@ fun SessionsTab(bookings: List<Booking>) {
                         Column(Modifier.weight(1f)) {
                             Text(topic, color = Color.White, style = MaterialTheme.typography.titleMedium)
                             Spacer(Modifier.height(4.dp))
-                            Text("Mentee $menteeLabel", color = Color.White.copy(.85f), style = MaterialTheme.typography.bodySmall)
+                            Text("Mentee: $menteeLabel", color = Color.White.copy(.85f), style = MaterialTheme.typography.bodySmall)
                         }
                         Box(
                             modifier = Modifier
@@ -107,11 +118,11 @@ fun SessionsTab(bookings: List<Booking>) {
                     }
 
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        InfoChip("Ngay & gio", "${b.date} • ${b.startTime}", Modifier.weight(1f))
-                        InfoChip("Thoi luong", "${durationMinutes(b.startTime, b.endTime)} phut", Modifier.weight(1f))
+                        InfoChip("Ngày & giờ", "${b.date} • ${b.startTime}", Modifier.weight(1f))
+                        InfoChip("Thời lượng", "${durationMinutes(b.startTime, b.endTime)} phút", Modifier.weight(1f))
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        InfoChip("Gia tu van", "${b.price.toInt()} d", Modifier.weight(1f))
+                        InfoChip("Giá tư vấn", "${b.price.toInt()} đ", Modifier.weight(1f))
                         InfoChip("Mentee", menteeLabel, Modifier.weight(1f))
                     }
 
@@ -126,7 +137,7 @@ fun SessionsTab(bookings: List<Booking>) {
 
                     LiquidGlassCard(radius = 16.dp, modifier = Modifier.fillMaxWidth()) {
                         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Thanh toan", color = Color.White, modifier = Modifier.weight(1f))
+                            Text("Thanh toán", color = Color.White, modifier = Modifier.weight(1f))
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))

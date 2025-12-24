@@ -25,13 +25,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mentorme.app.ui.home.Mentor as HomeMentor
 import com.mentorme.app.core.utils.Logx
+import com.mentorme.app.data.dto.profile.ProfileDto
 import com.mentorme.app.domain.usecase.availability.GetPublicCalendarUseCase
+import com.mentorme.app.domain.usecase.profile.GetPublicProfileUseCase
+import com.mentorme.app.data.dto.availability.slotPriceVndOrNull
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import java.time.*
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 // ===== Time helpers =====
 private val DATE_FMT: DateTimeFormatter =
@@ -57,6 +61,7 @@ private fun formatSlotWindow(
 @InstallIn(SingletonComponent::class)
 interface MentorDetailDeps {
     fun getPublicCalendarUseCase(): GetPublicCalendarUseCase
+    fun getPublicProfileUseCase(): GetPublicProfileUseCase
 }
 
 @Composable
@@ -70,9 +75,12 @@ fun MentorDetailSheet(
     val context = androidx.compose.ui.platform.LocalContext.current
     val deps = remember(context) { EntryPointAccessors.fromApplication(context, MentorDetailDeps::class.java) }
     val getCalendar = remember { deps.getPublicCalendarUseCase() }
+    val getProfile = remember { deps.getPublicProfileUseCase() }
 
     var slots by remember { mutableStateOf<List<String>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
+    var profile by remember { mutableStateOf<ProfileDto?>(null) }
+    var profileLoading by remember { mutableStateOf(false) }
 
     LaunchedEffect(mentorId) {
         loading = true
@@ -86,10 +94,13 @@ fun MentorDetailSheet(
         when (val res = getCalendar(mentorId, fromIsoUtc, toIsoUtc, includeClosed = true)) {
             is com.mentorme.app.core.utils.AppResult.Success -> {
                 val items = res.data
+                val nf = java.text.NumberFormat.getCurrencyInstance(Locale("vi", "VN"))
                 slots = items.mapNotNull { item ->
                     val s = item.start ?: return@mapNotNull null
                     val e = item.end ?: return@mapNotNull null
-                    runCatching { formatSlotWindow(s, e) }.getOrNull()
+                    val base = runCatching { formatSlotWindow(s, e) }.getOrNull() ?: return@mapNotNull null
+                    val priceVnd = item.slotPriceVndOrNull()?.toLong() ?: 0L
+                    if (priceVnd > 0) "$base • ${nf.format(priceVnd)}" else base
                 }
                 loading = false
             }
@@ -102,8 +113,32 @@ fun MentorDetailSheet(
         }
     }
 
+    LaunchedEffect(mentorId) {
+        val idSafe = mentorId.trim()
+        if (idSafe.isBlank()) {
+            profile = null
+            profileLoading = false
+            return@LaunchedEffect
+        }
+        profileLoading = true
+        profile = null
+        when (val res = getProfile(idSafe)) {
+            is com.mentorme.app.core.utils.AppResult.Success -> {
+                profile = res.data
+                profileLoading = false
+            }
+            is com.mentorme.app.core.utils.AppResult.Error -> {
+                Logx.d("Search") { "profile error: ${res.throwable}" }
+                profileLoading = false
+            }
+            com.mentorme.app.core.utils.AppResult.Loading -> profileLoading = true
+        }
+    }
+
     MentorDetailContent(
         mentor = mentor,
+        profile = profile,
+        profileLoading = profileLoading,
         onClose = onClose,
         onBookNow = onBookNow,
         onMessage = { onMessage(mentor.id) },
@@ -116,6 +151,8 @@ fun MentorDetailSheet(
 @Composable
 fun MentorDetailContent(
     mentor: HomeMentor,
+    profile: ProfileDto?,
+    profileLoading: Boolean,
     onClose: () -> Unit,
     onBookNow: (String) -> Unit,
     onMessage: (String) -> Unit,

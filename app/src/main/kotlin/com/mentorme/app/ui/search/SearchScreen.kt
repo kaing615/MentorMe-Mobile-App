@@ -74,6 +74,15 @@ fun SearchMentorScreen(
     mentors: List<HomeMentor> = SearchMockData.mentors,
     onOpenProfile: (String) -> Unit = {},
     onBook: (String) -> Unit = {},
+    onBookSlot: (
+        mentor: HomeMentor,
+        occurrenceId: String,
+        date: String,
+        startTime: String,
+        endTime: String,
+        priceVnd: Long,
+        note: String
+    ) -> Unit = { _, _, _, _, _, _, _ -> },
     onOverlayOpened: () -> Unit = {},
     onOverlayClosed: () -> Unit = {}
 ) {
@@ -407,8 +416,17 @@ fun SearchMentorScreen(
                             BookSessionContent(
                                 mentor = mentor,
                                 onClose = { showBooking = false },
-                                onConfirm = { _, _, _, _ ->
+                                onConfirm = { occurrenceId, date, startTime, endTime, priceVnd, note ->
                                     showBooking = false
+                                    onBookSlot(
+                                        mentor,
+                                        occurrenceId,
+                                        date,
+                                        startTime,
+                                        endTime,
+                                        priceVnd,
+                                        note
+                                    )
                                 }
                             )
                         }

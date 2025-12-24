@@ -7,12 +7,20 @@ import com.mentorme.app.data.dto.MentorListResponse
 import com.mentorme.app.data.dto.RatingRequest
 import com.mentorme.app.data.dto.UpdateBookingRequest
 import com.mentorme.app.data.model.Booking
+import com.mentorme.app.data.model.BookingUserSummary
 import com.mentorme.app.data.model.Mentor
+import com.mentorme.app.data.model.UserRole
 import com.mentorme.app.data.remote.MentorMeApi
 import com.mentorme.app.data.repository.BookingRepository
 import com.mentorme.app.data.repository.MentorRepository
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 
 @Singleton
 class MentorRepositoryImpl @Inject constructor(
@@ -80,6 +88,67 @@ class MentorRepositoryImpl @Inject constructor(
 class BookingRepositoryImpl @Inject constructor(
     private val api: MentorMeApi
 ) : BookingRepository {
+    private val mentorSummaryCache = ConcurrentHashMap<String, BookingUserSummary>()
+
+    private fun normalizeBookingLocalTime(booking: Booking): Booking {
+        val startIso = booking.startTimeIso
+        val endIso = booking.endTimeIso
+        if (startIso.isNullOrBlank() || endIso.isNullOrBlank()) return booking
+
+        val zone = ZoneId.systemDefault()
+        val start = runCatching { Instant.parse(startIso).atZone(zone) }.getOrNull() ?: return booking
+        val end = runCatching { Instant.parse(endIso).atZone(zone) }.getOrNull() ?: return booking
+        val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
+
+        return booking.copy(
+            date = start.toLocalDate().toString(),
+            startTime = start.format(timeFmt),
+            endTime = end.format(timeFmt)
+        )
+    }
+
+    private fun normalizeBookingList(list: List<Booking>): List<Booking> =
+        list.map(::normalizeBookingLocalTime)
+
+    private suspend fun resolveMentorSummary(mentorId: String): BookingUserSummary? {
+        if (mentorId.isBlank()) return null
+        mentorSummaryCache[mentorId]?.let { return it }
+        return try {
+            val response = api.getMentor(mentorId)
+            if (!response.isSuccessful) return null
+            val card = response.body()?.data
+            val name = card?.name?.trim()
+            if (name.isNullOrBlank()) return null
+            val summary = BookingUserSummary(
+                id = mentorId,
+                fullName = name,
+                avatar = card.avatarUrl,
+                role = UserRole.MENTOR
+            )
+            mentorSummaryCache[mentorId] = summary
+            summary
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private suspend fun enrichBookingsWithMentor(list: List<Booking>): List<Booking> = coroutineScope {
+        if (list.isEmpty()) return@coroutineScope list
+        val mentorIds = list
+            .filter { it.mentorFullName.isNullOrBlank() && it.mentor?.fullName.isNullOrBlank() }
+            .map { it.mentorId }
+            .distinct()
+        if (mentorIds.isEmpty()) return@coroutineScope list
+        val lookups = mentorIds.associateWith { id -> async { resolveMentorSummary(id) } }
+        val summaries = lookups.mapValues { (_, job) -> job.await() }
+
+        list.map { booking ->
+            val summary = summaries[booking.mentorId] ?: return@map booking
+            val fullName = booking.mentorFullName?.takeIf { it.isNotBlank() } ?: summary.fullName
+            val mergedSummary = booking.mentor ?: summary
+            booking.copy(mentorFullName = fullName, mentor = mergedSummary)
+        }
+    }
 
     override suspend fun createBooking(
         mentorId: String,
@@ -95,7 +164,9 @@ class BookingRepositoryImpl @Inject constructor(
                 val envelope = response.body()
                 val booking = envelope?.data
                 if (booking != null) {
-                    AppResult.success(booking)
+                    val normalized = normalizeBookingLocalTime(booking)
+                    val enriched = enrichBookingsWithMentor(listOf(normalized)).first()
+                    AppResult.success(enriched)
                 } else {
                     AppResult.failure(Exception("Empty response body"))
                 }
@@ -121,7 +192,9 @@ class BookingRepositoryImpl @Inject constructor(
                 val envelope = response.body()
                 val bookingList = envelope?.data
                 if (bookingList != null) {
-                    AppResult.success(bookingList)
+                    val normalized = normalizeBookingList(bookingList.bookings)
+                    val enriched = enrichBookingsWithMentor(normalized)
+                    AppResult.success(bookingList.copy(bookings = enriched))
                 } else {
                     AppResult.failure(Exception("Empty response body"))
                 }
@@ -141,7 +214,7 @@ class BookingRepositoryImpl @Inject constructor(
                 val envelope = response.body()
                 val booking = envelope?.data
                 if (booking != null) {
-                    AppResult.success(booking)
+                    AppResult.success(normalizeBookingLocalTime(booking))
                 } else {
                     AppResult.failure(Exception("Booking not found"))
                 }
@@ -164,7 +237,7 @@ class BookingRepositoryImpl @Inject constructor(
                 val envelope = response.body()
                 val booking = envelope?.data
                 if (booking != null) {
-                    AppResult.success(booking)
+                    AppResult.success(normalizeBookingLocalTime(booking))
                 } else {
                     AppResult.failure(Exception("Empty response body"))
                 }
@@ -207,7 +280,7 @@ class BookingRepositoryImpl @Inject constructor(
                 val envelope = response.body()
                 val booking = envelope?.data
                 if (booking != null) {
-                    AppResult.success(booking)
+                    AppResult.success(normalizeBookingLocalTime(booking))
                 } else {
                     AppResult.failure(Exception("Empty response body"))
                 }
@@ -225,7 +298,7 @@ class BookingRepositoryImpl @Inject constructor(
             val response = api.cancelBooking(bookingId, req)
             if (response.isSuccessful) {
                 val booking = response.body()?.data
-                if (booking != null) AppResult.success(booking)
+                if (booking != null) AppResult.success(normalizeBookingLocalTime(booking))
                 else AppResult.failure(Exception("Empty response body"))
             } else {
                 val err = response.errorBody()?.string()

@@ -79,6 +79,12 @@ data class ProfileMeDto(
     @SerializedName("skills")
     val skills: List<String>?,
 
+    @SerializedName("createdAt")
+    val createdAt: String?,
+
+    @SerializedName("updatedAt")
+    val updatedAt: String?,
+
     @SerializedName("profileCompleted")
     val profileCompleted: Boolean?
 )

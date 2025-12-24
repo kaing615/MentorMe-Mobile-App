@@ -20,6 +20,10 @@ data class CreatedProfilePayload(
     @SerializedName("next") val next: String?
 )
 
+data class PublicProfilePayload(
+    @SerializedName("profile") val profile: ProfileDto?
+)
+
 data class ProfileDto(
     @SerializedName("_id") val id: String?,
     @SerializedName("user") val user: String?,

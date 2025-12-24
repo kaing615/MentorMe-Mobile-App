@@ -2,13 +2,14 @@ package com.mentorme.app.ui.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.room.util.copy
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import com.mentorme.app.core.utils.AppResult
-import com.mentorme.app.data.dto.profile.MePayload
+import com.mentorme.app.data.dto.profile.ProfileMePayload
 import com.mentorme.app.data.repository.ProfileRepository
 import com.mentorme.app.domain.usecase.profile.UpdateProfileParams
 import com.mentorme.app.data.mapper.toUi as toUiMapper
@@ -34,10 +35,10 @@ class ProfileViewModel @Inject constructor(
 
     fun refresh() = viewModelScope.launch {
         _state.value = _state.value.copy(loading = true, error = null)
-        when (val res = repo.getMe()) {
+        when (val res = repo.getProfileMe()) {
             is AppResult.Success -> {
-                val me: MePayload = res.data
-                val (uiProfile, uiRole) = me.toUiMapper()
+                val payload: ProfileMePayload = res.data
+                val (uiProfile, uiRole) = payload.toUiMapper()
                 _state.value = ProfileUiState(
                     loading = false,
                     profile = uiProfile,

@@ -11,6 +11,7 @@ import {
 } from '../handlers/response.handler';
 import Booking, { TBookingStatus } from '../models/booking.model';
 import AvailabilityOccurrence from '../models/availabilityOccurrence.model';
+import AvailabilitySlot from '../models/availabilitySlot.model';
 import User from '../models/user.model';
 import Profile from '../models/profile.model';
 import redis from '../utils/redis';
@@ -88,11 +89,70 @@ async function buildEmailData(booking: any): Promise<BookingEmailData> {
   };
 }
 
-function formatBookingResponse(booking: any) {
+type UserSummary = {
+  fullName?: string;
+  avatarUrl?: string;
+  email?: string;
+  role?: string;
+  userName?: string;
+};
+
+async function buildUserSummaryMap(userIds: string[]): Promise<Record<string, UserSummary>> {
+  const uniqueIds = Array.from(new Set(userIds.map((id) => String(id)).filter(Boolean)));
+  if (!uniqueIds.length) return {};
+
+  const [users, profiles] = await Promise.all([
+    User.find({ _id: { $in: uniqueIds } }).select('userName name email role').lean(),
+    Profile.find({ user: { $in: uniqueIds } }).select('user fullName avatarUrl').lean(),
+  ]);
+
+  const map: Record<string, UserSummary> = {};
+
+  for (const user of users) {
+    const id = String(user._id);
+    map[id] = {
+      ...map[id],
+      userName: user.userName,
+      email: user.email,
+      role: (user as any).role,
+      fullName: (user as any).name ?? user.userName ?? map[id]?.fullName,
+    };
+  }
+
+  for (const profile of profiles) {
+    const id = String((profile as any).user);
+    if (!id) continue;
+    map[id] = {
+      ...map[id],
+      fullName: profile.fullName ?? map[id]?.fullName,
+      avatarUrl: profile.avatarUrl ?? map[id]?.avatarUrl,
+    };
+  }
+
+  return map;
+}
+
+function toBookingUser(summary: UserSummary | undefined, id: string) {
+  if (!summary) return null;
+  return {
+    id,
+    fullName: summary.fullName ?? null,
+    avatar: summary.avatarUrl ?? null,
+    email: summary.email ?? null,
+    role: summary.role ?? null,
+  };
+}
+
+function formatBookingResponse(booking: any, userSummaries?: Record<string, UserSummary>) {
+  const menteeId = String(booking.mentee);
+  const mentorId = String(booking.mentor);
+  const menteeSummary = userSummaries?.[menteeId];
+  const mentorSummary = userSummaries?.[mentorId];
+
   return {
     id: String(booking._id),
-    menteeId: String(booking.mentee),
-    mentorId: String(booking.mentor),
+    menteeId,
+    mentorId,
     occurrenceId: String(booking.occurrence),
     date: new Date(booking.startTime).toISOString().split('T')[0],
     startTime: new Date(booking.startTime).toISOString().substring(11, 16),
@@ -118,6 +178,10 @@ function formatBookingResponse(booking: any) {
     lateCancel: booking.lateCancel ?? false,
     lateCancelMinutes: booking.lateCancelMinutes ?? null,
     createdAt: new Date(booking.createdAt).toISOString(),
+    mentorFullName: mentorSummary?.fullName ?? null,
+    menteeFullName: menteeSummary?.fullName ?? null,
+    mentor: toBookingUser(mentorSummary, mentorId),
+    mentee: toBookingUser(menteeSummary, menteeId),
   };
 }
 
@@ -198,12 +262,25 @@ export const createBooking = asyncHandler(async (req: Request, res: Response) =>
         return conflict(res, 'This slot already has an active booking');
       }
 
-      // Get mentor profile for pricing
-      const mentorProfile = await Profile.findOne({ user: mentorId }).select('hourlyRateVnd').lean();
-      const hourlyRate = mentorProfile?.hourlyRateVnd ?? 0;
-      const durationMs = new Date(occurrence.end).getTime() - new Date(occurrence.start).getTime();
-      const durationHours = durationMs / (1000 * 60 * 60);
-      const price = hourlyRate * durationHours;
+      // Get slot price first; fallback to mentor hourly rate if missing
+      const slot = await AvailabilitySlot.findById(occurrence.slot)
+        .select('priceVnd')
+        .session(session)
+        .lean();
+      const slotPrice = typeof slot?.priceVnd === 'number' ? slot.priceVnd : null;
+      let price = 0;
+      if (slotPrice != null) {
+        price = Math.max(0, slotPrice);
+      } else {
+        const mentorProfile = await Profile.findOne({ user: mentorId })
+          .select('hourlyRateVnd')
+          .session(session)
+          .lean();
+        const hourlyRate = mentorProfile?.hourlyRateVnd ?? 0;
+        const durationMs = new Date(occurrence.end).getTime() - new Date(occurrence.start).getTime();
+        const durationHours = durationMs / (1000 * 60 * 60);
+        price = Math.max(0, hourlyRate * durationHours);
+      }
 
       const expiresAt = new Date(Date.now() + BOOKING_EXPIRY_MINUTES * 60 * 1000);
 
@@ -234,7 +311,12 @@ export const createBooking = asyncHandler(async (req: Request, res: Response) =>
         await redis.setEx(expiryKey, BOOKING_EXPIRY_MINUTES * 60, occurrenceId);
       }
 
-      return created(res, formatBookingResponse(booking[0]), 'Booking created, awaiting payment');
+      const userSummaries = await buildUserSummaryMap([menteeId, mentorId]);
+      return created(
+        res,
+        formatBookingResponse(booking[0], userSummaries),
+        'Booking created, awaiting payment'
+      );
     } catch (err) {
       await session.abortTransaction();
       session.endSession();
@@ -288,8 +370,12 @@ export const getBookings = asyncHandler(async (req: Request, res: Response) => {
 
   const totalPages = Math.ceil(total / limitNum);
 
+  const userSummaries = await buildUserSummaryMap(
+    bookings.flatMap((b) => [String(b.mentee), String(b.mentor)])
+  );
+
   return ok(res, {
-    bookings: bookings.map(formatBookingResponse),
+    bookings: bookings.map((booking) => formatBookingResponse(booking, userSummaries)),
     total,
     page: pageNum,
     totalPages,
@@ -316,7 +402,11 @@ export const getBookingById = asyncHandler(async (req: Request, res: Response) =
     return forbidden(res, 'Access denied');
   }
 
-  return ok(res, formatBookingResponse(booking));
+  const userSummaries = await buildUserSummaryMap([
+    String(booking.mentee),
+    String(booking.mentor),
+  ]);
+  return ok(res, formatBookingResponse(booking, userSummaries));
 });
 
 /**
@@ -406,7 +496,12 @@ export const cancelBooking = asyncHandler(async (req: Request, res: Response) =>
     console.error('Failed to refund booking payment:', err);
   }
 
-  return ok(res, formatBookingResponse(booking), 'Booking cancelled');
+
+  const userSummaries = await buildUserSummaryMap([
+    String(booking.mentee),
+    String(booking.mentor),
+  ]);
+  return ok(res, formatBookingResponse(booking, userSummaries), 'Booking cancelled');
 });
 
 /**
@@ -486,7 +581,12 @@ export const mentorConfirmBooking = asyncHandler(async (req: Request, res: Respo
   await confirmBooking(String(booking._id));
 
   const updated = await Booking.findById(id).lean();
-  return ok(res, updated ? formatBookingResponse(updated) : null, 'Booking confirmed');
+  if (!updated) return ok(res, null, 'Booking confirmed');
+  const userSummaries = await buildUserSummaryMap([
+    String(updated.mentee),
+    String(updated.mentor),
+  ]);
+  return ok(res, formatBookingResponse(updated, userSummaries), 'Booking confirmed');
 });
 
 /**
@@ -518,7 +618,12 @@ export const mentorDeclineBooking = asyncHandler(async (req: Request, res: Respo
   await declineBooking(String(booking._id), reason, userId);
 
   const updated = await Booking.findById(id).lean();
-  return ok(res, updated ? formatBookingResponse(updated) : null, 'Booking declined');
+  if (!updated) return ok(res, null, 'Booking declined');
+  const userSummaries = await buildUserSummaryMap([
+    String(updated.mentee),
+    String(updated.mentor),
+  ]);
+  return ok(res, formatBookingResponse(updated, userSummaries), 'Booking declined');
 });
 
 /**

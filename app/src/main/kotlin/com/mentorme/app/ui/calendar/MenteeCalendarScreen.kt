@@ -7,9 +7,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mentorme.app.core.utils.ErrorUtils
+import com.mentorme.app.data.model.Booking
 
 @Composable
-fun MenteeCalendarScreen() {
+fun MenteeCalendarScreen(
+    startTab: CalendarTab = CalendarTab.Upcoming,
+    onOpenDetail: (Booking) -> Unit = {}
+) {
     val vm = hiltViewModel<MenteeBookingsViewModel>()
     val bookings = vm.bookings.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -19,6 +23,7 @@ fun MenteeCalendarScreen() {
     }
 
     CalendarScreen(
+        startTab = startTab,
         bookings = bookings.value,
         onJoinSession = { Toast.makeText(context, "Join chưa hỗ trợ", Toast.LENGTH_SHORT).show() },
         onRate = { Toast.makeText(context, "Đánh giá chưa hỗ trợ", Toast.LENGTH_SHORT).show() },
@@ -34,6 +39,7 @@ fun MenteeCalendarScreen() {
                 val msg = if (ok) "Đã hủy booking" else ErrorUtils.getUserFriendlyErrorMessage(err)
                 Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
             }
-        }
+        },
+        onOpen = onOpenDetail
     )
 }

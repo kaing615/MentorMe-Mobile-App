@@ -12,11 +12,31 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @HiltViewModel
 class MentorBookingsViewModel @Inject constructor(
     private val api: MentorMeApi
 ) : ViewModel() {
+
+    private fun normalizeBookingLocalTime(booking: Booking): Booking {
+        val startIso = booking.startTimeIso
+        val endIso = booking.endTimeIso
+        if (startIso.isNullOrBlank() || endIso.isNullOrBlank()) return booking
+
+        val zone = ZoneId.systemDefault()
+        val start = runCatching { Instant.parse(startIso).atZone(zone) }.getOrNull() ?: return booking
+        val end = runCatching { Instant.parse(endIso).atZone(zone) }.getOrNull() ?: return booking
+        val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
+
+        return booking.copy(
+            date = start.toLocalDate().toString(),
+            startTime = start.format(timeFmt),
+            endTime = end.format(timeFmt)
+        )
+    }
 
     private val _bookings = MutableStateFlow<List<Booking>>(emptyList())
     val bookings: StateFlow<List<Booking>> = _bookings.asStateFlow()
@@ -28,7 +48,7 @@ class MentorBookingsViewModel @Inject constructor(
                 val resp = api.getBookings(role = role, page = 1, limit = 50)
                 if (resp.isSuccessful) {
                     val list = resp.body()?.data?.bookings.orEmpty()
-                    _bookings.value = list
+                    _bookings.value = list.map(::normalizeBookingLocalTime)
                     Logx.d(TAG) { "refresh success count=${_bookings.value.size}" }
                 } else {
                     Logx.e(tag = TAG, message = { "refresh failed HTTP ${resp.code()} ${resp.message()}" })

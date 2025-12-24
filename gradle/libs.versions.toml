@@ -34,7 +34,9 @@ ui-text-version = "1.9.2"
 foundation-layout = "1.9.2"
 animation = "1.9.2"
 ui-graphics = "1.9.2"
-foundation-version = "1.9.3" # hoặc 33.+
+foundation-version = "1.9.3"
+androidx-foundation = "1.10.0"
+room-ktx-version = "2.8.4" # hoặc 33.+
 
 
 [plugins]
@@ -111,3 +113,5 @@ androidx-compose-foundation-layout = { group = "androidx.compose.foundation", na
 androidx-compose-animation = { group = "androidx.compose.animation", name = "animation", version.ref = "animation" }
 androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics", version.ref = "ui-graphics" }
 androidx-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundation-version" }
+foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "androidx-foundation" }
+room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room-ktx-version" }

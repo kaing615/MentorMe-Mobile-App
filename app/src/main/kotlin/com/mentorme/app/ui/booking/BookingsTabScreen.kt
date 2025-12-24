@@ -118,6 +118,12 @@ private fun BookingItemCard(
     onOpen: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val mentorName = listOf(
+        brief?.name,
+        booking.mentorFullName,
+        booking.mentor?.fullName
+    ).firstOrNull { !it.isNullOrBlank() }?.trim()
+        ?: "Mentor #${booking.mentorId.takeLast(4)}"
 
     LiquidGlassCard(
         modifier = Modifier
@@ -143,7 +149,7 @@ private fun BookingItemCard(
 
                 Column(Modifier.weight(1f).padding(start = 10.dp)) {
                     Text(
-                        text = brief?.name ?: "Mentor #${booking.mentorId.takeLast(4)}",
+                        text = mentorName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White

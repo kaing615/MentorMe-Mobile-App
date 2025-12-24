@@ -28,6 +28,21 @@ private fun durationMinutes(start: String, end: String): Int {
     return toMin(end) - toMin(start)
 }
 
+private fun menteeDisplayName(booking: Booking): String {
+    val menteeId = booking.menteeId.trim()
+    val displayName = sequenceOf(
+        booking.menteeFullName,
+        booking.mentee?.profile?.fullName,
+        booking.mentee?.fullName,
+        booking.mentee?.user?.fullName,
+        booking.mentee?.user?.userName
+    )
+        .mapNotNull { it?.trim() }
+        .firstOrNull { it.isNotEmpty() && it != menteeId }
+
+    return displayName ?: if (menteeId.length > 6) "...${menteeId.takeLast(6)}" else menteeId
+}
+
 @Composable
 fun PendingBookingsTab(
     bookings: List<Booking>,
@@ -118,7 +133,7 @@ fun PendingBookingsTab(
                 pending.forEach { b ->
                     val topic = b.topic ?: "Booking"
                     val isPaid = b.status == BookingStatus.PENDING_MENTOR || b.status == BookingStatus.CONFIRMED
-                    val menteeLabel = if (b.menteeId.length > 6) "...${b.menteeId.takeLast(6)}" else b.menteeId
+                    val menteeLabel = menteeDisplayName(b)
                     val deadline = formatIsoToLocalShort(b.mentorResponseDeadline)
                     LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
                         Column(

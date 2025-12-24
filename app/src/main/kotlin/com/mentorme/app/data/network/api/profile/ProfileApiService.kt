@@ -11,6 +11,7 @@ import retrofit2.http.Part
 import retrofit2.http.PartMap
 import com.mentorme.app.data.dto.profile.MePayload
 import com.mentorme.app.data.dto.profile.ProfileMePayload
+import com.mentorme.app.data.dto.profile.PublicProfilePayload
 import com.mentorme.app.domain.usecase.profile.UpdateProfileParams
 import retrofit2.http.*
 
@@ -28,6 +29,11 @@ interface ProfileApiService {
 
     @GET("profile/me")
     suspend fun getProfileMe(): Response<ApiEnvelope<ProfileMePayload>>
+
+    @GET("profile/{id}")
+    suspend fun getPublicProfile(
+        @Path("id") userId: String
+    ): Response<ApiEnvelope<PublicProfilePayload>>
 
     @PUT("profile/me")
     suspend fun updateProfile(

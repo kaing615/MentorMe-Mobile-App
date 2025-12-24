@@ -75,7 +75,7 @@ fun SearchMentorScreen(
     onOpenProfile: (String) -> Unit = {},
     onBook: (String) -> Unit = {},
     onBookSlot: (
-        mentorId: String,
+        mentor: HomeMentor,
         occurrenceId: String,
         date: String,
         startTime: String,
@@ -419,7 +419,7 @@ fun SearchMentorScreen(
                                 onConfirm = { occurrenceId, date, startTime, endTime, priceVnd, note ->
                                     showBooking = false
                                     onBookSlot(
-                                        mentor.id,
+                                        mentor,
                                         occurrenceId,
                                         date,
                                         startTime,

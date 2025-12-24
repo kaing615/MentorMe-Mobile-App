@@ -427,7 +427,9 @@ fun AppNav(
 
                     // ---------- MENTOR SCREENS ----------
                     composable(Routes.MentorDashboard) {
+                        val profileVm: com.mentorme.app.ui.profile.ProfileViewModel = hiltViewModel()
                         MentorDashboardScreen(
+                            vm = profileVm,
                             onViewSchedule = {
                                 nav.navigate(Routes.MentorCalendar) {
                                     launchSingleTop = true
@@ -599,9 +601,10 @@ fun AppNav(
                                 val targetId = if (id.startsWith("m") && id.drop(1).all { it.isDigit() }) id.drop(1) else id
                                 nav.navigate("booking/$targetId")
                             },
-                            onBookSlot = { mentorId, occurrenceId, date, startTime, endTime, priceVnd, note ->
+                            onBookSlot = { mentor, occurrenceId, date, startTime, endTime, priceVnd, note ->
                                 nav.currentBackStackEntry?.savedStateHandle?.set("booking_notes", note)
-                                nav.navigate("bookingSummary/$mentorId/$date/$startTime/$endTime/$priceVnd/$occurrenceId")
+                                nav.currentBackStackEntry?.savedStateHandle?.set("booking_mentor_name", mentor.name)
+                                nav.navigate("bookingSummary/${mentor.id}/$date/$startTime/$endTime/$priceVnd/$occurrenceId")
                             },
                             onOverlayOpened = { overlayVisible = true },
                             onOverlayClosed = { overlayVisible = false }
@@ -732,13 +735,24 @@ fun AppNav(
                             occurrenceIdRaw
                         }
                         val notes = nav.previousBackStackEntry?.savedStateHandle?.get<String>("booking_notes") ?: ""
+                        val mentorName = nav.previousBackStackEntry
+                            ?.savedStateHandle
+                            ?.get<String>("booking_mentor_name")
+                            ?.trim()
 
                         val vm = hiltViewModel<com.mentorme.app.ui.booking.BookingFlowViewModel>()
-                        val mentor = MockData.mockMentors.find { it.id == mentorId }
-                            ?: com.mentorme.app.data.model.Mentor(
+                        val mentorFromMock = MockData.mockMentors.find { it.id == mentorId }
+                        val mentor = if (mentorFromMock != null) {
+                            if (!mentorName.isNullOrBlank() && mentorName != mentorFromMock.fullName) {
+                                mentorFromMock.copy(fullName = mentorName)
+                            } else {
+                                mentorFromMock
+                            }
+                        } else {
+                            com.mentorme.app.data.model.Mentor(
                                 id = mentorId,
                                 email = "",
-                                fullName = "Mentor",
+                                fullName = mentorName ?: "Mentor",
                                 avatar = null,
                                 role = com.mentorme.app.data.model.UserRole.MENTOR,
                                 createdAt = "",
@@ -753,6 +767,7 @@ fun AppNav(
                                 education = "",
                                 languages = emptyList()
                             )
+                        }
 
                         BookingSummaryScreen(
                             mentor = mentor,

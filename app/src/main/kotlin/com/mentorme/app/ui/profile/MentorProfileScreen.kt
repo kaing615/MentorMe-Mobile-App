@@ -13,6 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,6 +77,7 @@ private val recentReviews = listOf(
 
 @Composable
 fun MentorDashboardScreen(
+    vm: com.mentorme.app.ui.profile.ProfileViewModel,
     onViewSchedule: () -> Unit = {},
     onViewStudents: () -> Unit = {},
     onViewEarnings: () -> Unit = {},
@@ -83,11 +86,16 @@ fun MentorDashboardScreen(
     onViewAllSessions: () -> Unit = {},
     onUpdateProfile: () -> Unit = {},
 
-    // ✅ NEW: mở thẳng tab “Cài đặt” trong profile
+    // ✅ NEW: mở thẳng tab "Cài đặt" trong profile
     onOpenSettings: () -> Unit = {},
 
     modifier: Modifier = Modifier
 ) {
+    // Collect profile data from ViewModel
+    val state by vm.state.collectAsState()
+    val profile = state.profile
+    val mentorName = profile?.fullName ?: "Mentor"
+    
     Box(modifier = modifier.fillMaxSize()) {
         LiquidBackground(Modifier.matchParentSize())
 
@@ -103,7 +111,7 @@ fun MentorDashboardScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(top = 12.dp, bottom = 120.dp)
         ) {
-            item { MentorWelcomeSection(mentorName = "Nguyễn Văn Mentor") }
+            item { MentorWelcomeSection(mentorName = mentorName) }
 
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

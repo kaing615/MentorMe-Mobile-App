@@ -14,18 +14,26 @@ servers:
 tags:
   - name: Auth
     description: Xác thực người dùng (đăng ký, đăng nhập, đăng xuất)
+  - name: Users
+    description: Quản trị người dùng (admin/root)
   - name: Profile
     description: Onboarding hồ sơ người dùng (tạo hồ sơ bắt buộc theo role + upload avatar) - Chỉnh sửa, xem hồ sơ sẽ có sau
   - name: Availability
     description: Quản lý slot trống của mentor (tạo draft, publish một lần hoặc lặp RRULE, xem lịch công khai)
   - name: Bookings
     description: Booking flow (create, list, detail, cancel, mentor confirm/decline)
+  - name: Notifications
+    description: Thiết bị & push notifications
   - name: Mentors
     description: Danh sách và chi tiết mentor (public discovery)
   - name: Wallet
     description: Quản lý ví điện tử của mentee (nạp tiền, trừ tiền, xem lịch sử giao dịch)
+  - name: Payments
+    description: Webhook thanh toán
   - name: MentorPayout
     description: Payout requests for mentors (mock implementation)
+  - name: Reports
+    description: Báo cáo (stub)
   - name: Webhooks
     description: Mock webhooks from payout provider
 
@@ -666,6 +674,232 @@ components:
         message: { type: string, example: "Invalid RRULE format" }
         data: { type: null, nullable: true }
 
+    AdminLoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, example: "admin@example.com" }
+        password: { type: string, example: "Admin123!" }
+
+    AdminLoginResponseData:
+      type: object
+      properties:
+        accessToken: { type: string }
+        role: { type: string, enum: [admin, root] }
+        userId: { type: string }
+        email: { type: string, format: email }
+      required: [accessToken, role, userId, email]
+
+    CurrentUserResponseData:
+      type: object
+      properties:
+        userId: { type: string }
+        email: { type: string, format: email }
+        userName: { type: string }
+        role: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        profile:
+          type: object
+          properties:
+            profileCompleted: { type: boolean }
+            avatarUrl: { type: string }
+            avatarPublicId: { type: string, nullable: true }
+        profileCompleted: { type: boolean }
+        next: { type: string, example: "/home" }
+
+    ProfilePublic:
+      type: object
+      properties:
+        fullName: { type: string }
+        avatarUrl: { type: string, format: uri }
+        bio: { type: string }
+        headline: { type: string }
+        location: { type: string }
+        jobTitle: { type: string }
+        experience: { type: string }
+        education: { type: string }
+        skills:
+          type: array
+          items: { type: string }
+        languages:
+          type: array
+          items: { type: string }
+        links:
+          $ref: "#/components/schemas/ProfileLinks"
+
+    ProfileUpdateRequest:
+      type: object
+      properties:
+        fullName: { type: string }
+        phone: { type: string }
+        location: { type: string }
+        bio: { type: string }
+        languages:
+          oneOf:
+            - type: array
+              items: { type: string }
+            - type: string
+          description: "Mảng hoặc chuỗi CSV: 'vi,en'"
+        skills:
+          oneOf:
+            - type: array
+              items: { type: string }
+            - type: string
+          description: "Mảng hoặc chuỗi CSV: 'Node.js, MongoDB'"
+        jobTitle: { type: string }
+        experience: { type: string }
+        headline: { type: string }
+        description: { type: string }
+        goal: { type: string }
+        education: { type: string }
+        website: { type: string, format: uri }
+        twitter: { type: string, format: uri }
+        linkedin: { type: string, format: uri }
+        github: { type: string, format: uri }
+        youtube: { type: string, format: uri }
+        facebook: { type: string, format: uri }
+
+    ProfileUpdateMultipart:
+      type: object
+      properties:
+        avatar: { type: string, format: binary }
+        fullName: { type: string }
+        phone: { type: string }
+        location: { type: string }
+        bio: { type: string }
+        languages: { type: string, description: "Chuỗi CSV: 'vi,en'" }
+        skills: { type: string, description: "Chuỗi CSV: 'Node.js, MongoDB'" }
+        jobTitle: { type: string }
+        experience: { type: string }
+        headline: { type: string }
+        description: { type: string }
+        goal: { type: string }
+        education: { type: string }
+        website: { type: string, format: uri }
+        twitter: { type: string, format: uri }
+        linkedin: { type: string, format: uri }
+        github: { type: string, format: uri }
+        youtube: { type: string, format: uri }
+        facebook: { type: string, format: uri }
+
+    ProfileListItem:
+      allOf:
+        - $ref: "#/components/schemas/Profile"
+        - type: object
+          properties:
+            id: { type: string }
+            userId: { type: string }
+
+    UserAdmin:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        userName: { type: string }
+        name: { type: string }
+        role: { type: string, enum: [mentee, mentor, admin, root] }
+        status: { type: string, enum: [active, verifying, pending-mentor, onboarding] }
+        isBlocked: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    AdminCreateUserRequest:
+      type: object
+      required: [email, userName]
+      properties:
+        email: { type: string, format: email }
+        userName: { type: string }
+        name: { type: string }
+        role: { type: string, enum: [mentee, mentor, admin, root] }
+        password: { type: string }
+        status: { type: string, enum: [active, verifying, pending-mentor, onboarding] }
+
+    AdminUpdateUserRequest:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        userName: { type: string }
+        name: { type: string }
+        role: { type: string, enum: [mentee, mentor, admin, root] }
+        status: { type: string, enum: [active, verifying, pending-mentor, onboarding] }
+        isBlocked: { type: boolean }
+
+    AdminChangePasswordRequest:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string, minLength: 6 }
+
+    ChangeMyPasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string }
+        newPassword: { type: string, minLength: 6 }
+
+    RejectMentorRequest:
+      type: object
+      properties:
+        reason: { type: string }
+
+    PaymentWebhookRequest:
+      type: object
+      required: [event, bookingId]
+      properties:
+        event: { type: string, example: "payment.success" }
+        bookingId: { type: string }
+        paymentId: { type: string }
+        status: { type: string }
+        metadata:
+          type: object
+          additionalProperties: true
+
+    PaymentWebhookResponseData:
+      type: object
+      properties:
+        processed: { type: boolean, example: true }
+        event: { type: string }
+        bookingId: { type: string }
+
+    DeviceTokenListItem:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        token: { type: string, nullable: true }
+        tokenMasked: { type: string }
+        platform: { type: string, nullable: true }
+        deviceId: { type: string, nullable: true }
+        lastSeenAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time, nullable: true }
+        updatedAt: { type: string, format: date-time, nullable: true }
+        user:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+            email: { type: string, format: email, nullable: true }
+            userName: { type: string, nullable: true }
+            role: { type: string, nullable: true }
+            status: { type: string, nullable: true }
+
+    DeviceTokenListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DeviceTokenListItem" }
+        total: { type: integer, example: 1 }
+        page: { type: integer, example: 1 }
+        limit: { type: integer, example: 50 }
+
+    Report:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string, example: "pending" }
+
 paths:
   /auth/signup:
     post:
@@ -887,6 +1121,487 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /auth/admin/login:
+    post:
+      tags: [Auth]
+      summary: Admin login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminLoginRequest" }
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AdminLoginResponseData"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Account blocked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Lấy thông tin user hiện tại
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CurrentUserResponseData"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  # ===== USERS ENDPOINTS =====
+  /users:
+    get:
+      tags: [Users]
+      summary: Danh sách người dùng (admin/root)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: filter
+          schema: { type: string, example: '{"q":"alex","role":"mentor"}' }
+          description: JSON filter (q, role, status, isBlocked)
+        - in: query
+          name: range
+          schema: { type: string, example: "[0,9]" }
+          description: JSON range [start,end]
+        - in: query
+          name: sort
+          schema: { type: string, example: '["createdAt","DESC"]' }
+          description: JSON sort [field, order]
+      responses:
+        "200":
+          description: User list
+          headers:
+            Content-Range:
+              schema: { type: string }
+              description: "users start-end/total"
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/UserAdmin" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+    post:
+      tags: [Users]
+      summary: Tạo user (admin/root)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminCreateUserRequest" }
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserAdmin" }
+        "400":
+          description: Missing/invalid inputs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "409":
+          description: Email already exists
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Lấy thông tin user hiện tại (alias /auth/me)
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CurrentUserResponseData"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /users/change-password:
+    put:
+      tags: [Users]
+      summary: Đổi mật khẩu của chính mình (admin/root)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChangeMyPasswordRequest" }
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiResponse" }
+        "400":
+          description: Missing/invalid inputs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /users/pending-mentors/count:
+    get:
+      tags: [Users]
+      summary: Đếm mentor đang chờ duyệt (admin/root)
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Pending mentors count
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          count: { type: integer, example: 3 }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /users/{id}:
+    get:
+      tags: [Users]
+      summary: Lấy user theo id (admin/root)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: User detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserAdmin" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+    put:
+      tags: [Users]
+      summary: Cập nhật user (admin/root)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminUpdateUserRequest" }
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserAdmin" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+    delete:
+      tags: [Users]
+      summary: Xoá user (admin/root)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: User deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserAdmin" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /users/{id}/password:
+    put:
+      tags: [Users]
+      summary: Đổi mật khẩu user (admin/root)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminChangePasswordRequest" }
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          id: { type: string }
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /users/{id}/approve:
+    put:
+      tags: [Users]
+      summary: Duyệt mentor (admin/root)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Mentor approved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          id: { type: string }
+        "400":
+          description: Invalid mentor state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /users/{id}/reject:
+    put:
+      tags: [Users]
+      summary: Từ chối mentor (admin/root)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RejectMentorRequest" }
+      responses:
+        "200":
+          description: Mentor rejected
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          id: { type: string }
+        "400":
+          description: Invalid mentor state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
   # ====== PROFILE ENDPOINT ======
   /profile/required:
     post:
@@ -991,6 +1706,195 @@ paths:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
         "409":
           description: Hồ sơ đã tồn tại
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /profile/me:
+    get:
+      tags: [Profile]
+      summary: Lấy hồ sơ của tôi
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Profile fetched
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          profile: { $ref: "#/components/schemas/Profile" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Profile not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+    put:
+      tags: [Profile]
+      summary: Cập nhật hồ sơ của tôi
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProfileUpdateRequest" }
+          multipart/form-data:
+            schema: { $ref: "#/components/schemas/ProfileUpdateMultipart" }
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          profile: { $ref: "#/components/schemas/Profile" }
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Profile not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "500":
+          description: Upload avatar failed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /profile/{id}:
+    get:
+      tags: [Profile]
+      summary: Lấy hồ sơ public theo userId
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+          description: userId (không phải profileId)
+      responses:
+        "200":
+          description: Public profile fetched
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          profile: { $ref: "#/components/schemas/ProfilePublic" }
+        "404":
+          description: Profile not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+    delete:
+      tags: [Profile]
+      summary: Xoá hồ sơ (admin/root)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+          description: profileId
+      responses:
+        "200":
+          description: Profile deleted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          id: { type: string }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Profile not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /profile:
+    get:
+      tags: [Profile]
+      summary: Danh sách hồ sơ (admin/root)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: filter
+          schema: { type: string, example: '{"q":"node","profileCompleted":"true"}' }
+          description: JSON filter (q, category, profileCompleted)
+        - in: query
+          name: range
+          schema: { type: string, example: "[0,9]" }
+          description: JSON range [start,end]
+        - in: query
+          name: sort
+          schema: { type: string, example: '["createdAt","DESC"]' }
+          description: JSON sort [field, order]
+      responses:
+        "200":
+          description: Profile list
+          headers:
+            Content-Range:
+              schema: { type: string }
+              description: "profiles start-end/total"
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProfileListItem" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Forbidden
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
@@ -1707,6 +2611,74 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
 
+  # ===== REPORTS =====
+  /reports:
+    get:
+      tags: [Reports]
+      summary: Danh sách reports (stub)
+      parameters:
+        - in: query
+          name: filter
+          schema: { type: string, example: "{}" }
+          description: JSON filter (future use)
+        - in: query
+          name: range
+          schema: { type: string, example: "[0,9]" }
+          description: JSON range [start,end]
+        - in: query
+          name: sort
+          schema: { type: string, example: '["createdAt","DESC"]' }
+          description: JSON sort [field, order]
+      responses:
+        "200":
+          description: Report list (currently empty)
+          headers:
+            Content-Range:
+              schema: { type: string }
+              description: "reports start-end/total"
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Report" }
+
+  /reports/{id}:
+    get:
+      tags: [Reports]
+      summary: Lấy report theo id (stub)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Report detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Report" }
+    put:
+      tags: [Reports]
+      summary: Cập nhật report (stub)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Report updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Report" }
+
 
   # ===== NOTIFICATIONS =====
   /notifications/devices:
@@ -1742,6 +2714,49 @@ paths:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+    get:
+      tags: [Notifications]
+      summary: List device tokens (admin/root)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: userId
+          schema: { type: string }
+        - in: query
+          name: platform
+          schema: { type: string, example: "android" }
+        - in: query
+          name: includeToken
+          schema: { type: boolean, default: false }
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        "200":
+          description: Device token list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/DeviceTokenListResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Forbidden
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
@@ -2229,6 +3244,40 @@ paths:
           description: Unauthorized
         "403":
           description: Forbidden - Not a mentee
+
+  # ===== PAYMENTS =====
+  /payments/webhook:
+    post:
+      tags: [Payments]
+      summary: Payment gateway webhook (mock)
+      description: Không yêu cầu auth; validate bằng signature ở production
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PaymentWebhookRequest" }
+      responses:
+        "200":
+          description: Webhook processed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PaymentWebhookResponseData"
+        "400":
+          description: Invalid payload
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
 
   /payouts/requests:
     post:

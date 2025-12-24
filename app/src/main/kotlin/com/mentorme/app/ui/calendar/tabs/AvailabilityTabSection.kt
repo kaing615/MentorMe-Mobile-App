@@ -31,8 +31,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.zIndex
 import com.mentorme.app.ui.calendar.components.InfoChip
 import com.mentorme.app.ui.calendar.core.*
 import com.mentorme.app.ui.calendar.core.NewSlotInput
@@ -51,6 +54,10 @@ import java.time.ZoneId
 @Composable
 fun AvailabilityTabSection(
     slots: List<AvailabilitySlot>,
+    showAdd: Boolean,
+    onShowAddChange: (Boolean) -> Unit,
+    showEdit: Boolean,
+    onShowEditChange: (Boolean) -> Unit,
     onAdd: (NewSlotInput) -> Boolean,
     onUpdate: (AvailabilitySlot) -> Unit,
     onToggle: (String) -> Unit,
@@ -78,11 +85,7 @@ fun AvailabilityTabSection(
     var startErr by remember { mutableStateOf<String?>(null) }
     var endErr by remember { mutableStateOf<String?>(null) }
 
-    // Dialog flags
-    var showAdd by remember { mutableStateOf(false) }
-
     // ====== EDIT state ======
-    var showEdit by remember { mutableStateOf(false) }
     var editingSlot by remember { mutableStateOf<AvailabilitySlot?>(null) }
 
     fun resetForm() {
@@ -105,10 +108,12 @@ fun AvailabilityTabSection(
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    // Only show content when dialogs are closed
+    if (!showAdd && !showEdit) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-        // Header
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            // Header
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier.size(30.dp).clip(RoundedCornerShape(10.dp))
@@ -126,7 +131,7 @@ fun AvailabilityTabSection(
             Spacer(Modifier.weight(1f))
             MMPrimaryButton(onClick = {
                 resetForm()
-                showAdd = true
+                onShowAddChange(true)
             }) {
                 Icon(Icons.Default.Add, null, tint = Color.White)
                 Spacer(Modifier.width(6.dp)); Text("Tạo lịch", color = Color.White)
@@ -241,7 +246,7 @@ fun AvailabilityTabSection(
                                         desc = TextFieldValue(slot.description ?: "")
                                         priceDigits = if (slot.priceVnd > 0) slot.priceVnd.toString() else ""
                                         startErr = null; endErr = null
-                                        showEdit = true
+                                        onShowEditChange(true)
                                     }
                                 )
                                 MMButton(
@@ -266,14 +271,22 @@ fun AvailabilityTabSection(
             }
         }
     }
+    } // Close if (!showAdd && !showEdit)
 
     // ===== Dialog: THÊM =====
     if (showAdd) {
-        // Buffer minutes state (digits only, clamp 0..120), seeded with last used
-        var bufBeforeDigits by rememberSaveable(showAdd) { mutableStateOf(lastBufBefore) }
-        var bufAfterDigits  by rememberSaveable(showAdd) { mutableStateOf(lastBufAfter) }
+        // Delay content rendering to show blank screen immediately
+        var showDialogContent by remember { mutableStateOf(false) }
+        LaunchedEffect(showAdd) {
+            showDialogContent = true
+        }
+        
+        if (showDialogContent) {
+            // Buffer minutes state (digits only, clamp 0..120), seeded with last used
+            var bufBeforeDigits by rememberSaveable(showAdd) { mutableStateOf(lastBufBefore) }
+            var bufAfterDigits  by rememberSaveable(showAdd) { mutableStateOf(lastBufAfter) }
 
-        AvailabilityDialog(
+            AvailabilityDialog(
             title = "Thêm lịch trống mới",
             primaryText = "Thêm lịch",
             selectedDate = selectedDate,
@@ -288,7 +301,7 @@ fun AvailabilityTabSection(
             onEndTimeSelected = { endTime = it; endErr = null },
             onTypeChange = { type = it },
             onDescChange = { desc = it },
-            onDismiss = { showAdd = false; startErr = null; endErr = null },
+            onDismiss = { onShowAddChange(false); startErr = null; endErr = null },
             priceDigits = priceDigits,
             onPriceChange = { priceDigits = it.filter(Char::isDigit).take(10) },
             // Inject buffer fields into dialog content
@@ -334,15 +347,23 @@ fun AvailabilityTabSection(
                     lastBufAfter  = bufAfter.toString()
                     // Close dialog; parent shows toast on result
                     resetForm()
-                    showAdd = false
+                    onShowAddChange(false)
                 }
             }
         )
+        }
     }
 
     // ===== Dialog: SỬA =====
     if (showEdit && editingSlot != null) {
-        AvailabilityDialog(
+        // Delay content rendering to show blank screen immediately
+        var showDialogContent by remember { mutableStateOf(false) }
+        LaunchedEffect(showEdit) {
+            showDialogContent = true
+        }
+        
+        if (showDialogContent) {
+            AvailabilityDialog(
             title = "Chỉnh sửa lịch trống",
             primaryText = "Cập nhật",
             selectedDate = selectedDate,
@@ -357,7 +378,7 @@ fun AvailabilityTabSection(
             onEndTimeSelected = { endTime = it; endErr = null },
             onTypeChange = { type = it },
             onDescChange = { desc = it },
-            onDismiss = { showEdit = false; editingSlot = null; resetForm(); startErr = null; endErr = null },
+            onDismiss = { onShowEditChange(false); editingSlot = null; resetForm(); startErr = null; endErr = null },
             priceDigits = priceDigits,
             onPriceChange = { priceDigits = it.filter(Char::isDigit).take(10) },
             onSubmit = {
@@ -392,11 +413,31 @@ fun AvailabilityTabSection(
                 )
                 onUpdate(updated)
                 // toast is handled by parent after API result
-                showEdit = false
+                onShowEditChange(false)
                 editingSlot = null
                 resetForm()
             }
         )
+        }
+    }
+}
+
+@Composable
+private fun SlotStatusPill(slot: AvailabilitySlot) {
+    val (label, color) = when {
+        !slot.isActive -> "Tạm dừng" to Color(0xFF6B7280)
+        slot.isBooked -> "Đã đặt" to Color(0xFFEF4444)
+        else -> "Còn trống" to Color(0xFF22C55E)
+    }
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(color.copy(alpha = 0.18f))
+            .border(BorderStroke(1.dp, color.copy(alpha = 0.45f)), RoundedCornerShape(12.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Text(label, color = Color.White, style = MaterialTheme.typography.labelMedium)
     }
 }
 
@@ -540,26 +581,60 @@ private fun AvailabilityDialog(
         }
     }
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        confirmButton = {}, dismissButton = {}, title = null,
-        containerColor = Color(0xF2334155),
-        text = {
-            Column(
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        // Full screen with scrim (like GlassOverlay)
+        Box(Modifier.fillMaxSize().zIndex(2f)) {
+            // Scrim that covers entire screen
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) { onDismiss() }
+            )
+
+            // Glass card wrapper (like GlassOverlay Surface)
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .fillMaxHeight()
+                    .padding(12.dp)
+                    .align(Alignment.Center),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = Color.White.copy(alpha = 0.14f),
+                tonalElevation = 12.dp,
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.28f))
             ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                Box(Modifier.fillMaxSize().padding(20.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                // Header với icon
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "$title",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                
+                Divider(color = Color.White.copy(alpha = 0.15f), thickness = 1.dp)
 
-                DialogSectionHeader("Bước 1: Chọn thời gian")
+                DialogSectionHeader("📅 Bước 1: Chọn thời gian")
 
                 // Ngày
                 FormLabel("Ngày")
@@ -568,8 +643,8 @@ private fun AvailabilityDialog(
                         value = datePreview,
                         onValueChange = {},
                         readOnly = true,
-                        trailingIcon = { Icon(Icons.Default.CalendarToday, null, tint = Color.White) },
-                        shape = RoundedCornerShape(14.dp),
+                        trailingIcon = { Icon(Icons.Default.CalendarToday, null, tint = Color.White.copy(0.7f)) },
+                        shape = RoundedCornerShape(16.dp),
                         colors = glassOutlinedTextFieldColors(),
                         modifier = Modifier.fillMaxWidth(),
                         enabled = false,
@@ -586,7 +661,7 @@ private fun AvailabilityDialog(
                         onValueChange = {}, readOnly = true,
                         trailingIcon = { TrailingIcon(expanded = typeMenu) },
                         modifier = Modifier.menuAnchor().fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = glassOutlinedTextFieldColors()
                     )
                     DropdownMenu(expanded = typeMenu, onDismissRequest = { typeMenu = false }) {
@@ -603,12 +678,12 @@ private fun AvailabilityDialog(
                             OutlinedTextField(
                                 value = startTime?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: "",
                                 onValueChange = {},
-                                placeholder = { Text("HH:mm") },
+                                placeholder = { Text("HH:mm", color = Color.White.copy(0.5f)) },
                                 readOnly = true,
-                                trailingIcon = { Icon(Icons.Default.AccessTime, null, tint = Color.White) },
+                                trailingIcon = { Icon(Icons.Default.AccessTime, null, tint = Color.White.copy(0.7f)) },
                                 isError = startError != null,
                                 supportingText = { if (startError != null) Text(startError, color = MaterialTheme.colorScheme.error) },
-                                shape = RoundedCornerShape(14.dp),
+                                shape = RoundedCornerShape(16.dp),
                                 colors = glassOutlinedTextFieldColors(),
                                 modifier = Modifier.fillMaxWidth(),
                                 enabled = false,
@@ -623,12 +698,12 @@ private fun AvailabilityDialog(
                             OutlinedTextField(
                                 value = endTime?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: "",
                                 onValueChange = {},
-                                placeholder = { Text("HH:mm") },
+                                placeholder = { Text("HH:mm", color = Color.White.copy(0.5f)) },
                                 readOnly = true,
-                                trailingIcon = { Icon(Icons.Default.AccessTime, null, tint = Color.White) },
+                                trailingIcon = { Icon(Icons.Default.AccessTime, null, tint = Color.White.copy(0.7f)) },
                                 isError = endError != null,
                                 supportingText = { if (endError != null) Text(endError, color = MaterialTheme.colorScheme.error) },
-                                shape = RoundedCornerShape(14.dp),
+                                shape = RoundedCornerShape(16.dp),
                                 colors = glassOutlinedTextFieldColors(),
                                 modifier = Modifier.fillMaxWidth(),
                                 enabled = false,
@@ -639,17 +714,19 @@ private fun AvailabilityDialog(
                     }
                 }
 
-                DialogSectionHeader("Bước 2: Giá & khoảng đệm")
+                Divider(color = Color.White.copy(alpha = 0.15f), thickness = 1.dp)
+
+                DialogSectionHeader("💰 Bước 2: Giá & khoảng đệm")
 
                 if (priceDigits != null && onPriceChange != null) {
                     FormLabel("Giá (VND)")
                     OutlinedTextField(
                         value = priceDigits,
                         onValueChange = onPriceChange,
-                        placeholder = { Text("Ví dụ: 250000") },
+                        placeholder = { Text("Ví dụ: 250000", color = Color.White.copy(0.5f)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = glassOutlinedTextFieldColors(),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -660,29 +737,31 @@ private fun AvailabilityDialog(
                     FormLabel("Khoảng đệm")
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.weight(1f)) {
-                            Text("Đệm trước (phút)", color = Color.White)
+                            Text("Đệm trước (phút)", color = Color.White.copy(0.9f), style = MaterialTheme.typography.labelMedium)
+                            Spacer(Modifier.height(4.dp))
                             OutlinedTextField(
                                 value = bufBeforeDigits,
                                 onValueChange = onBufBeforeChange,
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                shape = RoundedCornerShape(14.dp),
+                                shape = RoundedCornerShape(16.dp),
                                 colors = glassOutlinedTextFieldColors(),
                                 modifier = Modifier.fillMaxWidth(),
-                                supportingText = { Text("Khoảng đệm trước tính bằng phút", color = Color.White.copy(alpha = 0.7f)) }
+                                supportingText = { Text("Thời gian đệm trước", color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall) }
                         )
                         }
                         Column(Modifier.weight(1f)) {
-                            Text("Đệm sau (phút)", color = Color.White)
+                            Text("Đệm sau (phút)", color = Color.White.copy(0.9f), style = MaterialTheme.typography.labelMedium)
+                            Spacer(Modifier.height(4.dp))
                             OutlinedTextField(
                                 value = bufAfterDigits,
                                 onValueChange = onBufAfterChange,
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                shape = RoundedCornerShape(14.dp),
+                                shape = RoundedCornerShape(16.dp),
                                 colors = glassOutlinedTextFieldColors(),
                                 modifier = Modifier.fillMaxWidth(),
-                                supportingText = { Text("Khoảng đệm sau tính bằng phút", color = Color.White.copy(alpha = 0.7f)) }
+                                supportingText = { Text("Thời gian đệm sau", color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall) }
                         )
                         }
                     }
@@ -696,43 +775,69 @@ private fun AvailabilityDialog(
                     typeLabel = typeLabel
                 )
 
-                DialogSectionHeader("Bước 3: Mô tả")
+                Divider(color = Color.White.copy(alpha = 0.15f), thickness = 1.dp)
+
+                DialogSectionHeader("📝 Bước 3: Mô tả")
 
                 // Mô tả
                 FormLabel("Mô tả (tùy chọn)")
                 OutlinedTextField(
                     value = desc, onValueChange = onDescChange,
-                    placeholder = { Text("Ví dụ: React Performance, Career Guidance…") },
-                    shape = RoundedCornerShape(14.dp), minLines = 3,
+                    placeholder = { Text("Ví dụ: React Performance, Career Guidance…", color = Color.White.copy(0.5f)) },
+                    shape = RoundedCornerShape(16.dp), minLines = 3,
                     colors = glassOutlinedTextFieldColors(),
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Actions
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))
-                    ) { Text("Hủy") }
+                Spacer(Modifier.height(8.dp))
 
+                // Actions - stacked like mentor detail sheet
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Button(
                         onClick = onSubmit,
-                        modifier = Modifier.weight(1f).height(48.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF4F46E5),
                             contentColor = Color.White
                         )
-                    ) { Text(primaryText) }
+                    ) { 
+                        Text(primaryText, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold) 
+                    }
+
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f))
+                    ) { 
+                        Text("Hủy", style = MaterialTheme.typography.titleSmall) 
+                    }
+                }
+                }
                 }
             }
         }
-    )
+    }
+}
+
+@Composable
+private fun DialogSectionHeader(text: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White
+        )
+    }
 }
 
 @Composable

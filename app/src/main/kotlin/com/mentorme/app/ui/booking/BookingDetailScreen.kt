@@ -119,7 +119,7 @@ private fun BookingDetailContent(
     booking: Booking,
     onBack: () -> Unit
 ) {
-    val mentorName = mentorNameFor(booking.mentorId)
+    val mentorName = mentorDisplayName(booking)
     val timeRange = "${booking.startTime} - ${booking.endTime}"
     val priceLabel = "$${"%.2f".format(booking.price)}"
 
@@ -235,7 +235,13 @@ private fun StatusPill(status: BookingStatus) {
     }
 }
 
-private fun mentorNameFor(mentorId: String): String {
-    val mentor = MockData.mockMentors.firstOrNull { it.id == mentorId }
-    return mentor?.fullName ?: "Mentor ${mentorId.takeLast(6)}"
+private fun mentorDisplayName(booking: Booking): String {
+    val fallback = MockData.mockMentors.firstOrNull { it.id == booking.mentorId }?.fullName
+    val displayName = listOf(
+        booking.mentorFullName,
+        booking.mentor?.fullName,
+        fallback
+    ).firstOrNull { !it.isNullOrBlank() }?.trim()
+
+    return displayName ?: "Mentor ${booking.mentorId.takeLast(6)}"
 }

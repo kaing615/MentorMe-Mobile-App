@@ -441,6 +441,25 @@ private fun SlotStatusPill(slot: AvailabilitySlot) {
     }
 }
 
+@Composable
+private fun SlotStatusPill(slot: AvailabilitySlot) {
+    val (label, color) = when {
+        !slot.isActive -> "Tạm dừng" to Color(0xFF6B7280)
+        slot.isBooked -> "Đã đặt" to Color(0xFFEF4444)
+        else -> "Còn trống" to Color(0xFF22C55E)
+    }
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(color.copy(alpha = 0.18f))
+            .border(BorderStroke(1.dp, color.copy(alpha = 0.45f)), RoundedCornerShape(12.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Text(label, color = Color.White, style = MaterialTheme.typography.labelMedium)
+    }
+}
+
 /**
  * Dialog dùng chung cho Thêm/Sửa để tránh lặp code
  */
@@ -819,6 +838,17 @@ private fun DialogSectionHeader(text: String) {
             color = Color.White
         )
     }
+}
+
+@Composable
+private fun DialogSectionHeader(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = Color.White,
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 @Composable

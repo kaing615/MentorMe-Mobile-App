@@ -76,7 +76,7 @@ class BookingFlowViewModel @Inject constructor(
         occurrenceId: String,
         topic: String? = null,
         notes: String? = null
-    ): AppResult<Unit> {
+    ): AppResult<Booking> {
         val result = createBookingUseCase(
             mentorId = mentorId,
             occurrenceId = occurrenceId,
@@ -84,7 +84,15 @@ class BookingFlowViewModel @Inject constructor(
             notes = notes
         )
         return when (result) {
-            is AppResult.Success -> AppResult.Success(Unit)
+            is AppResult.Success -> {
+                val envelope = result.data
+                val booking = envelope.data
+                if (envelope.success && booking != null) {
+                    AppResult.Success(booking)
+                } else {
+                    AppResult.Error(envelope.message ?: "Failed to create booking")
+                }
+            }
             is AppResult.Error -> AppResult.Error(result.throwable)
             AppResult.Loading -> AppResult.Loading
         }

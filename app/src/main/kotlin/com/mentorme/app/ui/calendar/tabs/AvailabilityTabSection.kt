@@ -38,7 +38,7 @@ import java.text.NumberFormat
 @Composable
 fun AvailabilityTabSection(
     slots: List<AvailabilitySlot>,
-    onAdd: (NewSlotInput) -> Unit,
+    onAdd: (NewSlotInput) -> Boolean,
     onUpdate: (AvailabilitySlot) -> Unit,
     onToggle: (String) -> Unit,
     onDelete: (String) -> Unit
@@ -306,13 +306,15 @@ fun AvailabilityTabSection(
                     bufferBeforeMin = bufBefore,
                     bufferAfterMin = bufAfter
                 )
-                onAdd(newSlot)
-                // Persist last used buffer values
-                lastBufBefore = bufBefore.toString()
-                lastBufAfter  = bufAfter.toString()
-                // Close dialog; parent shows toast on result
-                resetForm()
-                showAdd = false
+                val added = onAdd(newSlot)
+                if (added) {
+                    // Persist last used buffer values
+                    lastBufBefore = bufBefore.toString()
+                    lastBufAfter  = bufAfter.toString()
+                    // Close dialog; parent shows toast on result
+                    resetForm()
+                    showAdd = false
+                }
             }
         )
     }

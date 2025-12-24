@@ -31,6 +31,7 @@ import com.mentorme.app.data.mock.MockData
 import com.mentorme.app.ui.auth.AuthScreen
 import com.mentorme.app.ui.auth.RegisterPayload
 import com.mentorme.app.ui.booking.BookingChooseTimeScreen
+import com.mentorme.app.ui.booking.BookingDetailScreen
 import com.mentorme.app.ui.booking.BookingDraft
 import com.mentorme.app.ui.booking.BookingSummaryScreen
 import com.mentorme.app.ui.calendar.MenteeCalendarScreen
@@ -603,7 +604,19 @@ fun AppNav(
                     }
 
                     composable(Routes.Calendar) {
-                        MenteeCalendarScreen()
+                        MenteeCalendarScreen(
+                            onOpenDetail = { booking ->
+                                nav.navigate(Screen.BookingDetail.createRoute(booking.id))
+                            }
+                        )
+                    }
+
+                    composable("booking_detail/{bookingId}") { backStackEntry ->
+                        val bookingId = backStackEntry.arguments?.getString("bookingId") ?: return@composable
+                        BookingDetailScreen(
+                            bookingId = bookingId,
+                            onBack = { nav.popBackStack() }
+                        )
                     }
 
                     composable(Routes.Messages) {
@@ -745,7 +758,11 @@ fun AppNav(
                                     notes = it.notes
                                 )) {
                                     is com.mentorme.app.core.utils.AppResult.Success -> {
-                                        nav.popBackStack(route = Routes.Home, inclusive = false)
+                                        val bookingId = res.data.id
+                                        nav.navigate(Screen.BookingDetail.createRoute(bookingId)) {
+                                            popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                            launchSingleTop = true
+                                        }
                                     }
                                     is com.mentorme.app.core.utils.AppResult.Error -> {
                                         val msg = res.throwable

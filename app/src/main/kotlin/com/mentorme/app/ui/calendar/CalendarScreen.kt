@@ -3,6 +3,7 @@ package com.mentorme.app.ui.calendar
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -90,7 +91,8 @@ fun CalendarScreen(
     onRate: (Booking) -> Unit = {},
     onRebook: (Booking) -> Unit = {},
     onPay: (Booking) -> Unit = {},
-    onCancel: (Booking) -> Unit = {}
+    onCancel: (Booking) -> Unit = {},
+    onOpen: (Booking) -> Unit = {}
 ) {
     var active by remember { mutableStateOf(CalTab.Upcoming) }
 
@@ -220,7 +222,8 @@ fun CalendarScreen(
                     onRate = onRate,
                     onRebook = onRebook,
                     onPay = onPay,
-                    onCancel = onCancel
+                    onCancel = onCancel,
+                    onOpen = onOpen
                 )
             }
         }
@@ -269,7 +272,8 @@ private fun BookingCard(
     onRate: (Booking) -> Unit,
     onRebook: (Booking) -> Unit,
     onCancel: (Booking) -> Unit,
-    onPay: (Booking) -> Unit
+    onPay: (Booking) -> Unit,
+    onOpen: (Booking) -> Unit
 ) {
     val mentor = remember(booking.mentorId) {
         MockData.mockMentors.firstOrNull { it.id == booking.mentorId }
@@ -304,7 +308,9 @@ private fun BookingCard(
     )
 
     LiquidGlassCard(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onOpen(booking) },
         radius = 22.dp
     ) {
         Column(

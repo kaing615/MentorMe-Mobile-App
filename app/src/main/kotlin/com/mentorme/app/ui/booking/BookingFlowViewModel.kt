@@ -3,6 +3,7 @@ package com.mentorme.app.ui.booking
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mentorme.app.core.utils.AppResult
+import com.mentorme.app.data.model.Booking
 import com.mentorme.app.domain.usecase.calendar.CreateBookingUseCase
 import com.mentorme.app.domain.usecase.calendar.GetMentorAvailabilityUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -76,7 +77,7 @@ class BookingFlowViewModel @Inject constructor(
         occurrenceId: String,
         topic: String? = null,
         notes: String? = null
-    ): AppResult<Unit> {
+    ): AppResult<Booking> {
         val result = createBookingUseCase(
             mentorId = mentorId,
             occurrenceId = occurrenceId,
@@ -84,7 +85,15 @@ class BookingFlowViewModel @Inject constructor(
             notes = notes
         )
         return when (result) {
-            is AppResult.Success -> AppResult.Success(Unit)
+            is AppResult.Success -> {
+                val envelope = result.data
+                val booking = envelope.data
+                if (envelope.success && booking != null) {
+                    AppResult.Success(booking)
+                } else {
+                    AppResult.Error(envelope.message ?: "Failed to create booking")
+                }
+            }
             is AppResult.Error -> AppResult.Error(result.throwable)
             AppResult.Loading -> AppResult.Loading
         }

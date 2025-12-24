@@ -149,7 +149,10 @@ export const updateMyProfile = asyncHandler(
 
 export const getPublicProfile = asyncHandler(
   async (req: Request, res: Response) => {
-    const { userId } = req.params;
+    const userId = req.params.id || req.params.userId;
+    if (!userId) {
+      return responseHandler.badRequest(res, null, "Missing user id");
+    }
 
     const profile = await Profile.findOne({ user: userId })
       .populate("user", "email userName role")

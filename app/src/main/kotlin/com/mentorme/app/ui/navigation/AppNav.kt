@@ -427,7 +427,9 @@ fun AppNav(
 
                     // ---------- MENTOR SCREENS ----------
                     composable(Routes.MentorDashboard) {
+                        val profileVm: com.mentorme.app.ui.profile.ProfileViewModel = hiltViewModel()
                         MentorDashboardScreen(
+                            vm = profileVm,
                             onViewSchedule = {
                                 nav.navigate(Routes.MentorCalendar) {
                                     launchSingleTop = true

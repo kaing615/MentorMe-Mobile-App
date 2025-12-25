@@ -7,6 +7,7 @@ import com.mentorme.app.data.remote.MentorMeApi
 import com.mentorme.app.data.network.api.auth.AuthApiService
 import com.mentorme.app.data.network.api.profile.ProfileApiService
 import com.mentorme.app.data.network.api.home.HomeApiService
+import com.mentorme.app.data.network.api.review.ReviewApiService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -17,7 +18,6 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
-import com.mentorme.app.core.datastore.DataStoreManager
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -79,5 +79,11 @@ object NetworkModule {
     @Singleton
     fun provideHomeApiService(retrofit: Retrofit): HomeApiService {
         return retrofit.create(HomeApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideReviewApiService(retrofit: Retrofit): ReviewApiService {
+        return retrofit.create(ReviewApiService::class.java)
     }
 }

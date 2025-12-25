@@ -110,7 +110,9 @@ fun HomeScreen(
         endTime: String,
         priceVnd: Long,
         note: String
-    ) -> Unit = { _, _, _, _, _, _, _ -> }
+    ) -> Unit = { _, _, _, _, _, _, _ -> },
+    onOverlayOpened: () -> Unit = {},
+    onOverlayClosed: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -121,6 +123,11 @@ fun HomeScreen(
 
     val blurOn = showDetail || showBooking
     val blurRadius = if (blurOn) 8.dp else 0.dp
+
+    // Notify parent when overlay state changes
+    androidx.compose.runtime.LaunchedEffect(blurOn) {
+        if (blurOn) onOverlayOpened() else onOverlayClosed()
+    }
 
     // Create dynamic stats from uiState
     val quickStats = remember(uiState.mentorCount, uiState.sessionCount, uiState.avgRating) {

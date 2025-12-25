@@ -51,7 +51,6 @@ import com.mentorme.app.ui.profile.UserHeader
 import com.mentorme.app.ui.profile.UserRole
 import com.mentorme.app.ui.profile.MentorProfileScreen
 import com.mentorme.app.ui.search.SearchMentorScreen
-import com.mentorme.app.ui.session.SessionViewModel
 import com.mentorme.app.ui.theme.LiquidBackground
 import com.mentorme.app.ui.wallet.AddPaymentMethodScreen
 import com.mentorme.app.ui.wallet.BankInfo
@@ -62,6 +61,8 @@ import com.mentorme.app.ui.wallet.TopUpScreen
 import com.mentorme.app.ui.wallet.WithdrawScreen
 import com.mentorme.app.ui.wallet.initialPaymentMethods
 import android.Manifest
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mentorme.app.ui.session.SessionViewModel
 
 object Routes {
     const val Auth = "auth"
@@ -808,7 +809,8 @@ fun AppNav(
                                                 Toast.makeText(context, "Khung giờ đã được đặt. Vui lòng chọn thời gian khác.", Toast.LENGTH_LONG).show()
                                             }
                                             else -> {
-                                                Toast.makeText(context, msg.ifBlank { "Có lỗi xảy ra, vui lòng thử lại." }, Toast.LENGTH_LONG).show()
+                                                val errorMsg = if (msg.isBlank()) "Có lỗi xảy ra, vui lòng thử lại." else msg
+                                                Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
                                             }
                                         }
                                     }

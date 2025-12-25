@@ -40,6 +40,8 @@ tags:
     description: Home screen statistics (mentor count, session count, ratings, online users)
   - name: Presence
     description: User presence tracking (ping to update online status)
+  - name: Reviews
+    description: Review and rating system (mentee reviews mentor after completed booking)
 
 components:
   securitySchemes:
@@ -3641,6 +3643,263 @@ paths:
                   success: { type: boolean, example: false }
                   message: { type: string, example: "Failed to update presence" }
                   error: { type: string }
+
+  /bookings/{id}/review:
+    post:
+      tags:
+        - Reviews
+      summary: Tạo review cho booking đã hoàn thành
+      description: |
+        Mentee tạo review và rating cho mentor sau khi booking Completed.
+        Business rules:
+        - Chỉ mentee của booking mới được review
+        - Booking phải có status = 'Completed'
+        - 1 booking chỉ được review 1 lần
+        - Rating từ 1-5, comment tùy chọn (max 1000 chars)
+        - Tự động cập nhật profile.rating của mentor (average + count)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Booking ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - rating
+              properties:
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                  example: 5
+                  description: Rating từ 1 (tệ) đến 5 (xuất sắc)
+                comment:
+                  type: string
+                  maxLength: 1000
+                  example: "Mentor rất nhiệt tình và giúp đỡ tận tâm!"
+      responses:
+        "201":
+          description: Review created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Review created successfully"
+                  data:
+                    type: object
+                    properties:
+                      _id:
+                        type: string
+                        example: "694ab5fb480851a5e45cef14"
+                      booking:
+                        type: string
+                        example: "694ab5fb480851a5e45cef10"
+                      mentee:
+                        type: object
+                        properties:
+                          _id: { type: string }
+                          userName: { type: string }
+                          name: { type: string }
+                          email: { type: string }
+                      mentor:
+                        type: object
+                        properties:
+                          _id: { type: string }
+                          userName: { type: string }
+                          name: { type: string }
+                          email: { type: string }
+                      rating:
+                        type: integer
+                        example: 5
+                      comment:
+                        type: string
+                        example: "Mentor rất nhiệt tình!"
+                      createdAt:
+                        type: string
+                        format: date-time
+                      updatedAt:
+                        type: string
+                        format: date-time
+        "400":
+          description: Bad request (BOOKING_NOT_COMPLETED, INVALID_RATING)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "BOOKING_NOT_COMPLETED" }
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden (ONLY_MENTEE_CAN_REVIEW)
+        "404":
+          description: Not found (BOOKING_NOT_FOUND, MENTOR_PROFILE_NOT_FOUND)
+        "409":
+          description: Conflict (REVIEW_ALREADY_EXISTS)
+
+  /mentors/{id}/reviews:
+    get:
+      tags:
+        - Reviews
+      summary: Lấy danh sách review của mentor (public)
+      description: |
+        Endpoint public để xem tất cả reviews của mentor.
+        Hỗ trợ cursor-based pagination (newest first).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Mentor ID
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Số lượng reviews tối đa mỗi trang
+        - in: query
+          name: cursor
+          schema:
+            type: string
+          description: Review ID để pagination (lấy reviews cũ hơn cursor này)
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      reviews:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            _id: { type: string }
+                            booking: { type: string }
+                            mentee:
+                              type: object
+                              properties:
+                                _id: { type: string }
+                                userName: { type: string }
+                                name: { type: string }
+                            mentor: { type: string }
+                            rating: { type: integer, minimum: 1, maximum: 5 }
+                            comment: { type: string }
+                            createdAt: { type: string, format: date-time }
+                            updatedAt: { type: string, format: date-time }
+                      pagination:
+                        type: object
+                        properties:
+                          hasMore:
+                            type: boolean
+                            example: true
+                          nextCursor:
+                            type: string
+                            example: "694ab5fb480851a5e45cef15"
+                            nullable: true
+                          limit:
+                            type: integer
+                            example: 20
+        "400":
+          description: Bad request (INVALID_MENTOR_ID, USER_IS_NOT_MENTOR)
+        "404":
+          description: Not found (MENTOR_NOT_FOUND)
+
+  /reviews/me:
+    get:
+      tags:
+        - Reviews
+      summary: Lấy danh sách reviews của mình (mentee)
+      description: |
+        Endpoint cho mentee xem tất cả reviews đã viết.
+        Hỗ trợ cursor-based pagination (newest first).
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Số lượng reviews tối đa mỗi trang
+        - in: query
+          name: cursor
+          schema:
+            type: string
+          description: Review ID để pagination
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      reviews:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            _id: { type: string }
+                            booking:
+                              type: object
+                              properties:
+                                _id: { type: string }
+                                startTime: { type: string, format: date-time }
+                                endTime: { type: string, format: date-time }
+                                topic: { type: string }
+                            mentee: { type: string }
+                            mentor:
+                              type: object
+                              properties:
+                                _id: { type: string }
+                                userName: { type: string }
+                                name: { type: string }
+                            rating: { type: integer }
+                            comment: { type: string }
+                            createdAt: { type: string, format: date-time }
+                            updatedAt: { type: string, format: date-time }
+                      pagination:
+                        type: object
+                        properties:
+                          hasMore: { type: boolean }
+                          nextCursor: { type: string, nullable: true }
+                          limit: { type: integer }
+        "401":
+          description: Unauthorized
 
 security:
   - BearerAuth: []

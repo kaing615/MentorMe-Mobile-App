@@ -31,6 +31,8 @@ export interface IBooking extends Document {
   cancelReason?: string;
   lateCancel?: boolean;
   lateCancelMinutes?: number;
+  reviewId?: Types.ObjectId;
+  reviewedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -61,6 +63,8 @@ const BookingSchema = new Schema<IBooking>(
     cancelReason: { type: String, trim: true },
     lateCancel: { type: Boolean, default: false },
     lateCancelMinutes: { type: Number, min: 0 },
+    reviewId: { type: Schema.Types.ObjectId, ref: 'Review' },
+    reviewedAt: { type: Date },
   },
   { timestamps: true }
 );

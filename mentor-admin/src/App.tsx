@@ -8,7 +8,7 @@ import { MyProfile } from "./MyProfile";
 import { BookingEdit, BookingList } from "./resources/bookings";
 import { ReportEdit, ReportList } from "./resources/reports";
 import { UserCreate, UserEdit, UserList } from "./resources/users";
-import { PayoutList } from "./resources/payouts";   // 👈 thêm
+import { PayoutList } from "./resources/payouts";
 
 export default function App() {
   return (

@@ -38,7 +38,9 @@ import androidx.compose.animation.core.*
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HeroSection(
-    onSearch: (String) -> Unit
+    onSearch: (String) -> Unit,
+    onlineCount: Int = 0,
+    avgRating: Double = 0.0
 ) {
     var query by remember { mutableStateOf("") }
     val skills = listOf("Lập trình", "Marketing", "Thiết kế", "Kinh doanh", "Tài chính", "Data Science")
@@ -159,7 +161,10 @@ fun HeroSection(
                             .background(Color(0xFF22C55E))
                     )
                     Spacer(Modifier.width(6.dp))
-                    Text("1000+ online", color = Color.White)
+                    Text(
+                        text = "${formatCompactNumber(onlineCount)} online",
+                        color = Color.White
+                    )
                 }
             }
             Box(
@@ -169,7 +174,11 @@ fun HeroSection(
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("4.9⭐", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (avgRating > 0) "%.1f⭐".format(avgRating) else "0⭐",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
                     Text("Đánh giá", color = Color.White.copy(alpha = 0.8f))
                 }
             }

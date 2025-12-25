@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -238,6 +239,8 @@ fun AppNav(
                     currentRoute?.startsWith("booking/") == true ||
                             currentRoute?.startsWith("bookingSummary/") == true
                 val hideForWallet = currentRoute?.startsWith("wallet/") == true
+                val hideForOnboarding = currentRoute?.startsWith("onboarding/") == true || currentRoute == Routes.Onboarding
+                val hideForPendingApproval = currentRoute == Routes.PendingApproval
 
                 if (
                     !overlayVisible &&
@@ -246,7 +249,9 @@ fun AppNav(
                     currentRoute != Routes.Auth &&
                     !hideForChat &&
                     !hideForBooking &&
-                    !hideForWallet
+                    !hideForWallet &&
+                    !hideForOnboarding &&
+                    !hideForPendingApproval
                 ) {
                     GlassBottomBar(navController = nav, userRole = userRole)
                 }
@@ -417,7 +422,12 @@ fun AppNav(
                     composable(Routes.Home) {
                         HomeScreen(
                             onNavigateToMentors = { goToSearch(nav) },
-                            onSearch = { _ -> goToSearch(nav) }
+                            onSearch = { _ -> goToSearch(nav) },
+                            onBookSlot = { mentor, occurrenceId, date, startTime, endTime, priceVnd, note ->
+                                nav.currentBackStackEntry?.savedStateHandle?.set("booking_notes", note)
+                                nav.currentBackStackEntry?.savedStateHandle?.set("booking_mentor_name", mentor.name)
+                                nav.navigate("bookingSummary/${mentor.id}/$date/$startTime/$endTime/$priceVnd/$occurrenceId")
+                            }
                         )
                     }
 
@@ -483,6 +493,47 @@ fun AppNav(
                         val authVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
                         MentorProfileScreen(
                             startTarget = "profile",
+                            onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
+                            onViewEarnings = { Log.d("AppNav", "MentorProfile: onViewEarnings - TODO") },
+                            onViewReviews = { Log.d("AppNav", "MentorProfile: onViewReviews - TODO") },
+                            onUpdateAvailability = {
+                                nav.navigate(Routes.MentorCalendar) {
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            onManageServices = { Log.d("AppNav", "MentorProfile: onManageServices - TODO") },
+                            onViewStatistics = { Log.d("AppNav", "MentorProfile: onViewStatistics - TODO") },
+                            onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
+                            onLogout = {
+                                authVm.signOut {
+                                    isLoggedIn = false
+                                    userRole = "mentee"
+                                    nav.navigate(Routes.Auth) {
+                                        popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
+                                }
+                            }
+                        )
+                    }
+
+                    // ✅ (B) composable query route: mentor_profile?target=...
+                    composable(
+                        route = Routes.MentorProfileWithTarget,
+                        arguments = listOf(
+                            navArgument("target") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = "profile"
+                            }
+                        )
+                    ) { backStackEntry ->
+                        val target = backStackEntry.arguments?.getString("target") ?: "profile"
+                        val authVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
+
+                        MentorProfileScreen(
+                            startTarget = target,
                             onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
                             onViewEarnings = { Log.d("AppNav", "MentorProfile: onViewEarnings - TODO") },
                             onViewReviews = { Log.d("AppNav", "MentorProfile: onViewReviews - TODO") },

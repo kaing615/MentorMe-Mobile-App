@@ -10,6 +10,7 @@ import {
   resendIcs,
   mentorConfirmBooking,
   mentorDeclineBooking,
+  completeBooking,
 } from '../controllers/booking.controller';
 import {
   createBookingRules,
@@ -19,6 +20,7 @@ import {
   resendIcsRules,
   mentorConfirmRules,
   mentorDeclineRules,
+  completeBookingRules,
 } from '../middlewares/validators/booking.validator';
 
 const router = Router();
@@ -41,5 +43,8 @@ router.post('/:id/resend-ics', auth, resendIcsRules, validate, resendIcs);
 // Mentor confirm/decline pending booking
 router.post('/:id/mentor-confirm', auth, mentorConfirmRules, validate, mentorConfirmBooking);
 router.post('/:id/mentor-decline', auth, mentorDeclineRules, validate, mentorDeclineBooking);
+
+// Mentor complete confirmed booking
+router.post('/:id/complete', auth, completeBookingRules, validate, completeBooking);
 
 export default router;

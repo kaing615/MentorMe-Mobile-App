@@ -6,6 +6,7 @@ import com.mentorme.app.core.network.NetworkConstants
 import com.mentorme.app.data.remote.MentorMeApi
 import com.mentorme.app.data.network.api.auth.AuthApiService
 import com.mentorme.app.data.network.api.profile.ProfileApiService
+import com.mentorme.app.data.network.api.home.HomeApiService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -72,5 +73,11 @@ object NetworkModule {
     @Singleton
     fun provideProfileApiService(retrofit: Retrofit): ProfileApiService {
         return retrofit.create(ProfileApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideHomeApiService(retrofit: Retrofit): HomeApiService {
+        return retrofit.create(HomeApiService::class.java)
     }
 }

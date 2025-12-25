@@ -1,0 +1,170 @@
+[{
+  "_id": {
+    "$oid": "68da5dc746403ed3b1818a38"
+  },
+  "userName": "daithang",
+  "email": "daithanghuynhle@gmail.com",
+  "passwordHash": "$2b$12$LRNowxqjkTuiBrSXJQHU0ezHZTc6u2N1D9smqa.H.B3ogXujrvAq6",
+  "role": "mentee",
+  "status": "active",
+  "createdAt": {
+    "$date": "2025-09-29T10:21:59.983Z"
+  },
+  "updatedAt": {
+    "$date": "2025-12-22T09:21:39.513Z"
+  },
+  "__v": 0,
+  "isBlocked": false,
+  "name": "gay"
+},
+{
+  "_id": {
+    "$oid": "694781e69d31e7e6448f38dc"
+  },
+  "userName": "Alex",
+  "email": "mentee1@example.com",
+  "passwordHash": "$2b$12$5KiYsCPMrJ65Wge6pG7.QOKQsZXGtWHQwDOKToPeF9APwde8.NMxC",
+  "role": "admin",
+  "status": "active",
+  "createdAt": {
+    "$date": "2025-12-21T05:13:10.062Z"
+  },
+  "updatedAt": {
+    "$date": "2025-12-21T13:47:04.562Z"
+  },
+  "__v": 0,
+  "isBlocked": false,
+  "name": "dai thang"
+},
+{
+  "_id": {
+    "$oid": "694792d927539f786a05c874"
+  },
+  "userName": "daithang",
+  "name": "daithang",
+  "email": "23521422@gm.uit.edu.vn",
+  "passwordHash": "$2b$12$AG.7zJv4c2LL5r.1ZIqDgeiSTelWLEymyuH9PqbjY6hKD1pHDWvW6",
+  "role": "mentee",
+  "status": "active",
+  "isBlocked": false,
+  "createdAt": {
+    "$date": "2025-12-21T06:25:29.056Z"
+  },
+  "updatedAt": {
+    "$date": "2025-12-22T10:38:07.974Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69479689f595101ed70da71b"
+  },
+  "userName": "root",
+  "name": "Root Administrator",
+  "email": "root@mentorme.com",
+  "passwordHash": "$2b$12$XAQJShOJ5e7s2C0JO8cQ3.3rb3fRTNTnUn3ruvvyL8SO86denkmDu",
+  "role": "root",
+  "status": "active",
+  "isBlocked": false,
+  "createdAt": {
+    "$date": "2025-12-21T06:41:13.104Z"
+  },
+  "updatedAt": {
+    "$date": "2025-12-21T07:30:20.856Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6947fa889545dd030df80ac5"
+  },
+  "userName": "mentor1",
+  "name": "Nguyen Dinh Mentor",
+  "email": "mentor1@gmail.com",
+  "passwordHash": "$2b$12$1ZfpNpwQtjvAIY4MpIYZqOSZeKlDIusGCUdS7wDPJbY6uljKKp4mS",
+  "role": "mentor",
+  "status": "active",
+  "isBlocked": false,
+  "createdAt": {
+    "$date": "2025-12-21T13:47:52.332Z"
+  },
+  "updatedAt": {
+    "$date": "2025-12-22T09:11:29.687Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69491c79de45708c17d9e6aa"
+  },
+  "userName": "thaygaywibu",
+  "name": "thai be de wibu kositetsuki",
+  "email": "thaigay@gmail.com",
+  "passwordHash": "$2b$12$5bHFxdOoEpjN7DsK0.sfnuA9Vx34wNdUiWyAT4TBJIw0nftyOoPqu",
+  "role": "mentor",
+  "status": "active",
+  "isBlocked": false,
+  "createdAt": {
+    "$date": "2025-12-22T10:24:57.526Z"
+  },
+  "updatedAt": {
+    "$date": "2025-12-24T10:38:17.848Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "694a737eab7f79797dd13d25"
+  },
+  "userName": "thaigay",
+  "name": "thai gay vc",
+  "email": "kositetgay@gmail.com",
+  "passwordHash": "$2b$12$Z/tuaOVQjOWDqxHASkebauP11rlPfUOJf062aXEz.C8jtzMD4tKdC",
+  "role": "admin",
+  "status": "active",
+  "isBlocked": false,
+  "createdAt": {
+    "$date": "2025-12-23T10:48:31.014Z"
+  },
+  "updatedAt": {
+    "$date": "2025-12-23T10:48:31.014Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "694a857dab7f79797dd1481c"
+  },
+  "userName": "gaymentor",
+  "email": "gaymentor@gmail.com",
+  "passwordHash": "$2b$12$qpG8ls9WG1m01vYKeix2pOXSG7uRGfyMuEneT/8idXzm4BJL8DpVW",
+  "role": "mentor",
+  "status": "active",
+  "isBlocked": false,
+  "createdAt": {
+    "$date": "2025-12-23T12:05:17.500Z"
+  },
+  "updatedAt": {
+    "$date": "2025-12-23T12:10:16.255Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "694ab5fb480851a5e45cef13"
+  },
+  "userName": "alo",
+  "email": "uk@gmail.com",
+  "passwordHash": "$2b$12$u9BB7bCX1wsh/azawgjYFuCJQTs6SuQwlu3iFN2y50usfrcUd6V4S",
+  "role": "mentee",
+  "status": "active",
+  "isBlocked": false,
+  "createdAt": {
+    "$date": "2025-12-23T15:32:11.058Z"
+  },
+  "updatedAt": {
+    "$date": "2025-12-23T15:34:45.854Z"
+  },
+  "__v": 0,
+  "name": "aloalo"
+}]

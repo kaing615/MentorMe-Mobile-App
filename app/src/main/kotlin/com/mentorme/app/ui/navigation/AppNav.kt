@@ -422,7 +422,12 @@ fun AppNav(
                     composable(Routes.Home) {
                         HomeScreen(
                             onNavigateToMentors = { goToSearch(nav) },
-                            onSearch = { _ -> goToSearch(nav) }
+                            onSearch = { _ -> goToSearch(nav) },
+                            onBookSlot = { mentor, occurrenceId, date, startTime, endTime, priceVnd, note ->
+                                nav.currentBackStackEntry?.savedStateHandle?.set("booking_notes", note)
+                                nav.currentBackStackEntry?.savedStateHandle?.set("booking_mentor_name", mentor.name)
+                                nav.navigate("bookingSummary/${mentor.id}/$date/$startTime/$endTime/$priceVnd/$occurrenceId")
+                            }
                         )
                     }
 

@@ -36,6 +36,10 @@ tags:
     description: Báo cáo (stub)
   - name: Webhooks
     description: Mock webhooks from payout provider
+  - name: Home
+    description: Home screen statistics (mentor count, session count, ratings, online users)
+  - name: Presence
+    description: User presence tracking (ping to update online status)
 
 components:
   securitySchemes:
@@ -3542,6 +3546,101 @@ paths:
           description: Bad Request
         "404":
           description: Payout not found
+
+  /home/stats:
+    get:
+      summary: Get home screen statistics
+      description: Public endpoint - Lấy thống kê tổng quan cho màn hình Home (số mentor, số session, rating trung bình, số người online)
+      tags: [Home]
+      responses:
+        "200":
+          description: Successfully retrieved statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      mentorCount:
+                        type: number
+                        example: 150
+                        description: Tổng số mentor đang hoạt động
+                      sessionCount:
+                        type: number
+                        example: 1234
+                        description: Tổng số session đã hoàn thành hoặc đang diễn ra
+                      avgRating:
+                        type: number
+                        format: float
+                        example: 4.7
+                        description: Đánh giá trung bình từ tất cả mentor
+                      onlineCount:
+                        type: number
+                        example: 23
+                        description: Số người đang online (từ Redis presence)
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Failed to get home statistics" }
+                  error: { type: string }
+
+  /presence/ping:
+    post:
+      summary: Update user online presence
+      description: Auth required - Gửi ping để cập nhật trạng thái online trong Redis (TTL 120s)
+      tags: [Presence]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Presence updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      userId:
+                        type: string
+                        example: "694ab5fb480851a5e45cef13"
+                      expiresIn:
+                        type: number
+                        example: 120
+                        description: Thời gian hết hạn của presence key (giây)
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Unauthorized" }
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Failed to update presence" }
+                  error: { type: string }
 
 security:
   - BearerAuth: []

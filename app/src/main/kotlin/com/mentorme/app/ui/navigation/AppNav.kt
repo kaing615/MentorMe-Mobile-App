@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -50,6 +51,7 @@ import com.mentorme.app.ui.profile.UserHeader
 import com.mentorme.app.ui.profile.UserRole
 import com.mentorme.app.ui.profile.MentorProfileScreen
 import com.mentorme.app.ui.search.SearchMentorScreen
+import com.mentorme.app.ui.session.SessionViewModel
 import com.mentorme.app.ui.theme.LiquidBackground
 import com.mentorme.app.ui.wallet.AddPaymentMethodScreen
 import com.mentorme.app.ui.wallet.BankInfo
@@ -246,7 +248,9 @@ fun AppNav(
                     currentRoute != Routes.Auth &&
                     !hideForChat &&
                     !hideForBooking &&
-                    !hideForWallet
+                    !hideForWallet &&
+                    !hideForOnboarding &&
+                    !hideForPendingApproval
                 ) {
                     GlassBottomBar(navController = nav, userRole = userRole)
                 }
@@ -483,85 +487,6 @@ fun AppNav(
                         val authVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
                         MentorProfileScreen(
                             startTarget = "profile",
-                            onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
-                            onViewEarnings = { Log.d("AppNav", "MentorProfile: onViewEarnings - TODO") },
-                            onViewReviews = { Log.d("AppNav", "MentorProfile: onViewReviews - TODO") },
-                            onUpdateAvailability = {
-                                nav.navigate(Routes.MentorCalendar) {
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            onManageServices = { Log.d("AppNav", "MentorProfile: onManageServices - TODO") },
-                            onViewStatistics = { Log.d("AppNav", "MentorProfile: onViewStatistics - TODO") },
-                            onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
-                            onLogout = {
-                                isLoggedIn = false
-                                userRole = "mentee"
-                                nav.navigate(Routes.Auth) {
-                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
-                                    launchSingleTop = true
-                                }
-                            }
-                        )
-                    }
-
-                    // ✅ (B) composable query route: mentor_profile?target=...
-                    composable(
-                        route = Routes.MentorProfileWithTarget,
-                        arguments = listOf(
-                            navArgument("target") {
-                                type = NavType.StringType
-                                nullable = true
-                                defaultValue = "profile"
-                            }
-                        )
-                    ) { backStackEntry ->
-                        val target = backStackEntry.arguments?.getString("target") ?: "profile"
-
-                        MentorProfileScreen(
-                            startTarget = target,
-                            onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
-                            onViewEarnings = { Log.d("AppNav", "MentorProfile: onViewEarnings - TODO") },
-                            onViewReviews = { Log.d("AppNav", "MentorProfile: onViewReviews - TODO") },
-                            onUpdateAvailability = {
-                                nav.navigate(Routes.MentorCalendar) {
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            onManageServices = { Log.d("AppNav", "MentorProfile: onManageServices - TODO") },
-                            onViewStatistics = { Log.d("AppNav", "MentorProfile: onViewStatistics - TODO") },
-                            onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
-                            onLogout = {
-                                authVm.signOut {
-                                    isLoggedIn = false
-                                    userRole = "mentee"
-                                    nav.navigate(Routes.Auth) {
-                                        popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
-                                        launchSingleTop = true
-                                    }
-                                }
-                            }
-                        )
-                    }
-
-                    // ✅ (B) composable query route: mentor_profile?target=...
-                    composable(
-                        route = Routes.MentorProfileWithTarget,
-                        arguments = listOf(
-                            navArgument("target") {
-                                type = NavType.StringType
-                                nullable = true
-                                defaultValue = "profile"
-                            }
-                        )
-                    ) { backStackEntry ->
-                        val target = backStackEntry.arguments?.getString("target") ?: "profile"
-                        val authVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
-
-                        MentorProfileScreen(
-                            startTarget = target,
                             onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
                             onViewEarnings = { Log.d("AppNav", "MentorProfile: onViewEarnings - TODO") },
                             onViewReviews = { Log.d("AppNav", "MentorProfile: onViewReviews - TODO") },
@@ -868,22 +793,22 @@ fun AppNav(
                                             popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
                                             launchSingleTop = true
                                         }
-                                        is com.mentorme.app. core.utils.AppResult.Error -> {
-                                            val msg = res.throwable
-                                            val code = msg.substringAfter("HTTP ", "").substringBefore(":").toIntOrNull()
-                                            when (code) {
-                                                401 -> {
-                                                    nav.navigate(Routes.Auth) {
-                                                        popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
-                                                        launchSingleTop = true
-                                                    }
+                                    }
+                                    is com.mentorme.app.core.utils.AppResult.Error -> {
+                                        val msg = res.throwable
+                                        val code = msg.substringAfter("HTTP ", "").substringBefore(":").toIntOrNull()
+                                        when (code) {
+                                            401 -> {
+                                                nav.navigate(Routes.Auth) {
+                                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
+                                                    launchSingleTop = true
                                                 }
-                                                409, 422 -> {
-                                                    Toast.makeText(ctx, "Khung giờ đã được đặt. Vui lòng chọn thời gian khác.", Toast.LENGTH_LONG).show()
-                                                }
-                                                else -> {
-                                                    Toast.makeText(ctx, msg.ifBlank { "Có lỗi xảy ra, vui lòng thử lại." }, Toast.LENGTH_LONG).show()
-                                                }
+                                            }
+                                            409, 422 -> {
+                                                Toast.makeText(context, "Khung giờ đã được đặt. Vui lòng chọn thời gian khác.", Toast.LENGTH_LONG).show()
+                                            }
+                                            else -> {
+                                                Toast.makeText(context, msg.ifBlank { "Có lỗi xảy ra, vui lòng thử lại." }, Toast.LENGTH_LONG).show()
                                             }
                                         }
                                     }

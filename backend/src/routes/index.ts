@@ -15,6 +15,7 @@ import profileRouter from "./profile.route";
 import reportRouter from "./report.route";
 import homeRouter from "./home.route";
 import presenceRouter from "./presence.route";
+import reviewRouter from "./review.route";
 
 const router = Router();
 
@@ -41,5 +42,8 @@ router.use("/webhooks", webhookRouter);
 // Home stats & presence
 router.use("/home", homeRouter);
 router.use("/presence", presenceRouter);
+
+// Reviews (note: /bookings/:id/review is handled by reviewRouter)
+router.use("/", reviewRouter);
 
 export default router;

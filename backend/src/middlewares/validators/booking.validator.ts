@@ -39,3 +39,7 @@ export const mentorDeclineRules = [
   param('id').isMongoId().withMessage('id must be a valid booking ID'),
   body('reason').optional().isString().trim().isLength({ max: 500 }).withMessage('reason must be at most 500 characters'),
 ];
+
+export const completeBookingRules = [
+  param('id').isMongoId().withMessage('id must be a valid booking ID'),
+];

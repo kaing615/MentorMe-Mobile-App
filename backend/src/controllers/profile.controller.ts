@@ -22,13 +22,13 @@ export const getMyProfile = asyncHandler(
       return responseHandler.unauthorized(res, null, "Unauthorized");
     }
 
-    const profile = await Profile.findOne({ user: userId })
+    const profile = await Profile.findOneAndUpdate(
+      { user: userId },
+      { $setOnInsert: { user: userId } },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    )
       .populate("user", "email userName role status")
       .lean();
-
-    if (!profile) {
-      return responseHandler.notFound(res, null, "Profile not found");
-    }
 
     return responseHandler.ok(res, { profile }, "Profile fetched successfully");
   }
@@ -395,9 +395,12 @@ export const createRequiredProfile = asyncHandler(
       );
     }
 
-    const existed = await Profile.findOne({ user: userId }).lean();
-    if (existed)
+    const existed = await Profile.findOne({ user: userId })
+      .select("profileCompleted")
+      .lean();
+    if (existed?.profileCompleted) {
       return responseHandler.conflict(res, null, "Profile already exists");
+    }
 
     const cleanLinks: any = {};
     if (links && typeof links === "object") {

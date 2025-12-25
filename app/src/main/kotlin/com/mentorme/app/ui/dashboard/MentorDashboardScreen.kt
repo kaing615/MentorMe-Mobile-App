@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.mentorme.app.ui.components.ui.MMGhostButton
@@ -87,18 +88,13 @@ fun MentorProfileScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val vm: MentorProfileViewModel = hiltViewModel()
+    val state by vm.state.collectAsState()
 
-    val user = remember {
-        UserHeader(
-            fullName = "Trần Mentor",
-            email = "mentor@mentorme.com",
-            role = UserRole.MENTOR
-        )
-    }
-
-    var profile by remember { mutableStateOf(mockProfile(user)) }
-    var isEditing by remember { mutableStateOf(false) }
-    var edited by remember { mutableStateOf(profile) }
+    val profile = state.profile
+    val isLoading = state.loading
+    val isEditing = state.editing
+    val edited = state.edited
 
     // ✅ IMPORTANT:
     // - rememberSaveable giữ tab khi rotate/process restore
@@ -155,6 +151,42 @@ fun MentorProfileScreen(
                     )
                 }
             ) { padding ->
+                if (isLoading) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = Color.White)
+                    }
+                    return@Scaffold
+                }
+
+                state.error?.let { errorMsg ->
+                    Box(
+                        modifier = Modifier.fillMaxSize().padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Lỗi: $errorMsg", color = Color.White)
+                            Spacer(Modifier.height(12.dp))
+                            MMPrimaryButton(onClick = { vm.refresh() }) {
+                                Text("Thử lại")
+                            }
+                        }
+                    }
+                    return@Scaffold
+                }
+
+                if (profile == null) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Không có dữ liệu profile", color = Color.White)
+                    }
+                    return@Scaffold
+                }
+
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -224,19 +256,23 @@ fun MentorProfileScreen(
                         0 -> MentorInfoTab(
                             profile = profile,
                             isEditing = isEditing,
-                            edited = edited,
-                            onEditToggle = {
-                                isEditing = !isEditing
-                                if (!isEditing) edited = profile
-                            },
-                            onChange = { edited = it },
+                            edited = edited ?: profile,
+                            onEditToggle = { vm.toggleEdit() },
+                            onChange = { updated -> vm.updateEdited { updated } },
                             onSave = {
-                                profile = edited
-                                isEditing = false
-                                scope.launch { snackbarHostState.showSnackbar("Đã cập nhật hồ sơ") }
+                                vm.save { success, msg ->
+                                    scope.launch {
+                                        if (success) {
+                                            snackbarHostState.showSnackbar("Đã cập nhật hồ sơ")
+                                        } else {
+                                            snackbarHostState.showSnackbar(msg ?: "Cập nhật thất bại")
+                                        }
+                                    }
+                                }
                             },
-                            onCancel = { edited = profile; isEditing = false }
+                            onCancel = { vm.toggleEdit() }
                         )
+
 
                         1 -> MentorStatsTab(
                             profile = profile,
@@ -275,6 +311,11 @@ private fun MentorInfoTab(
     onSave: () -> Unit,
     onCancel: () -> Unit
 ) {
+    val skillsText = profile.interests.joinToString(", ")
+    val editedSkillsText = edited.interests.joinToString(", ")
+    val headline = skillsText.ifBlank { profile.preferredLanguages.joinToString(", ") }
+        .ifBlank { "Mentor" }
+
     Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         LiquidGlassCard(radius = 22.dp) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -309,13 +350,16 @@ private fun MentorInfoTab(
                     if (!isEditing) {
                         Spacer(Modifier.height(12.dp))
                         Text(profile.fullName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("Senior Software Engineer", color = Color(0xFF60A5FA))
+                        Text(headline, color = Color(0xFF60A5FA))
                     }
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     MentorLabeledField("Họ và tên", profile.fullName, isEditing, edited.fullName) { onChange(edited.copy(fullName = it)) }
-                    MentorLabeledField("Chuyên môn", "Android, Kotlin, Architecture", isEditing, "Android, Kotlin, Architecture") { /* TODO */ }
+                    MentorLabeledField("Chuyên môn", skillsText.ifBlank { "Chưa cập nhật" }, isEditing, editedSkillsText) { raw ->
+                        val skills = raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                        onChange(edited.copy(interests = skills))
+                    }
                     MentorLabeledField("Email", profile.email, isEditing, edited.email) { onChange(edited.copy(email = it)) }
                     MentorMultilineField("Giới thiệu", profile.bio ?: "", isEditing, edited.bio ?: "") { onChange(edited.copy(bio = it)) }
                 }

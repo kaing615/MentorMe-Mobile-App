@@ -182,15 +182,26 @@ fun MentorDetailContent(
             Spacer(Modifier.height(8.dp))
 
             // Top summary
+            val profileName = profile?.fullName?.trim().orEmpty()
+            val displayName = if (profileName.isNotBlank()) profileName else mentor.name
+            val headline = profile?.headline?.trim().takeIf { !it.isNullOrBlank() }
+            val jobTitle = profile?.jobTitle?.trim().takeIf { !it.isNullOrBlank() }
+            val baseRole = headline ?: jobTitle ?: mentor.role.ifBlank { "Mentor" }
+            val subtitle = listOfNotNull(
+                baseRole.takeIf { it.isNotBlank() },
+                mentor.company.trim().takeIf { it.isNotBlank() },
+                profile?.location?.trim().takeIf { !it.isNullOrBlank() }
+            ).joinToString(" • ")
+
             Column(Modifier.padding(horizontal = 16.dp)) {
                 Text(
-                    mentor.name,
+                    displayName,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "${mentor.role} • ${mentor.company}",
+                    subtitle.ifBlank { baseRole },
                     style = MaterialTheme.typography.bodySmall
                 )
                 Spacer(Modifier.height(12.dp))
@@ -263,8 +274,8 @@ fun MentorDetailContent(
 
             // Content
             when (activeTab) {
-                0 -> OverviewTab(mentor)
-                1 -> ExperienceTab()
+                0 -> OverviewTab(mentor, profile)
+                1 -> ExperienceTab(profile)
                 2 -> ReviewsTab()
                 3 -> ScheduleTab(slots = slots, loading = loading, onBookNow = { onBookNow(mentor.id) })
             }
@@ -322,7 +333,23 @@ fun SegmentedTabs(
 
 
 @Composable
-private fun OverviewTab(mentor: HomeMentor) {
+private fun OverviewTab(mentor: HomeMentor, profile: ProfileDto?) {
+    val summaryText = profile?.bio?.trim().takeIf { !it.isNullOrBlank() }
+        ?: profile?.description?.trim().takeIf { !it.isNullOrBlank() }
+        ?: profile?.headline?.trim().takeIf { !it.isNullOrBlank() }
+        ?: "Senior ${mentor.role} với nhiều kinh nghiệm thực chiến. Chia sẻ về lộ trình, kỹ năng và định hướng."
+    val skills = (profile?.skills?.filter { it.isNotBlank() } ?: mentor.skills).filter { it.isNotBlank() }
+    val languages = profile?.languages?.filter { it.isNotBlank() } ?: emptyList()
+    val infoLines = mutableListOf<String>()
+    if (languages.isNotEmpty()) {
+        infoLines.add("Ngôn ngữ: ${languages.joinToString(", ")}")
+    } else {
+        infoLines.add("Ngôn ngữ: Tiếng Việt, English")
+    }
+    profile?.location?.trim()?.takeIf { it.isNotBlank() }?.let { loc ->
+        infoLines.add("Địa điểm: $loc")
+    }
+    infoLines.add("Hình thức: Online")
     LazyColumn(
         Modifier
             .fillMaxWidth()
@@ -337,19 +364,19 @@ private fun OverviewTab(mentor: HomeMentor) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    "Senior ${mentor.role} với nhiều kinh nghiệm thực chiến. Chia sẻ về lộ trình, kỹ năng và định hướng.",
+                    summaryText,
                     modifier = Modifier.padding(18.dp),
                     style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp)
                 )
             }
         }
-        if (mentor.skills.isNotEmpty()) {
+        if (skills.isNotEmpty()) {
             item {
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    mentor.skills.forEach {
+                    skills.forEach {
                         AssistChip(
                             onClick = {},
                             label = { Text(it, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) },
@@ -368,7 +395,7 @@ private fun OverviewTab(mentor: HomeMentor) {
                 }
             }
         }
-        items(listOf("Ngôn ngữ: Tiếng Việt, English", "Hình thức: Online")) { line ->
+        items(infoLines) { line ->
             Surface(
                 shape = RoundedCornerShape(16.dp),
                 color = Color.White.copy(alpha = 0.12f),
@@ -382,19 +409,26 @@ private fun OverviewTab(mentor: HomeMentor) {
 }
 
 @Composable
-private fun ExperienceTab() {
+private fun ExperienceTab(profile: ProfileDto?) {
+    val entries = mutableListOf<String>()
+    profile?.experience?.trim()?.takeIf { it.isNotBlank() }?.let { entries.add(it) }
+    profile?.education?.trim()?.takeIf { it.isNotBlank() }?.let { entries.add(it) }
+    if (entries.isEmpty()) {
+        entries.addAll(
+            listOf(
+                "Senior Software Engineer • 2020 - nay • Tech Company\nPhát triển hệ thống backend phục vụ hàng triệu người dùng.",
+                "Software Engineer • 2018 - 2020 • Startup\nXây dựng sản phẩm từ giai đoạn đầu, làm việc trong team nhỏ."
+            )
+        )
+    }
+
     LazyColumn(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(
-            listOf(
-                "Senior Software Engineer • 2020 - nay • Tech Company\nPhát triển hệ thống backend phục vụ hàng triệu người dùng.",
-                "Software Engineer • 2018 - 2020 • Startup\nXây dựng sản phẩm từ giai đoạn đầu, làm việc trong team nhỏ."
-            )
-        ) { s ->
+        items(entries) { s ->
             Surface(
                 shape = RoundedCornerShape(16.dp),
                 color = Color.White.copy(alpha = 0.12f),

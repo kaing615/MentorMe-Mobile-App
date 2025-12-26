@@ -458,12 +458,42 @@ private fun BookingCard(
                         )
                     }
                     BookingStatus.COMPLETED -> {
-                        MMButton(
-                            text = "Đánh giá",
-                            onClick = { onRate(booking) },
-                            modifier = Modifier.weight(1f),
-                            leadingIcon = { Icon(Icons.Default.CheckCircle, null, tint = Color.White) }
-                        )
+                        // Only show review button if not yet reviewed
+                        if (booking.reviewId == null) {
+                            MMButton(
+                                text = "Đánh giá",
+                                onClick = { onRate(booking) },
+                                modifier = Modifier.weight(1f),
+                                leadingIcon = { Icon(Icons.Default.CheckCircle, null, tint = Color.White) }
+                            )
+                        } else {
+                            // Show disabled-style button for already reviewed
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(Color.White.copy(alpha = 0.1f))
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.5f)
+                                    )
+                                    Text(
+                                        text = "Đã đánh giá",
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color.White.copy(alpha = 0.5f),
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
                         MMGhostButton(
                             text = "Đặt lại",
                             onClick = { onRebook(booking) },

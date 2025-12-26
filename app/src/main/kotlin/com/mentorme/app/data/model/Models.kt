@@ -204,6 +204,10 @@ data class Booking(
     val lateCancel: Boolean? = null,
     @SerializedName("lateCancelMinutes")
     val lateCancelMinutes: Int? = null,
+    @SerializedName("reviewId")
+    val reviewId: String? = null,
+    @SerializedName("reviewedAt")
+    val reviewedAt: String? = null,
     @SerializedName("createdAt")
     val createdAt: String,     // ISO-8601
     @SerializedName("rating")

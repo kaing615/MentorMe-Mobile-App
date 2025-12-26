@@ -427,7 +427,9 @@ fun AppNav(
                                 nav.currentBackStackEntry?.savedStateHandle?.set("booking_notes", note)
                                 nav.currentBackStackEntry?.savedStateHandle?.set("booking_mentor_name", mentor.name)
                                 nav.navigate("bookingSummary/${mentor.id}/$date/$startTime/$endTime/$priceVnd/$occurrenceId")
-                            }
+                            },
+                            onOverlayOpened = { overlayVisible = true },
+                            onOverlayClosed = { overlayVisible = false }
                         )
                     }
 

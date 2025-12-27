@@ -1,11 +1,13 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
+import { randomUUID } from 'crypto';
 import { asyncHandler } from '../handlers/async.handler';
 import {
   ok,
   created,
   badRequest,
   notFound,
+  unauthorized,
   forbidden,
   conflict,
 } from '../handlers/response.handler';
@@ -177,6 +179,8 @@ function formatBookingResponse(booking: any, userSummaries?: Record<string, User
       : null,
     lateCancel: booking.lateCancel ?? false,
     lateCancelMinutes: booking.lateCancelMinutes ?? null,
+    reviewId: booking.reviewId ? String(booking.reviewId) : null,
+    reviewedAt: booking.reviewedAt ? new Date(booking.reviewedAt).toISOString() : null,
     createdAt: new Date(booking.createdAt).toISOString(),
     mentorFullName: mentorSummary?.fullName ?? null,
     menteeFullName: menteeSummary?.fullName ?? null,
@@ -190,8 +194,10 @@ function formatBookingResponse(booking: any, userSummaries?: Record<string, User
  * Create a new booking with status = PaymentPending, lock the occurrence
  */
 export const createBooking = asyncHandler(async (req: Request, res: Response) => {
-  const menteeId = (req as any).user?.id;
-  if (!menteeId) return badRequest(res, 'Unauthorized');
+  const menteeId = (req as any).user?.id ?? (req as any).user?._id;
+  if (!menteeId) {
+    return unauthorized(res, 'USER_NOT_AUTHENTICATED');
+  }
 
   const { mentorId, occurrenceId, topic, notes } = req.body as {
     mentorId: string;
@@ -210,10 +216,11 @@ export const createBooking = asyncHandler(async (req: Request, res: Response) =>
   // Falls back to MongoDB transaction if Redis is unavailable - MongoDB's
   // unique index on occurrence + transaction provides atomicity protection.
   const lockKey = `booking:lock:${occurrenceId}`;
+  const lockToken = randomUUID();
   let lockAcquired = false;
   try {
     if (redis?.isOpen) {
-      const lockResult = await redis.set(lockKey, menteeId, { NX: true, PX: 30_000 });
+      const lockResult = await redis.set(lockKey, lockToken, { NX: true, PX: 30_000 });
       lockAcquired = lockResult === 'OK';
     } else {
       // Redis unavailable; rely on MongoDB unique constraint + transaction
@@ -325,7 +332,18 @@ export const createBooking = asyncHandler(async (req: Request, res: Response) =>
   } finally {
     if (redis?.isOpen) {
       try {
-        await redis.del(lockKey);
+        // Only delete lock if we still own it (prevent deleting another request's lock)
+        const luaScript = `
+          if redis.call("GET", KEYS[1]) == ARGV[1] then
+            return redis.call("DEL", KEYS[1])
+          else
+            return 0
+          end
+        `;
+        await redis.eval(luaScript, {
+          keys: [lockKey],
+          arguments: [lockToken],
+        });
       } catch {}
     }
   }
@@ -336,9 +354,11 @@ export const createBooking = asyncHandler(async (req: Request, res: Response) =>
  * List bookings for current user (mentee or mentor role)
  */
 export const getBookings = asyncHandler(async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
+  const userId = (req as any).user?.id ?? (req as any).user?._id;
   const userRole = (req as any).user?.role;
-  if (!userId) return badRequest(res, 'Unauthorized');
+  if (!userId) {
+    return unauthorized(res, 'USER_NOT_AUTHENTICATED');
+  }
 
   const { role, status, page = 1, limit = 10 } = req.query as {
     role?: 'mentee' | 'mentor';
@@ -374,6 +394,12 @@ export const getBookings = asyncHandler(async (req: Request, res: Response) => {
     bookings.flatMap((b) => [String(b.mentee), String(b.mentor)])
   );
 
+  // Set Content-Range header for react-admin pagination
+  const start = skip;
+  const end = Math.min(skip + bookings.length - 1, total - 1);
+  res.set('Content-Range', `bookings ${start}-${end}/${total}`);
+  res.set('Access-Control-Expose-Headers', 'Content-Range');
+
   return ok(res, {
     bookings: bookings.map((booking) => formatBookingResponse(booking, userSummaries)),
     total,
@@ -387,8 +413,10 @@ export const getBookings = asyncHandler(async (req: Request, res: Response) => {
  * Get booking details
  */
 export const getBookingById = asyncHandler(async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
-  if (!userId) return badRequest(res, 'Unauthorized');
+  const userId = (req as any).user?.id ?? (req as any).user?._id;
+  if (!userId) {
+    return unauthorized(res, 'USER_NOT_AUTHENTICATED');
+  }
 
   const { id } = req.params;
 
@@ -414,9 +442,11 @@ export const getBookingById = asyncHandler(async (req: Request, res: Response) =
  * Cancel a booking
  */
 export const cancelBooking = asyncHandler(async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
+  const userId = (req as any).user?.id ?? (req as any).user?._id;
   const userRole = (req as any).user?.role;
-  if (!userId) return badRequest(res, 'Unauthorized');
+  if (!userId) {
+    return unauthorized(res, 'USER_NOT_AUTHENTICATED');
+  }
 
   const { id } = req.params;
   const { reason } = req.body as { reason?: string };
@@ -489,6 +519,14 @@ export const cancelBooking = asyncHandler(async (req: Request, res: Response) =>
     console.error('Failed to send cancellation notifications:', err);
   }
 
+  // Refund payment to mentee (best effort)
+  try {
+    await refundBookingPayment(String(booking._id));
+  } catch (err) {
+    console.error('Failed to refund booking payment:', err);
+  }
+
+
   const userSummaries = await buildUserSummaryMap([
     String(booking.mentee),
     String(booking.mentor),
@@ -501,8 +539,10 @@ export const cancelBooking = asyncHandler(async (req: Request, res: Response) =>
  * Resend ICS calendar file for confirmed booking
  */
 export const resendIcs = asyncHandler(async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
-  if (!userId) return badRequest(res, 'Unauthorized');
+  const userId = (req as any).user?.id ?? (req as any).user?._id;
+  if (!userId) {
+    return unauthorized(res, 'USER_NOT_AUTHENTICATED');
+  }
 
   const { id } = req.params;
 
@@ -550,9 +590,11 @@ export const resendIcs = asyncHandler(async (req: Request, res: Response) => {
  * Mentor confirms a pending booking
  */
 export const mentorConfirmBooking = asyncHandler(async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
+  const userId = (req as any).user?.id ?? (req as any).user?._id;
   const userRole = (req as any).user?.role;
-  if (!userId) return badRequest(res, 'Unauthorized');
+  if (!userId) {
+    return unauthorized(res, 'USER_NOT_AUTHENTICATED');
+  }
   if (userRole !== 'mentor') return forbidden(res, 'Mentor access required');
 
   const { id } = req.params;
@@ -586,9 +628,11 @@ export const mentorConfirmBooking = asyncHandler(async (req: Request, res: Respo
  * Mentor declines a pending booking
  */
 export const mentorDeclineBooking = asyncHandler(async (req: Request, res: Response) => {
-  const userId = (req as any).user?.id;
+  const userId = (req as any).user?.id ?? (req as any).user?._id;
   const userRole = (req as any).user?.role;
-  if (!userId) return badRequest(res, 'Unauthorized');
+  if (!userId) {
+    return unauthorized(res, 'USER_NOT_AUTHENTICATED');
+  }
   if (userRole !== 'mentor') return forbidden(res, 'Mentor access required');
 
   const { id } = req.params;
@@ -904,6 +948,67 @@ export async function processBookingReminders(): Promise<{ reminded24h: number; 
   return results;
 }
 
+/**
+ * POST /bookings/:id/complete
+ * Complete a confirmed booking (mentor-only)
+ * Transitions: Confirmed -> Completed
+ */
+export const completeBooking = asyncHandler(async (req: Request, res: Response) => {
+  const bookingId = req.params.id;
+  const rawUserId = (req as any).user?.id ?? (req as any).user?._id;
+  const userRole = (req as any).user?.role;
+
+  if (!rawUserId) {
+    return unauthorized(res, 'USER_NOT_AUTHENTICATED');
+  }
+  const userId = String(rawUserId);
+
+  if (userRole !== 'mentor') {
+    return forbidden(res, 'ONLY_MENTOR_CAN_COMPLETE');
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+    return badRequest(res, 'INVALID_BOOKING_ID');
+  }
+
+  const booking = await Booking.findById(bookingId);
+  if (!booking) {
+    return notFound(res, 'Booking not found');
+  }
+
+  // Check mentor ownership
+  if (String(booking.mentor) !== userId) {
+    return forbidden(res, 'ONLY_BOOKING_MENTOR_CAN_COMPLETE');
+  }
+
+  // Check current status
+  if (booking.status !== 'Confirmed') {
+    return badRequest(res, 'BOOKING_MUST_BE_CONFIRMED');
+  }
+
+  // Check if session has ended (optional based on env flag)
+  const allowEarlyComplete = process.env.ALLOW_EARLY_COMPLETE === 'true';
+  const now = new Date();
+  const endTime = new Date(booking.endTime);
+  if (!allowEarlyComplete && now < endTime) {
+    return badRequest(res, 'BOOKING_NOT_ENDED_YET');
+  }
+
+  // Validate state transition
+  if (!canTransition(booking.status, 'Completed')) {
+    return badRequest(res, `Cannot transition from ${booking.status} to Completed`);
+  }
+
+  // Update booking status
+  booking.status = 'Completed';
+  await booking.save();
+
+  // Build response with user summaries
+  const userSummaries = await buildUserSummaryMap([String(booking.mentee), String(booking.mentor)]);
+
+  return ok(res, formatBookingResponse(booking, userSummaries), 'Booking completed successfully');
+});
+
 export default {
   createBooking,
   getBookings,
@@ -912,6 +1017,7 @@ export default {
   resendIcs,
   mentorConfirmBooking,
   mentorDeclineBooking,
+  completeBooking,
   confirmBooking,
   markBookingPendingMentor,
   declineBooking,

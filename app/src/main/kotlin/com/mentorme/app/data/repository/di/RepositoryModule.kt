@@ -8,6 +8,10 @@ import com.mentorme.app.data.repository.impl.AuthRepositoryImpl
 import com.mentorme.app.data.repository.impl.MentorRepositoryImpl
 import com.mentorme.app.data.repository.impl.BookingRepositoryImpl
 import com.mentorme.app.data.repository.impl.ProfileRepositoryImpl
+import com.mentorme.app.data.repository.home.HomeRepository
+import com.mentorme.app.data.repository.home.HomeRepositoryImpl
+import com.mentorme.app.data.repository.review.ReviewRepository
+import com.mentorme.app.data.repository.review.ReviewRepositoryImpl
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -45,6 +49,18 @@ abstract class RepositoryModule {
     abstract fun bindProfileRepository(
         impl: ProfileRepositoryImpl
     ): ProfileRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindHomeRepository(
+        impl: HomeRepositoryImpl
+    ): HomeRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindReviewRepository(
+        impl: ReviewRepositoryImpl
+    ): ReviewRepository
 }
 
 // --- Use case providers ---

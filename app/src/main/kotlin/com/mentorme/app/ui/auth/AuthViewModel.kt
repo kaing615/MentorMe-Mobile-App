@@ -247,41 +247,116 @@ class AuthViewModel @Inject constructor(
                 otpError = null
             )
 
-            when (val result = verifyOtpUseCase.invoke(verificationId, otp)) {
+            when (val verifyResult = verifyOtpUseCase.invoke(verificationId, otp)) {
                 is AppResult.Success -> {
-                    Log.d(TAG, "✅ OTP verification success: ${result.data}")
+                    Log.d(TAG, "✅ OTP verified successfully")
 
-                    // Sau khi OTP xác minh thành công → gọi lại signIn để lấy token
                     val email = _authState.value.userEmail
                     val original = _authState.value.originalSignUpData
 
-                    if (email != null && original != null) {
-                        Log.d(TAG, "📡 Auto sign-in after OTP verify with email=$email")
-                        signIn(email, original.password)
-                    } else {
-                        Log.w(TAG, "⚠️ Không có email/password để sign-in lại sau OTP")
+                    if (email == null || original == null) {
+                        Log.e(TAG, "❌ Missing signup data after OTP")
+                        _authState.value = _authState.value.copy(
+                            isOtpVerifying = false,
+                            otpError = "Không thể đăng nhập sau xác thực OTP"
+                        )
+                        return@launch
                     }
 
-                    _authState.value = _authState.value.copy(
-                        isOtpVerifying = false,
-                        showOtpScreen = false,
-                        showVerificationDialog = true,
-                        verificationSuccess = true,
-                        verificationMessage = "Xác minh email thành công! Đang đăng nhập...",
-                        flowHint = null
-                    )
+                    // --- GỌI SIGN-IN TRỰC TIẾP TRONG CÙNG COROUTINE (đồng bộ) ---
+                    when (val signInResult = signInUseCase.invoke(email, original.password)) {
+                        is AppResult.Success -> {
+                            val data = signInResult.data.data
+                            val token = data?.token
+
+                            if (!token.isNullOrBlank()) {
+                                saveAndConfirmToken(token)
+                            }
+
+                            val roleStrFromData = data?.role ?: data?.user?.role
+                            val roleStr = (roleStrFromData ?: parseRoleFromJwt(token))?.lowercase()
+                            val role = if (roleStr == "mentor") UserRole.MENTOR else UserRole.MENTEE
+
+                            val status = data?.status?.lowercase()
+                            val isActive = status == "active"
+                            val authenticated = isActive && !token.isNullOrBlank()
+                            val pendingApproval = status == "pending-mentor"
+                            val onboarding = status == "onboarding"
+                            val verifying = status == "verifying"
+
+                            // persist user info if available
+                            val userId = data?.userId ?: data?.user?.id
+                            val emailResolved = data?.email ?: data?.user?.email ?: email
+                            val userName = data?.userName ?: data?.user?.username ?: email.substringBefore("@")
+                            val roleStrPersist = roleStr ?: (if (role == UserRole.MENTOR) "mentor" else "mentee")
+                            if (!userId.isNullOrBlank()) {
+                                try {
+                                    dataStoreManager.saveUserInfo(
+                                        userId = userId,
+                                        email = emailResolved,
+                                        name = userName,
+                                        role = roleStrPersist
+                                    )
+                                    Log.d(TAG, "👤 Signed-in (after OTP) userId=$userId role=$roleStrPersist email=$emailResolved")
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "⚠️ Failed to save user info to DataStore: ${e.message}")
+                                }
+                            }
+                            try {
+                                dataStoreManager.saveUserStatus(status)
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Failed to save user status: ${e.message}")
+                            }
+
+                            // SET STATE CHUNG MỘT LẦN — dùng flowHint để UI điều hướng
+                            val computedFlowHint = when {
+                                verifying -> FlowHint.Verifying
+                                onboarding -> FlowHint.RequiresOnboarding
+                                pendingApproval -> FlowHint.PendingApproval
+                                else -> null
+                            }
+
+                            _authState.value = _authState.value.copy(
+                                isOtpVerifying = false,
+                                showOtpScreen = false,
+                                showVerificationDialog = true,
+                                verificationSuccess = true,
+                                verificationMessage = "Xác minh thành công! Đang đăng nhập...",
+                                isAuthenticated = authenticated,
+                                authResponse = signInResult.data,
+                                userRole = role,
+                                flowHint = computedFlowHint,
+                                next = data?.next,
+                                // giữ originalSignUpData để UI có thể đọc role nếu cần
+                                // userEmail cleared? giữ hoặc clear tùy anh, giữ authResponse token quan trọng
+                            )
+
+                            Log.d(TAG, "🚀 verifyOtp -> signIn complete: flowHint=$computedFlowHint role=$role status=$status")
+                        }
+
+                        is AppResult.Error -> {
+                            val msg = ErrorUtils.getUserFriendlyErrorMessage(signInResult.throwable)
+                            _authState.value = _authState.value.copy(
+                                isOtpVerifying = false,
+                                otpError = msg,
+                                showVerificationDialog = true,
+                                verificationSuccess = false,
+                                verificationMessage = msg
+                            )
+                        }
+
+                        AppResult.Loading -> Unit
+                    }
                 }
 
                 is AppResult.Error -> {
-                    val errMsg: String = result.throwable ?: "OTP verification failed"
-                    Log.e(TAG, "OTP verification failed: $errMsg")
-                    val friendly = ErrorUtils.getUserFriendlyErrorMessage(errMsg)
+                    val msg = ErrorUtils.getUserFriendlyErrorMessage(verifyResult.throwable)
                     _authState.value = _authState.value.copy(
                         isOtpVerifying = false,
-                        otpError = friendly,
+                        otpError = msg,
                         showVerificationDialog = true,
                         verificationSuccess = false,
-                        verificationMessage = friendly
+                        verificationMessage = msg
                     )
                 }
 
@@ -368,7 +443,6 @@ class AuthViewModel @Inject constructor(
             showVerificationDialog = false,
             verificationSuccess = false,
             verificationMessage = null,
-            originalSignUpData = null
         )
     }
 

@@ -28,11 +28,13 @@ import com.mentorme.app.core.utils.Logx
 import com.mentorme.app.data.dto.profile.ProfileDto
 import com.mentorme.app.domain.usecase.availability.GetPublicCalendarUseCase
 import com.mentorme.app.domain.usecase.profile.GetPublicProfileUseCase
+import com.mentorme.app.domain.usecase.review.GetMentorReviewsUseCase
 import com.mentorme.app.data.dto.availability.slotPriceVndOrNull
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.launch
 import java.time.*
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -62,6 +64,7 @@ private fun formatSlotWindow(
 interface MentorDetailDeps {
     fun getPublicCalendarUseCase(): GetPublicCalendarUseCase
     fun getPublicProfileUseCase(): GetPublicProfileUseCase
+    fun getMentorReviewsUseCase(): GetMentorReviewsUseCase
 }
 
 @Composable
@@ -276,7 +279,7 @@ fun MentorDetailContent(
             when (activeTab) {
                 0 -> OverviewTab(mentor, profile)
                 1 -> ExperienceTab(profile)
-                2 -> ReviewsTab()
+                2 -> ReviewsTab(mentorId = mentor.id)
                 3 -> ScheduleTab(slots = slots, loading = loading, onBookNow = { onBookNow(mentor.id) })
             }
         }
@@ -440,29 +443,66 @@ private fun ExperienceTab(profile: ProfileDto?) {
 }
 
 @Composable
-private fun ReviewsTab() {
-    val reviews = listOf(
-        "Mentor tận tâm, giúp tôi rõ career path. Highly recommended! — 15/01/2024",
-        "Session bổ ích, kinh nghiệm thực tế, chia sẻ chi tiết. — 10/01/2024",
-        "Professional & friendly. Sẽ book thêm. — 05/01/2024",
-    )
-    LazyColumn(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        items(reviews) { r ->
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = Color.White.copy(alpha = 0.12f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(r, modifier = Modifier.padding(18.dp), style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp))
+private fun ReviewsTab(mentorId: String) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val deps = remember(context) { EntryPointAccessors.fromApplication(context, MentorDetailDeps::class.java) }
+    val getReviews = remember { deps.getMentorReviewsUseCase() }
+    val scope = rememberCoroutineScope()
+
+    var reviews by remember { mutableStateOf<List<com.mentorme.app.data.dto.review.ReviewDto>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var hasMore by remember { mutableStateOf(false) }
+    var nextCursor by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(mentorId) {
+        isLoading = true
+        when (val res = getReviews(mentorId, limit = 20, cursor = null)) {
+            is com.mentorme.app.core.utils.AppResult.Success -> {
+                val (reviewList, pagination) = res.data
+                reviews = reviewList
+                hasMore = pagination.hasMore
+                nextCursor = pagination.nextCursor
+                isLoading = false
+            }
+            is com.mentorme.app.core.utils.AppResult.Error -> {
+                Logx.d("ReviewsTab") { "Failed to load reviews: ${res.throwable}" }
+                reviews = emptyList()
+                isLoading = false
+            }
+            com.mentorme.app.core.utils.AppResult.Loading -> Unit
+        }
+    }
+
+    val loadMore = {
+        if (!isLoading && hasMore && nextCursor != null) {
+            scope.launch {
+                isLoading = true
+                when (val res = getReviews(mentorId, limit = 20, cursor = nextCursor)) {
+                    is com.mentorme.app.core.utils.AppResult.Success -> {
+                        val (moreReviews, pagination) = res.data
+                        reviews = reviews + moreReviews
+                        hasMore = pagination.hasMore
+                        nextCursor = pagination.nextCursor
+                        isLoading = false
+                    }
+                    is com.mentorme.app.core.utils.AppResult.Error -> {
+                        isLoading = false
+                    }
+                    com.mentorme.app.core.utils.AppResult.Loading -> Unit
+                }
             }
         }
     }
+
+    com.mentorme.app.ui.review.ReviewList(
+        reviews = reviews,
+        isLoading = isLoading,
+        hasMore = hasMore,
+        onLoadMore = loadMore,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 16.dp)
+    )
 }
 
 @Composable

@@ -952,6 +952,14 @@ components:
       properties:
         updated: { type: integer, example: 10 }
 
+    NotificationPreferences:
+      type: object
+      properties:
+        pushBooking: { type: boolean, example: true }
+        pushPayment: { type: boolean, example: true }
+        pushMessage: { type: boolean, example: true }
+        pushSystem: { type: boolean, example: true }
+
     Report:
       type: object
       properties:
@@ -2942,6 +2950,77 @@ paths:
                     message: OK
                     data:
                       unread: 3
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /notifications/preferences:
+    get:
+      tags: [Notifications]
+      summary: Get notification preferences
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Notification preferences
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NotificationPreferences"
+              examples:
+                example:
+                  value:
+                    success: true
+                    message: OK
+                    data:
+                      pushBooking: true
+                      pushPayment: true
+                      pushMessage: true
+                      pushSystem: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+    patch:
+      tags: [Notifications]
+      summary: Update notification preferences
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NotificationPreferences" }
+      responses:
+        "200":
+          description: Notification preferences updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NotificationPreferences"
+              examples:
+                example:
+                  value:
+                    success: true
+                    message: Updated
+                    data:
+                      pushBooking: true
+                      pushPayment: false
+                      pushMessage: true
+                      pushSystem: true
         "401":
           description: Unauthorized
           content:

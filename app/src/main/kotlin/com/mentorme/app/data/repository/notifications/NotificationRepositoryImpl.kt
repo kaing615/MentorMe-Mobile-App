@@ -2,7 +2,9 @@ package com.mentorme.app.data.repository.notifications
 
 import com.mentorme.app.core.utils.AppResult
 import com.mentorme.app.data.dto.notifications.NotificationListPayload
+import com.mentorme.app.data.dto.notifications.NotificationPreferencesDto
 import com.mentorme.app.data.remote.MentorMeApi
+import com.mentorme.app.data.model.NotificationPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -78,4 +80,54 @@ class NotificationRepositoryImpl @Inject constructor(
             AppResult.failure(e.message ?: "Failed to mark notifications as read")
         }
     }
+
+    override suspend fun getPreferences(): AppResult<NotificationPreferences> = withContext(Dispatchers.IO) {
+        try {
+            val res = api.getNotificationPreferences()
+            if (res.isSuccessful) {
+                val dto = res.body()?.data
+                val prefs = dto?.toModel() ?: NotificationPreferences()
+                AppResult.success(prefs)
+            } else {
+                AppResult.failure("HTTP ${res.code()}: ${res.message()}")
+            }
+        } catch (e: Exception) {
+            AppResult.failure(e.message ?: "Failed to load notification preferences")
+        }
+    }
+
+    override suspend fun updatePreferences(
+        prefs: NotificationPreferences
+    ): AppResult<NotificationPreferences> = withContext(Dispatchers.IO) {
+        try {
+            val res = api.updateNotificationPreferences(prefs.toDto())
+            if (res.isSuccessful) {
+                val dto = res.body()?.data
+                val updated = dto?.toModel() ?: prefs
+                AppResult.success(updated)
+            } else {
+                AppResult.failure("HTTP ${res.code()}: ${res.message()}")
+            }
+        } catch (e: Exception) {
+            AppResult.failure(e.message ?: "Failed to update notification preferences")
+        }
+    }
+}
+
+private fun NotificationPreferencesDto.toModel(): NotificationPreferences {
+    return NotificationPreferences(
+        pushBooking = pushBooking ?: true,
+        pushPayment = pushPayment ?: true,
+        pushMessage = pushMessage ?: true,
+        pushSystem = pushSystem ?: true
+    )
+}
+
+private fun NotificationPreferences.toDto(): NotificationPreferencesDto {
+    return NotificationPreferencesDto(
+        pushBooking = pushBooking,
+        pushPayment = pushPayment,
+        pushMessage = pushMessage,
+        pushSystem = pushSystem
+    )
 }

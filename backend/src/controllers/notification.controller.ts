@@ -3,6 +3,7 @@ import { asyncHandler } from '../handlers/async.handler';
 import { ok, badRequest, forbidden, notFound } from '../handlers/response.handler';
 import DeviceToken from '../models/deviceToken.model';
 import Notification from '../models/notification.model';
+import User from '../models/user.model';
 import { sendPushToUser } from '../utils/push.service';
 
 export const registerDeviceToken = asyncHandler(async (req: Request, res: Response) => {
@@ -239,6 +240,49 @@ export const markAllNotificationsRead = asyncHandler(async (req: Request, res: R
   return ok(res, { updated: result.modifiedCount ?? 0 }, 'Notifications marked as read');
 });
 
+const defaultPrefs = {
+  pushBooking: true,
+  pushPayment: true,
+  pushMessage: true,
+  pushSystem: true,
+};
+
+export const getNotificationPreferences = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id;
+  if (!userId) return badRequest(res, 'Unauthorized');
+
+  const user = await User.findById(userId).lean();
+  if (!user) return notFound(res, 'User not found');
+
+  return ok(res, { ...defaultPrefs, ...(user as any).notificationPrefs }, 'OK');
+});
+
+export const updateNotificationPreferences = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id;
+  if (!userId) return badRequest(res, 'Unauthorized');
+
+  const { pushBooking, pushPayment, pushMessage, pushSystem } = req.body as {
+    pushBooking?: boolean;
+    pushPayment?: boolean;
+    pushMessage?: boolean;
+    pushSystem?: boolean;
+  };
+
+  const update: Record<string, boolean> = {};
+  if (typeof pushBooking === 'boolean') update['notificationPrefs.pushBooking'] = pushBooking;
+  if (typeof pushPayment === 'boolean') update['notificationPrefs.pushPayment'] = pushPayment;
+  if (typeof pushMessage === 'boolean') update['notificationPrefs.pushMessage'] = pushMessage;
+  if (typeof pushSystem === 'boolean') update['notificationPrefs.pushSystem'] = pushSystem;
+
+  const user = Object.keys(update).length
+    ? await User.findByIdAndUpdate(userId, { $set: update }, { new: true }).lean()
+    : await User.findById(userId).lean();
+
+  if (!user) return notFound(res, 'User not found');
+
+  return ok(res, { ...defaultPrefs, ...(user as any).notificationPrefs }, 'Updated');
+});
+
 export default {
   registerDeviceToken,
   unregisterDeviceToken,
@@ -249,4 +293,6 @@ export default {
   getUnreadCount,
   markNotificationRead,
   markAllNotificationsRead,
+  getNotificationPreferences,
+  updateNotificationPreferences,
 };

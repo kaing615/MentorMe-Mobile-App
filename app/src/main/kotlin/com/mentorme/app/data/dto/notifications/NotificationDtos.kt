@@ -72,3 +72,14 @@ data class NotificationReadAllResponse(
     @SerializedName("updated")
     val updated: Int? = null
 )
+
+data class NotificationPreferencesDto(
+    @SerializedName("pushBooking")
+    val pushBooking: Boolean? = null,
+    @SerializedName("pushPayment")
+    val pushPayment: Boolean? = null,
+    @SerializedName("pushMessage")
+    val pushMessage: Boolean? = null,
+    @SerializedName("pushSystem")
+    val pushSystem: Boolean? = null
+)

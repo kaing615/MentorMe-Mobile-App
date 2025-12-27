@@ -27,6 +27,7 @@ import com.mentorme.app.data.dto.notifications.NotificationListPayload
 import com.mentorme.app.data.dto.notifications.NotificationUnreadCount
 import com.mentorme.app.data.dto.notifications.NotificationReadResponse
 import com.mentorme.app.data.dto.notifications.NotificationReadAllResponse
+import com.mentorme.app.data.dto.notifications.NotificationPreferencesDto
 
 // Model imports
 import com.mentorme.app.data.model.Booking
@@ -217,4 +218,12 @@ interface MentorMeApi {
 
     @POST("notifications/read-all")
     suspend fun markAllNotificationsRead(): Response<ApiEnvelope<NotificationReadAllResponse>>
+
+    @GET("notifications/preferences")
+    suspend fun getNotificationPreferences(): Response<ApiEnvelope<NotificationPreferencesDto>>
+
+    @PATCH("notifications/preferences")
+    suspend fun updateNotificationPreferences(
+        @Body request: NotificationPreferencesDto
+    ): Response<ApiEnvelope<NotificationPreferencesDto>>
 }

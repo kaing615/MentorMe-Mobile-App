@@ -2,12 +2,15 @@ package com.mentorme.app.core.notifications
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.mentorme.app.MainActivity
 import com.mentorme.app.R
 import com.mentorme.app.data.model.NotificationType
 import kotlin.random.Random
@@ -16,6 +19,7 @@ object NotificationHelper {
     const val CHANNEL_GENERAL = "mentorme_general"
     const val CHANNEL_BOOKING = "mentorme_booking"
     const val CHANNEL_MESSAGES = "mentorme_messages"
+    const val EXTRA_NAV_ROUTE = "nav_route"
 
     fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -52,11 +56,23 @@ object NotificationHelper {
         context: Context,
         title: String,
         body: String,
-        type: NotificationType = NotificationType.SYSTEM
+        type: NotificationType = NotificationType.SYSTEM,
+        route: String? = null
     ) {
         if (!hasPostPermission(context)) return
         ensureChannels(context)
         val channelId = channelFor(type)
+        val targetRoute = route ?: NotificationDeepLink.ROUTE_NOTIFICATIONS
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(EXTRA_NAV_ROUTE, targetRoute)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            Random.nextInt(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         Log.d("NotificationHelper", "Show notification channel=$channelId title=$title")
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.mipmap.mentorme)
@@ -64,6 +80,7 @@ object NotificationHelper {
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .build()
 

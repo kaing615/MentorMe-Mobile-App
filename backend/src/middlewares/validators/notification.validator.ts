@@ -132,3 +132,10 @@ export const listNotificationsRules = [
 export const markNotificationReadRules = [
   param('id').isMongoId().withMessage('id must be a valid ID'),
 ];
+
+export const updatePreferencesRules = [
+  body('pushBooking').optional().isBoolean().toBoolean(),
+  body('pushPayment').optional().isBoolean().toBoolean(),
+  body('pushMessage').optional().isBoolean().toBoolean(),
+  body('pushSystem').optional().isBoolean().toBoolean(),
+];

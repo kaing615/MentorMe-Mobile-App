@@ -2,10 +2,12 @@ package com.mentorme.app.ui.notifications
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mentorme.app.core.notifications.NotificationPreferencesStore
 import com.mentorme.app.core.notifications.NotificationStore
 import com.mentorme.app.core.utils.AppResult
 import com.mentorme.app.core.utils.Logx
 import com.mentorme.app.data.mapper.toNotificationItem
+import com.mentorme.app.data.model.NotificationPreferences
 import com.mentorme.app.data.repository.notifications.NotificationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -24,6 +26,9 @@ class NotificationsViewModel @Inject constructor(
 
     private val _unreadCount = MutableStateFlow(0)
     val unreadCount: StateFlow<Int> = _unreadCount.asStateFlow()
+
+    private val _preferences = MutableStateFlow(NotificationPreferences())
+    val preferences: StateFlow<NotificationPreferences> = _preferences.asStateFlow()
 
     fun refresh(read: Boolean? = null, type: String? = null) {
         viewModelScope.launch {
@@ -68,6 +73,37 @@ class NotificationsViewModel @Inject constructor(
             when (val res = notificationRepository.getUnreadCount()) {
                 is AppResult.Success -> _unreadCount.value = res.data
                 is AppResult.Error -> Logx.e(TAG, { "load unread count failed: ${res.throwable}" })
+                AppResult.Loading -> Unit
+            }
+        }
+    }
+
+    fun refreshPreferences() {
+        viewModelScope.launch {
+            when (val res = notificationRepository.getPreferences()) {
+                is AppResult.Success -> {
+                    _preferences.value = res.data
+                    NotificationPreferencesStore.update(res.data)
+                }
+                is AppResult.Error -> Logx.e(TAG, { "load preferences failed: ${res.throwable}" })
+                AppResult.Loading -> Unit
+            }
+        }
+    }
+
+    fun updatePreferences(updated: NotificationPreferences) {
+        _preferences.value = updated
+        NotificationPreferencesStore.update(updated)
+        viewModelScope.launch {
+            when (val res = notificationRepository.updatePreferences(updated)) {
+                is AppResult.Success -> {
+                    _preferences.value = res.data
+                    NotificationPreferencesStore.update(res.data)
+                }
+                is AppResult.Error -> {
+                    Logx.e(TAG, { "update preferences failed: ${res.throwable}" })
+                    refreshPreferences()
+                }
                 AppResult.Loading -> Unit
             }
         }

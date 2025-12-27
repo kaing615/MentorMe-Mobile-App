@@ -3,9 +3,13 @@ package com.mentorme.app.core.realtime
 import android.content.Context
 import android.util.Log
 import com.google.gson.Gson
+import com.mentorme.app.core.appstate.AppForegroundTracker
 import com.mentorme.app.core.datastore.DataStoreManager
 import com.mentorme.app.core.network.NetworkConstants
+import com.mentorme.app.core.notifications.NotificationDeduper
 import com.mentorme.app.core.notifications.NotificationHelper
+import com.mentorme.app.core.notifications.NotificationDeepLink
+import com.mentorme.app.core.notifications.NotificationPreferencesStore
 import com.mentorme.app.core.notifications.NotificationStore
 import com.mentorme.app.data.mapper.NotificationSocketPayload
 import com.mentorme.app.data.mapper.toNotificationItem
@@ -95,13 +99,16 @@ class SocketManager @Inject constructor(
     private fun handleNotificationEvent(args: Array<Any>) {
         val raw = args.firstOrNull() ?: return
         val payload = parsePayload(raw) ?: return
-        val item = payload.toNotificationItem() ?: return
+        val route = NotificationDeepLink.routeFor(payload.data)
+        val item = payload.toNotificationItem()?.copy(deepLink = route) ?: return
 
-        val exists = NotificationStore.contains(item.id)
         NotificationStore.add(item)
         RealtimeEventBus.emit(RealtimeEvent.NotificationReceived(item, payload))
-        if (!exists) {
-            NotificationHelper.showNotification(appContext, item.title, item.body, item.type)
+        val pushEnabled = NotificationPreferencesStore.prefs.value.isPushEnabled(item.type)
+        if (!AppForegroundTracker.isForeground.value && pushEnabled &&
+            NotificationDeduper.shouldNotify(item.id, item.title, item.body, item.type)
+        ) {
+            NotificationHelper.showNotification(appContext, item.title, item.body, item.type, route)
         }
 
         val bookingId = extractBookingId(payload.data)

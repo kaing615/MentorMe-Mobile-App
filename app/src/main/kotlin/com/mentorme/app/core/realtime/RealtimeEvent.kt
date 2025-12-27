@@ -6,7 +6,7 @@ import com.mentorme.app.data.model.NotificationItem
 sealed class RealtimeEvent {
     data class NotificationReceived(
         val notification: NotificationItem,
-        val payload: NotificationSocketPayload
+        val payload: NotificationSocketPayload? = null
     ) : RealtimeEvent()
 
     data class BookingChanged(val bookingId: String) : RealtimeEvent()

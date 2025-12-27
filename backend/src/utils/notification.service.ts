@@ -1,5 +1,6 @@
 // path: src/utils/notification.service.ts
 import Notification, { INotification, TNotificationType } from '../models/notification.model';
+import User from '../models/user.model';
 import { Types } from 'mongoose';
 import { emitToUser } from '../socket';
 import { sendPushToUser } from './push.service';
@@ -92,6 +93,26 @@ function buildPaymentDedupeKey(type: 'payment_success' | 'payment_failed', userI
   return `${type}:${userId}:${bookingId}`;
 }
 
+function isPushEnabledForType(
+  prefs: any,
+  type: TNotificationType
+) {
+  const safe = prefs || {};
+  if (type.startsWith('booking_')) return safe.pushBooking !== false;
+  if (type.startsWith('payment_')) return safe.pushPayment !== false;
+  if (type === 'message') return safe.pushMessage !== false;
+  return safe.pushSystem !== false;
+}
+
+async function shouldSendPush(
+  userId: string | Types.ObjectId,
+  type: TNotificationType
+) {
+  const user = await User.findById(userId, { notificationPrefs: 1 }).lean();
+  if (!user) return true;
+  return isPushEnabledForType((user as any).notificationPrefs, type);
+}
+
 export async function createNotification(
   userId: string | Types.ObjectId,
   type: TNotificationType,
@@ -130,10 +151,12 @@ export async function createNotification(
   const payload = toNotificationPayload(created);
   emitToUser(payload.userId, 'notifications:new', payload);
 
-  const pushData = buildPushData(type, payload.id, data);
-  void sendPushToUser(payload.userId, { title, body, data: pushData }).catch((err) => {
-    console.warn('Failed to send push notification:', err);
-  });
+  if (await shouldSendPush(payload.userId, type)) {
+    const pushData = buildPushData(type, payload.id, data);
+    void sendPushToUser(payload.userId, { title, body, data: pushData }).catch((err) => {
+      console.warn('Failed to send push notification:', err);
+    });
+  }
 
   return payload;
 }

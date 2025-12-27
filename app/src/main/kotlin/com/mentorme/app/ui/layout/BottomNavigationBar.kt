@@ -51,7 +51,6 @@ private data class NavItem(
     val route: String,
     val label: String,
     val icon: ImageVector,
-    val badgeCount: Int = 0,
     val showDot: Boolean = false
 )
 
@@ -59,8 +58,8 @@ private data class NavItem(
 private val menteeNavItems = listOf(
     NavItem("home",     "Trang chủ", Icons.Filled.Home),
     NavItem("search",   "Tìm kiếm", Icons.Filled.Search),
-    NavItem("calendar", "Lịch hẹn", Icons.Filled.CalendarMonth, badgeCount = 1),
-    NavItem("messages", "Tin nhắn", Icons.AutoMirrored.Filled.Chat, badgeCount = 2),
+    NavItem("calendar", "Lịch hẹn", Icons.Filled.CalendarMonth),
+    NavItem("messages", "Tin nhắn", Icons.AutoMirrored.Filled.Chat),
     NavItem("notifications", "Thông báo", Icons.Filled.Notifications),
     NavItem("profile",  "Cá nhân",  Icons.Filled.Person)
 )
@@ -68,8 +67,8 @@ private val menteeNavItems = listOf(
 // Navigation items cho Mentor (4 tabs)
 private val mentorNavItems = listOf(
     NavItem("mentor_dashboard", "Dashboard", Icons.Filled.Home),
-    NavItem("mentor_calendar",  "Lịch hẹn",  Icons.Filled.CalendarMonth, badgeCount = 1),
-    NavItem("mentor_messages",  "Tin nhắn",  Icons.AutoMirrored.Filled.Chat, badgeCount = 2),
+    NavItem("mentor_calendar",  "Lịch hẹn",  Icons.Filled.CalendarMonth),
+    NavItem("mentor_messages",  "Tin nhắn",  Icons.AutoMirrored.Filled.Chat),
     NavItem("notifications",    "Thông báo", Icons.Filled.Notifications),
     NavItem("mentor_profile",   "Cá nhân",   Icons.Filled.Person)
 )
@@ -80,6 +79,8 @@ fun GlassBottomBar(
     navController: NavHostController,
     userRole: String = "mentee", // Thêm tham số userRole với default là mentee
     notificationUnreadCount: Int = 0,
+    calendarPendingCount: Int = 0,
+    messageUnreadCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -88,6 +89,8 @@ fun GlassBottomBar(
     val currentBaseRoute = currentRoute?.substringBefore("?")
 
     val showNotificationDot = notificationUnreadCount > 0
+    val showCalendarDot = calendarPendingCount > 0
+    val showMessagesDot = messageUnreadCount > 0
 
     val shape = RoundedCornerShape(24.dp)
 
@@ -118,7 +121,13 @@ fun GlassBottomBar(
         ) {
             val baseNavItems = if (userRole == "mentor") mentorNavItems else menteeNavItems
             val navItems = baseNavItems.map { item ->
-                if (item.route == "notifications") item.copy(showDot = showNotificationDot) else item
+                val showDot = when (item.route) {
+                    "notifications" -> showNotificationDot
+                    "calendar", "mentor_calendar" -> showCalendarDot
+                    "messages", "mentor_messages" -> showMessagesDot
+                    else -> false
+                }
+                item.copy(showDot = showDot)
             }
 
             navItems.forEach { item ->
@@ -128,7 +137,6 @@ fun GlassBottomBar(
                     selected = selected,
                     label = item.label,
                     icon = item.icon,
-                    badgeCount = item.badgeCount,
                     showDot = item.showDot
                 ) {
                     // ✅ FIX: Không dựa vào `selected` để quyết định navigate.
@@ -172,7 +180,6 @@ private fun GlassBarItem(
     selected: Boolean,
     label: String,
     icon: ImageVector,
-    badgeCount: Int,
     showDot: Boolean,
     onClick: () -> Unit
 ) {
@@ -207,14 +214,10 @@ private fun GlassBarItem(
         horizontalAlignment = Alignment.CenterHorizontally, // Center theo chiều ngang
         verticalArrangement = Arrangement.spacedBy(3.dp) // Khoảng cách giữa icon và text
     ) {
-        if (showDot || badgeCount > 0) {
+        if (showDot) {
             BadgedBox(
                 badge = {
-                    if (showDot) {
-                        Badge()
-                    } else {
-                        Badge { Text("$badgeCount") }
-                    }
+                    Badge()
                 }
             ) {
                 Icon(
@@ -269,3 +272,4 @@ private fun getTargetRoute(route: String, userRole: String): String {
         else -> if (userRole == "mentor") "mentor_dashboard" else "home"
     }
 }
+

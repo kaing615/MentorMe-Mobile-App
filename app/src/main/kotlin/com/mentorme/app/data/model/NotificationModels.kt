@@ -41,3 +41,25 @@ data class NotificationItem(
     val read: Boolean = false,
     val deepLink: String? = null
 )
+
+data class NotificationPreferences(
+    val pushBooking: Boolean = true,
+    val pushPayment: Boolean = true,
+    val pushMessage: Boolean = true,
+    val pushSystem: Boolean = true
+) {
+    fun isPushEnabled(type: NotificationType): Boolean {
+        return when (type) {
+            NotificationType.BOOKING_CONFIRMED,
+            NotificationType.BOOKING_REMINDER,
+            NotificationType.BOOKING_CANCELLED,
+            NotificationType.BOOKING_PENDING,
+            NotificationType.BOOKING_DECLINED,
+            NotificationType.BOOKING_FAILED -> pushBooking
+            NotificationType.PAYMENT_SUCCESS,
+            NotificationType.PAYMENT_FAILED -> pushPayment
+            NotificationType.MESSAGE -> pushMessage
+            NotificationType.SYSTEM -> pushSystem
+        }
+    }
+}

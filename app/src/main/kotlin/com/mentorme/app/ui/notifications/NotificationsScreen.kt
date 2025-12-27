@@ -60,10 +60,10 @@ import com.mentorme.app.ui.theme.liquidGlass
 @Composable
 fun NotificationsScreen(
     onBack: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: NotificationsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
-    val viewModel: NotificationsViewModel = hiltViewModel()
     var showUnreadOnly by remember { mutableStateOf(false) }
     var hasPermission by remember { mutableStateOf(NotificationHelper.hasPostPermission(context)) }
     val launcher = rememberLauncherForActivityResult(

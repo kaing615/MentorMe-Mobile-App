@@ -27,7 +27,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,7 +40,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mentorme.app.core.notifications.NotificationStore
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -53,15 +51,16 @@ private data class NavItem(
     val route: String,
     val label: String,
     val icon: ImageVector,
-    val badge: Int = 0
+    val badgeCount: Int = 0,
+    val showDot: Boolean = false
 )
 
 // Navigation items cho Mentee (5 tabs)
 private val menteeNavItems = listOf(
     NavItem("home",     "Trang chủ", Icons.Filled.Home),
     NavItem("search",   "Tìm kiếm", Icons.Filled.Search),
-    NavItem("calendar", "Lịch hẹn", Icons.Filled.CalendarMonth, badge = 1),
-    NavItem("messages", "Tin nhắn", Icons.AutoMirrored.Filled.Chat, badge = 2),
+    NavItem("calendar", "Lịch hẹn", Icons.Filled.CalendarMonth, badgeCount = 1),
+    NavItem("messages", "Tin nhắn", Icons.AutoMirrored.Filled.Chat, badgeCount = 2),
     NavItem("notifications", "Thông báo", Icons.Filled.Notifications),
     NavItem("profile",  "Cá nhân",  Icons.Filled.Person)
 )
@@ -69,8 +68,8 @@ private val menteeNavItems = listOf(
 // Navigation items cho Mentor (4 tabs)
 private val mentorNavItems = listOf(
     NavItem("mentor_dashboard", "Dashboard", Icons.Filled.Home),
-    NavItem("mentor_calendar",  "Lịch hẹn",  Icons.Filled.CalendarMonth, badge = 1),
-    NavItem("mentor_messages",  "Tin nhắn",  Icons.AutoMirrored.Filled.Chat, badge = 2),
+    NavItem("mentor_calendar",  "Lịch hẹn",  Icons.Filled.CalendarMonth, badgeCount = 1),
+    NavItem("mentor_messages",  "Tin nhắn",  Icons.AutoMirrored.Filled.Chat, badgeCount = 2),
     NavItem("notifications",    "Thông báo", Icons.Filled.Notifications),
     NavItem("mentor_profile",   "Cá nhân",   Icons.Filled.Person)
 )
@@ -80,6 +79,7 @@ private val mentorNavItems = listOf(
 fun GlassBottomBar(
     navController: NavHostController,
     userRole: String = "mentee", // Thêm tham số userRole với default là mentee
+    notificationUnreadCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -87,8 +87,7 @@ fun GlassBottomBar(
     val currentRoute = currentDestination?.route
     val currentBaseRoute = currentRoute?.substringBefore("?")
 
-    val notifications by NotificationStore.notifications.collectAsState()
-    val unreadCount = notifications.count { !it.read }.coerceAtMost(99)
+    val showNotificationDot = notificationUnreadCount > 0
 
     val shape = RoundedCornerShape(24.dp)
 
@@ -119,7 +118,7 @@ fun GlassBottomBar(
         ) {
             val baseNavItems = if (userRole == "mentor") mentorNavItems else menteeNavItems
             val navItems = baseNavItems.map { item ->
-                if (item.route == "notifications") item.copy(badge = unreadCount) else item
+                if (item.route == "notifications") item.copy(showDot = showNotificationDot) else item
             }
 
             navItems.forEach { item ->
@@ -129,7 +128,8 @@ fun GlassBottomBar(
                     selected = selected,
                     label = item.label,
                     icon = item.icon,
-                    badge = item.badge
+                    badgeCount = item.badgeCount,
+                    showDot = item.showDot
                 ) {
                     // ✅ FIX: Không dựa vào `selected` để quyết định navigate.
                     // `selected` có thể bị tính sai khi restoreState/saveState hoặc route có args.
@@ -172,7 +172,8 @@ private fun GlassBarItem(
     selected: Boolean,
     label: String,
     icon: ImageVector,
-    badge: Int,
+    badgeCount: Int,
+    showDot: Boolean,
     onClick: () -> Unit
 ) {
     val bg by animateColorAsState(
@@ -206,8 +207,16 @@ private fun GlassBarItem(
         horizontalAlignment = Alignment.CenterHorizontally, // Center theo chiều ngang
         verticalArrangement = Arrangement.spacedBy(3.dp) // Khoảng cách giữa icon và text
     ) {
-        if (badge > 0) {
-            BadgedBox(badge = { Badge { Text("$badge") } }) {
+        if (showDot || badgeCount > 0) {
+            BadgedBox(
+                badge = {
+                    if (showDot) {
+                        Badge()
+                    } else {
+                        Badge { Text("$badgeCount") }
+                    }
+                }
+            ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = label,

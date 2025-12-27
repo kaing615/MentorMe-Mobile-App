@@ -23,6 +23,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.mentorme.app.core.realtime.RealtimeEvent
+import com.mentorme.app.core.realtime.RealtimeEventBus
 import com.mentorme.app.data.mock.MockData
 import com.mentorme.app.ui.auth.AuthScreen
 import com.mentorme.app.ui.auth.RegisterPayload
@@ -43,6 +45,7 @@ import com.mentorme.app.ui.onboarding.MenteeOnboardingScreen
 import com.mentorme.app.ui.onboarding.MentorOnboardingScreen
 import com.mentorme.app.ui.onboarding.PendingApprovalScreen
 import com.mentorme.app.ui.notifications.NotificationsScreen
+import com.mentorme.app.ui.notifications.NotificationsViewModel
 import com.mentorme.app.ui.profile.MentorProfileScreen
 import com.mentorme.app.ui.profile.ProfileScreen
 import com.mentorme.app.ui.profile.UserHeader
@@ -124,6 +127,8 @@ fun AppNav(
     val sessionVm = hiltViewModel<SessionViewModel>()
     val sessionState by sessionVm.session.collectAsStateWithLifecycle()
     val authVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
+    val notificationsVm: NotificationsViewModel = hiltViewModel()
+    val unreadNotificationCount by notificationsVm.unreadCount.collectAsStateWithLifecycle()
 
     // Local UI state
     var payMethods by remember { mutableStateOf(initialPaymentMethods()) }
@@ -135,6 +140,22 @@ fun AppNav(
         derivedStateOf {
             // Prefer server role/status but fall back to pending hint set by AuthScreen flows
             resolvePhase(sessionState.isLoggedIn, sessionState.status)
+        }
+    }
+
+    val isLoggedInState by rememberUpdatedState(sessionState.isLoggedIn)
+
+    LaunchedEffect(sessionState.isLoggedIn) {
+        if (sessionState.isLoggedIn) {
+            notificationsVm.refreshUnreadCount()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        RealtimeEventBus.events.collect { event ->
+            if (event is RealtimeEvent.NotificationReceived && isLoggedInState) {
+                notificationsVm.refreshUnreadCount()
+            }
         }
     }
 
@@ -203,7 +224,11 @@ fun AppNav(
                 if (!overlayVisible && sessionState.isLoggedIn && currentRoute != Routes.Auth &&
                     !hideForChat && !hideForBooking && !hideForWallet && !hideForOnboarding && !hideForPendingApproval
                 ) {
-                    GlassBottomBar(navController = nav, userRole = sessionState.role ?: "mentee")
+                    GlassBottomBar(
+                        navController = nav,
+                        userRole = sessionState.role ?: "mentee",
+                        notificationUnreadCount = unreadNotificationCount
+                    )
                 }
             },
             modifier = Modifier.fillMaxSize()
@@ -492,7 +517,10 @@ fun AppNav(
                     }
 
                     composable(Routes.Notifications) {
-                        NotificationsScreen(onBack = { nav.popBackStack() })
+                        NotificationsScreen(
+                            onBack = { nav.popBackStack() },
+                            viewModel = notificationsVm
+                        )
                     }
 
                     composable("${Routes.Chat}/{conversationId}") { backStackEntry ->

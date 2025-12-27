@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Badge
@@ -26,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mentorme.app.core.notifications.NotificationStore
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -59,6 +62,7 @@ private val menteeNavItems = listOf(
     NavItem("search",   "Tìm kiếm", Icons.Filled.Search),
     NavItem("calendar", "Lịch hẹn", Icons.Filled.CalendarMonth, badge = 1),
     NavItem("messages", "Tin nhắn", Icons.AutoMirrored.Filled.Chat, badge = 2),
+    NavItem("notifications", "Thông báo", Icons.Filled.Notifications),
     NavItem("profile",  "Cá nhân",  Icons.Filled.Person)
 )
 
@@ -67,6 +71,7 @@ private val mentorNavItems = listOf(
     NavItem("mentor_dashboard", "Dashboard", Icons.Filled.Home),
     NavItem("mentor_calendar",  "Lịch hẹn",  Icons.Filled.CalendarMonth, badge = 1),
     NavItem("mentor_messages",  "Tin nhắn",  Icons.AutoMirrored.Filled.Chat, badge = 2),
+    NavItem("notifications",    "Thông báo", Icons.Filled.Notifications),
     NavItem("mentor_profile",   "Cá nhân",   Icons.Filled.Person)
 )
 
@@ -81,6 +86,9 @@ fun GlassBottomBar(
     val currentDestination = backStackEntry?.destination
     val currentRoute = currentDestination?.route
     val currentBaseRoute = currentRoute?.substringBefore("?")
+
+    val notifications by NotificationStore.notifications.collectAsState()
+    val unreadCount = notifications.count { !it.read }.coerceAtMost(99)
 
     val shape = RoundedCornerShape(24.dp)
 
@@ -109,7 +117,10 @@ fun GlassBottomBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val navItems = if (userRole == "mentor") mentorNavItems else menteeNavItems
+            val baseNavItems = if (userRole == "mentor") mentorNavItems else menteeNavItems
+            val navItems = baseNavItems.map { item ->
+                if (item.route == "notifications") item.copy(badge = unreadCount) else item
+            }
 
             navItems.forEach { item ->
                 val selected = currentDestination.isSelected(item.route)
@@ -237,6 +248,7 @@ private fun getTargetRoute(route: String, userRole: String): String {
         "mentor_calendar" -> "mentor_calendar"
         "mentor_messages" -> "mentor_messages"
         "mentor_profile" -> "mentor_profile"
+        "notifications" -> "notifications"
 
         // Mentee routes
         "home" -> "home"

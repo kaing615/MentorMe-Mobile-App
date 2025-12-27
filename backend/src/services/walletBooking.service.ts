@@ -139,8 +139,16 @@ export async function captureBookingPayment(bookingId: string): Promise<void> {
       // Currency match
       if (mentorWallet.currency !== currency) throw new Error("CURRENCY_MISMATCH");
 
-      // Balance check
-      if (menteeWallet.balanceMinor < amountMinor) throw new Error("INSUFFICIENT_BALANCE");
+      const skipBalanceCheck =
+        (process.env.SKIP_PAYMENT_BALANCE_CHECK || "false").toLowerCase() === "true";
+
+      // Balance check (optional skip for dev/testing)
+      if (menteeWallet.balanceMinor < amountMinor) {
+        if (!skipBalanceCheck) {
+          throw new Error("INSUFFICIENT_BALANCE");
+        }
+        menteeWallet.balanceMinor = amountMinor;
+      }
 
       // Debit mentee
       const menteeBalanceBefore = menteeWallet.balanceMinor;

@@ -76,6 +76,7 @@ fun MentorProfileScreen(
     onManageServices: () -> Unit = {},
     onViewStatistics: () -> Unit = {},
     onSettings: () -> Unit = {},
+    onOpenNotifications: () -> Unit = {},
     onLogout: () -> Unit = {},
     modifier: Modifier = Modifier,
     onOpenTopUp: () -> Unit = {},
@@ -289,6 +290,7 @@ fun MentorProfileScreen(
 
                         3 -> MentorSettingsTab(
                             onOpenSettings = onSettings,
+                            onOpenNotifications = onOpenNotifications,
                             onUpdateAvailability = onUpdateAvailability,
                             onManageServices = onManageServices,
                             onLogout = onLogout
@@ -488,6 +490,7 @@ private fun MentorTransactionRow(tx: WalletTx) {
 @Composable
 private fun MentorSettingsTab(
     onOpenSettings: () -> Unit,
+    onOpenNotifications: () -> Unit,
     onUpdateAvailability: () -> Unit,
     onManageServices: () -> Unit,
     onLogout: () -> Unit
@@ -512,6 +515,10 @@ private fun MentorSettingsTab(
         LiquidGlassCard(radius = 22.dp) {
             Column(Modifier.padding(16.dp)) {
                 Text("Hệ thống", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+                MentorSettingItem(Icons.Outlined.Notifications, "Thông báo", "Xem thông báo của bạn", onClick = {
+                    Log.d(TAG, "Click SettingItem: Thông báo")
+                    onOpenNotifications()
+                })
                 MentorSettingItem(Icons.Outlined.Settings, "Cài đặt chung", "Bảo mật, thông báo", onClick = {
                     Log.d(TAG, "Click SettingItem: Cài đặt chung")
                     onOpenSettings()

@@ -42,6 +42,7 @@ import com.mentorme.app.ui.layout.GlassBottomBar
 import com.mentorme.app.ui.onboarding.MenteeOnboardingScreen
 import com.mentorme.app.ui.onboarding.MentorOnboardingScreen
 import com.mentorme.app.ui.onboarding.PendingApprovalScreen
+import com.mentorme.app.ui.notifications.NotificationsScreen
 import com.mentorme.app.ui.profile.MentorProfileScreen
 import com.mentorme.app.ui.profile.ProfileScreen
 import com.mentorme.app.ui.profile.UserHeader
@@ -401,6 +402,7 @@ fun AppNav(
                             onManageServices = { Log.d("AppNav", "MentorProfile: onManageServices - TODO") },
                             onViewStatistics = { Log.d("AppNav", "MentorProfile: onViewStatistics - TODO") },
                             onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
+                            onOpenNotifications = { nav.navigate(Routes.Notifications) },
                             onLogout = {
                                 localAuthVm.signOut {
                                     nav.navigate(Routes.Auth) {
@@ -433,6 +435,7 @@ fun AppNav(
                             onManageServices = { Log.d("AppNav", "MentorProfile: onManageServices - TODO") },
                             onViewStatistics = { Log.d("AppNav", "MentorProfile: onViewStatistics - TODO") },
                             onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
+                            onOpenNotifications = { nav.navigate(Routes.Notifications) },
                             onLogout = {
                                 localAuthVm.signOut {
                                     nav.navigate(Routes.Auth) {
@@ -486,6 +489,10 @@ fun AppNav(
                         MessagesScreen(onOpenConversation = { convId ->
                             nav.navigate("${Routes.Chat}/$convId")
                         })
+                    }
+
+                    composable(Routes.Notifications) {
+                        NotificationsScreen(onBack = { nav.popBackStack() })
                     }
 
                     composable("${Routes.Chat}/{conversationId}") { backStackEntry ->

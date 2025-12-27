@@ -20,6 +20,8 @@ class MentorMeMessagingService : FirebaseMessagingService() {
 
     @Inject
     lateinit var pushTokenManager: PushTokenManager
+    @Inject
+    lateinit var notificationCache: NotificationCache
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
@@ -57,6 +59,9 @@ class MentorMeMessagingService : FirebaseMessagingService() {
             deepLink = route
         )
         NotificationStore.add(item)
+        CoroutineScope(Dispatchers.IO).launch {
+            notificationCache.save(NotificationStore.notifications.value)
+        }
         if (AppForegroundTracker.isForeground.value) {
             RealtimeEventBus.emit(RealtimeEvent.NotificationReceived(item, null))
         }

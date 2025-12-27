@@ -183,9 +183,11 @@ fun AppNav(
 
     LaunchedEffect(sessionState.isLoggedIn) {
         if (sessionState.isLoggedIn) {
+            notificationsVm.restoreCache()
             notificationsVm.refreshUnreadCount()
             notificationsVm.refreshPreferences()
         } else {
+            notificationsVm.clearNotifications()
             NotificationPreferencesStore.reset()
         }
     }
@@ -506,6 +508,7 @@ fun AppNav(
                     composable(Routes.MentorProfile) {
                         val localAuthVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
                         MentorProfileScreen(
+                            notificationsViewModel = notificationsVm,
                             startTarget = "profile",
                             onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
                             onViewEarnings = { Log.d("AppNav", "MentorProfile: onViewEarnings - TODO") },
@@ -539,6 +542,7 @@ fun AppNav(
                         val target = backStackEntry.arguments?.getString("target") ?: "profile"
 
                         MentorProfileScreen(
+                            notificationsViewModel = notificationsVm,
                             startTarget = target,
                             onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
                             onViewEarnings = { Log.d("AppNav", "MentorProfile: onViewEarnings - TODO") },
@@ -640,6 +644,7 @@ fun AppNav(
                         ProfileScreen(
                             vm = profileVm,
                             user = UserHeader(fullName = "Nguyễn Văn A", email = "a@example.com", role = UserRole.MENTEE),
+                            notificationsViewModel = notificationsVm,
                             onOpenNotifications = { nav.navigate(Routes.Notifications) },
                             onOpenTopUp = { nav.navigate(Routes.TopUp) },
                             onOpenWithdraw = { nav.navigate(Routes.Withdraw) },

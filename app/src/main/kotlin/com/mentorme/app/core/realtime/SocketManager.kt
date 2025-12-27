@@ -6,6 +6,7 @@ import com.google.gson.Gson
 import com.mentorme.app.core.appstate.AppForegroundTracker
 import com.mentorme.app.core.datastore.DataStoreManager
 import com.mentorme.app.core.network.NetworkConstants
+import com.mentorme.app.core.notifications.NotificationCache
 import com.mentorme.app.core.notifications.NotificationDeduper
 import com.mentorme.app.core.notifications.NotificationHelper
 import com.mentorme.app.core.notifications.NotificationDeepLink
@@ -29,6 +30,7 @@ import javax.inject.Singleton
 @Singleton
 class SocketManager @Inject constructor(
     private val dataStoreManager: DataStoreManager,
+    private val notificationCache: NotificationCache,
     @ApplicationContext private val appContext: Context
 ) {
     private val gson = Gson()
@@ -103,6 +105,9 @@ class SocketManager @Inject constructor(
         val item = payload.toNotificationItem()?.copy(deepLink = route) ?: return
 
         NotificationStore.add(item)
+        scope.launch {
+            notificationCache.save(NotificationStore.notifications.value)
+        }
         RealtimeEventBus.emit(RealtimeEvent.NotificationReceived(item, payload))
         val pushEnabled = NotificationPreferencesStore.prefs.value.isPushEnabled(item.type)
         if (!AppForegroundTracker.isForeground.value && pushEnabled &&

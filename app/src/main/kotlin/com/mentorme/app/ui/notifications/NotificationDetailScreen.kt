@@ -35,10 +35,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.mentorme.app.R
 import com.mentorme.app.core.notifications.NotificationStore
 import com.mentorme.app.data.model.NotificationItem
 import com.mentorme.app.ui.components.ui.MMGhostButton
@@ -58,6 +60,10 @@ fun NotificationDetailScreen(
         notifications.firstOrNull { it.id == notificationId }
     }
 
+    LaunchedEffect(notificationId) {
+        viewModel.ensureNotificationAvailable(notificationId)
+    }
+
     LaunchedEffect(notificationId, item?.read) {
         if (item != null && !item.read) {
             viewModel.markRead(notificationId)
@@ -72,10 +78,10 @@ fun NotificationDetailScreen(
                 containerColor = Color.Transparent,
                 topBar = {
                     CenterAlignedTopAppBar(
-                        title = { Text("Chi tiết thông báo", fontWeight = FontWeight.Bold) },
+                        title = { Text(stringResource(R.string.notification_detail_title), fontWeight = FontWeight.Bold) },
                         navigationIcon = {
                             IconButton(onClick = onBack) {
-                                Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
+                                Icon(Icons.Outlined.ArrowBack, contentDescription = stringResource(R.string.action_back))
                             }
                         },
                         colors = androidx.compose.material3.TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -105,15 +111,15 @@ fun NotificationDetailScreen(
                             ) {
                                 Icon(Icons.Outlined.Notifications, contentDescription = null)
                                 Text(
-                                    "Không tìm thấy thông báo",
+                                    stringResource(R.string.notification_missing_title),
                                     style = MaterialTheme.typography.titleMedium
                                 )
                                 Text(
-                                    "Thông báo có thể đã bị xóa hoặc chưa được tải về.",
+                                    stringResource(R.string.notification_missing_subtitle),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Color.White.copy(alpha = 0.7f)
                                 )
-                                MMGhostButton(onClick = onBack) { Text("Quay lại") }
+                                MMGhostButton(onClick = onBack) { Text(stringResource(R.string.action_back)) }
                             }
                         }
                     }
@@ -177,7 +183,7 @@ private fun NotificationDetailHero(
                 NotificationStatusPill(read = item.read)
             }
 
-            NotificationTypePill(label = typeStyle.label, color = typeStyle.color)
+            NotificationTypePill(label = stringResource(typeStyle.labelRes), color = typeStyle.color)
         }
     }
 }
@@ -194,7 +200,7 @@ private fun NotificationDetailBody(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                "Nội dung",
+                stringResource(R.string.notification_body_label),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -221,15 +227,15 @@ private fun NotificationDetailMeta(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                "Thông tin",
+                stringResource(R.string.notification_info_label),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
-            NotificationMetaRow(label = "Loại", value = typeStyle.label)
-            NotificationMetaRow(label = "Thời gian", value = formatNotificationTime(item.timestamp))
-            NotificationMetaRow(label = "Mã", value = item.id)
+            NotificationMetaRow(label = stringResource(R.string.notification_label_type), value = stringResource(typeStyle.labelRes))
+            NotificationMetaRow(label = stringResource(R.string.notification_label_time), value = formatNotificationTime(item.timestamp))
+            NotificationMetaRow(label = stringResource(R.string.notification_label_id), value = item.id)
             item.deepLink?.takeIf { it.isNotBlank() }?.let { deepLink ->
-                NotificationMetaRow(label = "Liên kết", value = deepLink)
+                NotificationMetaRow(label = stringResource(R.string.notification_label_link), value = deepLink)
             }
         }
     }

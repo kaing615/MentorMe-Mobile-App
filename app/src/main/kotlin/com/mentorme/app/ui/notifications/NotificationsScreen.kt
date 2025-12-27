@@ -3,6 +3,7 @@ package com.mentorme.app.ui.notifications
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,10 +20,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DoneAll
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.Badge
@@ -33,8 +37,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -48,14 +50,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.mentorme.app.R
 import com.mentorme.app.core.notifications.NotificationHelper
 import com.mentorme.app.core.notifications.NotificationStore
+import com.mentorme.app.data.mock.MockData
 import com.mentorme.app.data.model.NotificationItem
-import com.mentorme.app.data.model.NotificationPreferences
 import com.mentorme.app.data.model.NotificationType
 import com.mentorme.app.ui.components.ui.MMGhostButton
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
@@ -63,10 +68,10 @@ import com.mentorme.app.ui.theme.LiquidBackground
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.theme.liquidGlass
 
-private enum class NotificationFilter(val label: String) {
-    ALL("Tất cả"),
-    UNREAD("Chưa đọc"),
-    READ("Đã đọc")
+private enum class NotificationFilter(@StringRes val labelRes: Int) {
+    ALL(R.string.notification_filter_all),
+    UNREAD(R.string.notification_filter_unread),
+    READ(R.string.notification_filter_read)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,12 +79,14 @@ private enum class NotificationFilter(val label: String) {
 fun NotificationsScreen(
     onBack: () -> Unit = {},
     onOpenDetail: (String) -> Unit = {},
+    showDetailDialog: Boolean = true,
     viewModel: NotificationsViewModel = hiltViewModel(),
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var filter by remember { mutableStateOf(NotificationFilter.ALL) }
     var hasPermission by remember { mutableStateOf(NotificationHelper.hasPostPermission(context)) }
+    var selectedNotification by remember { mutableStateOf<NotificationItem?>(null) }
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -89,11 +96,14 @@ fun NotificationsScreen(
     LaunchedEffect(Unit) {
         hasPermission = NotificationHelper.hasPostPermission(context)
         viewModel.refresh()
-        viewModel.refreshPreferences()
     }
 
     val notifications by NotificationStore.notifications.collectAsState()
-    val preferences by viewModel.preferences.collectAsState()
+    LaunchedEffect(notifications) {
+        if (notifications.isEmpty()) {
+            NotificationStore.seed(MockData.mockNotifications)
+        }
+    }
     val unreadCount = notifications.count { !it.read }
     val readCount = notifications.count { it.read }
     val filtered = remember(filter, notifications) {
@@ -114,7 +124,7 @@ fun NotificationsScreen(
                     CenterAlignedTopAppBar(
                         title = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Thông báo", fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.notifications_title), fontWeight = FontWeight.Bold)
                                 if (unreadCount > 0) {
                                     Spacer(Modifier.width(8.dp))
                                     Badge { Text("$unreadCount") }
@@ -123,7 +133,7 @@ fun NotificationsScreen(
                         },
                         navigationIcon = {
                             IconButton(onClick = onBack) {
-                                Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
+                                Icon(Icons.Outlined.ArrowBack, contentDescription = stringResource(R.string.action_back))
                             }
                         },
                         actions = {
@@ -131,7 +141,7 @@ fun NotificationsScreen(
                                 onClick = { viewModel.markAllRead() },
                                 enabled = unreadCount > 0
                             ) {
-                                Icon(Icons.Outlined.DoneAll, contentDescription = "Mark all read")
+                                Icon(Icons.Outlined.DoneAll, contentDescription = stringResource(R.string.notification_mark_all_read_action))
                             }
                         },
                         colors = androidx.compose.material3.TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -168,8 +178,8 @@ fun NotificationsScreen(
                         },
                         onSendTest = {
                             val demo = NotificationItem(
-                                title = "Thông báo thử",
-                                body = "Đây là thông báo local để kiểm tra giao diện.",
+                                title = context.getString(R.string.notification_test_title),
+                                body = context.getString(R.string.notification_test_body),
                                 type = NotificationType.SYSTEM,
                                 timestamp = System.currentTimeMillis(),
                                 read = false
@@ -184,10 +194,6 @@ fun NotificationsScreen(
                         }
                     )
 
-                    NotificationPreferencesCard(
-                        preferences = preferences,
-                        onUpdate = { viewModel.updatePreferences(it) }
-                    )
 
                     NotificationFilterBar(
                         selected = filter,
@@ -196,17 +202,32 @@ fun NotificationsScreen(
                     )
 
                     if (filtered.isEmpty()) {
-                        NotificationEmptyState(filter = filter)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            NotificationEmptyState(filter = filter)
+                        }
                     } else {
                         LazyColumn(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                             contentPadding = PaddingValues(bottom = 24.dp)
                         ) {
                             items(filtered, key = { it.id }) { item ->
                                 NotificationRow(
                                     item = item,
-                                    onOpenDetail = { onOpenDetail(item.id) },
+                                    onOpenDetail = {
+                                        if (showDetailDialog) {
+                                            selectedNotification = item
+                                        } else {
+                                            onOpenDetail(item.id)
+                                        }
+                                    },
                                     onMarkRead = { viewModel.markRead(it) }
                                 )
                             }
@@ -214,6 +235,13 @@ fun NotificationsScreen(
                     }
                 }
             }
+        }
+
+        selectedNotification?.let { item ->
+            NotificationDetailDialog(
+                item = item,
+                onDismiss = { selectedNotification = null }
+            )
         }
     }
 }
@@ -236,12 +264,12 @@ private fun NotificationSummaryCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = if (unreadCount > 0) "Bạn có $unreadCount thông báo mới" else "Không có thông báo mới",
+                        text = if (unreadCount > 0) stringResource(R.string.notification_summary_unread, unreadCount) else stringResource(R.string.notification_summary_none),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = "Theo dõi lịch hẹn, tin nhắn và cập nhật hệ thống.",
+                        text = stringResource(R.string.notification_summary_subtitle),
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.7f)
                     )
@@ -258,9 +286,9 @@ private fun NotificationSummaryCard(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                NotificationStatChip(label = "Tổng", count = totalCount, modifier = Modifier.weight(1f))
-                NotificationStatChip(label = "Chưa đọc", count = unreadCount, modifier = Modifier.weight(1f))
-                NotificationStatChip(label = "Đã đọc", count = readCount, modifier = Modifier.weight(1f))
+                NotificationStatChip(label = stringResource(R.string.notification_stat_total), count = totalCount, modifier = Modifier.weight(1f))
+                NotificationStatChip(label = stringResource(R.string.notification_stat_unread), count = unreadCount, modifier = Modifier.weight(1f))
+                NotificationStatChip(label = stringResource(R.string.notification_stat_read), count = readCount, modifier = Modifier.weight(1f))
             }
 
             MMGhostButton(
@@ -270,7 +298,7 @@ private fun NotificationSummaryCard(
             ) {
                 Icon(Icons.Outlined.DoneAll, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Đánh dấu tất cả đã đọc")
+                Text(stringResource(R.string.notification_mark_all_read))
             }
         }
     }
@@ -301,7 +329,7 @@ private fun NotificationPermissionCard(
     onRequestPermission: () -> Unit,
     onSendTest: () -> Unit
 ) {
-    val statusText = if (hasPermission) "Đã bật quyền thông báo." else "Ứng dụng cần quyền để hiển thị thông báo."
+    val statusText = if (hasPermission) stringResource(R.string.notification_permission_enabled) else stringResource(R.string.notification_permission_required)
     val statusColor = if (hasPermission) Color(0xFF34D399) else Color(0xFFFBBF24)
 
     LiquidGlassCard(radius = 22.dp) {
@@ -323,7 +351,7 @@ private fun NotificationPermissionCard(
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Quyền thông báo", fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.notification_permission_title), fontWeight = FontWeight.SemiBold)
                     Text(
                         statusText,
                         style = MaterialTheme.typography.bodySmall,
@@ -339,13 +367,13 @@ private fun NotificationPermissionCard(
                         onClick = onRequestPermission,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Bật quyền")
+                        Text(stringResource(R.string.notification_permission_enable_action))
                     }
                     MMGhostButton(
                         onClick = onSendTest,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Gửi test")
+                        Text(stringResource(R.string.notification_send_test))
                     }
                 }
             } else {
@@ -353,86 +381,17 @@ private fun NotificationPermissionCard(
                     onClick = onSendTest,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Gửi test")
+                    Text(stringResource(R.string.notification_send_test))
                 }
             }
         }
     }
 }
 
-@Composable
-private fun NotificationPreferencesCard(
-    preferences: NotificationPreferences,
-    onUpdate: (NotificationPreferences) -> Unit
-) {
-    LiquidGlassCard(radius = 24.dp) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text("Push preferences", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            NotificationPreferenceRow(
-                title = "Booking updates",
-                subtitle = "Confirmations, reminders, cancellations",
-                checked = preferences.pushBooking,
-                onCheckedChange = { onUpdate(preferences.copy(pushBooking = it)) }
-            )
-            NotificationPreferenceRow(
-                title = "Payments",
-                subtitle = "Payment success or failure",
-                checked = preferences.pushPayment,
-                onCheckedChange = { onUpdate(preferences.copy(pushPayment = it)) }
-            )
-            NotificationPreferenceRow(
-                title = "Messages",
-                subtitle = "New chat messages",
-                checked = preferences.pushMessage,
-                onCheckedChange = { onUpdate(preferences.copy(pushMessage = it)) }
-            )
-            NotificationPreferenceRow(
-                title = "System",
-                subtitle = "General updates",
-                checked = preferences.pushSystem,
-                onCheckedChange = { onUpdate(preferences.copy(pushSystem = it)) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun NotificationPreferenceRow(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.7f))
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = Color.White.copy(alpha = 0.35f),
-                uncheckedThumbColor = Color.White.copy(alpha = 0.7f),
-                uncheckedTrackColor = Color.White.copy(alpha = 0.2f)
-            )
-        )
-    }
-}
-
-@Composable
 private fun PermissionStatusPill(
     granted: Boolean
 ) {
-    val label = if (granted) "Đã bật" else "Chưa bật"
+    val label = if (granted) stringResource(R.string.notification_permission_granted) else stringResource(R.string.notification_permission_not_granted)
     val accent = if (granted) Color(0xFF34D399) else Color(0xFFFBBF24)
     val shape = RoundedCornerShape(999.dp)
 
@@ -469,20 +428,20 @@ private fun NotificationFilterBar(
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             NotificationFilterOption(
-                label = NotificationFilter.ALL.label,
+                label = stringResource(NotificationFilter.ALL.labelRes),
                 selected = selected == NotificationFilter.ALL,
                 onClick = { onSelect(NotificationFilter.ALL) },
                 modifier = Modifier.weight(1f)
             )
             NotificationFilterOption(
-                label = NotificationFilter.UNREAD.label,
+                label = stringResource(NotificationFilter.UNREAD.labelRes),
                 selected = selected == NotificationFilter.UNREAD,
                 badgeCount = unreadCount,
                 onClick = { onSelect(NotificationFilter.UNREAD) },
                 modifier = Modifier.weight(1f)
             )
             NotificationFilterOption(
-                label = NotificationFilter.READ.label,
+                label = stringResource(NotificationFilter.READ.labelRes),
                 selected = selected == NotificationFilter.READ,
                 onClick = { onSelect(NotificationFilter.READ) },
                 modifier = Modifier.weight(1f)
@@ -543,14 +502,14 @@ private fun NotificationEmptyState(
             Icon(Icons.Outlined.Notifications, contentDescription = null, tint = Color.White)
             Text(
                 text = when (filter) {
-                    NotificationFilter.UNREAD -> "Không có thông báo chưa đọc"
-                    NotificationFilter.READ -> "Chưa có thông báo đã đọc"
-                    NotificationFilter.ALL -> "Chưa có thông báo"
+                    NotificationFilter.UNREAD -> stringResource(R.string.notification_empty_unread)
+                    NotificationFilter.READ -> stringResource(R.string.notification_empty_read)
+                    NotificationFilter.ALL -> stringResource(R.string.notification_empty_all)
                 },
                 style = MaterialTheme.typography.titleMedium
             )
             Text(
-                "Thông báo mới sẽ xuất hiện tại đây.",
+                stringResource(R.string.notification_empty_subtitle),
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.White.copy(alpha = 0.7f)
             )
@@ -628,7 +587,7 @@ private fun NotificationRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        NotificationTypePill(label = typeStyle.label, color = typeStyle.color)
+                        NotificationTypePill(label = stringResource(typeStyle.labelRes), color = typeStyle.color)
                         NotificationStatusPill(read = item.read)
                     }
                     Text(
@@ -639,5 +598,125 @@ private fun NotificationRow(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun NotificationDetailDialog(
+    item: NotificationItem,
+    onDismiss: () -> Unit
+) {
+    val typeStyle = notificationTypeStyle(item.type)
+
+    Dialog(onDismissRequest = onDismiss) {
+        LiquidGlassCard(radius = 24.dp) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(typeStyle.color.copy(alpha = 0.2f))
+                            .border(1.dp, typeStyle.color.copy(alpha = 0.35f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(typeStyle.icon, contentDescription = null, tint = typeStyle.color)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            item.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            "${relativeTime(item.timestamp)} • ${formatNotificationTime(item.timestamp)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.action_back))
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NotificationTypePill(
+                        label = stringResource(typeStyle.labelRes),
+                        color = typeStyle.color
+                    )
+                    NotificationStatusPill(read = item.read)
+                }
+
+                Text(
+                    stringResource(R.string.notification_body_label),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    item.body,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.9f)
+                )
+
+                Text(
+                    stringResource(R.string.notification_info_label),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                NotificationDetailMetaRow(
+                    label = stringResource(R.string.notification_label_type),
+                    value = stringResource(typeStyle.labelRes)
+                )
+                NotificationDetailMetaRow(
+                    label = stringResource(R.string.notification_label_time),
+                    value = formatNotificationTime(item.timestamp)
+                )
+                NotificationDetailMetaRow(
+                    label = stringResource(R.string.notification_label_id),
+                    value = item.id
+                )
+                item.deepLink?.takeIf { it.isNotBlank() }?.let { deepLink ->
+                    NotificationDetailMetaRow(
+                        label = stringResource(R.string.notification_label_link),
+                        value = deepLink
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationDetailMetaRow(
+    label: String,
+    value: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.White.copy(alpha = 0.65f),
+            modifier = Modifier.width(90.dp)
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White,
+            modifier = Modifier.weight(1f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }

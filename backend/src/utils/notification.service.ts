@@ -1,6 +1,8 @@
 // path: src/utils/notification.service.ts
-import Notification, { TNotificationType } from '../models/notification.model';
+import Notification, { INotification, TNotificationType } from '../models/notification.model';
 import { Types } from 'mongoose';
+import { emitToUser } from '../socket';
+import { sendPushToUser } from './push.service';
 
 export interface NotificationData {
   bookingId: string;
@@ -11,6 +13,72 @@ export interface NotificationData {
   startTime: Date;
 }
 
+export interface PaymentNotificationData extends NotificationData {
+  amount?: number;
+  currency?: string;
+  paymentId?: string;
+  status?: string;
+  event?: string;
+}
+
+type NotificationPayload = {
+  id: string;
+  userId: string;
+  type: TNotificationType;
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+  read: boolean;
+  createdAt: string | null;
+};
+
+function toNotificationPayload(doc: INotification): NotificationPayload {
+  return {
+    id: String(doc._id),
+    userId: String(doc.user),
+    type: doc.type,
+    title: doc.title,
+    body: doc.body,
+    data: doc.data ?? undefined,
+    read: doc.read,
+    createdAt: doc.createdAt ? doc.createdAt.toISOString() : null,
+  };
+}
+
+function stringifyValue(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function buildPushData(
+  type: TNotificationType,
+  notificationId: string,
+  data?: Record<string, unknown>
+) {
+  const payload: Record<string, string> = {
+    type,
+    notificationId,
+  };
+
+  if (!data) return payload;
+
+  for (const [key, value] of Object.entries(data)) {
+    const stringValue = stringifyValue(value);
+    if (stringValue !== undefined) {
+      payload[key] = stringValue;
+    }
+  }
+
+  return payload;
+}
+
 export async function createNotification(
   userId: string | Types.ObjectId,
   type: TNotificationType,
@@ -18,7 +86,7 @@ export async function createNotification(
   body: string,
   data?: Record<string, unknown>
 ) {
-  await Notification.create({
+  const created = await Notification.create({
     user: userId,
     type,
     title,
@@ -26,6 +94,16 @@ export async function createNotification(
     data,
     read: false,
   });
+
+  const payload = toNotificationPayload(created);
+  emitToUser(payload.userId, 'notifications:new', payload);
+
+  const pushData = buildPushData(type, payload.id, data);
+  await Promise.allSettled([
+    sendPushToUser(payload.userId, { title, body, data: pushData }),
+  ]);
+
+  return payload;
 }
 
 export async function notifyBookingConfirmed(data: NotificationData) {
@@ -148,5 +226,93 @@ export async function notifyBookingDeclined(data: NotificationData) {
     'Booking Declined',
     `You declined the session with ${menteeName} on ${dateStr}.`,
     { bookingId, menteeId, startTime: dateStr }
+  );
+}
+
+export async function notifyPaymentSuccess(data: PaymentNotificationData) {
+  const {
+    bookingId,
+    mentorId,
+    menteeId,
+    mentorName,
+    menteeName,
+    startTime,
+    amount,
+    currency,
+    paymentId,
+    status,
+    event,
+  } = data;
+  const dateStr = startTime.toISOString();
+  const payload = {
+    bookingId,
+    mentorId,
+    menteeId,
+    startTime: dateStr,
+    amount,
+    currency,
+    paymentId,
+    status,
+    event,
+  };
+
+  await createNotification(
+    menteeId,
+    'payment_success',
+    'Payment Successful',
+    `Payment successful for your session with ${mentorName} on ${dateStr}.`,
+    payload
+  );
+
+  await createNotification(
+    mentorId,
+    'payment_success',
+    'Payment Received',
+    `Payment received for session with ${menteeName} on ${dateStr}.`,
+    payload
+  );
+}
+
+export async function notifyPaymentFailed(data: PaymentNotificationData) {
+  const {
+    bookingId,
+    mentorId,
+    menteeId,
+    mentorName,
+    menteeName,
+    startTime,
+    amount,
+    currency,
+    paymentId,
+    status,
+    event,
+  } = data;
+  const dateStr = startTime.toISOString();
+  const payload = {
+    bookingId,
+    mentorId,
+    menteeId,
+    startTime: dateStr,
+    amount,
+    currency,
+    paymentId,
+    status,
+    event,
+  };
+
+  await createNotification(
+    menteeId,
+    'payment_failed',
+    'Payment Failed',
+    `Payment failed for your session with ${mentorName}. Please try again.`,
+    payload
+  );
+
+  await createNotification(
+    mentorId,
+    'payment_failed',
+    'Payment Failed',
+    `Payment failed for session with ${menteeName}.`,
+    payload
   );
 }

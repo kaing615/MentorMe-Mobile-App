@@ -7,7 +7,9 @@ export type TNotificationType =
   | 'booking_cancelled'
   | 'booking_reminder'
   | 'booking_pending'
-  | 'booking_declined';
+  | 'booking_declined'
+  | 'payment_success'
+  | 'payment_failed';
 
 export interface INotification extends Document {
   _id: Types.ObjectId;
@@ -26,14 +28,16 @@ const NotificationSchema = new Schema<INotification>(
     user: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     type: {
       type: String,
-      enum: [
-        'booking_confirmed',
-        'booking_failed',
-        'booking_cancelled',
-        'booking_reminder',
-        'booking_pending',
-        'booking_declined',
-      ],
+    enum: [
+      'booking_confirmed',
+      'booking_failed',
+      'booking_cancelled',
+      'booking_reminder',
+      'booking_pending',
+      'booking_declined',
+      'payment_success',
+      'payment_failed',
+    ],
       required: true,
     },
     title: { type: String, required: true, trim: true },

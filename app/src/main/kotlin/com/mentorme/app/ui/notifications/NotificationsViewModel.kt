@@ -22,6 +22,9 @@ class NotificationsViewModel @Inject constructor(
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
+    private val _unreadCount = MutableStateFlow(0)
+    val unreadCount: StateFlow<Int> = _unreadCount.asStateFlow()
+
     fun refresh(read: Boolean? = null, type: String? = null) {
         viewModelScope.launch {
             _loading.value = true
@@ -34,6 +37,7 @@ class NotificationsViewModel @Inject constructor(
                 AppResult.Loading -> Unit
             }
             _loading.value = false
+            refreshUnreadCount()
         }
     }
 
@@ -44,6 +48,7 @@ class NotificationsViewModel @Inject constructor(
                 is AppResult.Error -> Logx.e(TAG, { "mark read failed: ${res.throwable}" })
                 else -> Unit
             }
+            refreshUnreadCount()
         }
     }
 
@@ -53,6 +58,17 @@ class NotificationsViewModel @Inject constructor(
             when (val res = notificationRepository.markAllRead()) {
                 is AppResult.Error -> Logx.e(TAG, { "mark all read failed: ${res.throwable}" })
                 else -> Unit
+            }
+            refreshUnreadCount()
+        }
+    }
+
+    fun refreshUnreadCount() {
+        viewModelScope.launch {
+            when (val res = notificationRepository.getUnreadCount()) {
+                is AppResult.Success -> _unreadCount.value = res.data
+                is AppResult.Error -> Logx.e(TAG, { "load unread count failed: ${res.throwable}" })
+                AppResult.Loading -> Unit
             }
         }
     }

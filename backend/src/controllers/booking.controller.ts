@@ -17,6 +17,7 @@ import AvailabilitySlot from '../models/availabilitySlot.model';
 import User from '../models/user.model';
 import Profile from '../models/profile.model';
 import redis from '../utils/redis';
+import { getUserInfo } from '../utils/userInfo';
 import {
   sendBookingConfirmedEmail,
   sendBookingFailedEmail,
@@ -57,17 +58,6 @@ const VALID_TRANSITIONS: Record<TBookingStatus, TBookingStatus[]> = {
 
 function canTransition(from: TBookingStatus, to: TBookingStatus): boolean {
   return VALID_TRANSITIONS[from]?.includes(to) ?? false;
-}
-
-async function getUserInfo(userId: string) {
-  const [user, profile] = await Promise.all([
-    User.findById(userId).select('email userName').lean(),
-    Profile.findOne({ user: userId }).select('fullName').lean(),
-  ]);
-  return {
-    email: user?.email ?? '',
-    name: profile?.fullName ?? user?.userName ?? 'User',
-  };
 }
 
 async function buildEmailData(booking: any): Promise<BookingEmailData> {
@@ -680,33 +670,37 @@ export async function confirmBooking(bookingId: string): Promise<void> {
   booking.mentorResponseDeadline = undefined;
   await booking.save();
 
-  // Send notifications and emails
-  const emailData = await buildEmailData(booking);
+  // Send notifications and emails (best effort)
+  try {
+    const emailData = await buildEmailData(booking);
 
-  const icsContent = generateBookingIcs(
-    String(booking._id),
-    emailData.mentorName,
-    emailData.mentorEmail,
-    emailData.menteeName,
-    emailData.menteeEmail,
-    new Date(booking.startTime),
-    new Date(booking.endTime),
-    booking.meetingLink,
-    booking.location,
-    booking.topic
-  );
+    const icsContent = generateBookingIcs(
+      String(booking._id),
+      emailData.mentorName,
+      emailData.mentorEmail,
+      emailData.menteeName,
+      emailData.menteeEmail,
+      new Date(booking.startTime),
+      new Date(booking.endTime),
+      booking.meetingLink,
+      booking.location,
+      booking.topic
+    );
 
-  await Promise.all([
-    sendBookingConfirmedEmail(emailData, icsContent),
-    notifyBookingConfirmed({
-      bookingId: String(booking._id),
-      mentorId: String(booking.mentor),
-      menteeId: String(booking.mentee),
-      mentorName: emailData.mentorName,
-      menteeName: emailData.menteeName,
-      startTime: new Date(booking.startTime),
-    }),
-  ]);
+    await Promise.all([
+      sendBookingConfirmedEmail(emailData, icsContent),
+      notifyBookingConfirmed({
+        bookingId: String(booking._id),
+        mentorId: String(booking.mentor),
+        menteeId: String(booking.mentee),
+        mentorName: emailData.mentorName,
+        menteeName: emailData.menteeName,
+        startTime: new Date(booking.startTime),
+      }),
+    ]);
+  } catch (err) {
+    console.error('Failed to send confirmation notifications:', err);
+  }
 }
 
 /**
@@ -732,18 +726,22 @@ export async function markBookingPendingMentor(bookingId: string): Promise<void>
   booking.mentorResponseDeadline = new Date(deadlineMs);
   await booking.save();
 
-  const emailData = await buildEmailData(booking);
-  await Promise.all([
-    sendBookingPendingEmail(emailData, booking.mentorResponseDeadline),
-    notifyBookingPending({
-      bookingId: String(booking._id),
-      mentorId: String(booking.mentor),
-      menteeId: String(booking.mentee),
-      mentorName: emailData.mentorName,
-      menteeName: emailData.menteeName,
-      startTime: new Date(booking.startTime),
-    }),
-  ]);
+  try {
+    const emailData = await buildEmailData(booking);
+    await Promise.all([
+      sendBookingPendingEmail(emailData, booking.mentorResponseDeadline),
+      notifyBookingPending({
+        bookingId: String(booking._id),
+        mentorId: String(booking.mentor),
+        menteeId: String(booking.mentee),
+        mentorName: emailData.mentorName,
+        menteeName: emailData.menteeName,
+        startTime: new Date(booking.startTime),
+      }),
+    ]);
+  } catch (err) {
+    console.error('Failed to send pending booking notifications:', err);
+  }
 }
 
 /**

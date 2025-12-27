@@ -35,9 +35,11 @@ import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.mentorme.app.data.model.NotificationPreferences
 import com.mentorme.app.ui.components.ui.MMGhostButton
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
 import com.mentorme.app.ui.components.ui.MMTextField
+import com.mentorme.app.ui.notifications.NotificationsViewModel
 import com.mentorme.app.ui.theme.LiquidBackground
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.theme.liquidGlass
@@ -68,6 +70,7 @@ private fun tabIndexFor(target: String): Int {
 fun MentorProfileScreen(
     // ✅ NEW: nhận “điểm vào” để mở đúng tab
     startTarget: String = "profile",
+    notificationsViewModel: NotificationsViewModel,
 
     onEditProfile: () -> Unit = {},
     onViewEarnings: () -> Unit = {},
@@ -76,6 +79,7 @@ fun MentorProfileScreen(
     onManageServices: () -> Unit = {},
     onViewStatistics: () -> Unit = {},
     onSettings: () -> Unit = {},
+    onOpenNotifications: () -> Unit = {},
     onLogout: () -> Unit = {},
     modifier: Modifier = Modifier,
     onOpenTopUp: () -> Unit = {},
@@ -90,6 +94,7 @@ fun MentorProfileScreen(
     val scope = rememberCoroutineScope()
     val vm: MentorProfileViewModel = hiltViewModel()
     val state by vm.state.collectAsState()
+    val notificationPreferences by notificationsViewModel.preferences.collectAsState()
 
     val profile = state.profile
     val isLoading = state.loading
@@ -289,6 +294,9 @@ fun MentorProfileScreen(
 
                         3 -> MentorSettingsTab(
                             onOpenSettings = onSettings,
+                            onOpenNotifications = onOpenNotifications,
+                            notificationPreferences = notificationPreferences,
+                            onUpdateNotificationPreferences = { notificationsViewModel.updatePreferences(it) },
                             onUpdateAvailability = onUpdateAvailability,
                             onManageServices = onManageServices,
                             onLogout = onLogout
@@ -488,10 +496,18 @@ private fun MentorTransactionRow(tx: WalletTx) {
 @Composable
 private fun MentorSettingsTab(
     onOpenSettings: () -> Unit,
+    onOpenNotifications: () -> Unit,
+    notificationPreferences: NotificationPreferences,
+    onUpdateNotificationPreferences: (NotificationPreferences) -> Unit,
     onUpdateAvailability: () -> Unit,
     onManageServices: () -> Unit,
     onLogout: () -> Unit
 ) {
+    val allPushEnabled = notificationPreferences.pushBooking &&
+        notificationPreferences.pushPayment &&
+        notificationPreferences.pushMessage &&
+        notificationPreferences.pushSystem
+
     val TAG = "MentorProfileUI"
     Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         LiquidGlassCard(radius = 22.dp) {
@@ -506,6 +522,77 @@ private fun MentorSettingsTab(
                     Log.d(TAG, "Click SettingItem: Gói Mentoring")
                     onManageServices()
                 })
+            }
+        }
+
+        LiquidGlassCard(radius = 22.dp) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.Notifications, null, tint = Color.White)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Thông báo", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                }
+                SettingSwitchRow(
+                    "Thông báo push",
+                    "Nhận thông báo trên thiết bị",
+                    checked = allPushEnabled,
+                    onCheckedChange = { enabled ->
+                        onUpdateNotificationPreferences(
+                            notificationPreferences.copy(
+                                pushBooking = enabled,
+                                pushPayment = enabled,
+                                pushMessage = enabled,
+                                pushSystem = enabled
+                            )
+                        )
+                    }
+                )
+                Text(
+                    "Tùy chọn thông báo push",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+                SettingSwitchRow(
+                    "Booking",
+                    "Xác nhận, nhắc lịch, hủy",
+                    checked = notificationPreferences.pushBooking,
+                    onCheckedChange = {
+                        onUpdateNotificationPreferences(notificationPreferences.copy(pushBooking = it))
+                    }
+                )
+                SettingSwitchRow(
+                    "Thanh toán",
+                    "Thành công hoặc thất bại",
+                    checked = notificationPreferences.pushPayment,
+                    onCheckedChange = {
+                        onUpdateNotificationPreferences(notificationPreferences.copy(pushPayment = it))
+                    }
+                )
+                SettingSwitchRow(
+                    "Tin nhắn",
+                    "Thông báo chat mới",
+                    checked = notificationPreferences.pushMessage,
+                    onCheckedChange = {
+                        onUpdateNotificationPreferences(notificationPreferences.copy(pushMessage = it))
+                    }
+                )
+                SettingSwitchRow(
+                    "Hệ thống",
+                    "Cập nhật chung",
+                    checked = notificationPreferences.pushSystem,
+                    onCheckedChange = {
+                        onUpdateNotificationPreferences(notificationPreferences.copy(pushSystem = it))
+                    }
+                )
+                MentorSettingItem(
+                    Icons.Outlined.Notifications,
+                    "Xem thông báo",
+                    "Danh sách thông báo",
+                    onClick = {
+                        Log.d(TAG, "Click SettingItem: Thông báo")
+                        onOpenNotifications()
+                    }
+                )
             }
         }
 

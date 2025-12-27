@@ -68,8 +68,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.draw.clip
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.mentorme.app.data.model.NotificationPreferences
 import com.mentorme.app.ui.components.ui.MMGhostButton
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
+import com.mentorme.app.ui.notifications.NotificationsViewModel
 
 private val oneDecimalUS = DecimalFormat("#.#").apply {
     decimalFormatSymbols = DecimalFormatSymbols(Locale.US)  // dùng dấu chấm
@@ -189,6 +191,7 @@ fun mockProfile(user: UserHeader): UserProfile {
 fun ProfileScreen(
     vm: ProfileViewModel,
     user: UserHeader,
+    notificationsViewModel: NotificationsViewModel,
     onOpenSettings: (() -> Unit)? = null,
     onOpenNotifications: (() -> Unit)? = null,
     onOpenTopUp: () -> Unit = {},
@@ -209,6 +212,7 @@ fun ProfileScreen(
     val isLoading = state.loading
     val isEditing = state.editing
     val edited = state.edited
+    val notificationPreferences by notificationsViewModel.preferences.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -383,6 +387,9 @@ fun ProfileScreen(
                         2 -> StatsTab(userRole = userRole, profile = profile)
                         3 -> SettingsTab(
                             onOpenSettings = onOpenSettings,
+                            onOpenNotifications = onOpenNotifications,
+                            notificationPreferences = notificationPreferences,
+                            onUpdateNotificationPreferences = { notificationsViewModel.updatePreferences(it) },
                             onOpenCSBM = null,
                             onOpenDKSD = null,
                             onOpenLHHT = null,
@@ -823,11 +830,20 @@ private fun StatsTab(userRole: UserRole, profile: UserProfile) {
 private fun SettingsTab(
     onOpenSettings: (() -> Unit)?,
     onOpenNotifications: (() -> Unit)? = null,
+    notificationPreferences: NotificationPreferences,
+    onUpdateNotificationPreferences: (NotificationPreferences) -> Unit,
     onOpenCSBM: (() -> Unit)? = null,   // Chính sách bảo mật
     onOpenDKSD: (() -> Unit)? = null,   // Điều khoản sử dụng
     onOpenLHHT: (() -> Unit)? = null,   // Liên hệ hỗ trợ
     onLogout: (() -> Unit)? = null
 ) {
+    var emailEnabled by remember { mutableStateOf(true) }
+    var marketingEnabled by remember { mutableStateOf(false) }
+    val allPushEnabled = notificationPreferences.pushBooking &&
+        notificationPreferences.pushPayment &&
+        notificationPreferences.pushMessage &&
+        notificationPreferences.pushSystem
+
     Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
 
         // --- Card: Thông báo ---
@@ -838,9 +854,70 @@ private fun SettingsTab(
                     Spacer(Modifier.width(8.dp))
                     Text("Thông báo", style = MaterialTheme.typography.titleMedium, color = Color.White)
                 }
-                SettingSwitchRow("Email thông báo","Nhận email về booking và tin nhắn", true)
-                SettingSwitchRow("Thông báo push","Nhận thông báo trên thiết bị", true)
-                SettingSwitchRow("Tin nhắn marketing","Nhận thông tin khuyến mãi", false)
+                SettingSwitchRow(
+                    "Email thông báo",
+                    "Nhận email về booking và tin nhắn",
+                    checked = emailEnabled,
+                    onCheckedChange = { emailEnabled = it }
+                )
+                SettingSwitchRow(
+                    "Thông báo push",
+                    "Nhận thông báo trên thiết bị",
+                    checked = allPushEnabled,
+                    onCheckedChange = { enabled ->
+                        onUpdateNotificationPreferences(
+                            notificationPreferences.copy(
+                                pushBooking = enabled,
+                                pushPayment = enabled,
+                                pushMessage = enabled,
+                                pushSystem = enabled
+                            )
+                        )
+                    }
+                )
+                Text(
+                    "Tùy chọn thông báo push",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+                SettingSwitchRow(
+                    "Booking",
+                    "Xác nhận, nhắc lịch, hủy",
+                    checked = notificationPreferences.pushBooking,
+                    onCheckedChange = {
+                        onUpdateNotificationPreferences(notificationPreferences.copy(pushBooking = it))
+                    }
+                )
+                SettingSwitchRow(
+                    "Thanh toán",
+                    "Thành công hoặc thất bại",
+                    checked = notificationPreferences.pushPayment,
+                    onCheckedChange = {
+                        onUpdateNotificationPreferences(notificationPreferences.copy(pushPayment = it))
+                    }
+                )
+                SettingSwitchRow(
+                    "Tin nhắn",
+                    "Thông báo chat mới",
+                    checked = notificationPreferences.pushMessage,
+                    onCheckedChange = {
+                        onUpdateNotificationPreferences(notificationPreferences.copy(pushMessage = it))
+                    }
+                )
+                SettingSwitchRow(
+                    "Hệ thống",
+                    "Cập nhật chung",
+                    checked = notificationPreferences.pushSystem,
+                    onCheckedChange = {
+                        onUpdateNotificationPreferences(notificationPreferences.copy(pushSystem = it))
+                    }
+                )
+                SettingSwitchRow(
+                    "Tin nhắn marketing",
+                    "Nhận thông tin khuyến mãi",
+                    checked = marketingEnabled,
+                    onCheckedChange = { marketingEnabled = it }
+                )
                 SettingLinkItem(Icons.Outlined.Notifications, "Xem thông báo") {
                     onOpenNotifications?.invoke()
                 }
@@ -1080,10 +1157,12 @@ private fun LabeledMultiline(
 }
 
 @Composable
-private fun SettingSwitchRow(
-    title: String, subtitle: String, defaultChecked: Boolean
+fun SettingSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
 ) {
-    var checked by remember { mutableStateOf(defaultChecked) }
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1094,7 +1173,8 @@ private fun SettingSwitchRow(
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = .7f))
         }
         Switch(
-            checked = checked, onCheckedChange = { checked = it },
+            checked = checked,
+            onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
                 checkedTrackColor = Color.White.copy(alpha = .35f),
@@ -1223,6 +1303,7 @@ fun ProfileScreenRoute(
         email = "demo@example.com",
         role = UserRole.MENTEE
     ),
+    notificationsViewModel: NotificationsViewModel = hiltViewModel(),
     onOpenSettings: (() -> Unit)? = null,
     onOpenNotifications: (() -> Unit)? = null,
     onOpenTopUp: () -> Unit = {},
@@ -1235,6 +1316,7 @@ fun ProfileScreenRoute(
     ProfileScreen(
         vm = vm,
         user = user,
+        notificationsViewModel = notificationsViewModel,
         onOpenSettings = onOpenSettings,
         onOpenNotifications = onOpenNotifications,
         onOpenTopUp = onOpenTopUp,

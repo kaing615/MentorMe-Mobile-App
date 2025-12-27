@@ -900,6 +900,66 @@ components:
         page: { type: integer, example: 1 }
         limit: { type: integer, example: 50 }
 
+    NotificationType:
+      type: string
+      enum:
+        - booking_confirmed
+        - booking_failed
+        - booking_cancelled
+        - booking_reminder
+        - booking_pending
+        - booking_declined
+        - payment_success
+        - payment_failed
+
+    NotificationItem:
+      type: object
+      properties:
+        id: { type: string }
+        type: { $ref: "#/components/schemas/NotificationType" }
+        title: { type: string }
+        body: { type: string }
+        data:
+          type: object
+          nullable: true
+          additionalProperties: true
+        read: { type: boolean }
+        createdAt: { type: string, format: date-time, nullable: true }
+
+    NotificationListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/NotificationItem" }
+        total: { type: integer, example: 1 }
+        page: { type: integer, example: 1 }
+        limit: { type: integer, example: 20 }
+
+    NotificationUnreadCountResponse:
+      type: object
+      properties:
+        unread: { type: integer, example: 3 }
+
+    NotificationReadResponse:
+      type: object
+      properties:
+        id: { type: string }
+        read: { type: boolean, example: true }
+
+    NotificationReadAllResponse:
+      type: object
+      properties:
+        updated: { type: integer, example: 10 }
+
+    NotificationPreferences:
+      type: object
+      properties:
+        pushBooking: { type: boolean, example: true }
+        pushPayment: { type: boolean, example: true }
+        pushMessage: { type: boolean, example: true }
+        pushSystem: { type: boolean, example: true }
+
     Report:
       type: object
       properties:
@@ -2794,6 +2854,248 @@ paths:
                           removed: { type: integer, example: 1 }
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: List notifications for current user
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: read
+          schema: { type: boolean }
+        - in: query
+          name: type
+          schema: { $ref: "#/components/schemas/NotificationType" }
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        "200":
+          description: Notification list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NotificationListResponse"
+              examples:
+                page1:
+                  value:
+                    success: true
+                    message: OK
+                    data:
+                      items:
+                        - id: "66aa1b2c0000000000001001"
+                          type: "booking_confirmed"
+                          title: "Booking Confirmed"
+                          body: "Your session with Nguyen A is confirmed for 2025-11-03T07:30:00Z"
+                          data:
+                            bookingId: "66aa1b2c0000000000000001"
+                            mentorId: "66aa1b2c0000000000000002"
+                            startTime: "2025-11-03T07:30:00Z"
+                          read: false
+                          createdAt: "2025-10-01T09:15:00Z"
+                        - id: "66aa1b2c0000000000001002"
+                          type: "payment_success"
+                          title: "Payment Successful"
+                          body: "Payment successful for your session with Nguyen A on 2025-11-03T07:30:00Z."
+                          data:
+                            bookingId: "66aa1b2c0000000000000001"
+                            amount: 250000
+                            currency: "VND"
+                          read: true
+                          createdAt: "2025-10-01T09:16:00Z"
+                      total: 2
+                      page: 1
+                      limit: 20
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /notifications/unread-count:
+    get:
+      tags: [Notifications]
+      summary: Get unread notification count
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Unread notification count
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NotificationUnreadCountResponse"
+              examples:
+                example:
+                  value:
+                    success: true
+                    message: OK
+                    data:
+                      unread: 3
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /notifications/preferences:
+    get:
+      tags: [Notifications]
+      summary: Get notification preferences
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Notification preferences
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NotificationPreferences"
+              examples:
+                example:
+                  value:
+                    success: true
+                    message: OK
+                    data:
+                      pushBooking: true
+                      pushPayment: true
+                      pushMessage: true
+                      pushSystem: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+    patch:
+      tags: [Notifications]
+      summary: Update notification preferences
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NotificationPreferences" }
+      responses:
+        "200":
+          description: Notification preferences updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NotificationPreferences"
+              examples:
+                example:
+                  value:
+                    success: true
+                    message: Updated
+                    data:
+                      pushBooking: true
+                      pushPayment: false
+                      pushMessage: true
+                      pushSystem: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /notifications/read-all:
+    post:
+      tags: [Notifications]
+      summary: Mark all notifications as read
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Notifications marked as read
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NotificationReadAllResponse"
+              examples:
+                example:
+                  value:
+                    success: true
+                    message: Notifications marked as read
+                    data:
+                      updated: 5
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /notifications/{id}/read:
+    patch:
+      tags: [Notifications]
+      summary: Mark notification as read
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Notification marked as read
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NotificationReadResponse"
+              examples:
+                example:
+                  value:
+                    success: true
+                    message: Notification marked as read
+                    data:
+                      id: "66aa1b2c0000000000001001"
+                      read: true
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Not found
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }

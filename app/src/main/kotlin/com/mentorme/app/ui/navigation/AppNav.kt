@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
@@ -23,6 +26,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.mentorme.app.core.appstate.AppForegroundTracker
+import com.mentorme.app.core.realtime.RealtimeEvent
+import com.mentorme.app.core.realtime.RealtimeEventBus
+import com.mentorme.app.core.notifications.NotificationDeduper
+import com.mentorme.app.core.notifications.NotificationPreferencesStore
+import com.mentorme.app.data.model.BookingStatus
 import com.mentorme.app.data.mock.MockData
 import com.mentorme.app.ui.auth.AuthScreen
 import com.mentorme.app.ui.auth.RegisterPayload
@@ -31,7 +40,9 @@ import com.mentorme.app.ui.booking.BookingDetailScreen
 import com.mentorme.app.ui.booking.BookingDraft
 import com.mentorme.app.ui.booking.BookingSummaryScreen
 import com.mentorme.app.ui.calendar.CalendarTab
+import com.mentorme.app.ui.calendar.MenteeBookingsViewModel
 import com.mentorme.app.ui.calendar.MenteeCalendarScreen
+import com.mentorme.app.ui.calendar.MentorBookingsViewModel
 import com.mentorme.app.ui.calendar.MentorCalendarScreen
 import com.mentorme.app.ui.chat.ChatScreen
 import com.mentorme.app.ui.chat.MentorMessagesScreen
@@ -42,6 +53,9 @@ import com.mentorme.app.ui.layout.GlassBottomBar
 import com.mentorme.app.ui.onboarding.MenteeOnboardingScreen
 import com.mentorme.app.ui.onboarding.MentorOnboardingScreen
 import com.mentorme.app.ui.onboarding.PendingApprovalScreen
+import com.mentorme.app.ui.notifications.NotificationDetailScreen
+import com.mentorme.app.ui.notifications.NotificationsScreen
+import com.mentorme.app.ui.notifications.NotificationsViewModel
 import com.mentorme.app.ui.profile.MentorProfileScreen
 import com.mentorme.app.ui.profile.ProfileScreen
 import com.mentorme.app.ui.profile.UserHeader
@@ -77,6 +91,8 @@ object Routes {
     }
 
     const val Notifications = "notifications"
+    const val NotificationDetail = "notifications/detail/{notificationId}"
+    fun notificationDetail(notificationId: String) = "notifications/detail/$notificationId"
     const val Messages = "messages"
     const val Profile = "profile"
     const val Chat = "chat"
@@ -117,23 +133,108 @@ private fun resolvePhase(isLoggedIn: Boolean, status: String?): AppPhase {
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun AppNav(
-    nav: NavHostController = rememberNavController()
+    nav: NavHostController = rememberNavController(),
+    initialRoute: String? = null,
+    onRouteConsumed: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val sessionVm = hiltViewModel<SessionViewModel>()
     val sessionState by sessionVm.session.collectAsStateWithLifecycle()
     val authVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
+    val notificationsVm: NotificationsViewModel = hiltViewModel()
+    val unreadNotificationCount by notificationsVm.unreadCount.collectAsStateWithLifecycle()
+    val isForeground by AppForegroundTracker.isForeground.collectAsStateWithLifecycle()
+    val menteeBookingsVm: MenteeBookingsViewModel = hiltViewModel()
+    val mentorBookingsVm: MentorBookingsViewModel = hiltViewModel()
+    val menteeBookings by menteeBookingsVm.bookings.collectAsStateWithLifecycle()
+    val mentorBookings by mentorBookingsVm.bookings.collectAsStateWithLifecycle()
+    val isMentorRole = sessionState.role.equals("mentor", ignoreCase = true)
+    val activeBookings = if (isMentorRole) mentorBookings else menteeBookings
+    val pendingBookingCount = remember(activeBookings) {
+        activeBookings.count {
+            it.status == BookingStatus.PENDING_MENTOR || it.status == BookingStatus.PAYMENT_PENDING
+        }
+    }
+    val messageUnreadCount = 0
 
     // Local UI state
     var payMethods by remember { mutableStateOf(initialPaymentMethods()) }
     var overlayVisible by remember { mutableStateOf(false) }
     var pendingRoleHint by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingRoute by rememberSaveable { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // Compute phase (single source of navigation decisions)
     val phase by remember(sessionState.isLoggedIn, sessionState.status, pendingRoleHint) {
         derivedStateOf {
             // Prefer server role/status but fall back to pending hint set by AuthScreen flows
             resolvePhase(sessionState.isLoggedIn, sessionState.status)
+        }
+    }
+
+    val isLoggedInState by rememberUpdatedState(sessionState.isLoggedIn)
+    val isForegroundState by rememberUpdatedState(isForeground)
+
+    LaunchedEffect(initialRoute) {
+        if (!initialRoute.isNullOrBlank()) {
+            pendingRoute = initialRoute
+        }
+    }
+
+    LaunchedEffect(sessionState.isLoggedIn) {
+        if (sessionState.isLoggedIn) {
+            notificationsVm.restoreCache()
+            notificationsVm.refreshUnreadCount()
+            notificationsVm.refreshPreferences()
+        } else {
+            notificationsVm.clearNotifications()
+            NotificationPreferencesStore.reset()
+        }
+    }
+
+    LaunchedEffect(sessionState.isLoggedIn, sessionState.role) {
+        if (sessionState.isLoggedIn) {
+            if (sessionState.role.equals("mentor", ignoreCase = true)) {
+                mentorBookingsVm.refresh()
+            } else {
+                menteeBookingsVm.refresh()
+            }
+        }
+    }
+
+    LaunchedEffect(isForeground) {
+        if (isForeground && sessionState.isLoggedIn) {
+            notificationsVm.refreshUnreadCount()
+            notificationsVm.refreshPreferences()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        RealtimeEventBus.events.collect { event ->
+            if (event is RealtimeEvent.NotificationReceived && isLoggedInState) {
+                notificationsVm.refreshUnreadCount()
+                if (isForegroundState) {
+                    if (NotificationDeduper.shouldNotify(
+                            event.notification.id,
+                            event.notification.title,
+                            event.notification.body,
+                            event.notification.type
+                        )
+                    ) {
+                        val title = event.notification.title.ifBlank { "New notification" }
+                        val action = snackbarHostState.showSnackbar(
+                            message = title,
+                            actionLabel = "Open"
+                        )
+                        if (action == SnackbarResult.ActionPerformed) {
+                            val route = event.notification.deepLink ?: Routes.Notifications
+                            if (nav.currentDestination?.route != route) {
+                                nav.navigate(route) { launchSingleTop = true }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -185,6 +286,18 @@ fun AppNav(
     // Backstack info for bottom bar visibility
     val backstack by nav.currentBackStackEntryAsState()
     val currentRoute = backstack?.destination?.route
+    val currentBaseRoute = currentRoute?.substringBefore("?")
+
+    LaunchedEffect(phase, pendingRoute, currentBaseRoute) {
+        val targetRoute = pendingRoute ?: return@LaunchedEffect
+        if (phase == AppPhase.Home) {
+            if (currentBaseRoute != targetRoute) {
+                nav.navigate(targetRoute) { launchSingleTop = true }
+            }
+            pendingRoute = null
+            onRouteConsumed()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LiquidBackground(modifier = Modifier.matchParentSize().zIndex(-1f))
@@ -192,6 +305,7 @@ fun AppNav(
         Scaffold(
             containerColor = androidx.compose.ui.graphics.Color.Transparent,
             contentWindowInsets = WindowInsets(0),
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
                 val hideForChat = currentRoute?.startsWith("${Routes.Chat}/") == true
                 val hideForBooking = currentRoute?.startsWith("booking/") == true || currentRoute?.startsWith("bookingSummary/") == true
@@ -202,7 +316,13 @@ fun AppNav(
                 if (!overlayVisible && sessionState.isLoggedIn && currentRoute != Routes.Auth &&
                     !hideForChat && !hideForBooking && !hideForWallet && !hideForOnboarding && !hideForPendingApproval
                 ) {
-                    GlassBottomBar(navController = nav, userRole = sessionState.role ?: "mentee")
+                    GlassBottomBar(
+                        navController = nav,
+                        userRole = sessionState.role ?: "mentee",
+                        notificationUnreadCount = unreadNotificationCount,
+                        calendarPendingCount = pendingBookingCount,
+                        messageUnreadCount = messageUnreadCount
+                    )
                 }
             },
             modifier = Modifier.fillMaxSize()
@@ -388,6 +508,7 @@ fun AppNav(
                     composable(Routes.MentorProfile) {
                         val localAuthVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
                         MentorProfileScreen(
+                            notificationsViewModel = notificationsVm,
                             startTarget = "profile",
                             onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
                             onViewEarnings = { Log.d("AppNav", "MentorProfile: onViewEarnings - TODO") },
@@ -401,6 +522,7 @@ fun AppNav(
                             onManageServices = { Log.d("AppNav", "MentorProfile: onManageServices - TODO") },
                             onViewStatistics = { Log.d("AppNav", "MentorProfile: onViewStatistics - TODO") },
                             onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
+                            onOpenNotifications = { nav.navigate(Routes.Notifications) },
                             onLogout = {
                                 localAuthVm.signOut {
                                     nav.navigate(Routes.Auth) {
@@ -420,6 +542,7 @@ fun AppNav(
                         val target = backStackEntry.arguments?.getString("target") ?: "profile"
 
                         MentorProfileScreen(
+                            notificationsViewModel = notificationsVm,
                             startTarget = target,
                             onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
                             onViewEarnings = { Log.d("AppNav", "MentorProfile: onViewEarnings - TODO") },
@@ -433,6 +556,7 @@ fun AppNav(
                             onManageServices = { Log.d("AppNav", "MentorProfile: onManageServices - TODO") },
                             onViewStatistics = { Log.d("AppNav", "MentorProfile: onViewStatistics - TODO") },
                             onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
+                            onOpenNotifications = { nav.navigate(Routes.Notifications) },
                             onLogout = {
                                 localAuthVm.signOut {
                                     nav.navigate(Routes.Auth) {
@@ -488,6 +612,23 @@ fun AppNav(
                         })
                     }
 
+                    composable(Routes.Notifications) {
+                        NotificationsScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpenDetail = { id -> nav.navigate(Routes.notificationDetail(id)) },
+                            viewModel = notificationsVm
+                        )
+                    }
+
+                    composable(Routes.NotificationDetail) { backStackEntry ->
+                        val notificationId = backStackEntry.arguments?.getString("notificationId")
+                            ?: return@composable
+                        NotificationDetailScreen(
+                            notificationId = notificationId,
+                            onBack = { nav.popBackStack() }
+                        )
+                    }
+
                     composable("${Routes.Chat}/{conversationId}") { backStackEntry ->
                         val convId = backStackEntry.arguments?.getString("conversationId") ?: return@composable
                         ChatScreen(
@@ -503,6 +644,7 @@ fun AppNav(
                         ProfileScreen(
                             vm = profileVm,
                             user = UserHeader(fullName = "Nguyễn Văn A", email = "a@example.com", role = UserRole.MENTEE),
+                            notificationsViewModel = notificationsVm,
                             onOpenNotifications = { nav.navigate(Routes.Notifications) },
                             onOpenTopUp = { nav.navigate(Routes.TopUp) },
                             onOpenWithdraw = { nav.navigate(Routes.Withdraw) },

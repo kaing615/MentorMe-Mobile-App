@@ -15,6 +15,12 @@ export interface IUser extends Document {
   role: "mentee" | "mentor" | "admin" | "root";
   status: "active" | "pending-mentor" | "verifying" | "onboarding";
   isBlocked: boolean;
+  notificationPrefs?: {
+    pushBooking?: boolean;
+    pushPayment?: boolean;
+    pushMessage?: boolean;
+    pushSystem?: boolean;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,6 +42,12 @@ const userSchema: Schema<IUser> = new Schema(
       default: "verifying",
     },
     isBlocked: { type: Boolean, default: false },
+    notificationPrefs: {
+      pushBooking: { type: Boolean, default: true },
+      pushPayment: { type: Boolean, default: true },
+      pushMessage: { type: Boolean, default: true },
+      pushSystem: { type: Boolean, default: true },
+    },
   },
   { timestamps: true }
 );

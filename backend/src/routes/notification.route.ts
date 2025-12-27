@@ -8,6 +8,12 @@ import {
   sendTestPush,
   sendPushToUserId,
   listDeviceTokens,
+  listNotifications,
+  getUnreadCount,
+  markNotificationRead,
+  markAllNotificationsRead,
+  getNotificationPreferences,
+  updateNotificationPreferences,
 } from '../controllers/notification.controller';
 import {
   registerDeviceTokenRules,
@@ -15,6 +21,9 @@ import {
   sendTestPushRules,
   sendPushToUserIdRules,
   listDeviceTokensRules,
+  listNotificationsRules,
+  markNotificationReadRules,
+  updatePreferencesRules,
 } from '../middlewares/validators/notification.validator';
 
 const router = Router();
@@ -36,6 +45,14 @@ router.get(
   validate,
   listDeviceTokens
 );
+
+// Notifications history
+router.get('/', auth, listNotificationsRules, validate, listNotifications);
+router.get('/unread-count', auth, getUnreadCount);
+router.post('/read-all', auth, markAllNotificationsRead);
+router.patch('/:id/read', auth, markNotificationReadRules, validate, markNotificationRead);
+router.get('/preferences', auth, getNotificationPreferences);
+router.patch('/preferences', auth, updatePreferencesRules, validate, updateNotificationPreferences);
 
 // Push helpers
 router.post('/push/test', auth, sendTestPushRules, validate, sendTestPush);

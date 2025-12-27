@@ -3,6 +3,8 @@ package com.mentorme.app.ui.calendar
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mentorme.app.core.utils.Logx
+import com.mentorme.app.core.realtime.RealtimeEvent
+import com.mentorme.app.core.realtime.RealtimeEventBus
 import com.mentorme.app.data.dto.MentorDeclineRequest
 import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.remote.MentorMeApi
@@ -11,6 +13,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
@@ -41,6 +44,10 @@ class MentorBookingsViewModel @Inject constructor(
     private val _bookings = MutableStateFlow<List<Booking>>(emptyList())
     val bookings: StateFlow<List<Booking>> = _bookings.asStateFlow()
 
+    init {
+        observeRealtimeEvents()
+    }
+
     fun refresh(role: String = "mentor") {
         viewModelScope.launch {
             Logx.d(TAG) { "refresh bookings for role=$role" }
@@ -56,6 +63,42 @@ class MentorBookingsViewModel @Inject constructor(
             } catch (t: Throwable) {
                 Logx.e(tag = TAG, message = { "refresh exception: ${t.message}" })
             }
+        }
+    }
+
+    private fun observeRealtimeEvents() {
+        viewModelScope.launch {
+            RealtimeEventBus.events.collect { event ->
+                when (event) {
+                    is RealtimeEvent.BookingChanged -> updateBooking(event.bookingId)
+                    else -> Unit
+                }
+            }
+        }
+    }
+
+    private suspend fun updateBooking(bookingId: String) {
+        try {
+            val resp = api.getBookingById(bookingId)
+            if (!resp.isSuccessful) {
+                refresh()
+                return
+            }
+            val booking = resp.body()?.data ?: return
+            val normalized = normalizeBookingLocalTime(booking)
+            _bookings.update { current ->
+                val idx = current.indexOfFirst { it.id == normalized.id }
+                if (idx >= 0) {
+                    val mutable = current.toMutableList()
+                    mutable[idx] = normalized
+                    mutable
+                } else {
+                    listOf(normalized) + current
+                }
+            }
+        } catch (t: Throwable) {
+            Logx.e(tag = TAG, message = { "update booking failed: ${t.message}" })
+            refresh()
         }
     }
 

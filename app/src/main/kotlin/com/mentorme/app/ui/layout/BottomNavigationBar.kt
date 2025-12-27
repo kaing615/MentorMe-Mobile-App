@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Badge
@@ -50,23 +51,25 @@ private data class NavItem(
     val route: String,
     val label: String,
     val icon: ImageVector,
-    val badge: Int = 0
+    val showDot: Boolean = false
 )
 
 // Navigation items cho Mentee (5 tabs)
 private val menteeNavItems = listOf(
     NavItem("home",     "Trang chủ", Icons.Filled.Home),
     NavItem("search",   "Tìm kiếm", Icons.Filled.Search),
-    NavItem("calendar", "Lịch hẹn", Icons.Filled.CalendarMonth, badge = 1),
-    NavItem("messages", "Tin nhắn", Icons.AutoMirrored.Filled.Chat, badge = 2),
+    NavItem("calendar", "Lịch hẹn", Icons.Filled.CalendarMonth),
+    NavItem("messages", "Tin nhắn", Icons.AutoMirrored.Filled.Chat),
+    NavItem("notifications", "Thông báo", Icons.Filled.Notifications),
     NavItem("profile",  "Cá nhân",  Icons.Filled.Person)
 )
 
 // Navigation items cho Mentor (4 tabs)
 private val mentorNavItems = listOf(
     NavItem("mentor_dashboard", "Dashboard", Icons.Filled.Home),
-    NavItem("mentor_calendar",  "Lịch hẹn",  Icons.Filled.CalendarMonth, badge = 1),
-    NavItem("mentor_messages",  "Tin nhắn",  Icons.AutoMirrored.Filled.Chat, badge = 2),
+    NavItem("mentor_calendar",  "Lịch hẹn",  Icons.Filled.CalendarMonth),
+    NavItem("mentor_messages",  "Tin nhắn",  Icons.AutoMirrored.Filled.Chat),
+    NavItem("notifications",    "Thông báo", Icons.Filled.Notifications),
     NavItem("mentor_profile",   "Cá nhân",   Icons.Filled.Person)
 )
 
@@ -75,12 +78,19 @@ private val mentorNavItems = listOf(
 fun GlassBottomBar(
     navController: NavHostController,
     userRole: String = "mentee", // Thêm tham số userRole với default là mentee
+    notificationUnreadCount: Int = 0,
+    calendarPendingCount: Int = 0,
+    messageUnreadCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     val currentRoute = currentDestination?.route
     val currentBaseRoute = currentRoute?.substringBefore("?")
+
+    val showNotificationDot = notificationUnreadCount > 0
+    val showCalendarDot = calendarPendingCount > 0
+    val showMessagesDot = messageUnreadCount > 0
 
     val shape = RoundedCornerShape(24.dp)
 
@@ -109,7 +119,16 @@ fun GlassBottomBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val navItems = if (userRole == "mentor") mentorNavItems else menteeNavItems
+            val baseNavItems = if (userRole == "mentor") mentorNavItems else menteeNavItems
+            val navItems = baseNavItems.map { item ->
+                val showDot = when (item.route) {
+                    "notifications" -> showNotificationDot
+                    "calendar", "mentor_calendar" -> showCalendarDot
+                    "messages", "mentor_messages" -> showMessagesDot
+                    else -> false
+                }
+                item.copy(showDot = showDot)
+            }
 
             navItems.forEach { item ->
                 val selected = currentDestination.isSelected(item.route)
@@ -118,7 +137,7 @@ fun GlassBottomBar(
                     selected = selected,
                     label = item.label,
                     icon = item.icon,
-                    badge = item.badge
+                    showDot = item.showDot
                 ) {
                     // ✅ FIX: Không dựa vào `selected` để quyết định navigate.
                     // `selected` có thể bị tính sai khi restoreState/saveState hoặc route có args.
@@ -161,7 +180,7 @@ private fun GlassBarItem(
     selected: Boolean,
     label: String,
     icon: ImageVector,
-    badge: Int,
+    showDot: Boolean,
     onClick: () -> Unit
 ) {
     val bg by animateColorAsState(
@@ -195,8 +214,12 @@ private fun GlassBarItem(
         horizontalAlignment = Alignment.CenterHorizontally, // Center theo chiều ngang
         verticalArrangement = Arrangement.spacedBy(3.dp) // Khoảng cách giữa icon và text
     ) {
-        if (badge > 0) {
-            BadgedBox(badge = { Badge { Text("$badge") } }) {
+        if (showDot) {
+            BadgedBox(
+                badge = {
+                    Badge()
+                }
+            ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = label,
@@ -237,6 +260,7 @@ private fun getTargetRoute(route: String, userRole: String): String {
         "mentor_calendar" -> "mentor_calendar"
         "mentor_messages" -> "mentor_messages"
         "mentor_profile" -> "mentor_profile"
+        "notifications" -> "notifications"
 
         // Mentee routes
         "home" -> "home"
@@ -248,3 +272,4 @@ private fun getTargetRoute(route: String, userRole: String): String {
         else -> if (userRole == "mentor") "mentor_dashboard" else "home"
     }
 }
+

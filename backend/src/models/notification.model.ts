@@ -19,6 +19,7 @@ export interface INotification extends Document {
   body: string;
   data?: Record<string, unknown>;
   read: boolean;
+  dedupeKey?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -44,10 +45,12 @@ const NotificationSchema = new Schema<INotification>(
     body: { type: String, required: true, trim: true },
     data: { type: Schema.Types.Mixed },
     read: { type: Boolean, default: false, index: true },
+    dedupeKey: { type: String, trim: true },
   },
   { timestamps: true }
 );
 
 NotificationSchema.index({ user: 1, read: 1, createdAt: -1 });
+NotificationSchema.index({ dedupeKey: 1 }, { unique: true, sparse: true });
 
 export default model<INotification>('Notification', NotificationSchema);

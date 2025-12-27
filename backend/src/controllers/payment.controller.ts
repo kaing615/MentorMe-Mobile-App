@@ -2,8 +2,6 @@ import { Request, Response } from "express";
 import { asyncHandler } from "../handlers/async.handler";
 import { ok, badRequest, notFound } from "../handlers/response.handler";
 import Booking from "../models/booking.model";
-import User from "../models/user.model";
-import Profile from "../models/profile.model";
 import {
   confirmBooking,
   failBooking,
@@ -15,6 +13,7 @@ import {
   notifyPaymentSuccess,
   PaymentNotificationData,
 } from "../utils/notification.service";
+import { getUserInfo } from "../utils/userInfo";
 
 const TERMINAL_BOOKING_STATUSES = new Set([
   "Failed",
@@ -22,18 +21,6 @@ const TERMINAL_BOOKING_STATUSES = new Set([
   "Declined",
   "Completed",
 ]);
-
-async function getUserInfo(userId: string) {
-  const [user, profile] = await Promise.all([
-    User.findById(userId).select("email userName").lean(),
-    Profile.findOne({ user: userId }).select("fullName").lean(),
-  ]);
-
-  return {
-    email: user?.email ?? "",
-    name: profile?.fullName ?? user?.userName ?? "User",
-  };
-}
 
 async function buildPaymentNotificationData(
   booking: any,

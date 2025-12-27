@@ -28,12 +28,18 @@ const hashToken = (token: string) =>
   createHash("sha256").update(token).digest("hex");
 
 function getRedisClientOptions() {
+  const host = process.env.SOCKET_REDIS_HOST || process.env.REDIS_HOST;
+  const port = Number(process.env.SOCKET_REDIS_PORT || process.env.REDIS_PORT || 10938);
+  const username =
+    process.env.SOCKET_REDIS_USERNAME || process.env.REDIS_USERNAME || "default";
+  const password = process.env.SOCKET_REDIS_PASSWORD || process.env.REDIS_PASSWORD;
+
   return {
-    username: process.env.REDIS_USERNAME || "default",
-    password: process.env.REDIS_PASSWORD,
+    username,
+    password,
     socket: {
-      host: process.env.REDIS_HOST,
-      port: Number(process.env.REDIS_PORT) || 10938,
+      host,
+      port,
     },
   };
 }
@@ -117,9 +123,10 @@ async function setupRedisAdapter(socketServer: SocketIOServer) {
     (process.env.SOCKET_REDIS_ENABLED || "true").toLowerCase() !== "false";
   if (!enabled) return;
 
-  if (!process.env.REDIS_HOST) {
-    console.warn("Socket.IO Redis adapter disabled: missing REDIS_HOST");
-    return;
+  if (!process.env.SOCKET_REDIS_HOST && !process.env.REDIS_HOST) {
+    throw new Error(
+      "Socket.IO Redis adapter enabled but SOCKET_REDIS_HOST/REDIS_HOST is missing"
+    );
   }
 
   try {
@@ -130,7 +137,15 @@ async function setupRedisAdapter(socketServer: SocketIOServer) {
     socketServer.adapter(createAdapter(pubClient, subClient));
     console.log("Socket.IO Redis adapter enabled");
   } catch (err) {
-    console.warn("Failed to init Socket.IO Redis adapter:", err);
+    if (pubClient?.isOpen) {
+      await pubClient.quit();
+    }
+    if (subClient?.isOpen) {
+      await subClient.quit();
+    }
+    pubClient = null;
+    subClient = null;
+    throw err;
   }
 }
 
@@ -162,7 +177,13 @@ export async function initSocket(server: HttpServer) {
     }
   });
 
-  await setupRedisAdapter(io);
+  try {
+    await setupRedisAdapter(io);
+  } catch (err) {
+    io.close();
+    io = null;
+    throw err;
+  }
 
   return io;
 }

@@ -4,6 +4,10 @@ import { Types } from 'mongoose';
 import { emitToUser } from '../socket';
 import { sendPushToUser } from './push.service';
 
+type CreateNotificationOptions = {
+  dedupeKey?: string;
+};
+
 export interface NotificationData {
   bookingId: string;
   mentorId: string;
@@ -79,29 +83,57 @@ function buildPushData(
   return payload;
 }
 
+function isDuplicateKeyError(error: unknown) {
+  const err = error as { code?: number; message?: string };
+  return err?.code === 11000 || Boolean(err?.message?.includes('E11000'));
+}
+
+function buildPaymentDedupeKey(type: 'payment_success' | 'payment_failed', userId: string, bookingId: string) {
+  return `${type}:${userId}:${bookingId}`;
+}
+
 export async function createNotification(
   userId: string | Types.ObjectId,
   type: TNotificationType,
   title: string,
   body: string,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
+  options?: CreateNotificationOptions
 ) {
-  const created = await Notification.create({
-    user: userId,
-    type,
-    title,
-    body,
-    data,
-    read: false,
-  });
+  let created: INotification | null = null;
+
+  if (options?.dedupeKey) {
+    const existing = await Notification.findOne({ dedupeKey: options.dedupeKey });
+    if (existing) return toNotificationPayload(existing);
+  }
+
+  try {
+    created = await Notification.create({
+      user: userId,
+      type,
+      title,
+      body,
+      data,
+      read: false,
+      dedupeKey: options?.dedupeKey,
+    });
+  } catch (error) {
+    if (options?.dedupeKey && isDuplicateKeyError(error)) {
+      const existing = await Notification.findOne({ dedupeKey: options.dedupeKey });
+      return existing ? toNotificationPayload(existing) : null;
+    }
+    throw error;
+  }
+
+  if (!created) return null;
 
   const payload = toNotificationPayload(created);
   emitToUser(payload.userId, 'notifications:new', payload);
 
   const pushData = buildPushData(type, payload.id, data);
-  await Promise.allSettled([
-    sendPushToUser(payload.userId, { title, body, data: pushData }),
-  ]);
+  void sendPushToUser(payload.userId, { title, body, data: pushData }).catch((err) => {
+    console.warn('Failed to send push notification:', err);
+  });
 
   return payload;
 }
@@ -261,7 +293,8 @@ export async function notifyPaymentSuccess(data: PaymentNotificationData) {
     'payment_success',
     'Payment Successful',
     `Payment successful for your session with ${mentorName} on ${dateStr}.`,
-    payload
+    payload,
+    { dedupeKey: buildPaymentDedupeKey('payment_success', menteeId, bookingId) }
   );
 
   await createNotification(
@@ -269,7 +302,8 @@ export async function notifyPaymentSuccess(data: PaymentNotificationData) {
     'payment_success',
     'Payment Received',
     `Payment received for session with ${menteeName} on ${dateStr}.`,
-    payload
+    payload,
+    { dedupeKey: buildPaymentDedupeKey('payment_success', mentorId, bookingId) }
   );
 }
 
@@ -305,7 +339,8 @@ export async function notifyPaymentFailed(data: PaymentNotificationData) {
     'payment_failed',
     'Payment Failed',
     `Payment failed for your session with ${mentorName}. Please try again.`,
-    payload
+    payload,
+    { dedupeKey: buildPaymentDedupeKey('payment_failed', menteeId, bookingId) }
   );
 
   await createNotification(
@@ -313,6 +348,7 @@ export async function notifyPaymentFailed(data: PaymentNotificationData) {
     'payment_failed',
     'Payment Failed',
     `Payment failed for session with ${menteeName}.`,
-    payload
+    payload,
+    { dedupeKey: buildPaymentDedupeKey('payment_failed', mentorId, bookingId) }
   );
 }

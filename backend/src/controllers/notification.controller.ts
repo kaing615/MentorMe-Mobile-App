@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../handlers/async.handler';
-import { ok, badRequest, forbidden } from '../handlers/response.handler';
+import { ok, badRequest, forbidden, notFound } from '../handlers/response.handler';
 import DeviceToken from '../models/deviceToken.model';
+import Notification from '../models/notification.model';
 import { sendPushToUser } from '../utils/push.service';
 
 export const registerDeviceToken = asyncHandler(async (req: Request, res: Response) => {
@@ -157,10 +158,95 @@ export const listDeviceTokens = asyncHandler(async (req: Request, res: Response)
   return ok(res, { items, total, page, limit }, 'OK');
 });
 
+export const listNotifications = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id;
+  if (!userId) return badRequest(res, 'Unauthorized');
+
+  const { read, type } = req.query as {
+    read?: string | boolean;
+    type?: string;
+  };
+
+  const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 100);
+  const page = Math.max(parseInt(String(req.query.page || '1'), 10) || 1, 1);
+
+  const filter: any = { user: userId };
+  if (typeof read !== 'undefined') {
+    const readValue = String(read) === 'true';
+    filter.read = readValue;
+  }
+  if (type) filter.type = type;
+
+  const [total, docs] = await Promise.all([
+    Notification.countDocuments(filter),
+    Notification.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+  ]);
+
+  const items = docs.map((doc: any) => ({
+    id: String(doc._id),
+    type: doc.type,
+    title: doc.title,
+    body: doc.body,
+    data: doc.data ?? null,
+    read: Boolean(doc.read),
+    createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
+  }));
+
+  return ok(res, { items, total, page, limit }, 'OK');
+});
+
+export const getUnreadCount = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id;
+  if (!userId) return badRequest(res, 'Unauthorized');
+
+  const count = await Notification.countDocuments({ user: userId, read: false });
+  return ok(res, { unread: count }, 'OK');
+});
+
+export const markNotificationRead = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id;
+  if (!userId) return badRequest(res, 'Unauthorized');
+
+  const { id } = req.params;
+  const updated = await Notification.findOneAndUpdate(
+    { _id: id, user: userId },
+    { $set: { read: true } },
+    { new: true }
+  );
+
+  if (!updated) return notFound(res, 'Notification not found');
+
+  return ok(
+    res,
+    { id: String(updated._id), read: updated.read },
+    'Notification marked as read'
+  );
+});
+
+export const markAllNotificationsRead = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id;
+  if (!userId) return badRequest(res, 'Unauthorized');
+
+  const result = await Notification.updateMany(
+    { user: userId, read: false },
+    { $set: { read: true } }
+  );
+
+  return ok(res, { updated: result.modifiedCount ?? 0 }, 'Notifications marked as read');
+});
+
 export default {
   registerDeviceToken,
   unregisterDeviceToken,
   sendTestPush,
   sendPushToUserId,
   listDeviceTokens,
+  listNotifications,
+  getUnreadCount,
+  markNotificationRead,
+  markAllNotificationsRead,
 };

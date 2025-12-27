@@ -17,6 +17,7 @@ import AvailabilitySlot from '../models/availabilitySlot.model';
 import User from '../models/user.model';
 import Profile from '../models/profile.model';
 import redis from '../utils/redis';
+import { getUserInfo } from '../utils/userInfo';
 import {
   sendBookingConfirmedEmail,
   sendBookingFailedEmail,
@@ -57,17 +58,6 @@ const VALID_TRANSITIONS: Record<TBookingStatus, TBookingStatus[]> = {
 
 function canTransition(from: TBookingStatus, to: TBookingStatus): boolean {
   return VALID_TRANSITIONS[from]?.includes(to) ?? false;
-}
-
-async function getUserInfo(userId: string) {
-  const [user, profile] = await Promise.all([
-    User.findById(userId).select('email userName').lean(),
-    Profile.findOne({ user: userId }).select('fullName').lean(),
-  ]);
-  return {
-    email: user?.email ?? '',
-    name: profile?.fullName ?? user?.userName ?? 'User',
-  };
 }
 
 async function buildEmailData(booking: any): Promise<BookingEmailData> {

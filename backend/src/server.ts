@@ -56,11 +56,7 @@ async function startServer() {
 
     await startBookingJobs();
 
-    try {
-      await initSocket(server);
-    } catch (err) {
-      console.error("Failed to init Socket.IO:", err);
-    }
+    await initSocket(server);
 
     server.listen(PORT, () => {
       console.log(`Server is running on http://localhost:${PORT}`);

@@ -25,7 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DoneAll
 import androidx.compose.material.icons.outlined.Notifications
@@ -77,13 +77,16 @@ private enum class NotificationFilter(@StringRes val labelRes: Int) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationsScreen(
+    modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
     onOpenDetail: (String) -> Unit = {},
     showDetailDialog: Boolean = true,
-    viewModel: NotificationsViewModel = hiltViewModel(),
-    modifier: Modifier = Modifier
+    viewModel: NotificationsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
+    val testTitle = stringResource(R.string.notification_test_title)
+    val testBody = stringResource(R.string.notification_test_body)
+
     var filter by remember { mutableStateOf(NotificationFilter.ALL) }
     var hasPermission by remember { mutableStateOf(NotificationHelper.hasPostPermission(context)) }
     var selectedNotification by remember { mutableStateOf<NotificationItem?>(null) }
@@ -133,7 +136,7 @@ fun NotificationsScreen(
                         },
                         navigationIcon = {
                             IconButton(onClick = onBack) {
-                                Icon(Icons.Outlined.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.action_back))
                             }
                         },
                         actions = {
@@ -144,7 +147,7 @@ fun NotificationsScreen(
                                 Icon(Icons.Outlined.DoneAll, contentDescription = stringResource(R.string.notification_mark_all_read_action))
                             }
                         },
-                        colors = androidx.compose.material3.TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
                             containerColor = Color.Transparent,
                             titleContentColor = Color.White,
                             navigationIconContentColor = Color.White,
@@ -178,8 +181,8 @@ fun NotificationsScreen(
                         },
                         onSendTest = {
                             val demo = NotificationItem(
-                                title = context.getString(R.string.notification_test_title),
-                                body = context.getString(R.string.notification_test_body),
+                                title = testTitle,
+                                body = testBody,
                                 type = NotificationType.SYSTEM,
                                 timestamp = System.currentTimeMillis(),
                                 read = false
@@ -388,6 +391,7 @@ private fun NotificationPermissionCard(
     }
 }
 
+@Composable
 private fun PermissionStatusPill(
     granted: Boolean
 ) {
@@ -454,9 +458,9 @@ private fun NotificationFilterBar(
 private fun NotificationFilterOption(
     label: String,
     selected: Boolean,
+    modifier: Modifier = Modifier,
     badgeCount: Int = 0,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(14.dp)
     val baseModifier = modifier
@@ -634,6 +638,7 @@ private fun NotificationDetailDialog(
                             item.title,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -659,7 +664,8 @@ private fun NotificationDetailDialog(
                 Text(
                     stringResource(R.string.notification_body_label),
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
                 )
                 Text(
                     item.body,
@@ -670,7 +676,8 @@ private fun NotificationDetailDialog(
                 Text(
                     stringResource(R.string.notification_info_label),
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
                 )
                 NotificationDetailMetaRow(
                     label = stringResource(R.string.notification_label_type),

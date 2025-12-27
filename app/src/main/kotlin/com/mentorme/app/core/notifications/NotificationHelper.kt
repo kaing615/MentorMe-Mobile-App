@@ -75,7 +75,12 @@ object NotificationHelper {
             NotificationType.MESSAGE -> CHANNEL_MESSAGES
             NotificationType.BOOKING_CONFIRMED,
             NotificationType.BOOKING_REMINDER,
-            NotificationType.BOOKING_CANCELLED -> CHANNEL_BOOKING
+            NotificationType.BOOKING_CANCELLED,
+            NotificationType.BOOKING_PENDING,
+            NotificationType.BOOKING_DECLINED,
+            NotificationType.BOOKING_FAILED,
+            NotificationType.PAYMENT_SUCCESS,
+            NotificationType.PAYMENT_FAILED -> CHANNEL_BOOKING
             NotificationType.SYSTEM -> CHANNEL_GENERAL
         }
     }

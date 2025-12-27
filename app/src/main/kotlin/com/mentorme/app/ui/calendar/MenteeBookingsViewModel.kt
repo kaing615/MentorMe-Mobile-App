@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mentorme.app.core.utils.AppResult
 import com.mentorme.app.core.utils.Logx
+import com.mentorme.app.core.realtime.RealtimeEvent
+import com.mentorme.app.core.realtime.RealtimeEventBus
 import com.mentorme.app.data.dto.PaymentWebhookRequest
 import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.remote.MentorMeApi
@@ -13,6 +15,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -27,6 +30,10 @@ class MenteeBookingsViewModel @Inject constructor(
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
+    init {
+        observeRealtimeEvents()
+    }
+
     fun refresh() {
         viewModelScope.launch {
             _loading.value = true
@@ -37,6 +44,37 @@ class MenteeBookingsViewModel @Inject constructor(
                 AppResult.Loading -> Unit
             }
             _loading.value = false
+        }
+    }
+
+    private fun observeRealtimeEvents() {
+        viewModelScope.launch {
+            RealtimeEventBus.events.collect { event ->
+                when (event) {
+                    is RealtimeEvent.BookingChanged -> updateBooking(event.bookingId)
+                    else -> Unit
+                }
+            }
+        }
+    }
+
+    private suspend fun updateBooking(bookingId: String) {
+        when (val res = bookingRepository.getBookingById(bookingId)) {
+            is AppResult.Success -> {
+                val updated = res.data
+                _bookings.update { current ->
+                    val idx = current.indexOfFirst { it.id == updated.id }
+                    if (idx >= 0) {
+                        val mutable = current.toMutableList()
+                        mutable[idx] = updated
+                        mutable
+                    } else {
+                        listOf(updated) + current
+                    }
+                }
+            }
+            is AppResult.Error -> refresh()
+            AppResult.Loading -> Unit
         }
     }
 

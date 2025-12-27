@@ -12,6 +12,8 @@ import com.mentorme.app.data.repository.home.HomeRepository
 import com.mentorme.app.data.repository.home.HomeRepositoryImpl
 import com.mentorme.app.data.repository.review.ReviewRepository
 import com.mentorme.app.data.repository.review.ReviewRepositoryImpl
+import com.mentorme.app.data.repository.notifications.NotificationRepository
+import com.mentorme.app.data.repository.notifications.NotificationRepositoryImpl
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -61,6 +63,12 @@ abstract class RepositoryModule {
     abstract fun bindReviewRepository(
         impl: ReviewRepositoryImpl
     ): ReviewRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindNotificationRepository(
+        impl: NotificationRepositoryImpl
+    ): NotificationRepository
 }
 
 // --- Use case providers ---

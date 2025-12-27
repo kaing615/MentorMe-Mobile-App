@@ -36,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,6 +63,7 @@ fun NotificationsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val viewModel: NotificationsViewModel = hiltViewModel()
     var showUnreadOnly by remember { mutableStateOf(false) }
     var hasPermission by remember { mutableStateOf(NotificationHelper.hasPostPermission(context)) }
     val launcher = rememberLauncherForActivityResult(
@@ -72,6 +74,7 @@ fun NotificationsScreen(
 
     LaunchedEffect(Unit) {
         hasPermission = NotificationHelper.hasPostPermission(context)
+        viewModel.refresh()
     }
 
     val notifications by NotificationStore.notifications.collectAsState()
@@ -104,7 +107,7 @@ fun NotificationsScreen(
                         },
                         actions = {
                             IconButton(
-                                onClick = { NotificationStore.markAllRead() },
+                                onClick = { viewModel.markAllRead() },
                                 enabled = unreadCount > 0
                             ) {
                                 Icon(Icons.Outlined.DoneAll, contentDescription = "Mark all read")
@@ -237,7 +240,7 @@ fun NotificationsScreen(
                             items(filtered, key = { it.id }) { item ->
                                 NotificationRow(
                                     item = item,
-                                    onClick = { NotificationStore.markRead(item.id) }
+                                    onClick = { viewModel.markRead(item.id) }
                                 )
                             }
                         }
@@ -318,6 +321,11 @@ private fun typeStyle(type: NotificationType): Pair<ImageVector, Color> {
         NotificationType.BOOKING_CONFIRMED -> Icons.Outlined.CheckCircle to Color(0xFF34D399)
         NotificationType.BOOKING_REMINDER -> Icons.Outlined.AccessTime to Color(0xFFFBBF24)
         NotificationType.BOOKING_CANCELLED -> Icons.Outlined.EventBusy to Color(0xFFF87171)
+        NotificationType.BOOKING_PENDING -> Icons.Outlined.AccessTime to Color(0xFFFBBF24)
+        NotificationType.BOOKING_DECLINED -> Icons.Outlined.EventBusy to Color(0xFFF87171)
+        NotificationType.BOOKING_FAILED -> Icons.Outlined.EventBusy to Color(0xFFF87171)
+        NotificationType.PAYMENT_SUCCESS -> Icons.Outlined.CheckCircle to Color(0xFF34D399)
+        NotificationType.PAYMENT_FAILED -> Icons.Outlined.EventBusy to Color(0xFFF87171)
         NotificationType.MESSAGE -> Icons.Outlined.Message to Color(0xFF60A5FA)
         NotificationType.SYSTEM -> Icons.Outlined.Notifications to Color(0xFFA78BFA)
     }

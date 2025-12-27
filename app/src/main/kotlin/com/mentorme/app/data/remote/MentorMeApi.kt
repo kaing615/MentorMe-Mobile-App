@@ -23,6 +23,10 @@ import com.mentorme.app.data.dto.notifications.DeviceTokenPayload
 import com.mentorme.app.data.dto.notifications.RegisterDeviceRequest
 import com.mentorme.app.data.dto.notifications.UnregisterDeviceRequest
 import com.mentorme.app.data.dto.notifications.UnregisterResult
+import com.mentorme.app.data.dto.notifications.NotificationListPayload
+import com.mentorme.app.data.dto.notifications.NotificationUnreadCount
+import com.mentorme.app.data.dto.notifications.NotificationReadResponse
+import com.mentorme.app.data.dto.notifications.NotificationReadAllResponse
 
 // Model imports
 import com.mentorme.app.data.model.Booking
@@ -194,4 +198,23 @@ interface MentorMeApi {
     suspend fun unregisterDeviceToken(
         @Body request: UnregisterDeviceRequest
     ): Response<ApiEnvelope<UnregisterResult>>
+
+    @GET("notifications")
+    suspend fun getNotifications(
+        @Query("read") read: Boolean? = null,
+        @Query("type") type: String? = null,
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 20
+    ): Response<ApiEnvelope<NotificationListPayload>>
+
+    @GET("notifications/unread-count")
+    suspend fun getUnreadNotificationCount(): Response<ApiEnvelope<NotificationUnreadCount>>
+
+    @PATCH("notifications/{id}/read")
+    suspend fun markNotificationRead(
+        @Path("id") id: String
+    ): Response<ApiEnvelope<NotificationReadResponse>>
+
+    @POST("notifications/read-all")
+    suspend fun markAllNotificationsRead(): Response<ApiEnvelope<NotificationReadAllResponse>>
 }

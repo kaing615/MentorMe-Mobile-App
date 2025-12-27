@@ -38,8 +38,10 @@ class MentorMeMessagingService : FirebaseMessagingService() {
 
         Log.d(TAG, "FCM message received: title=$title body=$body data=${message.data}")
         NotificationHelper.showNotification(this, title, body, type)
+        val serverId = message.data["notificationId"]
         NotificationStore.add(
             NotificationItem(
+                id = serverId ?: java.util.UUID.randomUUID().toString(),
                 title = title,
                 body = body,
                 type = type,

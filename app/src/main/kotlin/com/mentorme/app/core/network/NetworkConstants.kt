@@ -5,6 +5,10 @@ object NetworkConstants {
     // Nếu chạy trên emulator, dùng 10.0.2.2
     // Nếu chạy trên device thật, dùng IP thật của máy tính
     const val BASE_URL = "http://172.22.224.1:4000/api/v1/"
+    val SOCKET_URL: String = BASE_URL
+        .removeSuffix("/")
+        .removeSuffix("api/v1")
+        .removeSuffix("/")
 
     // Headers
     const val CONTENT_TYPE = "Content-Type"

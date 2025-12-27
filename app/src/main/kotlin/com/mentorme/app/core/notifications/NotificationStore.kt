@@ -10,14 +10,30 @@ object NotificationStore {
     private val _notifications = MutableStateFlow<List<NotificationItem>>(emptyList())
     val notifications: StateFlow<List<NotificationItem>> = _notifications.asStateFlow()
 
+    fun setAll(items: List<NotificationItem>) {
+        _notifications.value = items.sortedByDescending { it.timestamp }
+    }
+
     fun seed(items: List<NotificationItem>) {
         if (_notifications.value.isEmpty()) {
-            _notifications.value = items
+            _notifications.value = items.sortedByDescending { it.timestamp }
+        }
+    }
+
+    fun merge(items: List<NotificationItem>) {
+        _notifications.update { current ->
+            val merged = LinkedHashMap<String, NotificationItem>()
+            items.forEach { merged[it.id] = it }
+            current.forEach { if (!merged.containsKey(it.id)) merged[it.id] = it }
+            merged.values.sortedByDescending { it.timestamp }
         }
     }
 
     fun add(item: NotificationItem) {
-        _notifications.update { current -> listOf(item) + current }
+        _notifications.update { current ->
+            if (current.any { it.id == item.id }) current
+            else listOf(item) + current
+        }
     }
 
     fun markAllRead() {

@@ -6,6 +6,11 @@ enum class NotificationType {
     BOOKING_CONFIRMED,
     BOOKING_REMINDER,
     BOOKING_CANCELLED,
+    BOOKING_PENDING,
+    BOOKING_DECLINED,
+    BOOKING_FAILED,
+    PAYMENT_SUCCESS,
+    PAYMENT_FAILED,
     MESSAGE,
     SYSTEM;
 
@@ -15,6 +20,11 @@ enum class NotificationType {
                 "booking_confirmed" -> BOOKING_CONFIRMED
                 "booking_reminder" -> BOOKING_REMINDER
                 "booking_cancelled" -> BOOKING_CANCELLED
+                "booking_pending" -> BOOKING_PENDING
+                "booking_declined" -> BOOKING_DECLINED
+                "booking_failed" -> BOOKING_FAILED
+                "payment_success" -> PAYMENT_SUCCESS
+                "payment_failed" -> PAYMENT_FAILED
                 "message" -> MESSAGE
                 else -> SYSTEM
             }

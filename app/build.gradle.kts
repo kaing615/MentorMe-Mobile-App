@@ -95,6 +95,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.gson)
     implementation("io.konform:konform-jvm:0.4.0")
+    implementation("io.socket:socket.io-client:2.1.0") {
+        exclude(group = "org.json", module = "json")
+    }
 // Use the correct version
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

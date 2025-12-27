@@ -10,6 +10,10 @@ object NotificationStore {
     private val _notifications = MutableStateFlow<List<NotificationItem>>(emptyList())
     val notifications: StateFlow<List<NotificationItem>> = _notifications.asStateFlow()
 
+    fun contains(id: String): Boolean {
+        return _notifications.value.any { it.id == id }
+    }
+
     fun setAll(items: List<NotificationItem>) {
         _notifications.value = items.sortedByDescending { it.timestamp }
     }

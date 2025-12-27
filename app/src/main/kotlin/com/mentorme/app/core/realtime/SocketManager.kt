@@ -1,12 +1,15 @@
 package com.mentorme.app.core.realtime
 
+import android.content.Context
 import android.util.Log
 import com.google.gson.Gson
 import com.mentorme.app.core.datastore.DataStoreManager
 import com.mentorme.app.core.network.NetworkConstants
+import com.mentorme.app.core.notifications.NotificationHelper
 import com.mentorme.app.core.notifications.NotificationStore
 import com.mentorme.app.data.mapper.NotificationSocketPayload
 import com.mentorme.app.data.mapper.toNotificationItem
+import dagger.hilt.android.qualifiers.ApplicationContext
 import io.socket.client.IO
 import io.socket.client.Socket
 import kotlinx.coroutines.CoroutineScope
@@ -21,7 +24,8 @@ import javax.inject.Singleton
 
 @Singleton
 class SocketManager @Inject constructor(
-    private val dataStoreManager: DataStoreManager
+    private val dataStoreManager: DataStoreManager,
+    @ApplicationContext private val appContext: Context
 ) {
     private val gson = Gson()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -93,8 +97,12 @@ class SocketManager @Inject constructor(
         val payload = parsePayload(raw) ?: return
         val item = payload.toNotificationItem() ?: return
 
+        val exists = NotificationStore.contains(item.id)
         NotificationStore.add(item)
         RealtimeEventBus.emit(RealtimeEvent.NotificationReceived(item, payload))
+        if (!exists) {
+            NotificationHelper.showNotification(appContext, item.title, item.body, item.type)
+        }
 
         val bookingId = extractBookingId(payload.data)
         if (!bookingId.isNullOrBlank()) {

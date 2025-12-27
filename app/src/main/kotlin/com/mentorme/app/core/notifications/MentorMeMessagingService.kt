@@ -36,9 +36,12 @@ class MentorMeMessagingService : FirebaseMessagingService() {
             ?: "You have a new update."
         val type = NotificationType.fromKey(message.data["type"])
 
-        Log.d(TAG, "FCM message received: title=$title body=$body data=${message.data}")
-        NotificationHelper.showNotification(this, title, body, type)
         val serverId = message.data["notificationId"]
+        val exists = serverId?.let { NotificationStore.contains(it) } == true
+        Log.d(TAG, "FCM message received: title=$title body=$body data=${message.data}")
+        if (!exists) {
+            NotificationHelper.showNotification(this, title, body, type)
+        }
         NotificationStore.add(
             NotificationItem(
                 id = serverId ?: java.util.UUID.randomUUID().toString(),

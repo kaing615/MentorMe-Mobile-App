@@ -18,6 +18,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.composed
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -37,12 +39,17 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mentorme.app.R
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeChild
 import android.graphics.RenderEffect as AndroidRenderEffect
 import android.graphics.Shader
 
 // Constants
 const val GLASS_ALPHA = 0.15f
 const val GLASS_BORDER = 0.3f
+val LocalHazeState = staticCompositionLocalOf<HazeState?> { null }
+val LocalHazeEnabled = staticCompositionLocalOf { false }
+private val DefaultGlassBlur = 20.dp
 
 /* =========================
  * Tokens map từ globals.css
@@ -127,26 +134,38 @@ fun Modifier.liquidGlass(
     alpha: Float = 0.15f,
     borderAlpha: Float = 0.3f,
     tint: Color = Color.White
-) = this
-    .clip(RoundedCornerShape(radius))
-    .background(
-        brush = Brush.linearGradient(
-            colors = listOf(
-                tint.copy(alpha = alpha),
-                tint.copy(alpha = alpha * 0.7f)
+) = composed {
+    val shape = RoundedCornerShape(radius)
+    val hazeState = LocalHazeState.current
+    val blurEnabled = LocalHazeEnabled.current
+    val hazeModifier = if (blurEnabled && hazeState != null) {
+        Modifier.hazeChild(state = hazeState, shape = shape)
+    } else {
+        Modifier
+    }
+
+    this
+        .clip(shape)
+        .then(hazeModifier)
+        .background(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    tint.copy(alpha = alpha),
+                    tint.copy(alpha = alpha * 0.7f)
+                )
             )
         )
-    )
-    .border(
-        width = 1.dp,
-        brush = Brush.linearGradient(
-            colors = listOf(
-                tint.copy(alpha = borderAlpha),
-                tint.copy(alpha = borderAlpha * 0.5f)
-            )
-        ),
-        shape = RoundedCornerShape(radius)
-    )
+        .border(
+            width = 1.dp,
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    tint.copy(alpha = borderAlpha),
+                    tint.copy(alpha = borderAlpha * 0.5f)
+                )
+            ),
+            shape = shape
+        )
+}
 
 /** Bản mạnh hơn – tương đương `.glass-strong`. */
 fun Modifier.liquidGlassStrong(
@@ -154,14 +173,26 @@ fun Modifier.liquidGlassStrong(
     alpha: Float = 0.25f,
     borderAlpha: Float = 0.4f,
     tint: Color = Color.White
-) = this
-    .clip(RoundedCornerShape(radius))
-    .background(tint.copy(alpha = alpha))
-    .border(
-        width = 1.5.dp,
-        color = tint.copy(alpha = borderAlpha),
-        shape = RoundedCornerShape(radius)
-    )
+) = composed {
+    val shape = RoundedCornerShape(radius)
+    val hazeState = LocalHazeState.current
+    val blurEnabled = LocalHazeEnabled.current
+    val hazeModifier = if (blurEnabled && hazeState != null) {
+        Modifier.hazeChild(state = hazeState, shape = shape)
+    } else {
+        Modifier
+    }
+
+    this
+        .clip(shape)
+        .then(hazeModifier)
+        .background(tint.copy(alpha = alpha))
+        .border(
+            width = 1.5.dp,
+            color = tint.copy(alpha = borderAlpha),
+            shape = shape
+        )
+}
 
 @Composable
 fun Modifier.realBlur(blurRadius: Dp): Modifier {

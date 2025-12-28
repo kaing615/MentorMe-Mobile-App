@@ -11,6 +11,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -40,9 +41,12 @@ import com.mentorme.app.ui.calendar.MentorBookingsViewModel
 import com.mentorme.app.ui.layout.GlassBottomBar
 import com.mentorme.app.ui.notifications.NotificationsViewModel
 import com.mentorme.app.ui.session.SessionViewModel
+import com.mentorme.app.ui.theme.LocalHazeEnabled
+import com.mentorme.app.ui.theme.LocalHazeState
 import com.mentorme.app.ui.theme.LiquidBackground
 import com.mentorme.app.ui.wallet.initialPaymentMethods
 import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.haze
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
@@ -70,7 +74,8 @@ fun AppNav(
     }
     val messageUnreadCount = 0
     val blurEnabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-    val hazeState = remember { HazeState() }
+    val hazeContentState = remember { HazeState() }
+    val hazeBackgroundState = remember { HazeState() }
 
     // Local UI state
     var payMethods by remember { mutableStateOf(initialPaymentMethods()) }
@@ -236,28 +241,32 @@ fun AppNav(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
-            containerColor = Color.Transparent,
-            contentWindowInsets = WindowInsets(0),
-            snackbarHost = { GlassSnackbarHost(snackbarHostState, activeType = snackbarType) },
-            bottomBar = {
-                val hideForChat = currentRoute?.startsWith("${Routes.Chat}/") == true
-                val hideForBooking = currentRoute?.startsWith("booking/") == true || currentRoute?.startsWith("bookingSummary/") == true
-                val hideForWallet = currentRoute?.startsWith("wallet/") == true
-                val hideForOnboarding = currentRoute?.startsWith("onboarding/") == true || currentRoute == Routes.Onboarding
-                val hideForPendingApproval = currentRoute == Routes.PendingApproval
+    CompositionLocalProvider(
+        LocalHazeState provides hazeBackgroundState,
+        LocalHazeEnabled provides blurEnabled
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Scaffold(
+                containerColor = Color.Transparent,
+                contentWindowInsets = WindowInsets(0),
+                snackbarHost = { GlassSnackbarHost(snackbarHostState, activeType = snackbarType) },
+                bottomBar = {
+                    val hideForChat = currentRoute?.startsWith("${Routes.Chat}/") == true
+                    val hideForBooking = currentRoute?.startsWith("booking/") == true || currentRoute?.startsWith("bookingSummary/") == true
+                    val hideForWallet = currentRoute?.startsWith("wallet/") == true
+                    val hideForOnboarding = currentRoute?.startsWith("onboarding/") == true || currentRoute == Routes.Onboarding
+                    val hideForPendingApproval = currentRoute == Routes.PendingApproval
 
-                if (!overlayVisible && sessionState.isLoggedIn && currentRoute != Routes.Auth &&
-                    !hideForChat && !hideForBooking && !hideForWallet && !hideForOnboarding && !hideForPendingApproval
-                ) {
-                    GlassBottomBar(
-                        navController = nav,
-                        userRole = sessionState.role ?: "mentee",
-                        notificationUnreadCount = unreadNotificationCount,
-                        calendarPendingCount = pendingBookingCount,
-                        messageUnreadCount = messageUnreadCount,
-                        hazeState = hazeState,
+                    if (!overlayVisible && sessionState.isLoggedIn && currentRoute != Routes.Auth &&
+                        !hideForChat && !hideForBooking && !hideForWallet && !hideForOnboarding && !hideForPendingApproval
+                    ) {
+                        GlassBottomBar(
+                            navController = nav,
+                            userRole = sessionState.role ?: "mentee",
+                            notificationUnreadCount = unreadNotificationCount,
+                            calendarPendingCount = pendingBookingCount,
+                            messageUnreadCount = messageUnreadCount,
+                        hazeState = hazeContentState,
                         blurEnabled = blurEnabled
                     )
                 }
@@ -267,24 +276,30 @@ fun AppNav(
             Box(
                 modifier = Modifier.fillMaxSize()
             ) {
-                LiquidBackground(modifier = Modifier.matchParentSize())
+                val backgroundHazeModifier = if (blurEnabled) {
+                    Modifier.haze(state = hazeBackgroundState)
+                } else {
+                    Modifier
+                }
+                LiquidBackground(modifier = Modifier.matchParentSize().then(backgroundHazeModifier))
                 Box(modifier = Modifier.fillMaxSize()) {
                     AppNavGraph(
                         nav = nav,
                         sessionVm = sessionVm,
-                        sessionState = sessionState,
-                        authVm = authVm,
-                        notificationsVm = notificationsVm,
-                        payMethods = payMethods,
-                        pendingRoleHint = pendingRoleHint,
-                        onPendingRoleHintChange = { pendingRoleHint = it },
-                        overlayVisible = overlayVisible,
-                        onOverlayVisibleChange = { overlayVisible = it },
-                        hazeState = hazeState,
+                            sessionState = sessionState,
+                            authVm = authVm,
+                            notificationsVm = notificationsVm,
+                            payMethods = payMethods,
+                            pendingRoleHint = pendingRoleHint,
+                            onPendingRoleHintChange = { pendingRoleHint = it },
+                            overlayVisible = overlayVisible,
+                            onOverlayVisibleChange = { overlayVisible = it },
+                        hazeState = hazeContentState,
                         blurEnabled = blurEnabled
                     )
                 }
             }
+        }
         }
     }
 }

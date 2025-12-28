@@ -131,7 +131,13 @@ fun GlassBottomBar(
             modifier = Modifier
                 .height(64.dp)
                 .fillMaxWidth()
-                .shadow(20.dp, shape, clip = false)
+                .shadow(
+                    elevation = 16.dp,
+                    shape = shape,
+                    clip = false,
+                    spotColor = Color.Black.copy(alpha = 0.4f),
+                    ambientColor = Color.Black.copy(alpha = 0.4f)
+                )
                 .clip(shape)
                 .then(hazeModifier)
                 .background(
@@ -249,7 +255,6 @@ private fun GlassBarItem(
 
     Column( // Thay đổi từ Row thành Column
         modifier = Modifier
-            .clip(RoundedCornerShape(18.dp))
             .padding(horizontal = 8.dp, vertical = 6.dp) // Điều chỉnh padding cho layout vertical
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },

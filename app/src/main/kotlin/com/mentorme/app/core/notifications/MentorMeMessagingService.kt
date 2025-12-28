@@ -41,6 +41,7 @@ class MentorMeMessagingService : FirebaseMessagingService() {
             ?: "You have a new update."
         val type = NotificationType.fromKey(message.data["type"])
         val route = NotificationDeepLink.routeFor(message.data)
+        val deepLink = route.takeUnless { it == NotificationDeepLink.ROUTE_NOTIFICATIONS }
 
         Log.d(TAG, "FCM message received: title=$title body=$body data=${message.data}")
         val serverId = message.data["notificationId"]
@@ -56,7 +57,7 @@ class MentorMeMessagingService : FirebaseMessagingService() {
             body = body,
             type = type,
             timestamp = System.currentTimeMillis(),
-            deepLink = route
+            deepLink = deepLink
         )
         NotificationStore.add(item)
         CoroutineScope(Dispatchers.IO).launch {

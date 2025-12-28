@@ -39,7 +39,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mentorme.app.data.repository.chat.impl.ChatRepositoryImpl
 import com.mentorme.app.ui.components.ui.MMTextField
-import com.mentorme.app.ui.messages.GlassIconButton
+import com.mentorme.app.ui.chat.components.ConversationCard
+import com.mentorme.app.ui.chat.components.GlassIconButton
 import com.mentorme.app.ui.theme.liquidGlass
 
 @RequiresApi(Build.VERSION_CODES.O)

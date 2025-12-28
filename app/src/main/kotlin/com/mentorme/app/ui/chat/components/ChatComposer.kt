@@ -1,4 +1,4 @@
-package com.mentorme.app.ui.messages
+package com.mentorme.app.ui.chat.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Icon

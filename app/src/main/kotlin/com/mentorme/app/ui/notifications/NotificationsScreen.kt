@@ -57,6 +57,7 @@ import com.mentorme.app.core.notifications.NotificationStore
 import com.mentorme.app.data.mock.MockData
 import com.mentorme.app.data.model.NotificationItem
 import com.mentorme.app.ui.components.ui.MMGhostButton
+import com.mentorme.app.ui.navigation.Routes
 import com.mentorme.app.ui.theme.LiquidBackground
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.theme.liquidGlass
@@ -175,13 +176,16 @@ fun NotificationsScreen(
                             contentPadding = PaddingValues(bottom = 24.dp)
                         ) {
                             items(filtered, key = { it.id }) { item ->
+                                val detailRoute = item.deepLink?.takeIf { it.isNotBlank() }
+                                    ?: Routes.notificationDetail(item.id)
+                                val showDialog = showDetailDialog && item.deepLink.isNullOrBlank()
                                 NotificationRow(
                                     item = item,
                                     onOpenDetail = {
-                                        if (showDetailDialog) {
+                                        if (showDialog) {
                                             selectedNotification = item
                                         } else {
-                                            onOpenDetail(item.id)
+                                            onOpenDetail(detailRoute)
                                         }
                                     },
                                     onMarkRead = { viewModel.markRead(it) }
@@ -366,10 +370,33 @@ private fun NotificationRow(
     onMarkRead: (String) -> Unit
 ) {
     val typeStyle = notificationTypeStyle(item.type)
-    val cardAlpha = if (item.read) 0.12f else 0.22f
-    val borderAlpha = if (item.read) 0.25f else 0.4f
+    val isBooking = isBookingNotification(item.type)
+    val cardAlpha = when {
+        isBooking && !item.read -> 0.3f
+        isBooking && item.read -> 0.2f
+        !item.read -> 0.22f
+        else -> 0.12f
+    }
+    val borderAlpha = when {
+        isBooking && !item.read -> 0.65f
+        isBooking && item.read -> 0.45f
+        !item.read -> 0.4f
+        else -> 0.25f
+    }
+    val unreadTint = if (!item.read) Color(0xFF22C55E).copy(alpha = 0.08f) else Color.Transparent
+    val cardModifier = if (!item.read) {
+        Modifier.clip(RoundedCornerShape(22.dp)).background(unreadTint)
+    } else {
+        Modifier
+    }
 
-    LiquidGlassCard(radius = 22.dp, alpha = cardAlpha, borderAlpha = borderAlpha) {
+    LiquidGlassCard(
+        modifier = cardModifier,
+        radius = 22.dp,
+        alpha = cardAlpha,
+        borderAlpha = borderAlpha,
+        strong = isBooking
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()

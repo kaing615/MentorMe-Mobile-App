@@ -45,6 +45,7 @@ import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.mentorme.app.ui.theme.ActiveNavGreen
 
 // ===== Model =====
 private data class NavItem(
@@ -183,28 +184,24 @@ private fun GlassBarItem(
     showDot: Boolean,
     onClick: () -> Unit
 ) {
-    val bg by animateColorAsState(
-        if (selected) Color.White.copy(alpha = 0.18f) else Color.Transparent, // Giảm từ 0.30f xuống 0.18f
-        label = "item-bg"
-    )
     val iconScale by animateFloatAsState(
         targetValue = if (selected) 1.12f else 1.0f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow),
         label = "icon-scale"
     )
+    val activeItemColor = ActiveNavGreen
     val textColor by animateColorAsState(
-        if (selected) Color.White else Color.White.copy(alpha = 0.78f),
+        if (selected) activeItemColor else Color.White.copy(alpha = 0.78f),
         label = "text-color"
     )
     val iconTint by animateColorAsState(
-        if (selected) Color.White else Color.White.copy(alpha = 0.88f),
+        if (selected) activeItemColor else Color.White.copy(alpha = 0.88f),
         label = "icon-tint"
     )
 
     Column( // Thay đổi từ Row thành Column
         modifier = Modifier
             .clip(RoundedCornerShape(18.dp))
-            .background(bg)
             .padding(horizontal = 8.dp, vertical = 6.dp) // Điều chỉnh padding cho layout vertical
             .clickable(
                 interactionSource = MutableInteractionSource(),

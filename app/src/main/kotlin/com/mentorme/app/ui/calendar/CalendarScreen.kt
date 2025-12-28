@@ -62,6 +62,11 @@ private fun minutesToHHmm(mins: Int): String {
 
 private fun addMinutes(hhmm: String, plus: Int) = minutesToHHmm(hhmmToMinutes(hhmm) + plus)
 
+private fun durationMinutes(start: String, end: String): Int {
+    val diff = hhmmToMinutes(end) - hhmmToMinutes(start)
+    return if (diff < 0) diff + 24 * 60 else diff
+}
+
 private fun isFutureOrNow(date: String, time: String, nowDate: String, nowTime: String) =
     when {
         date > nowDate -> true
@@ -398,7 +403,7 @@ private fun BookingCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                val minutes = hhmmToMinutes(booking.endTime) - hhmmToMinutes(booking.startTime)
+                val minutes = durationMinutes(booking.startTime, booking.endTime)
 
                 Box(
                     modifier = Modifier

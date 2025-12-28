@@ -82,6 +82,7 @@ dependencies {
     implementation(libs.androidx.foundation)
     implementation(libs.foundation)
     implementation(libs.room.ktx)
+    implementation(libs.androidx.compose.runtime)
     kapt(libs.hilt.compiler)
 
     implementation(libs.retrofit)

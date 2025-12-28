@@ -25,7 +25,8 @@ import kotlinx.coroutines.launch
 
 private fun durationMinutes(start: String, end: String): Int {
     fun toMin(hhmm: String) = hhmm.split(":").let { it[0].toInt() * 60 + it[1].toInt() }
-    return toMin(end) - toMin(start)
+    val diff = toMin(end) - toMin(start)
+    return if (diff < 0) diff + 24 * 60 else diff
 }
 
 private fun menteeDisplayName(booking: Booking): String {

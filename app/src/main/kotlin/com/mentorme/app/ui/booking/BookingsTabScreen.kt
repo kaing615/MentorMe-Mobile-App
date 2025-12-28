@@ -237,6 +237,7 @@ private fun durationMinutes(start: String, end: String): Int {
     return try {
         val (sh, sm) = start.split(":").map { it.toInt() }
         val (eh, em) = end.split(":").map { it.toInt() }
-        (eh * 60 + em) - (sh * 60 + sm)
+        val diff = (eh * 60 + em) - (sh * 60 + sm)
+        if (diff < 0) diff + 24 * 60 else diff
     } catch (_: Exception) { 0 }
 }

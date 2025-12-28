@@ -38,7 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.mentorme.app.ui.common.GlassOverlay
+import com.mentorme.app.ui.components.ui.GlassOverlay
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.mentors.MentorCard
 import com.mentorme.app.ui.search.components.BookSessionContent
@@ -170,7 +170,7 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(
             top = 12.dp,
-            bottom = 75.dp
+            bottom = 110.dp
         )
     ) {
         item {

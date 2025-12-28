@@ -1,4 +1,4 @@
-package com.mentorme.app.ui.chat
+package com.mentorme.app.ui.chat.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

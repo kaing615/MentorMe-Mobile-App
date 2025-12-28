@@ -1,4 +1,4 @@
-package com.mentorme.app.ui.messages
+package com.mentorme.app.ui.chat.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -23,7 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mentorme.app.data.model.chat.Conversation
 import com.mentorme.app.data.model.chat.Message
-import com.mentorme.app.ui.chat.MessageBubbleGlass
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.theme.liquidGlassStrong
 

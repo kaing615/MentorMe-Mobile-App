@@ -108,6 +108,21 @@ internal fun formatNotificationTime(timestamp: Long): String {
     return formatter.format(Date(timestamp))
 }
 
+internal fun isBookingNotification(type: NotificationType): Boolean {
+    return when (type) {
+        NotificationType.BOOKING_CONFIRMED,
+        NotificationType.BOOKING_REMINDER,
+        NotificationType.BOOKING_CANCELLED,
+        NotificationType.BOOKING_PENDING,
+        NotificationType.BOOKING_DECLINED,
+        NotificationType.BOOKING_FAILED -> true
+        NotificationType.PAYMENT_SUCCESS,
+        NotificationType.PAYMENT_FAILED,
+        NotificationType.MESSAGE,
+        NotificationType.SYSTEM -> false
+    }
+}
+
 @Composable
 internal fun NotificationStatusPill(
     read: Boolean,

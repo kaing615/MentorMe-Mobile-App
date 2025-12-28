@@ -93,6 +93,17 @@ function buildPaymentDedupeKey(type: 'payment_success' | 'payment_failed', userI
   return `${type}:${userId}:${bookingId}`;
 }
 
+function formatDateTimeVi(date: Date) {
+  return date.toLocaleString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour12: false,
+  });
+}
+
 function isPushEnabledForType(
   prefs: any,
   type: TNotificationType
@@ -163,124 +174,129 @@ export async function createNotification(
 
 export async function notifyBookingConfirmed(data: NotificationData) {
   const { bookingId, mentorId, menteeId, mentorName, menteeName, startTime } = data;
-  const dateStr = startTime.toISOString();
+  const dateIso = startTime.toISOString();
+  const dateStr = formatDateTimeVi(startTime);
 
   // Notify mentee
   await createNotification(
     menteeId,
     'booking_confirmed',
-    'Booking Confirmed',
-    `Your session with ${mentorName} is confirmed for ${dateStr}`,
-    { bookingId, mentorId, startTime: dateStr }
+    'Lịch hẹn đã xác nhận',
+    `Mentor ${mentorName} đã xác nhận lịch lúc ${dateStr}.`,
+    { bookingId, mentorId, startTime: dateIso }
   );
 
   // Notify mentor
   await createNotification(
     mentorId,
     'booking_confirmed',
-    'New Booking Confirmed',
-    `${menteeName} has booked a session with you on ${dateStr}`,
-    { bookingId, menteeId, startTime: dateStr }
+    'Lịch hẹn mới',
+    `${menteeName} đã đặt lịch lúc ${dateStr}.`,
+    { bookingId, menteeId, startTime: dateIso }
   );
 }
 
 export async function notifyBookingFailed(data: NotificationData) {
   const { bookingId, mentorName, menteeId, startTime } = data;
-  const dateStr = startTime.toISOString();
+  const dateIso = startTime.toISOString();
+  const dateStr = formatDateTimeVi(startTime);
 
   await createNotification(
     menteeId,
     'booking_failed',
-    'Booking Failed',
-    `Your booking with ${mentorName} could not be completed. The slot has been released.`,
-    { bookingId, startTime: dateStr }
+    'Không thể đặt lịch',
+    `Lịch với ${mentorName} không thành công. Khung giờ đã được mở lại.`,
+    { bookingId, startTime: dateIso }
   );
 }
 
 export async function notifyBookingCancelled(data: NotificationData, cancelledByMentor: boolean) {
   const { bookingId, mentorId, menteeId, mentorName, menteeName, startTime } = data;
-  const dateStr = startTime.toISOString();
+  const dateIso = startTime.toISOString();
   const cancelledBy = cancelledByMentor ? mentorName : menteeName;
 
   // Notify mentee
   await createNotification(
     menteeId,
     'booking_cancelled',
-    'Booking Cancelled',
-    `Your session with ${mentorName} has been cancelled by ${cancelledBy}.`,
-    { bookingId, mentorId, startTime: dateStr, cancelledBy }
+    'Lịch hẹn đã hủy',
+    `Lịch với ${mentorName} đã bị hủy bởi ${cancelledBy}.`,
+    { bookingId, mentorId, startTime: dateIso, cancelledBy }
   );
 
   // Notify mentor
   await createNotification(
     mentorId,
     'booking_cancelled',
-    'Booking Cancelled',
-    `Session with ${menteeName} has been cancelled by ${cancelledBy}.`,
-    { bookingId, menteeId, startTime: dateStr, cancelledBy }
+    'Lịch hẹn đã hủy',
+    `Lịch với ${menteeName} đã bị hủy bởi ${cancelledBy}.`,
+    { bookingId, menteeId, startTime: dateIso, cancelledBy }
   );
 }
 
 export async function notifyBookingReminder(data: NotificationData) {
   const { bookingId, mentorId, menteeId, mentorName, menteeName, startTime } = data;
-  const dateStr = startTime.toISOString();
+  const dateIso = startTime.toISOString();
+  const dateStr = formatDateTimeVi(startTime);
 
   await createNotification(
     menteeId,
     'booking_reminder',
-    'Upcoming Session',
-    `Reminder: your session with ${mentorName} starts at ${dateStr}.`,
-    { bookingId, mentorId, startTime: dateStr }
+    'Nhắc lịch hẹn',
+    `Lịch với ${mentorName} bắt đầu lúc ${dateStr}.`,
+    { bookingId, mentorId, startTime: dateIso }
   );
 
   await createNotification(
     mentorId,
     'booking_reminder',
-    'Upcoming Session',
-    `Reminder: your session with ${menteeName} starts at ${dateStr}.`,
-    { bookingId, menteeId, startTime: dateStr }
+    'Nhắc lịch hẹn',
+    `Lịch với ${menteeName} bắt đầu lúc ${dateStr}.`,
+    { bookingId, menteeId, startTime: dateIso }
   );
 }
 
 export async function notifyBookingPending(data: NotificationData) {
   const { bookingId, mentorId, menteeId, mentorName, menteeName, startTime } = data;
-  const dateStr = startTime.toISOString();
+  const dateIso = startTime.toISOString();
+  const dateStr = formatDateTimeVi(startTime);
 
   await createNotification(
     menteeId,
     'booking_pending',
-    'Booking Awaiting Confirmation',
-    `Your booking with ${mentorName} is awaiting mentor confirmation for ${dateStr}.`,
-    { bookingId, mentorId, startTime: dateStr }
+    'Chờ mentor xác nhận',
+    `Lịch với ${mentorName} lúc ${dateStr} đang chờ xác nhận.`,
+    { bookingId, mentorId, startTime: dateIso }
   );
 
   await createNotification(
     mentorId,
     'booking_pending',
-    'Confirm New Booking',
-    `${menteeName} requested a session on ${dateStr}. Please confirm or decline.`,
-    { bookingId, menteeId, startTime: dateStr }
+    'Yêu cầu lịch hẹn',
+    `${menteeName} muốn đặt lịch lúc ${dateStr}. Vui lòng xác nhận hoặc từ chối.`,
+    { bookingId, menteeId, startTime: dateIso }
   );
 }
 
 export async function notifyBookingDeclined(data: NotificationData) {
   const { bookingId, mentorId, menteeId, mentorName, menteeName, startTime } = data;
-  const dateStr = startTime.toISOString();
+  const dateIso = startTime.toISOString();
+  const dateStr = formatDateTimeVi(startTime);
 
   await createNotification(
     menteeId,
     'booking_declined',
-    'Booking Declined',
-    `Your booking with ${mentorName} for ${dateStr} was declined.`,
-    { bookingId, mentorId, startTime: dateStr }
+    'Lịch hẹn bị từ chối',
+    `Mentor ${mentorName} đã từ chối lịch lúc ${dateStr}.`,
+    { bookingId, mentorId, startTime: dateIso }
   );
 
   await createNotification(
     mentorId,
     'booking_declined',
-    'Booking Declined',
-    `You declined the session with ${menteeName} on ${dateStr}.`,
-    { bookingId, menteeId, startTime: dateStr }
+    'Đã từ chối lịch hẹn',
+    `Bạn đã từ chối lịch với ${menteeName} lúc ${dateStr}.`,
+    { bookingId, menteeId, startTime: dateIso }
   );
 }
 
@@ -298,12 +314,13 @@ export async function notifyPaymentSuccess(data: PaymentNotificationData) {
     status,
     event,
   } = data;
-  const dateStr = startTime.toISOString();
+  const dateIso = startTime.toISOString();
+  const dateStr = formatDateTimeVi(startTime);
   const payload = {
     bookingId,
     mentorId,
     menteeId,
-    startTime: dateStr,
+    startTime: dateIso,
     amount,
     currency,
     paymentId,
@@ -314,8 +331,8 @@ export async function notifyPaymentSuccess(data: PaymentNotificationData) {
   await createNotification(
     menteeId,
     'payment_success',
-    'Payment Successful',
-    `Payment successful for your session with ${mentorName} on ${dateStr}.`,
+    'Thanh toán thành công',
+    `Bạn đã thanh toán lịch với ${mentorName} lúc ${dateStr}.`,
     payload,
     { dedupeKey: buildPaymentDedupeKey('payment_success', menteeId, bookingId) }
   );
@@ -323,8 +340,8 @@ export async function notifyPaymentSuccess(data: PaymentNotificationData) {
   await createNotification(
     mentorId,
     'payment_success',
-    'Payment Received',
-    `Payment received for session with ${menteeName} on ${dateStr}.`,
+    'Đã nhận thanh toán',
+    `Đã nhận thanh toán lịch với ${menteeName} lúc ${dateStr}.`,
     payload,
     { dedupeKey: buildPaymentDedupeKey('payment_success', mentorId, bookingId) }
   );
@@ -344,12 +361,13 @@ export async function notifyPaymentFailed(data: PaymentNotificationData) {
     status,
     event,
   } = data;
-  const dateStr = startTime.toISOString();
+  const dateIso = startTime.toISOString();
+  const dateStr = formatDateTimeVi(startTime);
   const payload = {
     bookingId,
     mentorId,
     menteeId,
-    startTime: dateStr,
+    startTime: dateIso,
     amount,
     currency,
     paymentId,
@@ -360,8 +378,8 @@ export async function notifyPaymentFailed(data: PaymentNotificationData) {
   await createNotification(
     menteeId,
     'payment_failed',
-    'Payment Failed',
-    `Payment failed for your session with ${mentorName}. Please try again.`,
+    'Thanh toán thất bại',
+    `Thanh toán lịch với ${mentorName} không thành công. Vui lòng thử lại.`,
     payload,
     { dedupeKey: buildPaymentDedupeKey('payment_failed', menteeId, bookingId) }
   );
@@ -369,8 +387,8 @@ export async function notifyPaymentFailed(data: PaymentNotificationData) {
   await createNotification(
     mentorId,
     'payment_failed',
-    'Payment Failed',
-    `Payment failed for session with ${menteeName}.`,
+    'Thanh toán thất bại',
+    `Thanh toán lịch với ${menteeName} không thành công.`,
     payload,
     { dedupeKey: buildPaymentDedupeKey('payment_failed', mentorId, bookingId) }
   );

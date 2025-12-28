@@ -5,6 +5,7 @@ Giao diện chat giữa student và mentor để trao đổi trước/sau sessio
 
 ## Files chính
 - `MessagesScreen.kt` - Danh sách conversations và chat interface
+- `components/` - Composer, bubbles, conversation cards, dialogs.
 
 ## Chức năng
 - Danh sách conversations với mentors

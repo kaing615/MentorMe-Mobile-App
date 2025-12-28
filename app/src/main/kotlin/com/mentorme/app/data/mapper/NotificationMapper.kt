@@ -1,5 +1,6 @@
 package com.mentorme.app.data.mapper
 
+import com.mentorme.app.core.notifications.NotificationDeepLink
 import com.mentorme.app.data.dto.notifications.NotificationDto
 import com.mentorme.app.data.model.NotificationItem
 import com.mentorme.app.data.model.NotificationType
@@ -19,11 +20,14 @@ private fun mapToNotificationItem(
     type: String?,
     title: String?,
     body: String?,
+    data: Map<String, Any?>?,
     read: Boolean?,
     createdAt: String?
 ): NotificationItem? {
     val itemId = id?.trim().orEmpty()
     if (itemId.isBlank()) return null
+    val route = NotificationDeepLink.routeFor(data)
+    val deepLink = route.takeUnless { it == NotificationDeepLink.ROUTE_NOTIFICATIONS }
 
     return NotificationItem(
         id = itemId,
@@ -32,7 +36,7 @@ private fun mapToNotificationItem(
         type = NotificationType.fromKey(type),
         timestamp = parseIsoMillis(createdAt),
         read = read ?: false,
-        deepLink = null
+        deepLink = deepLink
     )
 }
 
@@ -42,6 +46,7 @@ fun NotificationDto.toNotificationItem(): NotificationItem? {
         type = type,
         title = title,
         body = body,
+        data = data,
         read = read,
         createdAt = createdAt
     )
@@ -64,6 +69,7 @@ fun NotificationSocketPayload.toNotificationItem(): NotificationItem? {
         type = type,
         title = title,
         body = body,
+        data = data,
         read = read,
         createdAt = createdAt
     )

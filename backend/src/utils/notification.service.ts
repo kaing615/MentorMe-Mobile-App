@@ -100,7 +100,7 @@ function isPushEnabledForType(
   const safe = prefs || {};
   if (type.startsWith('booking_')) return safe.pushBooking !== false;
   if (type.startsWith('payment_')) return safe.pushPayment !== false;
-  if (type === 'message') return safe.pushMessage !== false;
+  if ((type as string) === 'message') return safe.pushMessage !== false;
   return safe.pushSystem !== false;
 }
 

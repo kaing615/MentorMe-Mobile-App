@@ -1,8 +1,5 @@
 package com.mentorme.app.ui.notifications
 
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -49,7 +46,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,13 +53,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.mentorme.app.R
-import com.mentorme.app.core.notifications.NotificationHelper
 import com.mentorme.app.core.notifications.NotificationStore
 import com.mentorme.app.data.mock.MockData
 import com.mentorme.app.data.model.NotificationItem
-import com.mentorme.app.data.model.NotificationType
 import com.mentorme.app.ui.components.ui.MMGhostButton
-import com.mentorme.app.ui.components.ui.MMPrimaryButton
 import com.mentorme.app.ui.theme.LiquidBackground
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.theme.liquidGlass
@@ -83,21 +76,10 @@ fun NotificationsScreen(
     showDetailDialog: Boolean = true,
     viewModel: NotificationsViewModel = hiltViewModel()
 ) {
-    val context = LocalContext.current
-    val testTitle = stringResource(R.string.notification_test_title)
-    val testBody = stringResource(R.string.notification_test_body)
-
     var filter by remember { mutableStateOf(NotificationFilter.ALL) }
-    var hasPermission by remember { mutableStateOf(NotificationHelper.hasPostPermission(context)) }
     var selectedNotification by remember { mutableStateOf<NotificationItem?>(null) }
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        hasPermission = granted
-    }
 
     LaunchedEffect(Unit) {
-        hasPermission = NotificationHelper.hasPostPermission(context)
         viewModel.refresh()
     }
 
@@ -108,7 +90,6 @@ fun NotificationsScreen(
         }
     }
     val unreadCount = notifications.count { !it.read }
-    val readCount = notifications.count { it.read }
     val filtered = remember(filter, notifications) {
         when (filter) {
             NotificationFilter.ALL -> notifications
@@ -166,37 +147,9 @@ fun NotificationsScreen(
                 ) {
                     NotificationSummaryCard(
                         unreadCount = unreadCount,
-                        readCount = readCount,
-                        totalCount = notifications.size,
                         onMarkAllRead = { viewModel.markAllRead() },
                         markAllEnabled = unreadCount > 0
                     )
-
-                    NotificationPermissionCard(
-                        hasPermission = hasPermission,
-                        onRequestPermission = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                            }
-                        },
-                        onSendTest = {
-                            val demo = NotificationItem(
-                                title = testTitle,
-                                body = testBody,
-                                type = NotificationType.SYSTEM,
-                                timestamp = System.currentTimeMillis(),
-                                read = false
-                            )
-                            NotificationHelper.showNotification(
-                                context,
-                                demo.title,
-                                demo.body,
-                                demo.type
-                            )
-                            NotificationStore.add(demo)
-                        }
-                    )
-
 
                     NotificationFilterBar(
                         selected = filter,
@@ -252,8 +205,6 @@ fun NotificationsScreen(
 @Composable
 private fun NotificationSummaryCard(
     unreadCount: Int,
-    readCount: Int,
-    totalCount: Int,
     onMarkAllRead: () -> Unit,
     markAllEnabled: Boolean
 ) {
@@ -265,16 +216,16 @@ private fun NotificationSummaryCard(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = if (unreadCount > 0) stringResource(R.string.notification_summary_unread, unreadCount) else stringResource(R.string.notification_summary_none),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                        text = stringResource(R.string.notification_stat_unread),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color.White.copy(alpha = 0.7f)
                     )
                     Text(
-                        text = stringResource(R.string.notification_summary_subtitle),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.7f)
+                        text = unreadCount.toString(),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold
                     )
                 }
                 Box(
@@ -286,12 +237,6 @@ private fun NotificationSummaryCard(
                 ) {
                     Icon(Icons.Outlined.Notifications, contentDescription = null, tint = Color.White)
                 }
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                NotificationStatChip(label = stringResource(R.string.notification_stat_total), count = totalCount, modifier = Modifier.weight(1f))
-                NotificationStatChip(label = stringResource(R.string.notification_stat_unread), count = unreadCount, modifier = Modifier.weight(1f))
-                NotificationStatChip(label = stringResource(R.string.notification_stat_read), count = readCount, modifier = Modifier.weight(1f))
             }
 
             MMGhostButton(
@@ -307,113 +252,6 @@ private fun NotificationSummaryCard(
     }
 }
 
-@Composable
-private fun NotificationStatChip(
-    label: String,
-    count: Int,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .liquidGlass(radius = 14.dp, alpha = 0.16f, borderAlpha = 0.3f)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Text("$count", fontWeight = FontWeight.SemiBold)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
-    }
-}
-
-@Composable
-private fun NotificationPermissionCard(
-    hasPermission: Boolean,
-    onRequestPermission: () -> Unit,
-    onSendTest: () -> Unit
-) {
-    val statusText = if (hasPermission) stringResource(R.string.notification_permission_enabled) else stringResource(R.string.notification_permission_required)
-    val statusColor = if (hasPermission) Color(0xFF34D399) else Color(0xFFFBBF24)
-
-    LiquidGlassCard(radius = 22.dp) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(statusColor.copy(alpha = 0.18f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Outlined.Notifications, contentDescription = null, tint = statusColor)
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.notification_permission_title), fontWeight = FontWeight.SemiBold)
-                    Text(
-                        statusText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.7f)
-                    )
-                }
-                PermissionStatusPill(granted = hasPermission)
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasPermission) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    MMPrimaryButton(
-                        onClick = onRequestPermission,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(stringResource(R.string.notification_permission_enable_action))
-                    }
-                    MMGhostButton(
-                        onClick = onSendTest,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(stringResource(R.string.notification_send_test))
-                    }
-                }
-            } else {
-                MMGhostButton(
-                    onClick = onSendTest,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(R.string.notification_send_test))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PermissionStatusPill(
-    granted: Boolean
-) {
-    val label = if (granted) stringResource(R.string.notification_permission_granted) else stringResource(R.string.notification_permission_not_granted)
-    val accent = if (granted) Color(0xFF34D399) else Color(0xFFFBBF24)
-    val shape = RoundedCornerShape(999.dp)
-
-    Box(
-        modifier = Modifier
-            .clip(shape)
-            .background(accent.copy(alpha = 0.18f))
-            .border(1.dp, accent.copy(alpha = 0.5f), shape)
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = Color.White
-        )
-    }
-}
 
 @Composable
 private fun NotificationFilterBar(

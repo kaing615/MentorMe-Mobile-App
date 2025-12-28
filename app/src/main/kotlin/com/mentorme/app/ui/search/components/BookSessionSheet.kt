@@ -36,7 +36,7 @@ import com.mentorme.app.data.dto.availability.slotPriceVndOrNull
 import com.mentorme.app.data.dto.profile.ProfileDto
 import com.mentorme.app.domain.usecase.availability.GetPublicCalendarUseCase
 import com.mentorme.app.domain.usecase.profile.GetPublicProfileUseCase
-import com.mentorme.app.ui.common.glassOutlinedTextFieldColors
+import com.mentorme.app.ui.components.ui.glassOutlinedTextFieldColors
 import com.mentorme.app.ui.components.ui.MMGhostButton
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
 import com.mentorme.app.ui.home.Mentor as HomeMentor

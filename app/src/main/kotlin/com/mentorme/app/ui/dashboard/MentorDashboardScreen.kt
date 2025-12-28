@@ -1,628 +1,481 @@
-package com.mentorme.app.ui.profile
+package com.mentorme.app.ui.dashboard
 
-import android.util.Log
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Logout
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
-import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
-import androidx.hilt.navigation.compose.hiltViewModel
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.components.ui.MMGhostButton
-import com.mentorme.app.ui.components.ui.MMPrimaryButton
-import com.mentorme.app.ui.components.ui.MMTextField
 import com.mentorme.app.ui.theme.LiquidBackground
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.theme.liquidGlass
-import com.mentorme.app.ui.wallet.PaymentMethod
-import com.mentorme.app.ui.wallet.initialPaymentMethods
-import kotlinx.coroutines.launch
-import java.util.*
 
-private fun mockTxLocal(): List<WalletTx> = listOf(
-    WalletTx("t1", GregorianCalendar(2025, 8, 21, 10, 15).time, TxType.TOP_UP, +5_000_000, "Thu nhập tháng 8", TxStatus.SUCCESS),
-    WalletTx("t2", GregorianCalendar(2025, 8, 20, 14, 0).time, TxType.WITHDRAW, -2_000_000, "Rút về VCB", TxStatus.SUCCESS),
-    WalletTx("t3", GregorianCalendar(2025, 8, 19, 9, 30).time, TxType.PAYMENT, +500_000, "Booking #123", TxStatus.SUCCESS),
+private data class DashboardStat(
+    val title: String,
+    val value: String,
+    val icon: @Composable () -> Unit,
+    val trend: String? = null
 )
 
-// ✅ helper map target -> tab index
-private fun tabIndexFor(target: String): Int {
-    return when (target.lowercase(Locale.ROOT)) {
-        "profile", "hoso", "ho-so" -> 0
-        "dashboard" -> 1
-        "wallet", "vi" -> 2
-        "settings", "caidat", "cai-dat" -> 3
-        else -> 0
-    }
-}
+private data class UpcomingSession(
+    val id: String,
+    val menteeName: String,
+    val topic: String,
+    val time: String,
+    val avatarInitial: String,
+    val isStartingSoon: Boolean = false
+)
 
-@OptIn(ExperimentalMaterial3Api::class)
+private data class RecentReview(
+    val menteeName: String,
+    val rating: Double,
+    val comment: String,
+    val date: String
+)
+
+private val mentorStats = listOf(
+    DashboardStat("Thu nhập", "15.6M ₫", { Icon(Icons.Default.MonetizationOn, null, tint = Color(0xFF34D399)) }, "+8%"),
+    DashboardStat("Học viên", "128", { Icon(Icons.Default.Groups, null, tint = Color(0xFF60A5FA)) }, "+12"),
+    DashboardStat("Đánh giá", "4.9 ⭐", { Icon(Icons.Default.Star, null, tint = Color(0xFFFFD700)) }),
+    DashboardStat("Giờ dạy", "45h", { Icon(Icons.Default.AccessTime, null, tint = Color.White) })
+)
+
+private val nextSession = UpcomingSession(
+    id = "s1",
+    menteeName = "Phạm Tuấn Anh",
+    topic = "Mock Interview: System Design",
+    time = "10:00 - 11:00 hôm nay",
+    avatarInitial = "P",
+    isStartingSoon = true
+)
+
+private val recentReviews = listOf(
+    RecentReview("Lê Thu Hà", 5.0, "Mentor cực kỳ nhiệt tình, giải thích dễ hiểu!", "Hôm qua"),
+    RecentReview("Trần Văn B", 4.8, "Kiến thức sâu rộng, tuy nhiên hơi nhanh một chút.", "2 ngày trước"),
+    RecentReview("Nguyễn C", 5.0, "Rất đáng tiền, cảm ơn anh đã định hướng career path.", "1 tuần trước")
+)
+
 @Composable
-fun MentorProfileScreen(
-    // ✅ NEW: nhận “điểm vào” để mở đúng tab
-    startTarget: String = "profile",
-
-    onEditProfile: () -> Unit = {},
+fun MentorDashboardScreen(
+    vm: com.mentorme.app.ui.profile.ProfileViewModel,
+    onViewSchedule: () -> Unit = {},
+    onViewStudents: () -> Unit = {},
     onViewEarnings: () -> Unit = {},
     onViewReviews: () -> Unit = {},
-    onUpdateAvailability: () -> Unit = {},
-    onManageServices: () -> Unit = {},
-    onViewStatistics: () -> Unit = {},
-    onSettings: () -> Unit = {},
-    onLogout: () -> Unit = {},
-    modifier: Modifier = Modifier,
-    onOpenTopUp: () -> Unit = {},
-    onOpenWithdraw: () -> Unit = {},
-    onOpenChangeMethod: () -> Unit = {},
-    onAddMethod: () -> Unit = {},
-    methods: List<PaymentMethod> = initialPaymentMethods()
+    onJoinSession: (String) -> Unit = {},
+    onViewAllSessions: () -> Unit = {},
+    onUpdateProfile: () -> Unit = {},
+
+    // ✅ NEW: mở thẳng tab "Cài đặt" trong profile
+    onOpenSettings: () -> Unit = {},
+
+    modifier: Modifier = Modifier
 ) {
-    val TAG = "MentorProfileUI"
-
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-    val vm: MentorProfileViewModel = hiltViewModel()
+    // Collect profile data from ViewModel
     val state by vm.state.collectAsState()
-
     val profile = state.profile
-    val isLoading = state.loading
-    val isEditing = state.editing
-    val edited = state.edited
+    val mentorName = profile?.fullName ?: "Mentor"
+    
+    Box(modifier = modifier.fillMaxSize()) {
+        LiquidBackground(Modifier.matchParentSize())
 
-    // ✅ IMPORTANT:
-    // - rememberSaveable giữ tab khi rotate/process restore
-    // - LaunchedEffect(startTarget) chỉ set khi target thay đổi (vd: từ dashboard sang settings)
-    var selectedTab by rememberSaveable { mutableIntStateOf(tabIndexFor(startTarget)) }
-    LaunchedEffect(startTarget) {
-        Log.d(TAG, "Enter MentorProfileScreen -> startTarget=$startTarget -> selectedTab=${tabIndexFor(startTarget)}")
-        selectedTab = tabIndexFor(startTarget)
-    }
-
-    val tabs = listOf("Hồ sơ", "Dashboard", "Ví", "Cài đặt")
-
-    Box(Modifier.fillMaxSize()) {
-        LiquidBackground(
+        LazyColumn(
             modifier = Modifier
-                .matchParentSize()
-                .zIndex(-1f)
-        )
+                .fillMaxSize()
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(
+                        WindowInsetsSides.Top + WindowInsetsSides.Horizontal
+                    )
+                )
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(top = 12.dp, bottom = 120.dp)
+        ) {
+            item { MentorWelcomeSection(mentorName = mentorName) }
 
-        CompositionLocalProvider(LocalContentColor provides Color.White) {
-            Scaffold(
-                containerColor = Color.Transparent,
-                contentColor = Color.White,
-                snackbarHost = { SnackbarHost(snackbarHostState) },
-                topBar = {
-                    CenterAlignedTopAppBar(
-                        title = {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        "Hồ sơ Mentor",
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(Modifier.width(6.dp))
-                                    Icon(
-                                        Icons.Filled.Star,
-                                        contentDescription = "Verified",
-                                        tint = Color(0xFFFFD700),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Text(
-                                    "Quản lý thương hiệu cá nhân",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.White.copy(alpha = 0.7f)
-                                )
-                            }
-                        },
-                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                            containerColor = Color.Transparent,
-                            titleContentColor = Color.White
-                        )
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SectionTitle("Lịch hẹn sắp tới")
+                    NextSessionCard(
+                        session = nextSession,
+                        onJoin = { onJoinSession(nextSession.id) },
+                        onViewCalendar = onViewSchedule
                     )
                 }
-            ) { padding ->
-                if (isLoading) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = Color.White)
-                    }
-                    return@Scaffold
-                }
+            }
 
-                state.error?.let { errorMsg ->
-                    Box(
-                        modifier = Modifier.fillMaxSize().padding(16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Lỗi: $errorMsg", color = Color.White)
-                            Spacer(Modifier.height(12.dp))
-                            MMPrimaryButton(onClick = { vm.refresh() }) {
-                                Text("Thử lại")
-                            }
-                        }
-                    }
-                    return@Scaffold
-                }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SectionTitle("Tổng quan tháng này")
 
-                if (profile == null) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("Không có dữ liệu profile", color = Color.White)
-                    }
-                    return@Scaffold
-                }
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(horizontal = 16.dp)
-                        .padding(top = 12.dp, bottom = 92.dp)
-                ) {
-                    LiquidGlassCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        radius = 22.dp
-                    ) {
-                        TabRow(
-                            selectedTabIndex = selectedTab,
-                            containerColor = Color.Transparent,
-                            contentColor = Color.White,
-                            indicator = { positions ->
-                                if (positions.isNotEmpty()) {
-                                    val pos = positions[selectedTab.coerceIn(0, positions.lastIndex)]
-                                    Box(
-                                        Modifier
-                                            .tabIndicatorOffset(pos)
-                                            .fillMaxHeight()
-                                            .padding(6.dp)
-                                            .border(
-                                                BorderStroke(
-                                                    2.dp,
-                                                    Brush.linearGradient(
-                                                        listOf(
-                                                            Color(0xFF60A5FA),
-                                                            Color(0xFFA78BFA),
-                                                            Color(0xFFF472B6)
-                                                        )
-                                                    )
-                                                ),
-                                                RoundedCornerShape(14.dp)
-                                            )
-                                            .clip(RoundedCornerShape(14.dp))
-                                            .background(Color.White.copy(alpha = 0.08f))
-                                    )
-                                }
-                            },
-                            divider = {}
-                        ) {
-                            tabs.forEachIndexed { i, label ->
-                                Tab(
-                                    selected = selectedTab == i,
+                    mentorStats.chunked(2).forEachIndexed { index, row ->
+                        if (index > 0) Spacer(Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            row.forEach { stat ->
+                                StatCardItem(
+                                    stat = stat,
+                                    modifier = Modifier.weight(1f),
                                     onClick = {
-                                        Log.d(TAG, "Tab click: index=$i label=$label")
-                                        selectedTab = i
-                                    },
-                                    selectedContentColor = Color.White,
-                                    unselectedContentColor = Color.White.copy(alpha = .6f),
-                                    text = {
-                                        Text(
-                                            label,
-                                            fontWeight = if (selectedTab == i) FontWeight.SemiBold else FontWeight.Normal
-                                        )
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    when (selectedTab) {
-                        0 -> MentorInfoTab(
-                            profile = profile,
-                            isEditing = isEditing,
-                            edited = edited ?: profile,
-                            onEditToggle = { vm.toggleEdit() },
-                            onChange = { updated -> vm.updateEdited { updated } },
-                            onSave = {
-                                vm.save { success, msg ->
-                                    scope.launch {
-                                        if (success) {
-                                            snackbarHostState.showSnackbar("Đã cập nhật hồ sơ")
-                                        } else {
-                                            snackbarHostState.showSnackbar(msg ?: "Cập nhật thất bại")
+                                        when (stat.title) {
+                                            "Thu nhập" -> onViewEarnings()
+                                            "Học viên" -> onViewStudents()
+                                            "Đánh giá" -> onViewReviews()
+                                            else -> onViewAllSessions()
                                         }
                                     }
-                                }
-                            },
-                            onCancel = { vm.toggleEdit() }
-                        )
-
-
-                        1 -> MentorStatsTab(
-                            profile = profile,
-                            onViewDetail = onViewStatistics,
-                            onViewReviews = onViewReviews
-                        )
-
-                        2 -> MentorWalletTab(
-                            balance = 15_600_000L,
-                            onWithdraw = onOpenWithdraw,
-                            methods = methods,
-                            onAddMethod = onAddMethod
-                        )
-
-                        3 -> MentorSettingsTab(
-                            onOpenSettings = onSettings,
-                            onUpdateAvailability = onUpdateAvailability,
-                            onManageServices = onManageServices,
-                            onLogout = onLogout
-                        )
+                                )
+                            }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
+                        }
                     }
                 }
             }
-        }
-    }
-}
 
-// --- TAB 1: THÔNG TIN (Info) ---
-@Composable
-private fun MentorInfoTab(
-    profile: UserProfile,
-    isEditing: Boolean,
-    edited: UserProfile,
-    onEditToggle: () -> Unit,
-    onChange: (UserProfile) -> Unit,
-    onSave: () -> Unit,
-    onCancel: () -> Unit
-) {
-    val skillsText = profile.interests.joinToString(", ")
-    val editedSkillsText = edited.interests.joinToString(", ")
-    val headline = skillsText.ifBlank { profile.preferredLanguages.joinToString(", ") }
-        .ifBlank { "Mentor" }
-
-    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        LiquidGlassCard(radius = 22.dp) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Thông tin chuyên gia", style = MaterialTheme.typography.titleMedium)
-                    OutlinedButton(
-                        onClick = onEditToggle,
-                        modifier = Modifier.height(36.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.Transparent, contentColor = Color.White),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = .5f))
-                    ) {
-                        Icon(if (isEditing) Icons.Outlined.Close else Icons.Outlined.Edit, null, Modifier.size(16.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (isEditing) "Hủy" else "Sửa")
-                    }
-                }
-
-                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    MentorAvatarPicker(
-                        avatarUrl = if (isEditing) edited.avatar else profile.avatar,
-                        initial = profile.fullName.take(1).firstOrNull() ?: 'M',
-                        size = 110.dp,
-                        enabled = isEditing,
-                        onPick = { onChange(edited.copy(avatar = it)) }
-                    )
-
-                    if (!isEditing) {
-                        Spacer(Modifier.height(12.dp))
-                        Text(profile.fullName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text(headline, color = Color(0xFF60A5FA))
-                    }
-                }
-
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    MentorLabeledField("Họ và tên", profile.fullName, isEditing, edited.fullName) { onChange(edited.copy(fullName = it)) }
-                    MentorLabeledField("Chuyên môn", skillsText.ifBlank { "Chưa cập nhật" }, isEditing, editedSkillsText) { raw ->
-                        val skills = raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-                        onChange(edited.copy(interests = skills))
-                    }
-                    MentorLabeledField("Email", profile.email, isEditing, edited.email) { onChange(edited.copy(email = it)) }
-                    MentorMultilineField("Giới thiệu", profile.bio ?: "", isEditing, edited.bio ?: "") { onChange(edited.copy(bio = it)) }
-                }
-
-                if (isEditing) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        MMPrimaryButton(onClick = onSave, modifier = Modifier.weight(1f)) { Text("Lưu") }
-                        MMGhostButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text("Hủy") }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// --- TAB 2: THỐNG KÊ (Stats) ---
-@Composable
-private fun MentorStatsTab(
-    profile: UserProfile,
-    onViewDetail: () -> Unit,
-    onViewReviews: () -> Unit
-) {
-    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MentorStatCard("Rating", "4.9⭐", Icons.Filled.Star, Color(0xFFFFD700), Modifier.weight(1f)) { onViewReviews() }
-            MentorStatCard("Học viên", "50+", Icons.Outlined.Groups, Color(0xFF34D399), Modifier.weight(1f)) { onViewDetail() }
-            MentorStatCard("Giờ dạy", "400h", Icons.Outlined.AccessTime, Color(0xFF60A5FA), Modifier.weight(1f)) { onViewDetail() }
-        }
-
-        LiquidGlassCard(radius = 22.dp, modifier = Modifier.clickable { onViewDetail() }) {
-            Column(Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.ShowChart, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Hiệu suất tháng này", style = MaterialTheme.typography.titleMedium)
-                }
-                Spacer(Modifier.height(16.dp))
-                Row(
-                    Modifier.fillMaxWidth().height(80.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    listOf(0.4f, 0.7f, 0.5f, 0.9f, 0.6f, 0.8f, 0.5f).forEach { h ->
-                        Box(
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SectionTitle("Thao tác nhanh")
+                    LiquidGlassCard(radius = 20.dp, modifier = Modifier.fillMaxWidth()) {
+                        Row(
                             Modifier
-                                .weight(1f)
-                                .fillMaxHeight(h)
-                                .padding(horizontal = 4.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color.White.copy(0.5f))
+                                .padding(vertical = 10.dp, horizontal = 8.dp)
+                                .fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            QuickActionItem(Icons.Default.EditCalendar, "Sửa lịch", onViewSchedule)
+                            QuickActionItem(Icons.Default.Person, "Hồ sơ", onUpdateProfile)
+                            QuickActionItem(Icons.Default.AccountBalanceWallet, "Rút tiền", onViewEarnings)
+
+                            // ✅ đổi sang onOpenSettings để mở đúng tab “Cài đặt”
+                            QuickActionItem(Icons.Default.Settings, "Cài đặt", onOpenSettings)
+                        }
+                    }
+                }
+            }
+
+            item {
+                // ✅ Gap giữa header và card bị rộng chủ yếu do TextButton default minHeight=48dp
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SectionTitle("Đánh giá mới nhất")
+
+                        // ✅ giảm height/padding của TextButton để Row không bị cao
+                        TextButton(
+                            onClick = onViewReviews,
+                            modifier = Modifier.height(32.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        ) {
+                            Text("Xem tất cả", color = Color.White.copy(0.7f))
+                        }
+                    }
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp)
+                    ) {
+                        items(recentReviews) { review -> ReviewCard(review) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MentorWelcomeSection(mentorName: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Xin chào,",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White.copy(alpha = 0.7f)
+            )
+            Text(
+                text = mentorName,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .liquidGlass()
+                .background(Color(0xFF22C55E).copy(0.2f))
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF22C55E))
+                )
+                Spacer(Modifier.width(6.dp))
+                Text("Online", style = MaterialTheme.typography.labelMedium, color = Color.White)
+            }
+        }
+    }
+}
+
+@Composable
+private fun NextSessionCard(
+    session: UpcomingSession,
+    onJoin: () -> Unit,
+    onViewCalendar: () -> Unit
+) {
+    LiquidGlassCard(modifier = Modifier.fillMaxWidth(), radius = 24.dp) {
+        Column(Modifier.padding(16.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFF472B6).copy(0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Videocam, null, tint = Color(0xFFF472B6), modifier = Modifier.size(16.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = if (session.isStartingSoon) "Đang diễn ra" else "Sắp tới",
+                        color = if (session.isStartingSoon) Color(0xFFF472B6) else Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Text(session.time, color = Color.White.copy(0.8f), style = MaterialTheme.typography.bodyMedium)
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        session.avatarInitial,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                Spacer(Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        session.menteeName,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        session.topic,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(0.7f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MMButton(
+                    text = "Vào cuộc",
+                    onClick = onJoin,
+                    modifier = Modifier.weight(1f),
+                    leadingIcon = { Icon(Icons.Default.VideoCall, null, Modifier.size(20.dp)) }
+                )
+                MMGhostButton(
+                    onClick = onViewCalendar,
+                    modifier = Modifier.weight(1f),
+                    content = { Text("Xem chi tiết") }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatCardItem(
+    stat: DashboardStat,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    LiquidGlassCard(modifier = modifier.height(120.dp), radius = 20.dp) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(onClick = onClick)
+                .padding(14.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color.White.copy(0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) { stat.icon() }
+
+                    if (stat.trend != null) {
+                        Text(
+                            text = stat.trend,
+                            color = Color(0xFF34D399),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
-                Spacer(Modifier.height(8.dp))
-                Text("Tổng thu nhập: 15.6M ₫", color = Color(0xFF34D399), fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
 
-// --- TAB 3: VÍ (Wallet) ---
-@Composable
-private fun MentorWalletTab(
-    balance: Long,
-    onWithdraw: () -> Unit,
-    methods: List<com.mentorme.app.ui.wallet.PaymentMethod>,
-    onAddMethod: () -> Unit
-) {
-    val txs = remember { mockTxLocal() }
-
-    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        LiquidGlassCard(radius = 22.dp) {
-            Column(Modifier.padding(16.dp)) {
-                Row { Icon(Icons.Outlined.AccountBalanceWallet, null); Spacer(Modifier.width(8.dp)); Text("Thu nhập khả dụng") }
-                Spacer(Modifier.height(8.dp))
-                Text(formatMoneyShortVnd(balance, true), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color(0xFF34D399))
-                Spacer(Modifier.height(16.dp))
-                MMGhostButton(onClick = onWithdraw, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Outlined.ArrowDownward, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Rút tiền về tài khoản")
+                Column {
+                    Text(
+                        text = stat.value,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = stat.title,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.6f)
+                    )
                 }
             }
         }
-
-        LiquidGlassCard(radius = 22.dp) {
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Lịch sử giao dịch", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 4.dp))
-                txs.forEach { tx -> MentorTransactionRow(tx) }
-            }
-        }
     }
 }
 
 @Composable
-private fun MentorTransactionRow(tx: WalletTx) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
-            .background(Color.White.copy(0.05f), RoundedCornerShape(12.dp))
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        val color = if (tx.amount > 0) Color(0xFF22C55E) else Color(0xFFEF4444)
-        Icon(
-            if (tx.amount > 0) Icons.Outlined.ArrowUpward else Icons.Outlined.ArrowDownward,
-            null,
-            tint = color,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(tx.note, fontWeight = FontWeight.Medium)
-            Text("Hôm nay", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(0.6f))
-        }
-        Text(
-            (if (tx.amount > 0) "+" else "") + formatMoneyShortVnd(tx.amount),
-            color = color,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-// --- TAB 4: CÀI ĐẶT (Settings) ---
-@Composable
-private fun MentorSettingsTab(
-    onOpenSettings: () -> Unit,
-    onUpdateAvailability: () -> Unit,
-    onManageServices: () -> Unit,
-    onLogout: () -> Unit
-) {
-    val TAG = "MentorProfileUI"
-    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        LiquidGlassCard(radius = 22.dp) {
-            Column(Modifier.padding(16.dp)) {
-                Text("Quản lý dịch vụ", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
-
-                MentorSettingItem(Icons.Outlined.Schedule, "Lịch làm việc", "Quản lý khung giờ rảnh", onClick = {
-                    Log.d(TAG, "Click SettingItem: Lịch làm việc")
-                    onUpdateAvailability()
-                })
-                MentorSettingItem(Icons.Outlined.DesignServices, "Gói Mentoring", "Cài đặt giá và dịch vụ", onClick = {
-                    Log.d(TAG, "Click SettingItem: Gói Mentoring")
-                    onManageServices()
-                })
-            }
-        }
-
-        LiquidGlassCard(radius = 22.dp) {
-            Column(Modifier.padding(16.dp)) {
-                Text("Hệ thống", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
-                MentorSettingItem(Icons.Outlined.Settings, "Cài đặt chung", "Bảo mật, thông báo", onClick = {
-                    Log.d(TAG, "Click SettingItem: Cài đặt chung")
-                    onOpenSettings()
-                })
-                MentorSettingItem(Icons.AutoMirrored.Outlined.Logout, "Đăng xuất", null, isDestructive = true, onClick = {
-                    Log.d(TAG, "Click SettingItem: Đăng xuất")
-                    onLogout()
-                })
-            }
-        }
-    }
-}
-
-@Composable
-private fun MentorAvatarPicker(avatarUrl: String?, initial: Char, size: Dp, enabled: Boolean, onPick: (String) -> Unit) {
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.toString()?.let(onPick)
-    }
-
-    Box(
+private fun QuickActionItem(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(Color.White.copy(0.06f))
-            .border(
-                BorderStroke(3.dp, Brush.linearGradient(listOf(Color(0xFF60A5FA), Color(0xFFA78BFA)))),
-                CircleShape
-            )
-            .liquidGlass(radius = size / 2, alpha = 0.22f)
-            .clickable(enabled = enabled) { launcher.launch("image/*") },
-        contentAlignment = Alignment.Center
+            .width(72.dp)
+            .clickable(onClick = onClick)
     ) {
-        if (!avatarUrl.isNullOrBlank()) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current).data(avatarUrl).crossfade(true).build(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize().clip(CircleShape)
-            )
-        } else {
-            Text(initial.toString(), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Black)
-        }
-
-        if (enabled) {
-            Box(
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .background(Color.Black.copy(0.4f), RoundedCornerShape(4.dp))
-                    .padding(4.dp)
-            ) {
-                Icon(Icons.Outlined.Edit, null, Modifier.size(12.dp), tint = Color.White)
-            }
-        }
-    }
-}
-
-@Composable
-private fun MentorLabeledField(label: String, value: String, editing: Boolean, editedValue: String, onValueChange: (String) -> Unit) {
-    Column {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = Color.White.copy(0.7f))
-        Spacer(Modifier.height(4.dp))
-        if (editing) {
-            MMTextField(value = editedValue, onValueChange = onValueChange, modifier = Modifier.fillMaxWidth())
-        } else {
-            Text(value, style = MaterialTheme.typography.bodyLarge)
-            Spacer(Modifier.height(8.dp))
-            HorizontalDivider(color = Color.White.copy(0.1f))
-        }
-    }
-}
-
-@Composable
-private fun MentorMultilineField(label: String, value: String, editing: Boolean, editedValue: String, onValueChange: (String) -> Unit) {
-    Column {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = Color.White.copy(0.7f))
-        Spacer(Modifier.height(4.dp))
-        if (editing) {
-            MMTextField(value = editedValue, onValueChange = onValueChange, modifier = Modifier.fillMaxWidth(), singleLine = false)
-        } else {
-            Text(value, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(0.9f))
-        }
-    }
-}
-
-@Composable
-private fun MentorStatCard(title: String, value: String, icon: ImageVector, color: Color, modifier: Modifier, onClick: () -> Unit) {
-    LiquidGlassCard(radius = 18.dp, modifier = modifier.height(100.dp).clickable(onClick = onClick)) {
-        Column(
-            Modifier.fillMaxSize().padding(12.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(0.08f))
+                .border(1.dp, Color.White.copy(0.1f), CircleShape),
+            contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = color, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.height(8.dp))
-            Text(value, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
-            Text(title, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.6f))
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size(24.dp))
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White.copy(0.9f),
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun ReviewCard(review: RecentReview) {
+    val fullStars = review.rating.toInt().coerceIn(0, 5)
+
+    LiquidGlassCard(
+        modifier = Modifier
+            .width(280.dp)
+            .height(140.dp),
+        radius = 20.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = review.menteeName, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(text = review.date, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.5f))
+            }
+
+            Text(
+                text = "\"${review.comment}\"",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(0.8f),
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                fontStyle = FontStyle.Italic
+            )
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                repeat(5) { index ->
+                    val tint = if (index < fullStars) Color(0xFFFFD700) else Color.Gray.copy(0.5f)
+                    Icon(Icons.Default.Star, null, tint = tint, modifier = Modifier.size(16.dp))
+                }
+                Spacer(Modifier.width(6.dp))
+                Text(text = review.rating.toString(), style = MaterialTheme.typography.labelSmall, color = Color.White)
+            }
         }
     }
 }
 
 @Composable
-private fun MentorSettingItem(icon: ImageVector, title: String, subtitle: String?, isDestructive: Boolean = false, onClick: () -> Unit) {
-    MMGhostButton(onClick = onClick, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Icon(icon, null, tint = if (isDestructive) Color(0xFFEF4444) else Color.White)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, color = if (isDestructive) Color(0xFFEF4444) else Color.White)
-                if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.5f))
-            }
-            if (!isDestructive) Icon(Icons.Outlined.ChevronRight, null, tint = Color.White.copy(0.3f))
-        }
-    }
+private fun SectionTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        color = Color.White,
+        modifier = Modifier.padding(start = 4.dp, bottom = 0.dp)
+    )
 }

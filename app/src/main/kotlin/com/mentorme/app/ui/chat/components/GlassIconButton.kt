@@ -1,4 +1,4 @@
-package com.mentorme.app.ui.messages
+package com.mentorme.app.ui.chat.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size

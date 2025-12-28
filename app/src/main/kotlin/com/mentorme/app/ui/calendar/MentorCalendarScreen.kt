@@ -143,15 +143,19 @@ fun MentorCalendarScreen(
     val bottomPadding = bottomInset + dashboardHeight
 
     // Helpers
-    fun toIsoUtc(
+    fun toIsoUtcRange(
         dateIso: String,
-        hhmm: String,
+        startHHmm: String,
+        endHHmm: String,
         zoneId: java.time.ZoneId
-    ): String {
+    ): Pair<String, String> {
         val localDate = java.time.LocalDate.parse(dateIso)
-        val localTime = java.time.LocalTime.parse(hhmm)
-        val zdt = localDate.atTime(localTime).atZone(zoneId)
-        return zdt.toInstant().toString()
+        val startLocal = java.time.LocalTime.parse(startHHmm)
+        val endLocal = java.time.LocalTime.parse(endHHmm)
+        val endDate = if (endLocal.isBefore(startLocal)) localDate.plusDays(1) else localDate
+        val startUtc = localDate.atTime(startLocal).atZone(zoneId).toInstant().toString()
+        val endUtc = endDate.atTime(endLocal).atZone(zoneId).toInstant().toString()
+        return startUtc to endUtc
     }
 
     fun nowMinusSkew(): java.time.Instant =
@@ -257,13 +261,9 @@ fun MentorCalendarScreen(
                                 return@AvailabilityTabSection false
                             } else {
                                 // Client guard: block past times with 30s skew
-                                val startUtc = toIsoUtc(
+                                val (startUtc, endUtc) = toIsoUtcRange(
                                     newSlot.date,
                                     newSlot.startTime,
-                                    zone
-                                )
-                                val endUtc = toIsoUtc(
-                                    newSlot.date,
                                     newSlot.endTime,
                                     zone
                                 )
@@ -354,12 +354,12 @@ fun MentorCalendarScreen(
                                     if (normalizedType == "in-person") "Phiên Trực tiếp" else "Phiên Video Call"
                                 )
                             }
-                            val startUtc = toIsoUtc(
+                            val (startUtc, endUtc) = toIsoUtcRange(
                                 updated.date,
                                 updated.startTime,
+                                updated.endTime,
                                 zone
                             )
-                            val endUtc = toIsoUtc(updated.date, updated.endTime, zone)
                             // Client guard: block past times with 30s skew
                             val startInstant = runCatching {
                                 java.time.Instant.parse(
@@ -528,8 +528,12 @@ fun MentorCalendarScreen(
                         ).show()
                         return@AvailabilityTabSection false
                     } else {
-                        val startUtc = toIsoUtc(newSlot.date, newSlot.startTime, zone)
-                        val endUtc = toIsoUtc(newSlot.date, newSlot.endTime, zone)
+                        val (startUtc, endUtc) = toIsoUtcRange(
+                            newSlot.date,
+                            newSlot.startTime,
+                            newSlot.endTime,
+                            zone
+                        )
                         val startInstant = runCatching { java.time.Instant.parse(startUtc) }.getOrNull()
                         val endInstant = runCatching { java.time.Instant.parse(endUtc) }.getOrNull()
                         val nowSkew = nowMinusSkew()
@@ -594,8 +598,12 @@ fun MentorCalendarScreen(
                         append("[type=$normalizedType] ")
                         if (desc.isNotBlank()) append(desc) else append(if (normalizedType == "in-person") "Phiên Trực tiếp" else "Phiên Video Call")
                     }
-                    val startUtc = toIsoUtc(updated.date, updated.startTime, zone)
-                    val endUtc = toIsoUtc(updated.date, updated.endTime, zone)
+                    val (startUtc, endUtc) = toIsoUtcRange(
+                        updated.date,
+                        updated.startTime,
+                        updated.endTime,
+                        zone
+                    )
                     val startInstant = runCatching { java.time.Instant.parse(startUtc) }.getOrNull()
                     val endInstant = runCatching { java.time.Instant.parse(endUtc) }.getOrNull()
                     val nowSkew = nowMinusSkew()

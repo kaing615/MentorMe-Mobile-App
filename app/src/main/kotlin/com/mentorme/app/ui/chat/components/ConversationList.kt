@@ -1,4 +1,4 @@
-package com.mentorme.app.ui.messages
+package com.mentorme.app.ui.chat.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -7,7 +7,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import com.mentorme.app.data.model.chat.Conversation
-import com.mentorme.app.ui.chat.ConversationCard
 
 @Composable
 fun ConversationList(

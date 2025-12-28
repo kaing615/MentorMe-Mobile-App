@@ -16,6 +16,7 @@ import reportRouter from "./report.route";
 import homeRouter from "./home.route";
 import presenceRouter from "./presence.route";
 import reviewRouter from "./review.route";
+import notificationRouter from "./notification.route";
 
 const router = Router();
 
@@ -45,5 +46,8 @@ router.use("/presence", presenceRouter);
 
 // Reviews (note: /bookings/:id/review is handled by reviewRouter)
 router.use("/", reviewRouter);
+
+// Notifications (device tokens, push)
+router.use("/notifications", notificationRouter);
 
 export default router;

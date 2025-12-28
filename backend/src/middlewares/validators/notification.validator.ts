@@ -1,7 +1,17 @@
 // path: src/middlewares/validators/notification.validator.ts
-import { body, query } from 'express-validator';
+import { body, query, param } from 'express-validator';
 
 const platformValues = ['android', 'ios', 'web'];
+const notificationTypes = [
+  'booking_confirmed',
+  'booking_failed',
+  'booking_cancelled',
+  'booking_reminder',
+  'booking_pending',
+  'booking_declined',
+  'payment_success',
+  'payment_failed',
+];
 
 const isPlainObject = (value: unknown) =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -95,4 +105,37 @@ export const listDeviceTokensRules = [
     .isBoolean()
     .toBoolean()
     .withMessage('includeToken must be boolean'),
+];
+
+export const listNotificationsRules = [
+  query('read')
+    .optional()
+    .isBoolean()
+    .toBoolean()
+    .withMessage('read must be boolean'),
+  query('type')
+    .optional()
+    .isString()
+    .trim()
+    .isIn(notificationTypes)
+    .withMessage('type is invalid'),
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('limit must be 1-100'),
+  query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('page must be >= 1'),
+];
+
+export const markNotificationReadRules = [
+  param('id').isMongoId().withMessage('id must be a valid ID'),
+];
+
+export const updatePreferencesRules = [
+  body('pushBooking').optional().isBoolean().toBoolean(),
+  body('pushPayment').optional().isBoolean().toBoolean(),
+  body('pushMessage').optional().isBoolean().toBoolean(),
+  body('pushSystem').optional().isBoolean().toBoolean(),
 ];

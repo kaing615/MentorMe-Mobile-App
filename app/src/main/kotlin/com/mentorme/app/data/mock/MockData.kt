@@ -352,6 +352,14 @@ object MockData {
     // ===== Mock Notifications =====
     val mockNotifications: List<NotificationItem> = listOf(
         NotificationItem(
+            title = "Booking request",
+            body = "New booking request pending your response.",
+            type = NotificationType.BOOKING_PENDING,
+            timestamp = t(1),
+            read = false,
+            deepLink = "booking_detail/booking-4"
+        ),
+        NotificationItem(
             title = "Booking xác nhận",
             body = "Mentor John Doe đã xác nhận buổi tư vấn của bạn.",
             type = NotificationType.BOOKING_CONFIRMED,

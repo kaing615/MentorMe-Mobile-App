@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -23,9 +25,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -34,7 +40,10 @@ import com.mentorme.app.core.time.formatIsoToLocalShort
 import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.model.BookingStatus
 import com.mentorme.app.data.mock.MockData
+import com.mentorme.app.ui.calendar.MentorBookingsViewModel
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
+import com.mentorme.app.ui.components.ui.MMGhostButton
+import com.mentorme.app.ui.session.SessionViewModel
 import com.mentorme.app.ui.theme.LiquidGlassCard
 
 @Composable
@@ -43,7 +52,13 @@ fun BookingDetailScreen(
     onBack: () -> Unit
 ) {
     val vm = hiltViewModel<BookingDetailViewModel>()
+    val mentorBookingsVm = hiltViewModel<MentorBookingsViewModel>()
+    val sessionVm = hiltViewModel<SessionViewModel>()
     val state by vm.state.collectAsStateWithLifecycle()
+    val sessionState by sessionVm.session.collectAsStateWithLifecycle()
+    val isMentor = sessionState.role.equals("mentor", ignoreCase = true)
+    val context = LocalContext.current
+    var actionBusy by remember { mutableStateOf(false) }
 
     LaunchedEffect(bookingId) {
         vm.load(bookingId)
@@ -62,7 +77,36 @@ fun BookingDetailScreen(
             )
         }
         is BookingDetailViewModel.UiState.Success -> {
-            BookingDetailContent(booking = s.booking, onBack = onBack)
+            BookingDetailContent(
+                booking = s.booking,
+                onBack = onBack,
+                showActions = isMentor,
+                actionBusy = actionBusy,
+                onAccept = {
+                    actionBusy = true
+                    mentorBookingsVm.accept(s.booking.id) { ok ->
+                        actionBusy = false
+                        if (ok) {
+                            android.widget.Toast.makeText(context, "Booking confirmed", android.widget.Toast.LENGTH_SHORT).show()
+                            vm.load(bookingId)
+                        } else {
+                            android.widget.Toast.makeText(context, "Failed to confirm booking", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                onDecline = {
+                    actionBusy = true
+                    mentorBookingsVm.decline(s.booking.id, "Mentor declined") { ok ->
+                        actionBusy = false
+                        if (ok) {
+                            android.widget.Toast.makeText(context, "Booking declined", android.widget.Toast.LENGTH_SHORT).show()
+                            vm.load(bookingId)
+                        } else {
+                            android.widget.Toast.makeText(context, "Failed to decline booking", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            )
         }
     }
 }
@@ -117,11 +161,18 @@ private fun ErrorState(
 @Composable
 private fun BookingDetailContent(
     booking: Booking,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    showActions: Boolean,
+    actionBusy: Boolean,
+    onAccept: () -> Unit,
+    onDecline: () -> Unit
 ) {
     val mentorName = mentorDisplayName(booking)
     val timeRange = "${booking.startTime} - ${booking.endTime}"
     val priceLabel = "$${"%.2f".format(booking.price)}"
+    val canRespond = showActions && (booking.status == BookingStatus.PENDING_MENTOR || booking.status == BookingStatus.PAYMENT_PENDING)
+    val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val bottomPadding = 84.dp + bottomInset
 
     val sessionItems = buildList {
         add("Mentor" to mentorName)
@@ -152,7 +203,7 @@ private fun BookingDetailContent(
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 32.dp)
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = bottomPadding)
     ) {
         item {
             HeaderRow(title = "Booking Details", onBack = onBack, status = booking.status)
@@ -175,6 +226,28 @@ private fun BookingDetailContent(
                         Text("Policy", color = Color.White, fontWeight = FontWeight.SemiBold)
                         policyItems.forEach { (label, value) ->
                             DetailRow(label = label, value = value)
+                        }
+                    }
+                }
+            }
+        }
+
+        if (canRespond) {
+            item {
+                LiquidGlassCard(modifier = Modifier.fillMaxWidth(), radius = 22.dp) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Booking response", color = Color.White, fontWeight = FontWeight.SemiBold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            MMGhostButton(
+                                onClick = onDecline,
+                                modifier = Modifier.weight(1f),
+                                enabled = !actionBusy
+                            ) { Text("Decline") }
+                            MMPrimaryButton(
+                                onClick = onAccept,
+                                modifier = Modifier.weight(1f),
+                                enabled = !actionBusy
+                            ) { Text("Accept") }
                         }
                     }
                 }

@@ -8,6 +8,12 @@ import {
   markBookingPendingMentor,
 } from "./booking.controller";
 import { captureBookingPayment } from "../services/walletBooking.service";
+import {
+  notifyPaymentFailed,
+  notifyPaymentSuccess,
+  PaymentNotificationData,
+} from "../utils/notification.service";
+import { getUserInfo } from "../utils/userInfo";
 
 const TERMINAL_BOOKING_STATUSES = new Set([
   "Failed",
@@ -15,6 +21,42 @@ const TERMINAL_BOOKING_STATUSES = new Set([
   "Declined",
   "Completed",
 ]);
+
+const CAPTURE_FAILURE_ERRORS = new Set([
+  "INSUFFICIENT_BALANCE",
+  "INVALID_AMOUNT",
+  "CURRENCY_MISMATCH",
+  "WALLET_LOCKED",
+]);
+
+function isBookingTerminalError(err: any): boolean {
+  const message = String(err?.message ?? "");
+  return err?.code === "BOOKING_TERMINAL" || message.startsWith("BOOKING_TERMINAL:");
+}
+
+async function buildPaymentNotificationData(
+  booking: any,
+  extra: { paymentId?: string; status?: string; event?: string }
+): Promise<PaymentNotificationData> {
+  const [mentorInfo, menteeInfo] = await Promise.all([
+    getUserInfo(String(booking.mentor)),
+    getUserInfo(String(booking.mentee)),
+  ]);
+
+  return {
+    bookingId: String(booking._id),
+    mentorId: String(booking.mentor),
+    menteeId: String(booking.mentee),
+    mentorName: mentorInfo.name,
+    menteeName: menteeInfo.name,
+    startTime: new Date(booking.startTime),
+    amount: typeof booking.price === "number" ? booking.price : Number(booking.price),
+    currency: (booking as any).currency,
+    paymentId: extra.paymentId,
+    status: extra.status,
+    event: extra.event,
+  };
+}
 
 /**
  * POST /api/payments/webhook
@@ -25,7 +67,7 @@ const TERMINAL_BOOKING_STATUSES = new Set([
  * - if booking is terminal or already moved state -> return 200 ignored (idempotent)
  */
 export const paymentWebhook = asyncHandler(async (req: Request, res: Response) => {
-  const { event, bookingId } = req.body as {
+  const { event, bookingId, paymentId, status } = req.body as {
     event: string;
     bookingId: string;
     paymentId?: string;
@@ -42,6 +84,7 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
   if (!booking) return notFound(res, "Booking not found");
 
   const bookingStatus = String((booking as any).status);
+  const isSuccessEvent = event === "payment.success" || event === "payment.completed";
 
   try {
     switch (event) {
@@ -90,6 +133,17 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
           }
         }
 
+        try {
+          const paymentNotificationData = await buildPaymentNotificationData(booking, {
+            paymentId,
+            status,
+            event,
+          });
+          await notifyPaymentSuccess(paymentNotificationData);
+        } catch (err) {
+          console.error("Failed to send payment success notification:", err);
+        }
+
         break;
       }
 
@@ -99,6 +153,16 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
         // Idempotent: if already terminal, do nothing
         if (!TERMINAL_BOOKING_STATUSES.has(bookingStatus)) {
           await failBooking(bookingId);
+          try {
+            const paymentNotificationData = await buildPaymentNotificationData(booking, {
+              paymentId,
+              status,
+              event,
+            });
+            await notifyPaymentFailed(paymentNotificationData);
+          } catch (err) {
+            console.error("Failed to send payment failed notification:", err);
+          }
         }
         break;
       }
@@ -108,14 +172,51 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
         break;
     }
   } catch (err: any) {
-    console.error(`Failed to process payment webhook for ${bookingId}:`, err?.message);
+    const errorMessage = String(err?.message ?? "");
 
-    const errorMessage =
+    if (isBookingTerminalError(err)) {
+      return ok(res, {
+        processed: true,
+        ignored: true,
+        reason: errorMessage || "booking is terminal",
+        event,
+        bookingId,
+      });
+    }
+
+    if (isSuccessEvent && CAPTURE_FAILURE_ERRORS.has(errorMessage)) {
+      if (bookingStatus === "PaymentPending") {
+        try {
+          await failBooking(bookingId);
+        } catch (failErr: any) {
+          if (!String(failErr?.message ?? "").includes("Cannot fail booking")) {
+            console.error("Failed to mark booking failed:", failErr);
+          }
+        }
+      }
+
+      try {
+        const paymentNotificationData = await buildPaymentNotificationData(booking, {
+          paymentId,
+          status,
+          event,
+        });
+        await notifyPaymentFailed(paymentNotificationData);
+      } catch (notifyErr) {
+        console.error("Failed to send payment failed notification:", notifyErr);
+      }
+
+      return badRequest(res, errorMessage);
+    }
+
+    console.error(`Failed to process payment webhook for ${bookingId}:`, errorMessage);
+
+    const responseMessage =
       process.env.NODE_ENV === "development"
-        ? `Failed to process webhook: ${err?.message || "Unknown error"}`
+        ? `Failed to process webhook: ${errorMessage || "Unknown error"}`
         : "Failed to process webhook";
 
-    return badRequest(res, errorMessage);
+    return badRequest(res, responseMessage);
   }
 
   return ok(res, { processed: true, event, bookingId });

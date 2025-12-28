@@ -21,10 +21,11 @@ val Border     = Color(0x33FFFFFF) // 0.2
 val InputBg    = Color(0x26FFFFFF) // 0.15
 val SwitchBg   = Color(0x4DFFFFFF) // 0.3
 val Ring       = Color(0x803B82F6) // rgba(59,130,246,0.5)
+val ActiveNavGreen = Color(0xFF22C55E) // green for active nav item
 
 // ===== Gradients (map thẳng từ CSS)
 // --gradient-primary / secondary / tertiary / accent / warm / cool
-val GradientPrimary   = listOf(Color(0xFF1E3A8A), Color(0xFF3B82F6))
+val GradientPrimary   = listOf(Color(0xFF0E2C56), Color(0xFF2F6BC4))
 val GradientSecondary = listOf(Color(0xFF2563EB), Color(0xFF1D4ED8))
 val GradientTertiary  = listOf(Color(0xFF0EA5E9), Color(0xFF06B6D4))
 val GradientAccent    = listOf(Color(0xFF3B82F6), Color(0xFF8B5CF6))

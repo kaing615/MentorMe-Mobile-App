@@ -2,6 +2,7 @@ package com.mentorme.app.ui.navigation
 
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -76,11 +77,14 @@ internal fun AppNavGraph(
         Modifier
     }
 
-    NavHost(
-        navController = nav,
-        startDestination = Routes.Auth,
+    Box(
         modifier = Modifier.fillMaxSize().then(hazeModifier)
     ) {
+        NavHost(
+            navController = nav,
+            startDestination = Routes.Auth,
+            modifier = Modifier.fillMaxSize()
+        ) {
     // ---------- AUTH ----------
     composable(Routes.Auth) {
         AuthScreen(
@@ -615,6 +619,7 @@ internal fun AppNavGraph(
                 }
             )
         }
+    }
     }
 }
 }

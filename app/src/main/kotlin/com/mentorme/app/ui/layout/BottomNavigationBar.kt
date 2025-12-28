@@ -139,13 +139,6 @@ fun GlassBottomBar(
             modifier = Modifier
                 .height(64.dp)
                 .fillMaxWidth()
-                .shadow(
-                    elevation = 16.dp,
-                    shape = shape,
-                    clip = false,
-                    spotColor = Color.Black.copy(alpha = 0.4f),
-                    ambientColor = Color.Black.copy(alpha = 0.4f)
-                )
                 .clip(shape)
                 .then(hazeModifier)
                 .background(
@@ -275,7 +268,10 @@ private fun GlassBarItem(
         if (showDot) {
             BadgedBox(
                 badge = {
-                    Badge()
+                    Badge(
+                        containerColor = Color(0xFFFF3B30),
+                        contentColor = Color.White
+                    )
                 }
             ) {
                 Icon(

@@ -1,6 +1,7 @@
 package com.mentorme.app.ui.navigation
 
 import android.annotation.SuppressLint
+import android.os.Build
 import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -10,6 +11,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -20,7 +22,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -32,6 +33,7 @@ import com.mentorme.app.core.notifications.NotificationDeduper
 import com.mentorme.app.core.notifications.NotificationPreferencesStore
 import com.mentorme.app.core.realtime.RealtimeEvent
 import com.mentorme.app.core.realtime.RealtimeEventBus
+import com.mentorme.app.data.model.NotificationType
 import com.mentorme.app.data.model.BookingStatus
 import com.mentorme.app.ui.calendar.MenteeBookingsViewModel
 import com.mentorme.app.ui.calendar.MentorBookingsViewModel
@@ -40,6 +42,7 @@ import com.mentorme.app.ui.notifications.NotificationsViewModel
 import com.mentorme.app.ui.session.SessionViewModel
 import com.mentorme.app.ui.theme.LiquidBackground
 import com.mentorme.app.ui.wallet.initialPaymentMethods
+import dev.chrisbanes.haze.HazeState
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
@@ -66,6 +69,8 @@ fun AppNav(
         }
     }
     val messageUnreadCount = 0
+    val blurEnabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val hazeState = remember { HazeState() }
 
     // Local UI state
     var payMethods by remember { mutableStateOf(initialPaymentMethods()) }
@@ -73,6 +78,7 @@ fun AppNav(
     var pendingRoleHint by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingRoute by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
+    var snackbarType by remember { mutableStateOf<NotificationType?>(null) }
 
     // Compute phase (single source of navigation decisions)
     val phase by remember(sessionState.isLoggedIn, sessionState.status, pendingRoleHint) {
@@ -120,32 +126,52 @@ fun AppNav(
     }
 
     LaunchedEffect(Unit) {
-        RealtimeEventBus.events.collect { event ->
-            if (event is RealtimeEvent.NotificationReceived && isLoggedInState) {
-                notificationsVm.refreshUnreadCount()
-                if (isForegroundState) {
-                    if (NotificationDeduper.shouldNotify(
-                            event.notification.id,
-                            event.notification.title,
-                            event.notification.body,
-                            event.notification.type
-                        )
-                    ) {
-                        val title = event.notification.title.ifBlank { "New notification" }
-                        val action = snackbarHostState.showSnackbar(
-                            message = title,
-                            actionLabel = "Open",
-                            duration = SnackbarDuration.Long
-                        )
-                        if (action == SnackbarResult.ActionPerformed) {
-                            val route = event.notification.deepLink ?: Routes.Notifications
-                            if (nav.currentDestination?.route != route) {
-                                nav.navigate(route) { launchSingleTop = true }
+        try {
+            RealtimeEventBus.events.collect { event ->
+                if (event is RealtimeEvent.NotificationReceived && isLoggedInState) {
+                    notificationsVm.refreshUnreadCount()
+                    if (isForegroundState) {
+                        if (NotificationDeduper.shouldNotify(
+                                event.notification.id,
+                                event.notification.title,
+                                event.notification.body,
+                                event.notification.type
+                            )
+                        ) {
+                            val title = event.notification.title.ifBlank { "New notification" }
+                            snackbarType = event.notification.type
+                            val action = try {
+                                snackbarHostState.showSnackbar(
+                                    message = title,
+                                    actionLabel = "Open",
+                                    duration = SnackbarDuration.Long
+                                )
+                            } finally {
+                                snackbarType = null
+                            }
+                            if (action == SnackbarResult.ActionPerformed) {
+                                val route = event.notification.deepLink ?: Routes.Notifications
+                                if (nav.currentDestination?.route != route) {
+                                    try {
+                                        nav.navigate(route) { launchSingleTop = true }
+                                    } catch (e: Exception) {
+                                        Log.e("AppNav", "Navigation error from notification", e)
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
+        } catch (e: Exception) {
+            Log.e("AppNav", "Error collecting realtime events", e)
+        }
+    }
+
+    // Clean up when AppNav is disposed (app exit)
+    DisposableEffect(Unit) {
+        onDispose {
+            Log.d("AppNav", "AppNav disposed - cleaning up")
         }
     }
 
@@ -211,12 +237,10 @@ fun AppNav(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        LiquidBackground(modifier = Modifier.matchParentSize().zIndex(-1f))
-
         Scaffold(
             containerColor = Color.Transparent,
             contentWindowInsets = WindowInsets(0),
-            snackbarHost = { GlassSnackbarHost(snackbarHostState) },
+            snackbarHost = { GlassSnackbarHost(snackbarHostState, activeType = snackbarType) },
             bottomBar = {
                 val hideForChat = currentRoute?.startsWith("${Routes.Chat}/") == true
                 val hideForBooking = currentRoute?.startsWith("booking/") == true || currentRoute?.startsWith("bookingSummary/") == true
@@ -232,25 +256,34 @@ fun AppNav(
                         userRole = sessionState.role ?: "mentee",
                         notificationUnreadCount = unreadNotificationCount,
                         calendarPendingCount = pendingBookingCount,
-                        messageUnreadCount = messageUnreadCount
+                        messageUnreadCount = messageUnreadCount,
+                        hazeState = hazeState,
+                        blurEnabled = blurEnabled
                     )
                 }
             },
             modifier = Modifier.fillMaxSize()
         ) { _ ->
-            Box(modifier = Modifier.fillMaxSize()) {
-                AppNavGraph(
-                    nav = nav,
-                    sessionVm = sessionVm,
-                    sessionState = sessionState,
-                    authVm = authVm,
-                    notificationsVm = notificationsVm,
-                    payMethods = payMethods,
-                    pendingRoleHint = pendingRoleHint,
-                    onPendingRoleHintChange = { pendingRoleHint = it },
-                    overlayVisible = overlayVisible,
-                    onOverlayVisibleChange = { overlayVisible = it }
-                )
+            Box(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                LiquidBackground(modifier = Modifier.matchParentSize())
+                Box(modifier = Modifier.fillMaxSize()) {
+                    AppNavGraph(
+                        nav = nav,
+                        sessionVm = sessionVm,
+                        sessionState = sessionState,
+                        authVm = authVm,
+                        notificationsVm = notificationsVm,
+                        payMethods = payMethods,
+                        pendingRoleHint = pendingRoleHint,
+                        onPendingRoleHintChange = { pendingRoleHint = it },
+                        overlayVisible = overlayVisible,
+                        onOverlayVisibleChange = { overlayVisible = it },
+                        hazeState = hazeState,
+                        blurEnabled = blurEnabled
+                    )
+                }
             }
         }
     }

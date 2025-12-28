@@ -383,20 +383,23 @@ private fun NotificationRow(
         !item.read -> 0.4f
         else -> 0.25f
     }
-    val unreadTint = if (!item.read) Color(0xFF22C55E).copy(alpha = 0.08f) else Color.Transparent
-    val cardModifier = if (!item.read) {
-        Modifier.clip(RoundedCornerShape(22.dp)).background(unreadTint)
-    } else {
-        Modifier
-    }
+    val cardTint = Color.White
+    val unreadOverlay = if (!item.read) Color(0xFF22C55E).copy(alpha = 0.16f) else Color.Transparent
 
     LiquidGlassCard(
-        modifier = cardModifier,
         radius = 22.dp,
         alpha = cardAlpha,
         borderAlpha = borderAlpha,
-        strong = isBooking
+        strong = isBooking,
+        tint = cardTint
     ) {
+        if (!item.read) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(unreadOverlay)
+            )
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()

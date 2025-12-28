@@ -28,6 +28,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,7 +49,8 @@ import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.mentorme.app.ui.theme.ActiveNavGreen
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeChild
 
 // ===== Model =====
 private data class NavItem(
@@ -74,6 +79,7 @@ private val mentorNavItems = listOf(
     NavItem("mentor_profile",   "Cá nhân",   Icons.Filled.Person)
 )
 
+
 // ===== Public API =====
 @Composable
 fun GlassBottomBar(
@@ -82,18 +88,37 @@ fun GlassBottomBar(
     notificationUnreadCount: Int = 0,
     calendarPendingCount: Int = 0,
     messageUnreadCount: Int = 0,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    hazeState: HazeState? = null,
+    blurEnabled: Boolean = false
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     val currentRoute = currentDestination?.route
     val currentBaseRoute = currentRoute?.substringBefore("?")
 
+    // Debouncing state to prevent rapid clicks
+    var lastNavigationTime by remember { mutableStateOf(0L) }
+    val navigationDebounceMs = 300L // 300ms debounce
+
+    // Clean up when this composable is removed (e.g., during app exit)
+    DisposableEffect(navController) {
+        onDispose {
+            Log.d("GlassBottomBar", "Bottom bar disposed - cleaning up")
+            // Any cleanup needed when navigation bar is removed
+        }
+    }
+
     val showNotificationDot = notificationUnreadCount > 0
     val showCalendarDot = calendarPendingCount > 0
     val showMessagesDot = messageUnreadCount > 0
 
     val shape = RoundedCornerShape(24.dp)
+    val hazeModifier = if (blurEnabled && hazeState != null) {
+        Modifier.hazeChild(state = hazeState, shape = shape)
+    } else {
+        Modifier
+    }
 
     Box(
         modifier = modifier
@@ -102,69 +127,92 @@ fun GlassBottomBar(
             .padding(horizontal = 16.dp, vertical = 10.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
-        Row(
+        Box(
             modifier = Modifier
                 .height(64.dp)
-                .clip(shape)
+                .fillMaxWidth()
                 .shadow(20.dp, shape, clip = false)
+                .clip(shape)
+                .then(hazeModifier)
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            Color.White.copy(alpha = 0.10f),
-                            Color.White.copy(alpha = 0.05f)
+                            Color.White.copy(alpha = 0.12f),
+                            Color.White.copy(alpha = 0.08f)
                         )
                     )
                 )
-                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)), shape)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.38f)), shape)
         ) {
-            val baseNavItems = if (userRole == "mentor") mentorNavItems else menteeNavItems
-            val navItems = baseNavItems.map { item ->
-                val showDot = when (item.route) {
-                    "notifications" -> showNotificationDot
-                    "calendar", "mentor_calendar" -> showCalendarDot
-                    "messages", "mentor_messages" -> showMessagesDot
-                    else -> false
+
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val baseNavItems = if (userRole == "mentor") mentorNavItems else menteeNavItems
+                val navItems = baseNavItems.map { item ->
+                    val showDot = when (item.route) {
+                        "notifications" -> showNotificationDot
+                        "calendar", "mentor_calendar" -> showCalendarDot
+                        "messages", "mentor_messages" -> showMessagesDot
+                        else -> false
+                    }
+                    item.copy(showDot = showDot)
                 }
-                item.copy(showDot = showDot)
-            }
 
-            navItems.forEach { item ->
-                val selected = currentDestination.isSelected(item.route)
+                navItems.forEach { item ->
+                    val selected = currentDestination.isSelected(item.route)
 
-                GlassBarItem(
-                    selected = selected,
-                    label = item.label,
-                    icon = item.icon,
-                    showDot = item.showDot
-                ) {
-                    // ✅ FIX: Không dựa vào `selected` để quyết định navigate.
-                    // `selected` có thể bị tính sai khi restoreState/saveState hoặc route có args.
-                    val targetRoute = getTargetRoute(item.route, userRole)
+                    GlassBarItem(
+                        selected = selected,
+                        label = item.label,
+                        icon = item.icon,
+                        showDot = item.showDot
+                    ) {
+                        val currentTime = System.currentTimeMillis()
 
-                    Log.d(
-                        "GlassBottomBar",
-                        "tap label='${item.label}' itemRoute='${item.route}' currentRoute='${currentRoute}' targetRoute='${targetRoute}' role='${userRole}'"
-                    )
-
-                    // So sánh route hiện tại với route đích để tránh navigate lặp.
-                    if (currentBaseRoute != targetRoute) {
-                        // ✅ Nếu destination đã tồn tại trong back stack thì pop về luôn (ổn định hơn restoreState).
-                        val popped = navController.popBackStack(targetRoute, inclusive = false)
-                        if (popped) {
-                            Log.d("GlassBottomBar", "popBackStack -> $targetRoute")
+                        // Check debounce - ignore clicks within debounce period
+                        if (currentTime - lastNavigationTime < navigationDebounceMs) {
+                            Log.d("GlassBottomBar", "Navigation debounced - ignoring rapid click")
                             return@GlassBarItem
                         }
 
-                        Log.d("GlassBottomBar", "navigate -> $targetRoute")
-                        navController.navigate(targetRoute) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
+                        lastNavigationTime = currentTime
+
+                        val targetRoute = getTargetRoute(item.route, userRole)
+
+                        Log.d(
+                            "GlassBottomBar",
+                            "tap label='${item.label}' itemRoute='${item.route}' currentRoute='$currentRoute' currentBase='$currentBaseRoute' targetRoute='$targetRoute' role='$userRole'"
+                        )
+
+                        // Prevent navigation if already on the target route
+                        if (currentBaseRoute == targetRoute) {
+                            Log.d("GlassBottomBar", "Already on $targetRoute, ignoring navigation")
+                            return@GlassBarItem
+                        }
+
+                        try {
+                            // Try to pop back to the target route first
+                            val popped = navController.popBackStack(targetRoute, inclusive = false)
+                            if (popped) {
+                                Log.d("GlassBottomBar", "Successfully popped back to $targetRoute")
+                                return@GlassBarItem
                             }
-                            launchSingleTop = true
-                            restoreState = true
+
+                            // If pop didn't work, navigate to the route
+                            Log.d("GlassBottomBar", "Navigating to $targetRoute")
+                            navController.navigate(targetRoute) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        } catch (e: Exception) {
+                            Log.e("GlassBottomBar", "Navigation error to $targetRoute", e)
+                            // Prevent crash if navigation fails during activity transition
                         }
                     }
                 }
@@ -189,7 +237,7 @@ private fun GlassBarItem(
         animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow),
         label = "icon-scale"
     )
-    val activeItemColor = ActiveNavGreen
+    val activeItemColor = Color(0xFF98F5FF)
     val textColor by animateColorAsState(
         if (selected) activeItemColor else Color.White.copy(alpha = 0.78f),
         label = "text-color"
@@ -204,7 +252,7 @@ private fun GlassBarItem(
             .clip(RoundedCornerShape(18.dp))
             .padding(horizontal = 8.dp, vertical = 6.dp) // Điều chỉnh padding cho layout vertical
             .clickable(
-                interactionSource = MutableInteractionSource(),
+                interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(bounded = true, color = Color.White.copy(alpha = 0.28f)),
                 onClick = onClick
             ),

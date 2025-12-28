@@ -1,5 +1,7 @@
 package com.mentorme.app.ui.theme
 
+import android.os.Build
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -7,6 +9,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -15,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
@@ -22,23 +26,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.annotation.DrawableRes
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.dp
 import com.mentorme.app.R
+import android.graphics.RenderEffect as AndroidRenderEffect
+import android.graphics.Shader
 
 // Constants
 const val GLASS_ALPHA = 0.15f
@@ -58,12 +58,13 @@ fun LiquidGlassCard(
     radius: Dp = 16.dp,
     alpha: Float = GLASS_ALPHA,
     borderAlpha: Float = GLASS_BORDER,
+    tint: Color = Color.White,
     strong: Boolean = false,
     content: @Composable BoxScope.() -> Unit
 ) {
     val glassModifier =
-        if (strong) modifier.liquidGlassStrong(radius, alpha, borderAlpha)
-        else modifier.liquidGlass(radius, alpha, borderAlpha)
+        if (strong) modifier.liquidGlassStrong(radius, alpha, borderAlpha, tint)
+        else modifier.liquidGlass(radius, alpha, borderAlpha, tint)
 
     Box(modifier = glassModifier, content = content)
 }
@@ -81,15 +82,16 @@ fun LiquidGlassCardColumn(
     radius: Dp = 22.dp,
     alpha: Float = 0.15f,
     borderAlpha: Float = 0.3f,
+    tint: Color = Color.White,
     strong: Boolean = false,
     elevation: Dp = if (strong) 20.dp else 8.dp,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val glassModifier = if (strong) {
-        modifier.liquidGlassStrong(radius, alpha, borderAlpha)
+        modifier.liquidGlassStrong(radius, alpha, borderAlpha, tint)
     } else {
-        modifier.liquidGlass(radius, alpha, borderAlpha)
+        modifier.liquidGlass(radius, alpha, borderAlpha, tint)
     }
 
     val colors = CardDefaults.cardColors(
@@ -123,14 +125,15 @@ fun LiquidGlassCardColumn(
 fun Modifier.liquidGlass(
     radius: Dp = 16.dp,
     alpha: Float = 0.15f,
-    borderAlpha: Float = 0.3f
+    borderAlpha: Float = 0.3f,
+    tint: Color = Color.White
 ) = this
     .clip(RoundedCornerShape(radius))
     .background(
         brush = Brush.linearGradient(
             colors = listOf(
-                Color.White.copy(alpha = alpha),
-                Color.White.copy(alpha = alpha * 0.7f)
+                tint.copy(alpha = alpha),
+                tint.copy(alpha = alpha * 0.7f)
             )
         )
     )
@@ -138,8 +141,8 @@ fun Modifier.liquidGlass(
         width = 1.dp,
         brush = Brush.linearGradient(
             colors = listOf(
-                Color.White.copy(alpha = borderAlpha),
-                Color.White.copy(alpha = borderAlpha * 0.5f)
+                tint.copy(alpha = borderAlpha),
+                tint.copy(alpha = borderAlpha * 0.5f)
             )
         ),
         shape = RoundedCornerShape(radius)
@@ -149,15 +152,34 @@ fun Modifier.liquidGlass(
 fun Modifier.liquidGlassStrong(
     radius: Dp = 32.dp,
     alpha: Float = 0.25f,
-    borderAlpha: Float = 0.4f
+    borderAlpha: Float = 0.4f,
+    tint: Color = Color.White
 ) = this
     .clip(RoundedCornerShape(radius))
-    .background(Color.White.copy(alpha = alpha))
+    .background(tint.copy(alpha = alpha))
     .border(
         width = 1.5.dp,
-        color = Color.White.copy(alpha = borderAlpha),
+        color = tint.copy(alpha = borderAlpha),
         shape = RoundedCornerShape(radius)
     )
+
+@Composable
+fun Modifier.realBlur(blurRadius: Dp): Modifier {
+    if (blurRadius <= 0.dp) return this
+    val radiusPx = with(LocalDensity.current) { blurRadius.toPx() }
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        this.graphicsLayer {
+            renderEffect = AndroidRenderEffect.createBlurEffect(
+                radiusPx,
+                radiusPx,
+                Shader.TileMode.CLAMP
+            ).asComposeRenderEffect()
+            compositingStrategy = CompositingStrategy.Offscreen
+        }
+    } else {
+        this.blur(blurRadius)
+    }
+}
 
 /* =======================================================
  * Liquid background: mô phỏng body::before + keyframes

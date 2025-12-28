@@ -1,13 +1,28 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
-    id("org.jetbrains.kotlin.kapt")
+    id("org.jetbrains.kotlin.plugin.compose") version "2.0.20"
+    id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
     id("kotlin-parcelize")
     id("com.google.gms.google-services")
 }
 
+
+configurations.all {
+    resolutionStrategy {
+        // Force activity libraries to compatible versions
+        force("androidx.activity:activity:1.9.2")
+        force("androidx.activity:activity-compose:1.9.2")
+        force("androidx.activity:activity-ktx:1.9.2")
+
+        // Force Kotlin stdlib to match Kotlin compiler version 2.0.20
+        force("org.jetbrains.kotlin:kotlin-stdlib:2.0.20")
+        force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.0.20")
+        force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.20")
+        force("org.jetbrains.kotlin:kotlin-reflect:2.0.20")
+    }
+}
 
 android {
     namespace = "com.mentorme.app"
@@ -46,60 +61,78 @@ android {
 }
 
 dependencies {
+    // Core Android libraries
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
+
+    // Firebase BOM - manages all Firebase versions
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.database.ktx)
     implementation(libs.firebase.messaging.ktx)
-    // Icon set
-    implementation("androidx.compose.material:material-icons-extended")
 
+    // Lifecycle
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)
 
-    // Compose BOM để đồng bộ version
+    // Compose BOM - manages all Compose versions (removed duplicates)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.ui:ui-text")
+    implementation("androidx.compose.foundation:foundation-layout")
+    implementation("androidx.compose.animation:animation")
+    implementation("androidx.compose.runtime:runtime")
+    implementation("androidx.compose.runtime:runtime-saveable")
+
+    // Navigation
     implementation(libs.androidx.navigation.compose)
+
+    // Hilt for dependency injection
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)
-    implementation(libs.androidx.compose.runtime.saveable)
-    implementation(libs.androidx.room.ktx)
-    implementation(libs.androidx.compose.foundation)
-    implementation(libs.androidx.compose.ui.text)
-    implementation(libs.androidx.ui)
-    implementation(libs.firebase.database.ktx)
     implementation(libs.androidx.material3)
-    implementation(libs.ui)
-    implementation(libs.androidx.ui.text)
-    implementation(libs.androidx.compose.foundation.layout)
-    implementation(libs.androidx.compose.animation)
-    implementation(libs.androidx.ui.graphics)
-    implementation(libs.androidx.foundation)
-    implementation(libs.foundation)
-    implementation(libs.room.ktx)
-    implementation(libs.androidx.compose.runtime)
-    kapt(libs.hilt.compiler)
+    ksp(libs.hilt.compiler)
 
+    // Room database (removed duplicate)
+    implementation("androidx.room:room-ktx:2.6.1")
+
+    // Haze for blur effects
+    implementation(libs.haze)
+
+    // Networking
     implementation(libs.retrofit)
     implementation(libs.retrofit.gson)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
+
+    // Data storage
     implementation(libs.androidx.datastore.preferences)
-    implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.lifecycle.runtime.compose)
+
+    // Image loading (removed duplicate coil)
     implementation(libs.coil.compose)
+
+    // Coroutines
     implementation(libs.kotlinx.coroutines.android)
+
+    // JSON
     implementation(libs.gson)
+
+    // Validation
     implementation("io.konform:konform-jvm:0.4.0")
+
+    // Socket.IO
     implementation("io.socket:socket.io-client:2.1.0") {
         exclude(group = "org.json", module = "json")
     }
-// Use the correct version
+
+    // Testing
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.mockito)
@@ -107,7 +140,7 @@ dependencies {
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
 
+    // Debug
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
-    implementation("io.coil-kt:coil-compose:2.6.0")
 }

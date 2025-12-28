@@ -52,7 +52,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.composed
-import com.mentorme.app.ui.common.GlassOverlay
+import com.mentorme.app.ui.components.ui.GlassOverlay
 import androidx.compose.runtime.LaunchedEffect
 
 private enum class SortOption(val label: String) {
@@ -122,6 +122,8 @@ fun SearchMentorScreen(
 
         val blurOn = showDetail || showBooking
         val blurRadius = if (blurOn) 28.dp else 0.dp
+        val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        val bottomBarPadding = 64.dp + 20.dp + bottomInset
 
         LaunchedEffect(blurOn) {
             if (blurOn) onOverlayOpened() else onOverlayClosed()
@@ -208,10 +210,10 @@ fun SearchMentorScreen(
                             WindowInsets.safeDrawing.only(
                                 WindowInsetsSides.Top + WindowInsetsSides.Horizontal
                             )
-                        )
+                    )
                         .padding(horizontal = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(top = 12.dp, bottom = 75.dp)
+                    contentPadding = PaddingValues(top = 12.dp, bottom = bottomBarPadding)
                 ) {
                     // Title
                     item {

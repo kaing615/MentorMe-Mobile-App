@@ -39,7 +39,7 @@ import androidx.compose.ui.zIndex
 import com.mentorme.app.ui.calendar.components.InfoChip
 import com.mentorme.app.ui.calendar.core.*
 import com.mentorme.app.ui.calendar.core.NewSlotInput
-import com.mentorme.app.ui.common.glassOutlinedTextFieldColors
+import com.mentorme.app.ui.components.ui.glassOutlinedTextFieldColors
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.components.ui.MMButtonSize
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
@@ -49,6 +49,16 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.ZoneId
+
+private fun resolveEndDate(date: LocalDate, start: LocalTime, end: LocalTime): LocalDate =
+    if (end.isBefore(start)) date.plusDays(1) else date
+
+private fun durationMinutes(start: LocalTime, end: LocalTime): Int {
+    val startMinutes = start.hour * 60 + start.minute
+    val endMinutes = end.hour * 60 + end.minute
+    val diff = endMinutes - startMinutes
+    return if (diff < 0) diff + 24 * 60 else diff
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,7 +109,7 @@ fun AvailabilityTabSection(
             val zone = ZoneId.systemDefault()
             val nowPlusSkew = java.time.ZonedDateTime.now(zone).plusSeconds(30)
             val startZdt = start.atDate(date).atZone(zone)
-            val endZdt = end.atDate(date).atZone(zone)
+            val endZdt = end.atDate(resolveEndDate(date, start, end)).atZone(zone)
             val sErr = if (startZdt.isBefore(nowPlusSkew)) "Giờ bắt đầu phải trong tương lai" else null
             val eErr = if (endZdt.isBefore(nowPlusSkew)) "Giờ kết thúc phải trong tương lai" else null
             Pair(sErr, eErr)
@@ -313,7 +323,7 @@ fun AvailabilityTabSection(
                 if (selectedDate == null) { Toast.makeText(context, "Vui lòng chọn ngày.", Toast.LENGTH_SHORT).show(); return@AvailabilityDialog }
                 if (startTime == null || endTime == null) { Toast.makeText(context, "Vui lòng chọn giờ.", Toast.LENGTH_SHORT).show(); return@AvailabilityDialog }
                 
-                val duration = java.time.Duration.between(startTime, endTime).toMinutes()
+                val duration = durationMinutes(startTime!!, endTime!!)
                 if (duration < 30) { Toast.makeText(context, "Tối thiểu 30 phút.", Toast.LENGTH_SHORT).show(); return@AvailabilityDialog }
                 
                 // Future-only validation (+30s)
@@ -385,7 +395,7 @@ fun AvailabilityTabSection(
                 if (selectedDate == null) { Toast.makeText(context, "Vui lòng chọn ngày.", Toast.LENGTH_SHORT).show(); return@AvailabilityDialog }
                 if (startTime == null || endTime == null) { Toast.makeText(context, "Vui lòng chọn giờ.", Toast.LENGTH_SHORT).show(); return@AvailabilityDialog }
                 
-                val duration = java.time.Duration.between(startTime, endTime).toMinutes()
+                val duration = durationMinutes(startTime!!, endTime!!)
                 if (duration < 30) { Toast.makeText(context, "Tối thiểu 30 phút.", Toast.LENGTH_SHORT).show(); return@AvailabilityDialog }
                 
                 // Future-only validation (+30s)
@@ -477,7 +487,7 @@ private fun AvailabilityDialog(
     val numberFormat = remember { NumberFormat.getCurrencyInstance(java.util.Locale("vi", "VN")) }
     
     val durationPreview = if (startTime != null && endTime != null) {
-        java.time.Duration.between(startTime, endTime).toMinutes()
+        durationMinutes(startTime, endTime)
     } else null
     
     val pricePreview = priceDigits?.filter(Char::isDigit)?.toLongOrNull()

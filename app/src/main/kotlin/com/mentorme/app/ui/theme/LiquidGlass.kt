@@ -174,9 +174,9 @@ fun Modifier.liquidGlassStrong(
 fun LiquidBackground(
     modifier: Modifier = Modifier,
     baseGradient: List<Color> = GradientPrimary,
-    blob1: Color = Color(0x4D3B82F6), // rgba(59,130,246,0.3)
-    blob2: Color = Color(0x4D1D4ED8), // rgba(29,78,216,0.3)
-    blob3: Color = Color(0x3310A5E9)  // rgba(14,165,233,0.2)
+    blob1: Color = Color(0x472C64D6), // rgba(44,100,214,0.28)
+    blob2: Color = Color(0x472351C4), // rgba(35,81,196,0.28)
+    blob3: Color = Color(0x331F4F98)  // rgba(31,79,152,0.20)
 ) {
     // Animation như keyframes (0%→33%→66%→100%)
     val t by rememberInfiniteTransition(label = "liquid").animateFloat(

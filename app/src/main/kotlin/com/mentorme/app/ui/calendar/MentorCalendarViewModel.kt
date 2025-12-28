@@ -99,7 +99,8 @@ class MentorCalendarViewModel @Inject constructor(
 
                         val startHHmm = startLocal.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
                         val endHHmm = endLocal.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
-                        val durationMin = java.time.Duration.between(startLocal, endLocal).toMinutes().toInt()
+                        val durationMin = java.time.Duration.between(startLocal, endLocal)
+                            .toMinutes().toInt().let { if (it < 0) it + 24 * 60 else it }
                         val priceVnd = item.slotPriceVndOrNull()?.toLong() ?: 0L
 
                         com.mentorme.app.ui.calendar.core.AvailabilitySlot(
@@ -158,8 +159,12 @@ class MentorCalendarViewModel @Inject constructor(
             val tz = java.time.ZoneId.of("Asia/Ho_Chi_Minh")
             // Debug log as requested
             Logx.d(TAG) { "addSlot buffers => before=${bufferBeforeMin}, after=${bufferAfterMin}" }
-            val startUtc = com.mentorme.app.core.time.localToUtcIsoZ(java.time.LocalDate.parse(dateIso), java.time.LocalTime.parse(startHHmm), tz)
-            val endUtc = com.mentorme.app.core.time.localToUtcIsoZ(java.time.LocalDate.parse(dateIso), java.time.LocalTime.parse(endHHmm), tz)
+            val localDate = java.time.LocalDate.parse(dateIso)
+            val startLocal = java.time.LocalTime.parse(startHHmm)
+            val endLocal = java.time.LocalTime.parse(endHHmm)
+            val endDate = if (endLocal.isBefore(startLocal)) localDate.plusDays(1) else localDate
+            val startUtc = com.mentorme.app.core.time.localToUtcIsoZ(localDate, startLocal, tz)
+            val endUtc = com.mentorme.app.core.time.localToUtcIsoZ(endDate, endLocal, tz)
 
             // Normalize type and compose title safely
             val normalizedType = if ((sessionType ?: "").equals("in-person", true)) "in-person" else "video"
@@ -261,7 +266,8 @@ class MentorCalendarViewModel @Inject constructor(
                                     date = zStart.toLocalDate().toString(),
                                     startTime = zStart.format(HH_MM),
                                     endTime   = zEnd.format(HH_MM),
-                                    duration  = java.time.Duration.between(zStart, zEnd).toMinutes().toInt()
+                                    duration  = java.time.Duration.between(zStart, zEnd)
+                                        .toMinutes().toInt().let { if (it < 0) it + 24 * 60 else it }
                                 )
                             } else it
                         }

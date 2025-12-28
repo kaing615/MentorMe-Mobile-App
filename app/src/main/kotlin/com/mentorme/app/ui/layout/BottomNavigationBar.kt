@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Badge
@@ -44,29 +45,32 @@ import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.mentorme.app.ui.theme.ActiveNavGreen
 
 // ===== Model =====
 private data class NavItem(
     val route: String,
     val label: String,
     val icon: ImageVector,
-    val badge: Int = 0
+    val showDot: Boolean = false
 )
 
 // Navigation items cho Mentee (5 tabs)
 private val menteeNavItems = listOf(
     NavItem("home",     "Trang chủ", Icons.Filled.Home),
     NavItem("search",   "Tìm kiếm", Icons.Filled.Search),
-    NavItem("calendar", "Lịch hẹn", Icons.Filled.CalendarMonth, badge = 1),
-    NavItem("messages", "Tin nhắn", Icons.AutoMirrored.Filled.Chat, badge = 2),
+    NavItem("calendar", "Lịch hẹn", Icons.Filled.CalendarMonth),
+    NavItem("messages", "Tin nhắn", Icons.AutoMirrored.Filled.Chat),
+    NavItem("notifications", "Thông báo", Icons.Filled.Notifications),
     NavItem("profile",  "Cá nhân",  Icons.Filled.Person)
 )
 
 // Navigation items cho Mentor (4 tabs)
 private val mentorNavItems = listOf(
     NavItem("mentor_dashboard", "Dashboard", Icons.Filled.Home),
-    NavItem("mentor_calendar",  "Lịch hẹn",  Icons.Filled.CalendarMonth, badge = 1),
-    NavItem("mentor_messages",  "Tin nhắn",  Icons.AutoMirrored.Filled.Chat, badge = 2),
+    NavItem("mentor_calendar",  "Lịch hẹn",  Icons.Filled.CalendarMonth),
+    NavItem("mentor_messages",  "Tin nhắn",  Icons.AutoMirrored.Filled.Chat),
+    NavItem("notifications",    "Thông báo", Icons.Filled.Notifications),
     NavItem("mentor_profile",   "Cá nhân",   Icons.Filled.Person)
 )
 
@@ -75,12 +79,19 @@ private val mentorNavItems = listOf(
 fun GlassBottomBar(
     navController: NavHostController,
     userRole: String = "mentee", // Thêm tham số userRole với default là mentee
+    notificationUnreadCount: Int = 0,
+    calendarPendingCount: Int = 0,
+    messageUnreadCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     val currentRoute = currentDestination?.route
     val currentBaseRoute = currentRoute?.substringBefore("?")
+
+    val showNotificationDot = notificationUnreadCount > 0
+    val showCalendarDot = calendarPendingCount > 0
+    val showMessagesDot = messageUnreadCount > 0
 
     val shape = RoundedCornerShape(24.dp)
 
@@ -109,7 +120,16 @@ fun GlassBottomBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val navItems = if (userRole == "mentor") mentorNavItems else menteeNavItems
+            val baseNavItems = if (userRole == "mentor") mentorNavItems else menteeNavItems
+            val navItems = baseNavItems.map { item ->
+                val showDot = when (item.route) {
+                    "notifications" -> showNotificationDot
+                    "calendar", "mentor_calendar" -> showCalendarDot
+                    "messages", "mentor_messages" -> showMessagesDot
+                    else -> false
+                }
+                item.copy(showDot = showDot)
+            }
 
             navItems.forEach { item ->
                 val selected = currentDestination.isSelected(item.route)
@@ -118,7 +138,7 @@ fun GlassBottomBar(
                     selected = selected,
                     label = item.label,
                     icon = item.icon,
-                    badge = item.badge
+                    showDot = item.showDot
                 ) {
                     // ✅ FIX: Không dựa vào `selected` để quyết định navigate.
                     // `selected` có thể bị tính sai khi restoreState/saveState hoặc route có args.
@@ -161,31 +181,27 @@ private fun GlassBarItem(
     selected: Boolean,
     label: String,
     icon: ImageVector,
-    badge: Int,
+    showDot: Boolean,
     onClick: () -> Unit
 ) {
-    val bg by animateColorAsState(
-        if (selected) Color.White.copy(alpha = 0.18f) else Color.Transparent, // Giảm từ 0.30f xuống 0.18f
-        label = "item-bg"
-    )
     val iconScale by animateFloatAsState(
         targetValue = if (selected) 1.12f else 1.0f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow),
         label = "icon-scale"
     )
+    val activeItemColor = ActiveNavGreen
     val textColor by animateColorAsState(
-        if (selected) Color.White else Color.White.copy(alpha = 0.78f),
+        if (selected) activeItemColor else Color.White.copy(alpha = 0.78f),
         label = "text-color"
     )
     val iconTint by animateColorAsState(
-        if (selected) Color.White else Color.White.copy(alpha = 0.88f),
+        if (selected) activeItemColor else Color.White.copy(alpha = 0.88f),
         label = "icon-tint"
     )
 
     Column( // Thay đổi từ Row thành Column
         modifier = Modifier
             .clip(RoundedCornerShape(18.dp))
-            .background(bg)
             .padding(horizontal = 8.dp, vertical = 6.dp) // Điều chỉnh padding cho layout vertical
             .clickable(
                 interactionSource = MutableInteractionSource(),
@@ -195,8 +211,12 @@ private fun GlassBarItem(
         horizontalAlignment = Alignment.CenterHorizontally, // Center theo chiều ngang
         verticalArrangement = Arrangement.spacedBy(3.dp) // Khoảng cách giữa icon và text
     ) {
-        if (badge > 0) {
-            BadgedBox(badge = { Badge { Text("$badge") } }) {
+        if (showDot) {
+            BadgedBox(
+                badge = {
+                    Badge()
+                }
+            ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = label,
@@ -237,6 +257,7 @@ private fun getTargetRoute(route: String, userRole: String): String {
         "mentor_calendar" -> "mentor_calendar"
         "mentor_messages" -> "mentor_messages"
         "mentor_profile" -> "mentor_profile"
+        "notifications" -> "notifications"
 
         // Mentee routes
         "home" -> "home"
@@ -248,3 +269,4 @@ private fun getTargetRoute(route: String, userRole: String): String {
         else -> if (userRole == "mentor") "mentor_dashboard" else "home"
     }
 }
+

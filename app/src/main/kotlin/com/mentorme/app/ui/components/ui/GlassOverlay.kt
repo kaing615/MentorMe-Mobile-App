@@ -1,4 +1,4 @@
-package com.mentorme.app.ui.common
+package com.mentorme.app.ui.components.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background

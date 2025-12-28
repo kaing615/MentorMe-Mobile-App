@@ -22,8 +22,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mentorme.app.data.repository.chat.impl.ChatRepositoryImpl
 import com.mentorme.app.ui.components.ui.MMButton
-import com.mentorme.app.ui.messages.ChatComposer
-import com.mentorme.app.ui.messages.GlassIconButton
+import com.mentorme.app.ui.chat.components.ChatComposer
+import com.mentorme.app.ui.chat.components.GlassIconButton
+import com.mentorme.app.ui.chat.components.MessageBubbleGlass
+import com.mentorme.app.ui.chat.components.ProfileSheet
 
 @OptIn(ExperimentalLayoutApi::class)
 @RequiresApi(Build.VERSION_CODES.O)

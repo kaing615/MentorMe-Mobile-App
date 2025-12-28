@@ -1,4 +1,4 @@
-package com.mentorme.app.ui.common
+package com.mentorme.app.ui.utils
 
 /**
  * Format VND gọn: 1_500_000 -> 1.5M, 900_000 -> 900k.

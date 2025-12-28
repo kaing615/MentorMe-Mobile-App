@@ -30,7 +30,7 @@ import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
 import com.mentorme.app.ui.components.ui.MMGhostButton
 import com.mentorme.app.ui.components.ui.MMButtonSize
-import com.mentorme.app.ui.common.compactVnd
+import com.mentorme.app.ui.utils.compactVnd
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

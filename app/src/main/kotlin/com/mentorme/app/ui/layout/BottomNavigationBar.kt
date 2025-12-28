@@ -50,7 +50,7 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeChild
+import dev.chrisbanes.haze.hazeEffect
 
 // ===== Model =====
 private data class NavItem(
@@ -115,7 +115,15 @@ fun GlassBottomBar(
 
     val shape = RoundedCornerShape(24.dp)
     val hazeModifier = if (blurEnabled && hazeState != null) {
-        Modifier.hazeChild(state = hazeState, shape = shape)
+        Modifier.hazeEffect(
+            state = hazeState,
+            style = dev.chrisbanes.haze.HazeStyle(
+                backgroundColor = androidx.compose.ui.graphics.Color.Transparent,
+                tint = dev.chrisbanes.haze.HazeTint(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f)),
+                blurRadius = 40.dp,
+                noiseFactor = 0f
+            )
+        )
     } else {
         Modifier
     }
@@ -131,18 +139,17 @@ fun GlassBottomBar(
             modifier = Modifier
                 .height(64.dp)
                 .fillMaxWidth()
-                .shadow(20.dp, shape, clip = false)
                 .clip(shape)
                 .then(hazeModifier)
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            Color.White.copy(alpha = 0.12f),
-                            Color.White.copy(alpha = 0.08f)
+                            Color.White.copy(alpha = 0.01f),
+                            Color.White.copy(alpha = 0.005f)
                         )
                     )
                 )
-                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.38f)), shape)
+                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), shape)
         ) {
 
             Row(
@@ -249,7 +256,6 @@ private fun GlassBarItem(
 
     Column( // Thay đổi từ Row thành Column
         modifier = Modifier
-            .clip(RoundedCornerShape(18.dp))
             .padding(horizontal = 8.dp, vertical = 6.dp) // Điều chỉnh padding cho layout vertical
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -262,7 +268,10 @@ private fun GlassBarItem(
         if (showDot) {
             BadgedBox(
                 badge = {
-                    Badge()
+                    Badge(
+                        containerColor = Color(0xFFFF3B30),
+                        contentColor = Color.White
+                    )
                 }
             ) {
                 Icon(

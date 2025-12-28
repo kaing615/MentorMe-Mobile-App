@@ -139,7 +139,7 @@ fun MentorCalendarScreen(
         WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val bottomInset =
         WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val dashboardHeight = 88.dp
+    val dashboardHeight = 100.dp
     val bottomPadding = bottomInset + dashboardHeight
 
     // Helpers

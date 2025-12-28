@@ -194,5 +194,8 @@ fun ProfileTab(
                 }
             }
         }
+
+        // Spacer để nội dung không bị bottom bar đè khi scroll xuống
+        Spacer(Modifier.height(80.dp))
     }
 }

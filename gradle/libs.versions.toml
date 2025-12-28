@@ -1,6 +1,6 @@
 [versions]
 agp = "8.6.1"
-kotlin = "2.0.20"
+kotlin = "2.1.0"
 compose-bom = "2024.04.00"
 core-ktx = "1.13.1"
 appcompat = "1.7.0"
@@ -9,7 +9,7 @@ activity-compose = "1.9.2"
 lifecycle = "2.8.6"
 material-icons-extended = "<compose_version>"
 navigation-compose = "2.8.2"
-hilt = "2.52"
+hilt = "2.53"
 retrofit = "2.11.0"
 okhttp = "4.12.0"
 datastore = "1.1.1"
@@ -38,9 +38,8 @@ foundation-version = "1.9.3"
 androidx-foundation = "1.10.0"
 room-ktx-version = "2.8.4"
 runtime = "1.10.0" # hoặc 33.+
-haze = "0.7.2"
+haze = "1.5.0"
 identity-jvm = "202411.1"
-
 
 [plugins]
 #noinspection GradlePluginVersion

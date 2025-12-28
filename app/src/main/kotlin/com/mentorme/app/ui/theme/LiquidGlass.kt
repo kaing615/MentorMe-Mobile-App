@@ -230,6 +230,24 @@ fun Modifier.realBlur(blurRadius: Dp): Modifier {
     }
 }
 
+@Composable
+fun Modifier.realBlur(blurRadius: Dp): Modifier {
+    if (blurRadius <= 0.dp) return this
+    val radiusPx = with(LocalDensity.current) { blurRadius.toPx() }
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        this.graphicsLayer {
+            renderEffect = AndroidRenderEffect.createBlurEffect(
+                radiusPx,
+                radiusPx,
+                Shader.TileMode.CLAMP
+            ).asComposeRenderEffect()
+            compositingStrategy = CompositingStrategy.Offscreen
+        }
+    } else {
+        this.blur(blurRadius)
+    }
+}
+
 /* =======================================================
  * Liquid background: mô phỏng body::before + keyframes
  * ======================================================= */

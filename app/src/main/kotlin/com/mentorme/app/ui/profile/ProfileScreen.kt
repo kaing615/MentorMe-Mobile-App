@@ -178,7 +178,7 @@ fun ProfileScreen(
                         .fillMaxSize()
                         .padding(padding)
                         .padding(horizontal = 16.dp)
-                        .padding(top = 12.dp, bottom = 92.dp)
+                        .padding(top = 12.dp, bottom = 24.dp)
                 ) {
                     // Tabs
                     com.mentorme.app.ui.theme.LiquidGlassCard(
@@ -273,6 +273,9 @@ fun ProfileScreen(
                             onLogout = onLogout
                         )
                     }
+
+                    // Spacer để nội dung không bị bottom bar đè khi scroll xuống
+                    Spacer(Modifier.height(80.dp))
                 }
             }
         }

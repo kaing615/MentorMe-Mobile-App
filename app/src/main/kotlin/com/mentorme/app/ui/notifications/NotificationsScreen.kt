@@ -121,14 +121,6 @@ fun NotificationsScreen(
                                 Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.action_back))
                             }
                         },
-                        actions = {
-                            IconButton(
-                                onClick = { viewModel.markAllRead() },
-                                enabled = unreadCount > 0
-                            ) {
-                                Icon(Icons.Outlined.DoneAll, contentDescription = stringResource(R.string.notification_mark_all_read_action))
-                            }
-                        },
                         colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
                             containerColor = Color.Transparent,
                             titleContentColor = Color.White,
@@ -143,14 +135,18 @@ fun NotificationsScreen(
                         .fillMaxSize()
                         .padding(padding)
                         .padding(horizontal = 16.dp)
-                        .padding(bottom = 84.dp),
+                        .padding(bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    NotificationSummaryCard(
-                        unreadCount = unreadCount,
-                        onMarkAllRead = { viewModel.markAllRead() },
-                        markAllEnabled = unreadCount > 0
-                    )
+                    MMGhostButton(
+                        onClick = { viewModel.markAllRead() },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = unreadCount > 0
+                    ) {
+                        Icon(Icons.Outlined.DoneAll, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.notification_mark_all_read))
+                    }
 
                     NotificationFilterBar(
                         selected = filter,
@@ -173,7 +169,7 @@ fun NotificationsScreen(
                                 .fillMaxWidth()
                                 .weight(1f),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
-                            contentPadding = PaddingValues(bottom = 24.dp)
+                            contentPadding = PaddingValues(bottom = 80.dp)
                         ) {
                             items(filtered, key = { it.id }) { item ->
                                 val detailRoute = item.deepLink?.takeIf { it.isNotBlank() }
@@ -205,57 +201,6 @@ fun NotificationsScreen(
         }
     }
 }
-
-@Composable
-private fun NotificationSummaryCard(
-    unreadCount: Int,
-    onMarkAllRead: () -> Unit,
-    markAllEnabled: Boolean
-) {
-    LiquidGlassCard(radius = 24.dp) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = stringResource(R.string.notification_stat_unread),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = Color.White.copy(alpha = 0.7f)
-                    )
-                    Text(
-                        text = unreadCount.toString(),
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Outlined.Notifications, contentDescription = null, tint = Color.White)
-                }
-            }
-
-            MMGhostButton(
-                onClick = onMarkAllRead,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = markAllEnabled
-            ) {
-                Icon(Icons.Outlined.DoneAll, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.notification_mark_all_read))
-            }
-        }
-    }
-}
-
 
 @Composable
 private fun NotificationFilterBar(

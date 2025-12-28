@@ -146,7 +146,8 @@ fun Modifier.liquidGlass(
             style = HazeStyle(
                 backgroundColor = Color.Transparent,
                 tint = HazeTint(tint.copy(alpha = alpha * 0.5f)),
-                blurRadius = 20.dp
+                blurRadius = 20.dp,
+                noiseFactor = 0f
             )
         )
     } else {
@@ -192,7 +193,8 @@ fun Modifier.liquidGlassStrong(
             style = HazeStyle(
                 backgroundColor = Color.Transparent,
                 tint = HazeTint(tint.copy(alpha = alpha * 0.6f)),
-                blurRadius = 30.dp
+                blurRadius = 30.dp,
+                noiseFactor = 0f
             )
         )
     } else {

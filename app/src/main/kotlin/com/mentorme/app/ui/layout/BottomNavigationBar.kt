@@ -121,7 +121,7 @@ fun GlassBottomBar(
                 backgroundColor = androidx.compose.ui.graphics.Color.Transparent,
                 tint = dev.chrisbanes.haze.HazeTint(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f)),
                 blurRadius = 40.dp,
-                noiseFactor = 0.15f
+                noiseFactor = 0f
             )
         )
     } else {

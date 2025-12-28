@@ -22,6 +22,7 @@ val InputBg    = Color(0x26FFFFFF) // 0.15
 val SwitchBg   = Color(0x4DFFFFFF) // 0.3
 val Ring       = Color(0x803B82F6) // rgba(59,130,246,0.5)
 val ActiveNavGreen = Color(0xFF22C55E) // green for active nav item
+val BookingGlassTint = Color(0xFFB7F7C6) // light green tint for booking/payment success snackbars
 
 // ===== Gradients (map thẳng từ CSS)
 // --gradient-primary / secondary / tertiary / accent / warm / cool

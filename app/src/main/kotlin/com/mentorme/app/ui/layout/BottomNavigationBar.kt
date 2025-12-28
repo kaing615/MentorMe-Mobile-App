@@ -119,8 +119,9 @@ fun GlassBottomBar(
             state = hazeState,
             style = dev.chrisbanes.haze.HazeStyle(
                 backgroundColor = androidx.compose.ui.graphics.Color.Transparent,
-                tint = dev.chrisbanes.haze.HazeTint(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.2f)),
-                blurRadius = 20.dp
+                tint = dev.chrisbanes.haze.HazeTint(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f)),
+                blurRadius = 40.dp,
+                noiseFactor = 0.15f
             )
         )
     } else {
@@ -150,12 +151,12 @@ fun GlassBottomBar(
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            Color.White.copy(alpha = 0.12f),
-                            Color.White.copy(alpha = 0.08f)
+                            Color.White.copy(alpha = 0.01f),
+                            Color.White.copy(alpha = 0.005f)
                         )
                     )
                 )
-                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.38f)), shape)
+                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)), shape)
         ) {
 
             Row(

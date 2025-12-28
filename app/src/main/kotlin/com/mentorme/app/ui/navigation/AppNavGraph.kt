@@ -51,7 +51,7 @@ import com.mentorme.app.ui.wallet.PaymentMethodScreen
 import com.mentorme.app.ui.wallet.TopUpScreen
 import com.mentorme.app.ui.wallet.WithdrawScreen
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
+import dev.chrisbanes.haze.hazeSource
 
 @Composable
 internal fun AppNavGraph(
@@ -71,7 +71,7 @@ internal fun AppNavGraph(
     val context = LocalContext.current
 
     val hazeModifier = if (blurEnabled && hazeState != null) {
-        Modifier.haze(state = hazeState)
+        Modifier.hazeSource(state = hazeState)
     } else {
         Modifier
     }

@@ -50,7 +50,7 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeChild
+import dev.chrisbanes.haze.hazeEffect
 
 // ===== Model =====
 private data class NavItem(
@@ -115,7 +115,14 @@ fun GlassBottomBar(
 
     val shape = RoundedCornerShape(24.dp)
     val hazeModifier = if (blurEnabled && hazeState != null) {
-        Modifier.hazeChild(state = hazeState, shape = shape)
+        Modifier.hazeEffect(
+            state = hazeState,
+            style = dev.chrisbanes.haze.HazeStyle(
+                backgroundColor = androidx.compose.ui.graphics.Color.Transparent,
+                tint = dev.chrisbanes.haze.HazeTint(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.2f)),
+                blurRadius = 20.dp
+            )
+        )
     } else {
         Modifier
     }

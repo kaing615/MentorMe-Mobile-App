@@ -40,7 +40,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mentorme.app.R
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeChild
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
 import android.graphics.RenderEffect as AndroidRenderEffect
 import android.graphics.Shader
 
@@ -139,7 +141,14 @@ fun Modifier.liquidGlass(
     val hazeState = LocalHazeState.current
     val blurEnabled = LocalHazeEnabled.current
     val hazeModifier = if (blurEnabled && hazeState != null) {
-        Modifier.hazeChild(state = hazeState, shape = shape)
+        Modifier.hazeEffect(
+            state = hazeState,
+            style = HazeStyle(
+                backgroundColor = Color.Transparent,
+                tint = HazeTint(tint.copy(alpha = alpha * 0.5f)),
+                blurRadius = 20.dp
+            )
+        )
     } else {
         Modifier
     }
@@ -178,7 +187,14 @@ fun Modifier.liquidGlassStrong(
     val hazeState = LocalHazeState.current
     val blurEnabled = LocalHazeEnabled.current
     val hazeModifier = if (blurEnabled && hazeState != null) {
-        Modifier.hazeChild(state = hazeState, shape = shape)
+        Modifier.hazeEffect(
+            state = hazeState,
+            style = HazeStyle(
+                backgroundColor = Color.Transparent,
+                tint = HazeTint(tint.copy(alpha = alpha * 0.6f)),
+                blurRadius = 30.dp
+            )
+        )
     } else {
         Modifier
     }

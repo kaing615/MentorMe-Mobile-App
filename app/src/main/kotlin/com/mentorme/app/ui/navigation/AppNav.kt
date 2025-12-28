@@ -46,7 +46,7 @@ import com.mentorme.app.ui.theme.LocalHazeState
 import com.mentorme.app.ui.theme.LiquidBackground
 import com.mentorme.app.ui.wallet.initialPaymentMethods
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
+import dev.chrisbanes.haze.hazeSource
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
@@ -277,7 +277,7 @@ fun AppNav(
                 modifier = Modifier.fillMaxSize()
             ) {
                 val backgroundHazeModifier = if (blurEnabled) {
-                    Modifier.haze(state = hazeBackgroundState)
+                    Modifier.hazeSource(state = hazeBackgroundState)
                 } else {
                     Modifier
                 }

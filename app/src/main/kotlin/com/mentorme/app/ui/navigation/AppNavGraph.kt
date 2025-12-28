@@ -2,6 +2,7 @@ package com.mentorme.app.ui.navigation
 
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,7 +52,7 @@ import com.mentorme.app.ui.wallet.PaymentMethodScreen
 import com.mentorme.app.ui.wallet.TopUpScreen
 import com.mentorme.app.ui.wallet.WithdrawScreen
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
+import dev.chrisbanes.haze.hazeSource
 
 @Composable
 internal fun AppNavGraph(
@@ -71,16 +72,19 @@ internal fun AppNavGraph(
     val context = LocalContext.current
 
     val hazeModifier = if (blurEnabled && hazeState != null) {
-        Modifier.haze(state = hazeState)
+        Modifier.hazeSource(state = hazeState)
     } else {
         Modifier
     }
 
-    NavHost(
-        navController = nav,
-        startDestination = Routes.Auth,
+    Box(
         modifier = Modifier.fillMaxSize().then(hazeModifier)
     ) {
+        NavHost(
+            navController = nav,
+            startDestination = Routes.Auth,
+            modifier = Modifier.fillMaxSize()
+        ) {
     // ---------- AUTH ----------
     composable(Routes.Auth) {
         AuthScreen(
@@ -615,6 +619,7 @@ internal fun AppNavGraph(
                 }
             )
         }
+    }
     }
 }
 }

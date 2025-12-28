@@ -50,6 +50,8 @@ import com.mentorme.app.ui.wallet.PaymentMethod
 import com.mentorme.app.ui.wallet.PaymentMethodScreen
 import com.mentorme.app.ui.wallet.TopUpScreen
 import com.mentorme.app.ui.wallet.WithdrawScreen
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.haze
 
 @Composable
 internal fun AppNavGraph(
@@ -62,15 +64,23 @@ internal fun AppNavGraph(
     pendingRoleHint: String?,
     onPendingRoleHintChange: (String?) -> Unit,
     overlayVisible: Boolean,
-    onOverlayVisibleChange: (Boolean) -> Unit
+    onOverlayVisibleChange: (Boolean) -> Unit,
+    hazeState: HazeState? = null,
+    blurEnabled: Boolean = false
 ) {
     val context = LocalContext.current
 
+    val hazeModifier = if (blurEnabled && hazeState != null) {
+        Modifier.haze(state = hazeState)
+    } else {
+        Modifier
+    }
+
     NavHost(
         navController = nav,
-    startDestination = Routes.Auth,
-    modifier = Modifier.fillMaxSize()
-) {
+        startDestination = Routes.Auth,
+        modifier = Modifier.fillMaxSize().then(hazeModifier)
+    ) {
     // ---------- AUTH ----------
     composable(Routes.Auth) {
         AuthScreen(

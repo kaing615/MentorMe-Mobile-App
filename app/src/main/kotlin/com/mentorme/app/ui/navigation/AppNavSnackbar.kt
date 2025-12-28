@@ -39,14 +39,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import com.mentorme.app.ui.theme.LiquidGlassCard
+import com.mentorme.app.data.model.NotificationType
+import com.mentorme.app.ui.theme.BookingGlassTint
 import com.mentorme.app.ui.theme.liquidGlass
+import com.mentorme.app.ui.components.ui.BackdropBlur
+import com.mentorme.app.ui.notifications.isBookingNotification
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
@@ -54,14 +58,18 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun GlassSnackbarHost(
     hostState: SnackbarHostState,
+    activeType: NotificationType? = null,
     modifier: Modifier = Modifier
 ) {
+    val useGreenGlass = activeType?.let { isBookingNotification(it) } == true ||
+        activeType == NotificationType.PAYMENT_SUCCESS
     SnackbarHost(
         hostState = hostState,
         modifier = modifier,
         snackbar = { data ->
             GlassNotificationSnackbar(
                 data = data,
+                useGreenGlass = useGreenGlass,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -73,12 +81,21 @@ internal fun GlassSnackbarHost(
 @Composable
 internal fun GlassNotificationSnackbar(
     data: SnackbarData,
+    useGreenGlass: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
     val offsetX = remember { Animatable(0f) }
     var widthPx by remember { mutableStateOf(0f) }
     val dismissThreshold = widthPx * 0.35f
+    val glassTint = if (useGreenGlass) BookingGlassTint else Color.White
+    val glassAlpha = if (useGreenGlass) 0.36f else 0.18f
+    val glassBorderAlpha = if (useGreenGlass) 0.75f else 0.35f
+    val frostOverlayAlpha = if (useGreenGlass) 0.2f else 0f
+    val blurRadius = if (useGreenGlass) 18.dp else 0.dp
+    val iconBg = if (useGreenGlass) glassTint.copy(alpha = 0.32f) else Color.White.copy(alpha = 0.12f)
+    val iconBorder = if (useGreenGlass) glassTint.copy(alpha = 0.82f) else Color.White.copy(alpha = 0.35f)
+    val shape = RoundedCornerShape(22.dp)
 
     val dragState = rememberDraggableState { delta ->
         if (widthPx <= 0f) return@rememberDraggableState
@@ -118,12 +135,40 @@ internal fun GlassNotificationSnackbar(
                 }
             )
     ) {
-        LiquidGlassCard(
-            modifier = Modifier.fillMaxWidth(),
-            radius = 22.dp,
-            alpha = 0.18f,
-            borderAlpha = 0.35f
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
         ) {
+            if (blurRadius > 0.dp) {
+                BackdropBlur(
+                    modifier = Modifier.matchParentSize(),
+                    blurRadius = blurRadius,
+                    overlayColor = Color.Transparent,
+                    cornerRadius = 22.dp
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                glassTint.copy(alpha = glassAlpha),
+                                glassTint.copy(alpha = glassAlpha * 0.7f)
+                            )
+                        )
+                    )
+                    .border(1.dp, glassTint.copy(alpha = glassBorderAlpha), shape)
+            )
+            if (frostOverlayAlpha > 0f) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(shape)
+                        .background(glassTint.copy(alpha = frostOverlayAlpha))
+                )
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -134,8 +179,8 @@ internal fun GlassNotificationSnackbar(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.12f))
-                        .border(1.dp, Color.White.copy(alpha = 0.35f), CircleShape),
+                        .background(iconBg)
+                        .border(1.dp, iconBorder, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Outlined.Notifications, contentDescription = null, tint = Color.White)
@@ -156,7 +201,7 @@ internal fun GlassNotificationSnackbar(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .liquidGlass(radius = 12.dp, alpha = 0.2f, borderAlpha = 0.35f)
+                            .liquidGlass(radius = 12.dp, alpha = glassAlpha, borderAlpha = glassBorderAlpha, tint = glassTint)
                             .clickable { data.performAction() }
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {

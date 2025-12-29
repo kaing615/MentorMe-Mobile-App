@@ -103,8 +103,11 @@ fun MMButton(
     size: MMButtonSize = MMButtonSize.Medium,            // ✅ thêm size
     colors: ButtonColors = ButtonDefaults.buttonColors(
         containerColor = Color.Transparent,
-        contentColor = Color.White
-    )
+        contentColor = Color.White,
+        disabledContainerColor = Color.Transparent,
+        disabledContentColor = Color.White.copy(alpha = 0.5f)
+    ),
+    enabled: Boolean = true
 ) {
     val (minH, padH, padV) = when (size) {
         MMButtonSize.Compact -> Triple(36.dp, 12.dp, 8.dp)  // phù hợp nút thấp
@@ -118,6 +121,7 @@ fun MMButton(
 
     Button(
         onClick = onClick,
+        enabled = enabled,
         modifier = appliedModifier,
         colors = colors,
         shape = RoundedCornerShape(16.dp),

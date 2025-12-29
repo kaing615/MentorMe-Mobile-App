@@ -1,56 +1,35 @@
-# Socket trong MentorMe-Mobile-App
+# Socket.IO Signaling (WebRTC)
 
-Tài liệu này mô tả cách sử dụng socket trong backend của ứng dụng MentorMe-Mobile-App.
+This document describes the realtime signaling flow used by MentorMe.
 
-## Công nghệ sử dụng
+## Auth
 
-- **Socket.IO**: Thư viện hỗ trợ giao tiếp thời gian thực giữa client và server.
+- Socket handshake uses the normal access JWT (same as REST).
+- WebRTC join requires a short-lived join token from the REST API.
 
-## Cài đặt
+## Rooms
 
-```bash
-npm install socket.io
-```
+- `session:{bookingId}:waiting` — mentee waiting before mentor admit.
+- `session:{bookingId}:live` — signaling room after admit.
 
-## Khởi tạo Socket Server
+## Client -> Server events
 
-```js
-const http = require("http");
-const socketIo = require("socket.io");
+- `session:join` `{ token }`
+- `session:admit` `{ bookingId }` (mentor only)
+- `session:leave` `{ bookingId }`
+- `session:end` `{ bookingId }`
+- `signal:offer` `{ bookingId, data }`
+- `signal:answer` `{ bookingId, data }`
+- `signal:ice` `{ bookingId, data }`
+- `session:qos` `{ bookingId, stats }`
 
-const server = http.createServer(app);
-const io = socketIo(server);
+## Server -> Client events
 
-io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
-
-  socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
-  });
-
-  // Lắng nghe sự kiện từ client
-  socket.on("chat message", (msg) => {
-    io.emit("chat message", msg);
-  });
-});
-
-server.listen(3000, () => {
-  console.log("Socket server running on port 3000");
-});
-```
-
-## Các sự kiện phổ biến
-
-- `connection`: Khi client kết nối.
-- `disconnect`: Khi client ngắt kết nối.
-- `chat message`: Nhận và gửi tin nhắn chat.
-
-## Lưu ý
-
-- Đảm bảo bảo mật khi truyền dữ liệu qua socket.
-- Kiểm tra xác thực người dùng trước khi cho phép kết nối.
-
-## Tài liệu tham khảo
-
-- [Socket.IO Documentation](https://socket.io/docs/)
-- [Node.js Documentation](https://nodejs.org/en/docs/)
+- `session:joined` `{ bookingId, role, admitted }`
+- `session:waiting` `{ bookingId }`
+- `session:admitted` `{ bookingId, admittedAt }`
+- `session:ready` `{ bookingId }`
+- `session:participant-joined` `{ bookingId, userId, role }`
+- `session:participant-left` `{ bookingId, userId, role }`
+- `session:ended` `{ bookingId, endedBy }`
+- `signal:*` forwarded to the other peer with `{ bookingId, fromUserId, fromRole, data }`

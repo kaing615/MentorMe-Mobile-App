@@ -17,6 +17,8 @@ import homeRouter from "./home.route";
 import presenceRouter from "./presence.route";
 import reviewRouter from "./review.route";
 import notificationRouter from "./notification.route";
+import sessionRouter from "./session.route";
+import messageRouter from "./message.route";
 
 const router = Router();
 
@@ -49,5 +51,11 @@ router.use("/", reviewRouter);
 
 // Notifications (device tokens, push)
 router.use("/notifications", notificationRouter);
+
+// Sessions (WebRTC)
+router.use("/sessions", sessionRouter);
+
+// Messages (chat)
+router.use("/messages", messageRouter);
 
 export default router;

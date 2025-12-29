@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.VideoCall
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,7 +50,8 @@ import com.mentorme.app.ui.theme.LiquidGlassCard
 @Composable
 fun BookingDetailScreen(
     bookingId: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onJoinSession: (String) -> Unit = {}
 ) {
     val vm = hiltViewModel<BookingDetailViewModel>()
     val mentorBookingsVm = hiltViewModel<MentorBookingsViewModel>()
@@ -80,6 +82,7 @@ fun BookingDetailScreen(
             BookingDetailContent(
                 booking = s.booking,
                 onBack = onBack,
+                onJoinSession = onJoinSession,
                 showActions = isMentor,
                 actionBusy = actionBusy,
                 onAccept = {
@@ -162,6 +165,7 @@ private fun ErrorState(
 private fun BookingDetailContent(
     booking: Booking,
     onBack: () -> Unit,
+    onJoinSession: (String) -> Unit = {},
     showActions: Boolean,
     actionBusy: Boolean,
     onAccept: () -> Unit,
@@ -232,6 +236,26 @@ private fun BookingDetailContent(
             }
         }
 
+        // Join Session button for confirmed bookings
+        if (booking.status == BookingStatus.CONFIRMED) {
+            item {
+                LiquidGlassCard(modifier = Modifier.fillMaxWidth(), radius = 22.dp) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Session Actions", color = Color.White, fontWeight = FontWeight.SemiBold)
+                        MMPrimaryButton(
+                            onClick = { onJoinSession(booking.id) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { 
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(androidx.compose.material.icons.Icons.Default.VideoCall, contentDescription = null)
+                                Text("Join Session")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if (canRespond) {
             item {
                 LiquidGlassCard(modifier = Modifier.fillMaxWidth(), radius = 22.dp) {
@@ -291,6 +315,9 @@ private fun StatusPill(status: BookingStatus) {
         BookingStatus.PENDING_MENTOR -> "Pending Mentor" to Color(0xFFF59E0B)
         BookingStatus.CONFIRMED -> "Confirmed" to Color(0xFF10B981)
         BookingStatus.COMPLETED -> "Completed" to Color(0xFF8B5CF6)
+        BookingStatus.NO_SHOW_MENTOR -> "No-show mentor" to Color(0xFFF97316)
+        BookingStatus.NO_SHOW_MENTEE -> "No-show mentee" to Color(0xFFF97316)
+        BookingStatus.NO_SHOW_BOTH -> "No-show both" to Color(0xFFF97316)
         BookingStatus.CANCELLED -> "Cancelled" to Color(0xFFEF4444)
         BookingStatus.DECLINED -> "Declined" to Color(0xFFEF4444)
         BookingStatus.FAILED -> "Failed" to Color(0xFFEF4444)

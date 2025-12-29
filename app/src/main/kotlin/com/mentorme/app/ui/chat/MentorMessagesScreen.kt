@@ -27,6 +27,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,7 +38,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.mentorme.app.data.repository.chat.impl.ChatRepositoryImpl
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mentorme.app.ui.components.ui.MMTextField
 import com.mentorme.app.ui.chat.components.ConversationCard
 import com.mentorme.app.ui.chat.components.GlassIconButton
@@ -51,9 +53,9 @@ fun MentorMessagesScreen(
     onSearchConversations: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val repo = remember { ChatRepositoryImpl() }
+    val viewModel = hiltViewModel<ChatViewModel>()
     var query by remember { mutableStateOf("") }
-    val conversations by remember { mutableStateOf(repo.getConversations()) }
+    val conversations by viewModel.conversations.collectAsStateWithLifecycle()
 
     CompositionLocalProvider(LocalContentColor provides Color.White) {
         Column(
@@ -119,6 +121,10 @@ fun MentorMessagesScreen(
                 }
             }
         }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshConversations()
     }
 }
 

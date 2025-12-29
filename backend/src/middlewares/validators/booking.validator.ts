@@ -12,7 +12,18 @@ export const getBookingsRules = [
   query('role').optional().isIn(['mentee', 'mentor']).withMessage('role must be mentee or mentor'),
   query('status')
     .optional()
-    .isIn(['PaymentPending', 'PendingMentor', 'Confirmed', 'Failed', 'Cancelled', 'Declined', 'Completed'])
+    .isIn([
+      'PaymentPending',
+      'PendingMentor',
+      'Confirmed',
+      'Failed',
+      'Cancelled',
+      'Declined',
+      'Completed',
+      'NoShowMentor',
+      'NoShowMentee',
+      'NoShowBoth',
+    ])
     .withMessage('invalid status'),
   query('page').optional().isInt({ min: 1 }).toInt(),
   query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),

@@ -3,6 +3,8 @@ package com.mentorme.app.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mentorme.app.core.utils.AppResult
+import com.mentorme.app.core.realtime.RealtimeEvent
+import com.mentorme.app.core.realtime.RealtimeEventBus
 import com.mentorme.app.domain.usecase.SearchMentorsUseCase
 import com.mentorme.app.domain.usecase.profile.GetMeUseCase
 import com.mentorme.app.domain.usecase.home.GetHomeStatsUseCase
@@ -16,6 +18,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import javax.inject.Inject
 
+data class WaitingSession(
+    val bookingId: String,
+    val menteeUserId: String?,
+    val menteeName: String?
+)
+
 data class HomeUiState(
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
@@ -28,7 +36,9 @@ data class HomeUiState(
     val mentorCount: Int = 0,
     val sessionCount: Int = 0,
     val avgRating: Double = 0.0,
-    val onlineCount: Int = 0
+    val onlineCount: Int = 0,
+    // Session waiting
+    val waitingSession: WaitingSession? = null
 )
 
 @HiltViewModel
@@ -47,11 +57,55 @@ class HomeViewModel @Inject constructor(
     init {
         loadData()
         startPresencePing()
+        observeRealtimeEvents()
     }
 
     fun refresh() {
         _uiState.update { it.copy(isRefreshing = true, errorMessage = null) }
         loadData()
+    }
+
+    fun dismissWaitingSession() {
+        _uiState.update { it.copy(waitingSession = null) }
+    }
+
+    private fun observeRealtimeEvents() {
+        viewModelScope.launch {
+            RealtimeEventBus.events.collect { event ->
+                when (event) {
+                    is RealtimeEvent.SessionParticipantJoined -> {
+                        // Khi mentee join vào session, hiển thị banner cho mentor
+                        if (event.payload.role == "mentee") {
+                            val bookingId = event.payload.bookingId ?: return@collect
+                            _uiState.update {
+                                it.copy(
+                                    waitingSession = WaitingSession(
+                                        bookingId = bookingId,
+                                        menteeUserId = event.payload.userId,
+                                        menteeName = null // Có thể fetch tên mentee nếu cần
+                                    )
+                                )
+                            }
+                        }
+                    }
+                    is RealtimeEvent.SessionReady -> {
+                        // Khi session đã ready (mentor đã admit), ẩn banner
+                        val bookingId = event.payload.bookingId ?: return@collect
+                        if (_uiState.value.waitingSession?.bookingId == bookingId) {
+                            _uiState.update { it.copy(waitingSession = null) }
+                        }
+                    }
+                    is RealtimeEvent.SessionEnded -> {
+                        // Khi session kết thúc, ẩn banner
+                        val bookingId = event.payload.bookingId ?: return@collect
+                        if (_uiState.value.waitingSession?.bookingId == bookingId) {
+                            _uiState.update { it.copy(waitingSession = null) }
+                        }
+                    }
+                    else -> Unit
+                }
+            }
+        }
     }
 
     private fun loadData() {

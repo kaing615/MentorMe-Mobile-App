@@ -17,7 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.mentorme.app.data.repository.chat.impl.ChatRepositoryImpl
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mentorme.app.ui.chat.components.ConversationCard
 import com.mentorme.app.ui.components.ui.MMTextField
 import com.mentorme.app.ui.theme.liquidGlass
@@ -28,13 +29,13 @@ fun MessagesScreen(
     onOpenConversation: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val repo = remember { ChatRepositoryImpl() }
+    val viewModel = hiltViewModel<ChatViewModel>()
     var query by remember { mutableStateOf("") }
-    val conversations by remember { mutableStateOf(repo.getConversations()) }
+    val conversations by viewModel.conversations.collectAsStateWithLifecycle()
 
     CompositionLocalProvider(LocalContentColor provides Color.White) {
         Column(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxSize()
                 .windowInsetsPadding(                // chừa status bar + lề ngang
                     WindowInsets.safeDrawing.only(
@@ -85,5 +86,9 @@ fun MessagesScreen(
 
             }
         }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshConversations()
     }
 }

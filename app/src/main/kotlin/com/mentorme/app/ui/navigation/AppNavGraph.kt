@@ -54,6 +54,7 @@ import com.mentorme.app.ui.wallet.PaymentMethodScreen
 import com.mentorme.app.ui.wallet.TopUpScreen
 import com.mentorme.app.ui.wallet.WalletViewModel
 import com.mentorme.app.ui.wallet.WithdrawScreen
+import com.mentorme.app.ui.videocall.VideoCallScreen
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 
@@ -194,6 +195,11 @@ internal fun AppNavGraph(
         HomeScreen(
             onNavigateToMentors = { goToSearch(nav) },
             onSearch = { _ -> goToSearch(nav) },
+            onJoinSession = { bookingId ->
+                nav.navigate(Routes.videoCall(bookingId)) {
+                    launchSingleTop = true
+                }
+            },
             onBookSlot = { mentor, occurrenceId, date, startTime, endTime, priceVnd, note ->
                 nav.currentBackStackEntry?.savedStateHandle?.set("booking_notes", note)
                 nav.currentBackStackEntry?.savedStateHandle?.set("booking_mentor_name", mentor.name)
@@ -218,7 +224,11 @@ internal fun AppNavGraph(
             onViewStudents = { Log.d("AppNav", "Navigate to students list - TODO") },
             onViewEarnings = { Log.d("AppNav", "Navigate to earnings - TODO") },
             onViewReviews = { Log.d("AppNav", "Navigate to reviews - TODO") },
-            onJoinSession = { sessionId -> Log.d("AppNav", "Join session $sessionId - TODO") },
+            onJoinSession = { sessionId ->
+                nav.navigate(Routes.videoCall(sessionId)) {
+                    launchSingleTop = true
+                }
+            },
             onViewAllSessions = {
                 nav.navigate(Routes.MentorCalendar) {
                     launchSingleTop = true
@@ -243,6 +253,11 @@ internal fun AppNavGraph(
     composable(Routes.MentorCalendar) {
         MentorCalendarScreen(
             onViewSession = { sessionId -> Log.d("AppNav", "View session $sessionId - TODO") },
+            onJoinSession = { bookingId ->
+                nav.navigate(Routes.videoCall(bookingId)) {
+                    launchSingleTop = true
+                }
+            },
             onCreateSession = { Log.d("AppNav", "Create session - TODO") },
             onUpdateAvailability = { Log.d("AppNav", "Update availability - TODO") },
             onCancelSession = { sessionId -> Log.d("AppNav", "Cancel session $sessionId - TODO") }
@@ -344,6 +359,11 @@ internal fun AppNavGraph(
         val tabArg = backStackEntry.arguments?.getString("tab")
         MenteeCalendarScreen(
             startTab = CalendarTab.fromRouteArg(tabArg),
+            onJoinSession = { booking ->
+                nav.navigate(Routes.videoCall(booking.id)) {
+                    launchSingleTop = true
+                }
+            },
             onOpenDetail = { booking ->
                 nav.navigate("booking_detail/${booking.id}")
             }
@@ -354,7 +374,12 @@ internal fun AppNavGraph(
         val bookingId = backStackEntry.arguments?.getString("bookingId") ?: return@composable
         BookingDetailScreen(
             bookingId = bookingId,
-            onBack = { nav.popBackStack() }
+            onBack = { nav.popBackStack() },
+            onJoinSession = { bookingId ->
+                nav.navigate(Routes.videoCall(bookingId)) {
+                    launchSingleTop = true
+                }
+            }
         )
     }
 
@@ -368,6 +393,11 @@ internal fun AppNavGraph(
         NotificationsScreen(
             onBack = { nav.popBackStack() },
             onOpenDetail = { route -> nav.navigate(route) },
+            onJoinSession = { bookingId ->
+                nav.navigate(Routes.videoCall(bookingId)) {
+                    launchSingleTop = true
+                }
+            },
             viewModel = notificationsVm
         )
     }
@@ -377,7 +407,12 @@ internal fun AppNavGraph(
             ?: return@composable
         NotificationDetailScreen(
             notificationId = notificationId,
-            onBack = { nav.popBackStack() }
+            onBack = { nav.popBackStack() },
+            onJoinSession = { bookingId ->
+                nav.navigate(Routes.videoCall(bookingId)) {
+                    launchSingleTop = true
+                }
+            }
         )
     }
 
@@ -386,7 +421,22 @@ internal fun AppNavGraph(
         ChatScreen(
             conversationId = convId,
             onBack = { nav.popBackStack() },
-            onJoinSession = { /* TODO */ }
+            onJoinSession = {
+                nav.navigate(Routes.videoCall(convId)) {
+                    launchSingleTop = true
+                }
+            },
+            onOpenBookingDetail = { bookingId ->
+                nav.navigate("booking_detail/$bookingId")
+            }
+        )
+    }
+
+    composable("${Routes.VideoCall}/{bookingId}") { backStackEntry ->
+        val bookingId = backStackEntry.arguments?.getString("bookingId") ?: return@composable
+        VideoCallScreen(
+            bookingId = bookingId,
+            onBack = { nav.popBackStack() }
         )
     }
 

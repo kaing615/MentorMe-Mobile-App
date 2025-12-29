@@ -106,8 +106,15 @@ class ChatViewModel @Inject constructor(
     private fun observeRealtime() {
         viewModelScope.launch {
             RealtimeEventBus.events.collect { event ->
-                if (event is RealtimeEvent.ChatMessageReceived) {
-                    handleIncomingMessage(event.payload)
+                when (event) {
+                    is RealtimeEvent.ChatMessageReceived -> handleIncomingMessage(event.payload)
+                    is RealtimeEvent.SessionReady -> updateConversationSession(event.payload.bookingId, true)
+                    is RealtimeEvent.SessionAdmitted -> updateConversationSession(event.payload.bookingId, true)
+                    is RealtimeEvent.SessionWaiting -> updateConversationSession(event.payload.bookingId, true)
+                    is RealtimeEvent.SessionParticipantJoined -> updateConversationSession(event.payload.bookingId, true)
+                    is RealtimeEvent.SessionEnded -> updateConversationSession(event.payload.bookingId, false)
+                    is RealtimeEvent.BookingChanged -> refreshConversations()
+                    else -> Unit
                 }
             }
         }
@@ -138,6 +145,20 @@ class ChatViewModel @Inject constructor(
                         lastMessageTimeIso = message.createdAtIso,
                         unreadCount = newUnread
                     )
+                } else {
+                    convo
+                }
+            }
+        }
+    }
+
+    private fun updateConversationSession(bookingId: String?, active: Boolean) {
+        val targetId = bookingId?.trim().orEmpty()
+        if (targetId.isBlank()) return
+        _conversations.update { list ->
+            list.map { convo ->
+                if (convo.id == targetId) {
+                    convo.copy(hasActiveSession = active)
                 } else {
                     convo
                 }

@@ -40,6 +40,7 @@ enum class CallPhase {
     WaitingForAdmit,
     Connecting,
     InCall,
+    Reconnecting,
     Ended,
     Error
 }
@@ -54,6 +55,7 @@ data class VideoCallUiState(
     val isAudioEnabled: Boolean = true,
     val isVideoEnabled: Boolean = true,
     val isSpeakerEnabled: Boolean = true,
+    val callDurationSec: Long = 0,
     val errorMessage: String? = null
 )
 
@@ -74,6 +76,10 @@ class VideoCallViewModel @Inject constructor(
     private var permissionsGranted = false
     private var pendingOffer: SessionDescription? = null
     private var qosJob: Job? = null
+    private var timerJob: Job? = null
+    private var callStartedAtMs: Long? = null
+    private var reconnectJob: Job? = null
+    private var reconnectAttempts = 0
 
     private val webRtcClient = WebRtcClient(
         context = appContext,
@@ -88,9 +94,7 @@ class VideoCallViewModel @Inject constructor(
             }
 
             override fun onRemoteTrack(track: org.webrtc.VideoTrack) {
-                viewModelScope.launch {
-                    _state.update { it.copy(phase = CallPhase.InCall) }
-                }
+                markInCall()
             }
         }
     )
@@ -112,6 +116,7 @@ class VideoCallViewModel @Inject constructor(
             }
         }
         resetCallState()
+        resetReconnectState()
         currentBookingId = bookingId
         _state.update { it.copy(bookingId = bookingId, phase = CallPhase.Joining, errorMessage = null) }
 
@@ -141,6 +146,7 @@ class VideoCallViewModel @Inject constructor(
 
     fun retry() {
         val bookingId = currentBookingId ?: return
+        resetReconnectState()
         start(bookingId)
     }
 
@@ -375,16 +381,55 @@ class VideoCallViewModel @Inject constructor(
     private fun handleConnectionState(state: PeerConnection.PeerConnectionState) {
         when (state) {
             PeerConnection.PeerConnectionState.CONNECTED -> {
-                _state.update { it.copy(phase = CallPhase.InCall) }
+                resetReconnectState()
+                markInCall()
             }
             PeerConnection.PeerConnectionState.DISCONNECTED,
             PeerConnection.PeerConnectionState.FAILED -> {
-                setError("Connection lost")
+                handleReconnect("Connection lost")
             }
             PeerConnection.PeerConnectionState.CLOSED -> {
                 _state.update { it.copy(phase = CallPhase.Ended) }
+                cleanupCall()
             }
             else -> Unit
+        }
+    }
+
+    private fun markInCall() {
+        if (callStartedAtMs == null) {
+            callStartedAtMs = System.currentTimeMillis()
+        }
+        _state.update { it.copy(phase = CallPhase.InCall, errorMessage = null) }
+        startCallTimer()
+    }
+
+    private fun startCallTimer() {
+        if (timerJob != null) return
+        timerJob = viewModelScope.launch {
+            while (true) {
+                val start = callStartedAtMs ?: System.currentTimeMillis()
+                val elapsed = (System.currentTimeMillis() - start) / 1000
+                _state.update { it.copy(callDurationSec = elapsed) }
+                delay(1_000)
+            }
+        }
+    }
+
+    private fun handleReconnect(reason: String) {
+        if (_state.value.phase == CallPhase.Ended || _state.value.phase == CallPhase.Error) return
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            setError("Reconnect failed")
+            return
+        }
+        _state.update { it.copy(phase = CallPhase.Reconnecting, errorMessage = reason) }
+        if (reconnectJob == null) {
+            reconnectAttempts += 1
+            reconnectJob = viewModelScope.launch {
+                delay(RECONNECT_DELAY_MS)
+                reconnectJob = null
+                retry()
+            }
         }
     }
 
@@ -438,16 +483,27 @@ class VideoCallViewModel @Inject constructor(
     private fun cleanupCall() {
         qosJob?.cancel()
         qosJob = null
+        timerJob?.cancel()
+        timerJob = null
+        reconnectJob?.cancel()
+        reconnectJob = null
         webRtcClient.release()
         callStarted = false
         sessionReady = false
         pendingOffer = null
+        callStartedAtMs = null
     }
 
     private fun resetCallState() {
         cleanupCall()
         currentRole = null
         _state.value = VideoCallUiState()
+    }
+
+    private fun resetReconnectState() {
+        reconnectAttempts = 0
+        reconnectJob?.cancel()
+        reconnectJob = null
     }
 
     private fun setError(message: String) {
@@ -459,5 +515,10 @@ class VideoCallViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         cleanupCall()
+    }
+
+    private companion object {
+        const val RECONNECT_DELAY_MS = 3_000L
+        const val MAX_RECONNECT_ATTEMPTS = 3
     }
 }

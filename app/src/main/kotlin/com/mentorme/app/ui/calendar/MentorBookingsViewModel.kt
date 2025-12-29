@@ -71,6 +71,10 @@ class MentorBookingsViewModel @Inject constructor(
             RealtimeEventBus.events.collect { event ->
                 when (event) {
                     is RealtimeEvent.BookingChanged -> updateBooking(event.bookingId)
+                    is RealtimeEvent.SessionReady -> updateBooking(event.payload.bookingId ?: return@collect)
+                    is RealtimeEvent.SessionAdmitted -> updateBooking(event.payload.bookingId ?: return@collect)
+                    is RealtimeEvent.SessionParticipantJoined -> updateBooking(event.payload.bookingId ?: return@collect)
+                    is RealtimeEvent.SessionEnded -> updateBooking(event.payload.bookingId ?: return@collect)
                     else -> Unit
                 }
             }

@@ -88,6 +88,9 @@ fun SessionsTab(bookings: List<Booking>) {
                 BookingStatus.CONFIRMED -> Color(0xFF22C55E) to "Đã xác nhận"
                 BookingStatus.PENDING_MENTOR -> Color(0xFFF59E0B) to "Chờ duyệt"
                 BookingStatus.COMPLETED -> Color(0xFF14B8A6) to "Hoàn thành"
+                BookingStatus.NO_SHOW_MENTOR -> Color(0xFFF97316) to "No-show mentor"
+                BookingStatus.NO_SHOW_MENTEE -> Color(0xFFF97316) to "No-show mentee"
+                BookingStatus.NO_SHOW_BOTH -> Color(0xFFF97316) to "No-show cả hai"
                 BookingStatus.CANCELLED -> Color(0xFFEF4444) to "Đã hủy"
                 BookingStatus.PAYMENT_PENDING -> Color(0xFFF59E0B) to "Chờ thanh toán"
                 BookingStatus.FAILED -> Color(0xFFEF4444) to "Thanh toán thất bại"
@@ -97,6 +100,9 @@ fun SessionsTab(bookings: List<Booking>) {
                 BookingStatus.PAYMENT_PENDING -> Color(0xFFF59E0B) to "Chờ thanh toán"
                 BookingStatus.FAILED, BookingStatus.DECLINED -> Color(0xFFEF4444) to "Thanh toán thất bại"
                 BookingStatus.CANCELLED -> Color(0xFFEF4444) to "Đã hủy"
+                BookingStatus.NO_SHOW_MENTOR,
+                BookingStatus.NO_SHOW_MENTEE,
+                BookingStatus.NO_SHOW_BOTH -> Color(0xFFF97316) to "No-show"
                 else -> Color(0xFF22C55E) to "Đã thanh toán"
             }
 

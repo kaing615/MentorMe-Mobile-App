@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -145,6 +146,33 @@ fun VideoCallScreen(
             )
         }
 
+        val statusLabel = remember(state.phase, state.role) {
+            when (state.phase) {
+                CallPhase.InCall -> "In call"
+                CallPhase.Reconnecting -> "Reconnecting"
+                CallPhase.Joining -> "Joining room"
+                CallPhase.WaitingForPeer -> "Waiting for participant"
+                CallPhase.WaitingForAdmit -> if (state.role == "mentor") "Participant waiting" else "Waiting for mentor approval"
+                CallPhase.Connecting -> "Connecting"
+                CallPhase.Ended -> "Call ended"
+                CallPhase.Error -> "Connection error"
+                CallPhase.Idle -> ""
+            }
+        }
+        val timerText = remember(state.callDurationSec) {
+            formatDuration(state.callDurationSec)
+        }
+
+        if (statusLabel.isNotBlank()) {
+            CallStatusPill(
+                label = statusLabel,
+                timerText = if (state.phase == CallPhase.InCall) timerText else null,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 12.dp)
+            )
+        }
+
         if (!permissionsGranted) {
             CallOverlay(
                 title = "Camera and mic permission required",
@@ -159,6 +187,7 @@ fun VideoCallScreen(
                     if (state.role == "mentor") "Participant is waiting" else "Waiting for mentor"
                 }
                 CallPhase.Connecting -> "Connecting"
+                CallPhase.Reconnecting -> "Reconnecting"
                 CallPhase.Ended -> "Call ended"
                 CallPhase.Error -> state.errorMessage ?: "Call error"
                 else -> null
@@ -167,9 +196,9 @@ fun VideoCallScreen(
             if (statusText != null && state.phase != CallPhase.InCall) {
                 CallOverlay(
                     title = statusText,
-                    actionLabel = if (state.phase == CallPhase.Error) "Retry" else null,
+                    actionLabel = if (state.phase == CallPhase.Error || state.phase == CallPhase.Reconnecting) "Retry" else null,
                     onAction = {
-                        if (state.phase == CallPhase.Error) {
+                        if (state.phase == CallPhase.Error || state.phase == CallPhase.Reconnecting) {
                             viewModel.retry()
                         }
                     }
@@ -314,5 +343,38 @@ private fun ControlButton(
         IconButton(onClick = onClick, modifier = Modifier.size(52.dp)) {
             Icon(icon, contentDescription = contentDescription, tint = Color.White)
         }
+    }
+}
+
+@Composable
+private fun CallStatusPill(
+    label: String,
+    timerText: String?,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .liquidGlassStrong(radius = 18.dp, alpha = 0.22f)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        color = Color.Transparent
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, color = Color.White, style = MaterialTheme.typography.labelLarge)
+            if (!timerText.isNullOrBlank()) {
+                Spacer(Modifier.width(8.dp))
+                Text(timerText, color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.labelLarge)
+            }
+        }
+    }
+}
+
+private fun formatDuration(totalSeconds: Long): String {
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) {
+        "%d:%02d:%02d".format(hours, minutes, seconds)
+    } else {
+        "%02d:%02d".format(minutes, seconds)
     }
 }

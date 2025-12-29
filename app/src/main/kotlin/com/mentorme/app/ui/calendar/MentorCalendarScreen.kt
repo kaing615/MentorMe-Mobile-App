@@ -125,7 +125,12 @@ fun MentorCalendarScreen(
 
     val totalPaid = remember(bookings) {
         bookings
-            .filter { it.status == BookingStatus.COMPLETED }
+            .filter {
+                it.status == BookingStatus.COMPLETED ||
+                    it.status == BookingStatus.NO_SHOW_MENTOR ||
+                    it.status == BookingStatus.NO_SHOW_MENTEE ||
+                    it.status == BookingStatus.NO_SHOW_BOTH
+            }
             .sumOf { it.price.toInt() }
     }
     val totalPending = remember(bookings) {

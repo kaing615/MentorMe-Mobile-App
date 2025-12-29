@@ -88,9 +88,17 @@ fun BookingsTabScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        val filtered = remember(bookings, selectedStatus) {
-            bookings.filter { it.status == selectedStatus }
+    val filtered = remember(bookings, selectedStatus) {
+        bookings.filter { booking ->
+            when (selectedStatus) {
+                BookingStatus.COMPLETED -> booking.status == BookingStatus.COMPLETED ||
+                    booking.status == BookingStatus.NO_SHOW_MENTOR ||
+                    booking.status == BookingStatus.NO_SHOW_MENTEE ||
+                    booking.status == BookingStatus.NO_SHOW_BOTH
+                else -> booking.status == selectedStatus
+            }
         }
+    }
 
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(12.dp),

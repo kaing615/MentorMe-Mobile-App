@@ -72,7 +72,28 @@ class SocketManager @Inject constructor(
     }
 
     fun emit(event: String, payload: Any) {
-        socket?.emit(event, payload)
+        val connected = socket?.connected() == true
+        Log.d(TAG, "emit() - event: $event, connected: $connected, payload: $payload")
+        if (!connected) {
+            Log.w(TAG, "Socket not connected! Cannot emit event: $event")
+        }
+        
+        // Convert payload to JSONObject for proper serialization
+        val jsonPayload = when (payload) {
+            is Map<*, *> -> JSONObject(payload as Map<String, Any>)
+            is JSONObject -> payload
+            else -> {
+                try {
+                    JSONObject(gson.toJson(payload))
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to convert payload to JSON: ${e.message}")
+                    payload
+                }
+            }
+        }
+        
+        Log.d(TAG, "Emitting with JSONObject: $jsonPayload")
+        socket?.emit(event, jsonPayload)
     }
 
     fun isConnected(): Boolean = socket?.connected() == true
@@ -216,7 +237,12 @@ class SocketManager @Inject constructor(
 
     private fun handleSessionParticipantJoinedEvent(args: Array<Any>) {
         val raw = args.firstOrNull() ?: return
-        val payload = parsePayload(raw, SessionParticipantPayload::class.java) ?: return
+        Log.d(TAG, "Received session:participant-joined event: $raw")
+        val payload = parsePayload(raw, SessionParticipantPayload::class.java) ?: run {
+            Log.e(TAG, "Failed to parse SessionParticipantPayload")
+            return
+        }
+        Log.d(TAG, "SessionParticipantJoined - bookingId: ${payload.bookingId}, role: ${payload.role}, userId: ${payload.userId}")
         RealtimeEventBus.emit(RealtimeEvent.SessionParticipantJoined(payload))
     }
 

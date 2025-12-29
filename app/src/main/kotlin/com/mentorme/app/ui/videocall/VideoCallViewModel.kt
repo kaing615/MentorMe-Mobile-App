@@ -80,6 +80,7 @@ class VideoCallViewModel @Inject constructor(
     private var callStartedAtMs: Long? = null
     private var reconnectJob: Job? = null
     private var reconnectAttempts = 0
+    private var renderersAttached = false
 
     private val webRtcClient = WebRtcClient(
         context = appContext,
@@ -134,7 +135,9 @@ class VideoCallViewModel @Inject constructor(
                 if (envelope?.success == true && !token.isNullOrBlank()) {
                     currentRole = data.role
                     _state.update { it.copy(role = data.role) }
+                    Log.d("VideoCallVM", "Got join token for role: ${data.role}, emitting session:join")
                     socketManager.emit("session:join", mapOf("token" to token))
+                    Log.d("VideoCallVM", "Emitted session:join event")
                 } else {
                     setError(envelope?.message ?: "Failed to join session")
                 }
@@ -152,7 +155,7 @@ class VideoCallViewModel @Inject constructor(
 
     fun setPermissionsGranted(granted: Boolean) {
         permissionsGranted = granted
-        if (granted) {
+        if (granted && renderersAttached) {
             startLocalPreview()
             pendingOffer?.let { offer ->
                 pendingOffer = null
@@ -166,10 +169,25 @@ class VideoCallViewModel @Inject constructor(
 
     fun bindLocalRenderer(renderer: org.webrtc.SurfaceViewRenderer) {
         webRtcClient.attachLocalRenderer(renderer)
+        checkRenderersReady()
     }
 
     fun bindRemoteRenderer(renderer: org.webrtc.SurfaceViewRenderer) {
         webRtcClient.attachRemoteRenderer(renderer)
+        checkRenderersReady()
+    }
+    
+    private fun checkRenderersReady() {
+        if (!renderersAttached) {
+            renderersAttached = true
+            // Start local preview if permissions are already granted
+            if (permissionsGranted) {
+                startLocalPreview()
+                if (sessionReady) {
+                    startCallIfReady()
+                }
+            }
+        }
     }
 
     fun toggleAudio() {
@@ -237,18 +255,27 @@ class VideoCallViewModel @Inject constructor(
         if (bookingId != currentBookingId) return
         currentRole = payload.role
         val admitted = payload.admitted == true
+        
+        Log.d("VideoCallVM", "Session joined - role: ${payload.role}, admitted: $admitted")
+        
+        val phase = when {
+            payload.role == "mentee" && !admitted -> CallPhase.WaitingForAdmit
+            payload.role == "mentor" -> CallPhase.WaitingForPeer // Mentor always waits for mentee first
+            else -> CallPhase.Connecting
+        }
+        
         _state.update {
             it.copy(
                 role = payload.role,
                 admitted = admitted,
-                phase = when {
-                    payload.role == "mentee" && !admitted -> CallPhase.WaitingForAdmit
-                    payload.role == "mentor" && !admitted -> CallPhase.WaitingForPeer
-                    else -> CallPhase.Connecting
-                }
+                phase = phase
             )
         }
-        if (admitted) {
+        
+        // Mentor is ready to receive events
+        if (payload.role == "mentor") {
+            sessionReady = true
+        } else if (admitted) {
             sessionReady = true
             startCallIfReady()
         }
@@ -263,6 +290,9 @@ class VideoCallViewModel @Inject constructor(
     private fun handleSessionAdmitted(payload: SessionAdmittedPayload) {
         val bookingId = payload.bookingId ?: return
         if (bookingId != currentBookingId) return
+        
+        Log.d("VideoCallVM", "Session admitted for booking: $bookingId")
+        
         _state.update { it.copy(admitted = true, phase = CallPhase.Connecting) }
         sessionReady = true
         startCallIfReady()
@@ -279,9 +309,19 @@ class VideoCallViewModel @Inject constructor(
     private fun handleParticipantJoined(payload: SessionParticipantPayload) {
         val bookingId = payload.bookingId ?: return
         if (bookingId != currentBookingId) return
-        _state.update { it.copy(peerJoined = true, peerRole = payload.role) }
-        if (currentRole == "mentor" && _state.value.admitted.not()) {
-            _state.update { it.copy(phase = CallPhase.WaitingForAdmit) }
+        
+        val peerRole = payload.role
+        Log.d("VideoCallVM", "Participant joined - peerRole: $peerRole, myRole: $currentRole, currentAdmitted: ${_state.value.admitted}")
+        
+        _state.update { it.copy(peerJoined = true, peerRole = peerRole) }
+        
+        // If I'm mentor and a mentee joined, show admission UI
+        if (currentRole == "mentor" && peerRole == "mentee") {
+            _state.update { it.copy(
+                phase = CallPhase.WaitingForAdmit,
+                admitted = false  // Reset admitted state to show admit button
+            ) }
+            Log.d("VideoCallVM", "Mentee joined, waiting for mentor to admit")
         }
     }
 
@@ -302,55 +342,104 @@ class VideoCallViewModel @Inject constructor(
     private fun handleSignalOffer(payload: SessionSignalPayload) {
         val bookingId = payload.bookingId ?: return
         if (bookingId != currentBookingId) return
-        val sdp = parseSessionDescription(payload.data) ?: return
+        
+        Log.d("VideoCallVM", "Received offer from peer")
+        
+        val sdp = parseSessionDescription(payload.data) ?: run {
+            Log.e("VideoCallVM", "Failed to parse offer SDP")
+            return
+        }
+        
         sessionReady = true
+        
         if (!permissionsGranted) {
+            Log.d("VideoCallVM", "Permissions not granted, storing pending offer")
             pendingOffer = sdp
             return
         }
+        
         acceptOffer(sdp)
     }
 
     private fun acceptOffer(sdp: SessionDescription) {
+        Log.d("VideoCallVM", "Accepting offer and creating answer")
+        
         callStarted = true
         webRtcClient.ensurePeerConnection()
         webRtcClient.startLocalMedia()
         webRtcClient.setRemoteDescription(sdp)
+        
         webRtcClient.createAnswer { answer ->
+            Log.d("VideoCallVM", "Answer created, emitting to peer")
             emitSdp("signal:answer", answer)
         }
+        
         startQosReporting()
     }
 
     private fun handleSignalAnswer(payload: SessionSignalPayload) {
         val bookingId = payload.bookingId ?: return
         if (bookingId != currentBookingId) return
-        val sdp = parseSessionDescription(payload.data) ?: return
+        
+        Log.d("VideoCallVM", "Received answer from peer")
+        
+        val sdp = parseSessionDescription(payload.data) ?: run {
+            Log.e("VideoCallVM", "Failed to parse answer SDP")
+            return
+        }
+        
         webRtcClient.ensurePeerConnection()
         webRtcClient.setRemoteDescription(sdp)
+        
+        Log.d("VideoCallVM", "Remote description set, starting QoS reporting")
         startQosReporting()
     }
 
     private fun handleSignalIce(payload: SessionSignalPayload) {
         val bookingId = payload.bookingId ?: return
         if (bookingId != currentBookingId) return
-        val candidate = parseIceCandidate(payload.data) ?: return
+        
+        val candidate = parseIceCandidate(payload.data) ?: run {
+            Log.w("VideoCallVM", "Failed to parse ICE candidate")
+            return
+        }
+        
+        Log.d("VideoCallVM", "Received ICE candidate from peer: ${candidate.sdpMid}")
+        
         webRtcClient.ensurePeerConnection()
         webRtcClient.addIceCandidate(candidate)
     }
 
     private fun startCallIfReady() {
-        if (callStarted || !permissionsGranted) return
-        val role = currentRole ?: return
+        Log.d("VideoCallVM", "startCallIfReady - callStarted: $callStarted, permissionsGranted: $permissionsGranted, role: $currentRole")
+        
+        if (callStarted || !permissionsGranted) {
+            Log.d("VideoCallVM", "Cannot start call - already started or permissions not granted")
+            return
+        }
+        
+        val role = currentRole ?: run {
+            Log.w("VideoCallVM", "Cannot start call - no role assigned")
+            return
+        }
+        
         callStarted = true
+        Log.d("VideoCallVM", "Starting call as $role")
+        
         webRtcClient.ensurePeerConnection()
         webRtcClient.setSpeakerEnabled(_state.value.isSpeakerEnabled)
         webRtcClient.startLocalMedia()
+        
         if (role == "mentor") {
+            Log.d("VideoCallVM", "Mentor creating offer")
             webRtcClient.createOffer { offer ->
+                Log.d("VideoCallVM", "Offer created, emitting to peer")
                 emitSdp("signal:offer", offer)
             }
+        } else {
+            Log.d("VideoCallVM", "Mentee waiting for offer")
         }
+        
         startQosReporting()
     }
 

@@ -7,16 +7,19 @@ import com.mentorme.app.ui.profile.WalletTx
 import java.time.Instant
 
 fun WalletTransactionDto.toUi(): WalletTx {
-    val signedAmount = when (type) {
-        "CREDIT", "REFUND" -> this.amount
-        else -> -this.amount
+    val signedAmount = when (source) {
+        "MANUAL_TOPUP",
+        "BOOKING_REFUND" -> amount
+        "MANUAL_WITHDRAW",
+        "BOOKING_PAYMENT" -> -amount
+        else -> amount
     }
 
     val txType = when (source) {
         "MANUAL_TOPUP" -> TxType.TOP_UP
-        "MANUAL_WITHDRAW", "MENTOR_PAYOUT" -> TxType.WITHDRAW
+        "MANUAL_WITHDRAW" -> TxType.WITHDRAW
         "BOOKING_PAYMENT" -> TxType.PAYMENT
-        "BOOKING_REFUND", "MENTOR_PAYOUT_REFUND" -> TxType.REFUND
+        "BOOKING_REFUND" -> TxType.REFUND
         else -> TxType.PAYMENT
     }
 
@@ -30,4 +33,5 @@ fun WalletTransactionDto.toUi(): WalletTx {
         date = Instant.parse(createdAt).toEpochMilli()
     )
 }
+
 

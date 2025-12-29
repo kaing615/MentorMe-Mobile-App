@@ -44,6 +44,8 @@ tags:
     description: Review and rating system (mentee reviews mentor after completed booking)
   - name: Sessions
     description: WebRTC signaling guard (join token + waiting room) and session logs
+  - name: Messages
+    description: Chat between mentor and mentee (booking-based)
 
 components:
   securitySchemes:
@@ -4336,6 +4338,130 @@ paths:
                             properties:
                               mentor: { type: object }
                               mentee: { type: object }
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Booking not found
+
+  /messages/{bookingId}:
+    get:
+      tags:
+        - Messages
+      summary: List chat messages for a booking
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - in: query
+          name: before
+          schema:
+            type: string
+            format: date-time
+          description: Return messages before this timestamp
+      responses:
+        "200":
+          description: Messages list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string }
+                            bookingId: { type: string }
+                            senderId: { type: string }
+                            receiverId: { type: string }
+                            content: { type: string }
+                            messageType: { type: string, enum: [text, image, file] }
+                            timestamp: { type: string, format: date-time }
+                            sender:
+                              type: object
+                              nullable: true
+                              properties:
+                                id: { type: string }
+                                email: { type: string, nullable: true }
+                                fullName: { type: string, nullable: true }
+                                avatar: { type: string, nullable: true }
+                                role: { type: string, nullable: true }
+                                createdAt: { type: string, format: date-time, nullable: true }
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Booking not found
+
+  /messages:
+    post:
+      tags:
+        - Messages
+      summary: Send a chat message for a booking
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bookingId, content]
+              properties:
+                bookingId: { type: string }
+                content: { type: string }
+                messageType:
+                  type: string
+                  enum: [text, image, file]
+      responses:
+        "200":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          bookingId: { type: string }
+                          senderId: { type: string }
+                          receiverId: { type: string }
+                          content: { type: string }
+                          messageType: { type: string, enum: [text, image, file] }
+                          timestamp: { type: string, format: date-time }
+                          sender:
+                            type: object
+                            nullable: true
+                            properties:
+                              id: { type: string }
+                              email: { type: string, nullable: true }
+                              fullName: { type: string, nullable: true }
+                              avatar: { type: string, nullable: true }
+                              role: { type: string, nullable: true }
+                              createdAt: { type: string, format: date-time, nullable: true }
+        "400":
+          description: Bad request
         "401":
           description: Unauthorized
         "403":

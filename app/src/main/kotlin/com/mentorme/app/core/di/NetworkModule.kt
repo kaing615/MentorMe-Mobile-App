@@ -8,6 +8,8 @@ import com.mentorme.app.data.network.api.auth.AuthApiService
 import com.mentorme.app.data.network.api.profile.ProfileApiService
 import com.mentorme.app.data.network.api.home.HomeApiService
 import com.mentorme.app.data.network.api.review.ReviewApiService
+import com.mentorme.app.data.network.api.chat.ChatApiService
+import com.mentorme.app.data.network.api.session.SessionApiService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -85,5 +87,17 @@ object NetworkModule {
     @Singleton
     fun provideReviewApiService(retrofit: Retrofit): ReviewApiService {
         return retrofit.create(ReviewApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideChatApiService(retrofit: Retrofit): ChatApiService {
+        return retrofit.create(ChatApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideSessionApiService(retrofit: Retrofit): SessionApiService {
+        return retrofit.create(SessionApiService::class.java)
     }
 }

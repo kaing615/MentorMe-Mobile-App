@@ -20,7 +20,8 @@ import androidx.compose.ui.platform.LocalDensity
 import com.mentorme.app.ui.theme.liquidGlassStrong
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.mentorme.app.data.repository.chat.impl.ChatRepositoryImpl
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.chat.components.ChatComposer
 import com.mentorme.app.ui.chat.components.GlassIconButton
@@ -35,9 +36,12 @@ fun ChatScreen(
     onBack: () -> Unit,
     onJoinSession: () -> Unit
 ) {
-    val repo = remember { ChatRepositoryImpl() }
-    val conversation = remember { repo.getConversations().find { it.id == conversationId } }
-    var messages by remember { mutableStateOf(repo.getMessages(conversationId)) }
+    val viewModel = hiltViewModel<ChatViewModel>()
+    val conversations by viewModel.conversations.collectAsStateWithLifecycle()
+    val messages by viewModel.messages.collectAsStateWithLifecycle()
+    val conversation = remember(conversations, conversationId) {
+        conversations.find { it.id == conversationId }
+    }
     var showProfile by remember { mutableStateOf(false) }
 
     CompositionLocalProvider(LocalContentColor provides Color.White) {
@@ -135,8 +139,7 @@ fun ChatScreen(
             // Composer (glass + imePadding)
             ChatComposer(
                 onSend = { text ->
-                    val msg = repo.sendMessage(conversationId, text)
-                    messages = messages + msg
+                    viewModel.sendMessage(conversationId, text)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -150,6 +153,9 @@ fun ChatScreen(
                 if (messages.isNotEmpty()) {
                     listState.animateScrollToItem(messages.lastIndex)
                 }
+            }
+            LaunchedEffect(conversationId) {
+                viewModel.openConversation(conversationId)
             }
         }
     }

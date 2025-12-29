@@ -84,7 +84,7 @@ data class AvailabilitySlot(
     val isBooked: Boolean
 )
 
-// -------- Booking status from API: 'PaymentPending' | 'PendingMentor' | 'Confirmed' | 'Failed' | 'Cancelled' | 'Declined' | 'Completed'
+// -------- Booking status from API: 'PaymentPending' | 'PendingMentor' | 'Confirmed' | 'Failed' | 'Cancelled' | 'Declined' | 'Completed' | 'NoShow*'
 enum class BookingStatus {
     @SerializedName(value = "PaymentPending", alternate = ["paymentPending", "payment_pending"])
     PAYMENT_PENDING,
@@ -108,7 +108,16 @@ enum class BookingStatus {
     FAILED,
 
     @SerializedName(value = "Declined", alternate = ["declined"])
-    DECLINED
+    DECLINED,
+
+    @SerializedName(value = "NoShowMentor", alternate = ["no_show_mentor", "no-show-mentor"])
+    NO_SHOW_MENTOR,
+
+    @SerializedName(value = "NoShowMentee", alternate = ["no_show_mentee", "no-show-mentee"])
+    NO_SHOW_MENTEE,
+
+    @SerializedName(value = "NoShowBoth", alternate = ["no_show_both", "no-show-both"])
+    NO_SHOW_BOTH
 }
 
 // -------- Booking user summary (nested in booking payloads)

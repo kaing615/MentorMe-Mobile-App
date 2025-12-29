@@ -31,6 +31,7 @@ interface MenteeCalendarDeps {
 @Composable
 fun MenteeCalendarScreen(
     startTab: CalendarTab = CalendarTab.Upcoming,
+    onJoinSession: (Booking) -> Unit = {},
     onOpenDetail: (Booking) -> Unit = {}
 ) {
     val vm = hiltViewModel<MenteeBookingsViewModel>()
@@ -57,7 +58,7 @@ fun MenteeCalendarScreen(
     CalendarScreen(
         startTab = startTab,
         bookings = bookings.value,
-        onJoinSession = { Toast.makeText(context, "Join chưa hỗ trợ", Toast.LENGTH_SHORT).show() },
+        onJoinSession = onJoinSession,
         onRate = { booking ->
             bookingToReview = booking
             reviewError = null

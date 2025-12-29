@@ -51,6 +51,7 @@ import com.mentorme.app.ui.wallet.PaymentMethod
 import com.mentorme.app.ui.wallet.PaymentMethodScreen
 import com.mentorme.app.ui.wallet.TopUpScreen
 import com.mentorme.app.ui.wallet.WithdrawScreen
+import com.mentorme.app.ui.videocall.VideoCallScreen
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 
@@ -215,7 +216,11 @@ internal fun AppNavGraph(
             onViewStudents = { Log.d("AppNav", "Navigate to students list - TODO") },
             onViewEarnings = { Log.d("AppNav", "Navigate to earnings - TODO") },
             onViewReviews = { Log.d("AppNav", "Navigate to reviews - TODO") },
-            onJoinSession = { sessionId -> Log.d("AppNav", "Join session $sessionId - TODO") },
+            onJoinSession = { sessionId ->
+                nav.navigate(Routes.videoCall(sessionId)) {
+                    launchSingleTop = true
+                }
+            },
             onViewAllSessions = {
                 nav.navigate(Routes.MentorCalendar) {
                     launchSingleTop = true
@@ -341,6 +346,11 @@ internal fun AppNavGraph(
         val tabArg = backStackEntry.arguments?.getString("tab")
         MenteeCalendarScreen(
             startTab = CalendarTab.fromRouteArg(tabArg),
+            onJoinSession = { booking ->
+                nav.navigate(Routes.videoCall(booking.id)) {
+                    launchSingleTop = true
+                }
+            },
             onOpenDetail = { booking ->
                 nav.navigate("booking_detail/${booking.id}")
             }
@@ -383,7 +393,19 @@ internal fun AppNavGraph(
         ChatScreen(
             conversationId = convId,
             onBack = { nav.popBackStack() },
-            onJoinSession = { /* TODO */ }
+            onJoinSession = {
+                nav.navigate(Routes.videoCall(convId)) {
+                    launchSingleTop = true
+                }
+            }
+        )
+    }
+
+    composable("${Routes.VideoCall}/{bookingId}") { backStackEntry ->
+        val bookingId = backStackEntry.arguments?.getString("bookingId") ?: return@composable
+        VideoCallScreen(
+            bookingId = bookingId,
+            onBack = { nav.popBackStack() }
         )
     }
 

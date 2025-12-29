@@ -35,6 +35,32 @@ android {
         versionCode = 1
         versionName = "1.0"
 
+        val stunUrl = (project.findProperty("WEBRTC_STUN_URL") as String?)
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: "stun:stun.l.google.com:19302"
+        val turnUrl = (project.findProperty("WEBRTC_TURN_URL") as String?)
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: ""
+        val turnUser = (project.findProperty("WEBRTC_TURN_USERNAME") as String?)
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: ""
+        val turnPass = (project.findProperty("WEBRTC_TURN_PASSWORD") as String?)
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: ""
+
+        fun escape(value: String): String = value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+
+        buildConfigField("String", "WEBRTC_STUN_URL", "\"${escape(stunUrl)}\"")
+        buildConfigField("String", "WEBRTC_TURN_URL", "\"${escape(turnUrl)}\"")
+        buildConfigField("String", "WEBRTC_TURN_USERNAME", "\"${escape(turnUser)}\"")
+        buildConfigField("String", "WEBRTC_TURN_PASSWORD", "\"${escape(turnPass)}\"")
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -131,6 +157,9 @@ dependencies {
     implementation("io.socket:socket.io-client:2.1.0") {
         exclude(group = "org.json", module = "json")
     }
+
+    // WebRTC
+    implementation("org.webrtc:google-webrtc:1.0.32006")
 
     // Testing
     testImplementation(libs.junit)

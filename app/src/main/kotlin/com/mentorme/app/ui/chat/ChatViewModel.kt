@@ -72,9 +72,10 @@ class ChatViewModel @Inject constructor(
             // Load messages
             when (val res = chatRepository.getMessages(conversationId)) {
                 is AppResult.Success -> {
-                    _messages.value = res.data
+                    val deduped = dedupeMessages(res.data)
+                    _messages.value = deduped
                     
-                    val last = res.data.lastOrNull()
+                    val last = deduped.lastOrNull()
                     if (last != null) {
                         updateConversationPreview(conversationId, last, incrementUnread = false)
                     }
@@ -227,7 +228,7 @@ class ChatViewModel @Inject constructor(
     private fun addOrUpdateMessage(message: Message): Boolean {
         var isNew = false
         _messages.update { list ->
-            val index = list.indexOfFirst { it.id == message.id }
+            val index = findMessageIndex(list, message)
             if (index == -1) {
                 isNew = true
                 list + message
@@ -238,6 +239,35 @@ class ChatViewModel @Inject constructor(
             }
         }
         return isNew
+    }
+
+    private fun findMessageIndex(list: List<Message>, message: Message): Int {
+        val messageId = message.id.trim()
+        if (messageId.isNotEmpty()) {
+            val byId = list.indexOfFirst { it.id == messageId }
+            if (byId != -1) return byId
+        }
+        val fallbackKey = messageDedupeKey(message)
+        return list.indexOfFirst { messageDedupeKey(it) == fallbackKey }
+    }
+
+    private fun dedupeMessages(messages: List<Message>): List<Message> {
+        val seen = HashSet<String>(messages.size)
+        val deduped = ArrayList<Message>(messages.size)
+        for (message in messages) {
+            val key = messageDedupeKey(message)
+            if (seen.add(key)) {
+                deduped.add(message)
+            }
+        }
+        return deduped
+    }
+
+    private fun messageDedupeKey(message: Message): String {
+        val conversationId = message.conversationId.trim()
+        val timestamp = message.createdAtIso.trim()
+        val text = message.text.trim()
+        return "$conversationId|${message.fromCurrentUser}|$timestamp|$text"
     }
 
     private fun updateConversationSession(bookingId: String?, active: Boolean) {

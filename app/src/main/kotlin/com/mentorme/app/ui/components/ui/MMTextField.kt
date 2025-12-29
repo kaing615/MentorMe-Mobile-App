@@ -34,7 +34,8 @@ fun MMTextField(
     leading: @Composable (() -> Unit)? = null,/**/
     trailing: @Composable (() -> Unit)? = null,
     visualTransformation: VisualTransformation = VisualTransformation.None,
-    singleLine: Boolean = true
+    singleLine: Boolean = true,
+    enabled: Boolean = true
 ) {
     val shape = RoundedCornerShape(20.dp)
 
@@ -45,6 +46,7 @@ fun MMTextField(
             .fillMaxWidth()
             .background(InputBg, shape)  // --input-background
             .border(1.dp, Border, shape),// --border
+        enabled = enabled,
         placeholder = {
             if (placeholder != null) {
                 Text(placeholder, color = Foreground.copy(alpha = 0.6f))

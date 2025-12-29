@@ -24,7 +24,7 @@ fun ChatComposer(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .liquidGlassStrong(radius = 24.dp, alpha = 0.22f)
+            .liquidGlassStrong(radius = 24.dp, alpha = if (enabled) 0.26f else 0.18f)
     ) {
         Row(
             modifier = Modifier

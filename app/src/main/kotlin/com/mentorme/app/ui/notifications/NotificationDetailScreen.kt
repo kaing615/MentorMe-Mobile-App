@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.filled.VideoCall
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -52,6 +53,7 @@ import com.mentorme.app.ui.theme.LiquidGlassCard
 fun NotificationDetailScreen(
     notificationId: String,
     onBack: () -> Unit = {},
+    onJoinSession: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val viewModel: NotificationsViewModel = hiltViewModel()
@@ -135,6 +137,7 @@ fun NotificationDetailScreen(
                     ) {
                         NotificationDetailHero(item = item)
                         NotificationDetailBody(item = item)
+                        NotificationDetailActions(item = item, onJoinSession = onJoinSession)
                         NotificationDetailMeta(item = item)
                     }
                 }
@@ -236,6 +239,53 @@ private fun NotificationDetailMeta(
             NotificationMetaRow(label = stringResource(R.string.notification_label_id), value = item.id)
             item.deepLink?.takeIf { it.isNotBlank() }?.let { deepLink ->
                 NotificationMetaRow(label = stringResource(R.string.notification_label_link), value = deepLink)
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationDetailActions(
+    item: NotificationItem,
+    onJoinSession: (String) -> Unit
+) {
+    // Extract booking ID from deepLink if it's a session-related notification
+    val bookingId = item.deepLink?.let { link ->
+        when {
+            link.startsWith("booking_detail/") -> link.removePrefix("booking_detail/")
+            link.startsWith("video_call/") -> link.removePrefix("video_call/")
+            else -> null
+        }
+    }
+
+    if (bookingId != null && (
+        item.type == com.mentorme.app.data.model.NotificationType.BOOKING_REMINDER ||
+        item.type == com.mentorme.app.data.model.NotificationType.BOOKING_CONFIRMED
+    )) {
+        LiquidGlassCard(radius = 22.dp) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    "Actions",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                MMGhostButton(
+                    onClick = { onJoinSession(bookingId) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(androidx.compose.material.icons.Icons.Default.VideoCall, contentDescription = null)
+                        Text("Join Session")
+                    }
+                }
             }
         }
     }

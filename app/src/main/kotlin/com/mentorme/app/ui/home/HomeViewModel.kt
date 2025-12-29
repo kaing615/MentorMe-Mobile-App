@@ -76,10 +76,11 @@ class HomeViewModel @Inject constructor(
                     is RealtimeEvent.SessionParticipantJoined -> {
                         // Khi mentee join vào session, hiển thị banner cho mentor
                         if (event.payload.role == "mentee") {
+                            val bookingId = event.payload.bookingId ?: return@collect
                             _uiState.update {
                                 it.copy(
                                     waitingSession = WaitingSession(
-                                        bookingId = event.payload.bookingId,
+                                        bookingId = bookingId,
                                         menteeUserId = event.payload.userId,
                                         menteeName = null // Có thể fetch tên mentee nếu cần
                                     )
@@ -89,13 +90,15 @@ class HomeViewModel @Inject constructor(
                     }
                     is RealtimeEvent.SessionReady -> {
                         // Khi session đã ready (mentor đã admit), ẩn banner
-                        if (_uiState.value.waitingSession?.bookingId == event.payload.bookingId) {
+                        val bookingId = event.payload.bookingId ?: return@collect
+                        if (_uiState.value.waitingSession?.bookingId == bookingId) {
                             _uiState.update { it.copy(waitingSession = null) }
                         }
                     }
                     is RealtimeEvent.SessionEnded -> {
                         // Khi session kết thúc, ẩn banner
-                        if (_uiState.value.waitingSession?.bookingId == event.payload.bookingId) {
+                        val bookingId = event.payload.bookingId ?: return@collect
+                        if (_uiState.value.waitingSession?.bookingId == bookingId) {
                             _uiState.update { it.copy(waitingSession = null) }
                         }
                     }

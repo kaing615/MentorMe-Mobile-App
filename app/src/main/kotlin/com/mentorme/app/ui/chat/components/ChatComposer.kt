@@ -14,27 +14,40 @@ import com.mentorme.app.ui.theme.liquidGlassStrong
 import com.mentorme.app.ui.components.ui.MMButtonSize
 
 @Composable
-fun ChatComposer(onSend: (String) -> Unit, modifier: Modifier = Modifier) {
+fun ChatComposer(
+    onSend: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    placeholder: String = "Type a message…"
+) {
     var text by remember { mutableStateOf("") }
-    Row(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .liquidGlassStrong(radius = 24.dp, alpha = 0.22f)
     ) {
-        MMTextField(
-            value = text,
-            onValueChange = { text = it },
-            placeholder = "Type a message…",
-            modifier = Modifier.weight(1f),
-            singleLine = true
-        )
-        Spacer(Modifier.width(8.dp))
-        MMButton(
-            text = "Send",
-            onClick = { if (text.isNotBlank()) { onSend(text.trim()); text = "" } },
-            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Send, null) },
-            size = MMButtonSize.Compact
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            MMTextField(
+                value = text,
+                onValueChange = { text = it },
+                placeholder = placeholder,
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                enabled = enabled
+            )
+            Spacer(Modifier.width(8.dp))
+            MMButton(
+                text = "Send",
+                onClick = { if (text.isNotBlank() && enabled) { onSend(text.trim()); text = "" } },
+                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Send, null) },
+                size = MMButtonSize.Compact,
+                enabled = enabled
+            )
+        }
     }
 }

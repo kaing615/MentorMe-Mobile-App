@@ -1,22 +1,22 @@
-import type { Server as HttpServer } from "http";
-import { createHash } from "crypto";
-import jwt from "jsonwebtoken";
-import { Server as SocketIOServer, Socket } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
+import { createHash } from "crypto";
+import type { Server as HttpServer } from "http";
+import jwt from "jsonwebtoken";
 import { createClient } from "redis";
-import redis from "../utils/redis";
-import User from "../models/user.model";
+import { Socket, Server as SocketIOServer } from "socket.io";
 import Booking from "../models/booking.model";
 import SessionLog from "../models/sessionLog.model";
+import User from "../models/user.model";
 import {
-  getSessionStateTtlSeconds,
-  isWithinSessionWindow,
-  recordSessionAdmit,
-  recordSessionDisconnect,
-  recordSessionEnd,
-  recordSessionJoin,
-  recordSessionQoS,
+    getSessionStateTtlSeconds,
+    isWithinSessionWindow,
+    recordSessionAdmit,
+    recordSessionDisconnect,
+    recordSessionEnd,
+    recordSessionJoin,
+    recordSessionQoS,
 } from "../services/session.service";
+import redis from "../utils/redis";
 
 type SocketUser = {
   id: string;
@@ -255,6 +255,15 @@ export async function initSocket(server: HttpServer) {
     const user = socket.data.user as SocketUser | undefined;
     if (user?.id) {
       socket.join(`user:${user.id}`);
+      
+      // Set user online in Redis with TTL
+      const presenceKey = `presence:user:${user.id}`;
+      redis.setEx(presenceKey, 120, "1").catch((err) => {
+        console.error("Failed to set user online:", err);
+      });
+      
+      // Notify other users that this user is online
+      socket.broadcast.emit("user:online", { userId: user.id });
     }
 
     const leaveSessionRooms = (bookingId: string) => {
@@ -507,6 +516,18 @@ export async function initSocket(server: HttpServer) {
         userId: user?.id,
         role: session.role,
       });
+      
+      // Handle user going offline
+      if (user?.id) {
+        const presenceKey = `presence:user:${user.id}`;
+        // Delete presence key to mark user as offline
+        redis.del(presenceKey).catch((err) => {
+          console.error("Failed to delete user presence:", err);
+        });
+        
+        // Notify other users that this user is offline
+        socket.broadcast.emit("user:offline", { userId: user.id });
+      }
     });
   });
 

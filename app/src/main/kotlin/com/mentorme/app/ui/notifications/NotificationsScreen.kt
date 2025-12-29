@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.filled.VideoCall
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DoneAll
 import androidx.compose.material.icons.outlined.Notifications
@@ -74,6 +75,7 @@ fun NotificationsScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
     onOpenDetail: (String) -> Unit = {},
+    onJoinSession: (String) -> Unit = {},
     showDetailDialog: Boolean = true,
     viewModel: NotificationsViewModel = hiltViewModel()
 ) {
@@ -184,6 +186,7 @@ fun NotificationsScreen(
                                             onOpenDetail(detailRoute)
                                         }
                                     },
+                                    onJoinSession = onJoinSession,
                                     onMarkRead = { viewModel.markRead(it) }
                                 )
                             }
@@ -312,10 +315,26 @@ private fun NotificationEmptyState(
 private fun NotificationRow(
     item: NotificationItem,
     onOpenDetail: () -> Unit,
+    onJoinSession: (String) -> Unit = {},
     onMarkRead: (String) -> Unit
 ) {
     val typeStyle = notificationTypeStyle(item.type)
     val isBooking = isBookingNotification(item.type)
+    
+    // Extract booking ID from deepLink
+    val bookingId = item.deepLink?.let { link ->
+        when {
+            link.startsWith("booking_detail/") -> link.removePrefix("booking_detail/")
+            link.startsWith("video_call/") -> link.removePrefix("video_call/")
+            else -> null
+        }
+    }
+    
+    val showJoinButton = bookingId != null && (
+        item.type == com.mentorme.app.data.model.NotificationType.BOOKING_REMINDER ||
+        item.type == com.mentorme.app.data.model.NotificationType.BOOKING_CONFIRMED
+    )
+    
     val cardAlpha = when {
         isBooking && !item.read -> 0.3f
         isBooking && item.read -> 0.2f
@@ -345,6 +364,9 @@ private fun NotificationRow(
                     .background(unreadOverlay)
             )
         }
+        Column(
+            modifier = Modifier.fillMaxWidth()
+        ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -414,6 +436,29 @@ private fun NotificationRow(
                     )
                 }
             }
+        }
+        
+        // Join Session button for booking notifications
+        if (showJoinButton && bookingId != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 14.dp, end = 14.dp, bottom = 14.dp)
+            ) {
+                MMGhostButton(
+                    onClick = { onJoinSession(bookingId) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        androidx.compose.material.icons.Icons.Default.VideoCall,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Join Session")
+                }
+            }
+        }
         }
     }
 }

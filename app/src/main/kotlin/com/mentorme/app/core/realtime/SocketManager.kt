@@ -15,6 +15,8 @@ import com.mentorme.app.core.notifications.NotificationStore
 import com.mentorme.app.data.mapper.ChatSocketPayload
 import com.mentorme.app.data.mapper.NotificationSocketPayload
 import com.mentorme.app.data.mapper.SessionAdmittedPayload
+import com.mentorme.app.data.mapper.UserOnlinePayload
+import com.mentorme.app.data.mapper.UserOfflinePayload
 import com.mentorme.app.data.mapper.SessionEndedPayload
 import com.mentorme.app.data.mapper.SessionJoinedPayload
 import com.mentorme.app.data.mapper.SessionParticipantPayload
@@ -133,6 +135,12 @@ class SocketManager @Inject constructor(
         newSocket.on(EVENT_SIGNAL_ICE) { args ->
             handleSignalIceEvent(args)
         }
+        newSocket.on(EVENT_USER_ONLINE) { args ->
+            handleUserOnlineEvent(args)
+        }
+        newSocket.on(EVENT_USER_OFFLINE) { args ->
+            handleUserOfflineEvent(args)
+        }
 
         socket = newSocket
         newSocket.connect()
@@ -234,6 +242,22 @@ class SocketManager @Inject constructor(
         val payload = parsePayload(raw, SessionSignalPayload::class.java) ?: return
         RealtimeEventBus.emit(RealtimeEvent.SignalIceReceived(payload))
     }
+    
+    private fun handleUserOnlineEvent(args: Array<Any>) {
+        val raw = args.firstOrNull() ?: return
+        val payload = parsePayload(raw, com.mentorme.app.data.mapper.UserOnlinePayload::class.java) ?: return
+        payload.userId?.let { userId ->
+            RealtimeEventBus.emit(RealtimeEvent.UserOnlineStatusChanged(userId, true))
+        }
+    }
+    
+    private fun handleUserOfflineEvent(args: Array<Any>) {
+        val raw = args.firstOrNull() ?: return
+        val payload = parsePayload(raw, com.mentorme.app.data.mapper.UserOfflinePayload::class.java) ?: return
+        payload.userId?.let { userId ->
+            RealtimeEventBus.emit(RealtimeEvent.UserOnlineStatusChanged(userId, false))
+        }
+    }
 
     private fun <T> parsePayload(raw: Any, clazz: Class<T>): T? {
         return try {
@@ -268,5 +292,7 @@ class SocketManager @Inject constructor(
         private const val EVENT_SIGNAL_OFFER = "signal:offer"
         private const val EVENT_SIGNAL_ANSWER = "signal:answer"
         private const val EVENT_SIGNAL_ICE = "signal:ice"
+        private const val EVENT_USER_ONLINE = "user:online"
+        private const val EVENT_USER_OFFLINE = "user:offline"
     }
 }

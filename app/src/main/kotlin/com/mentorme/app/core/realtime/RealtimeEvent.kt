@@ -62,4 +62,9 @@ sealed class RealtimeEvent {
     data class SignalIceReceived(
         val payload: SessionSignalPayload
     ) : RealtimeEvent()
+    
+    data class UserOnlineStatusChanged(
+        val userId: String,
+        val isOnline: Boolean
+    ) : RealtimeEvent()
 }

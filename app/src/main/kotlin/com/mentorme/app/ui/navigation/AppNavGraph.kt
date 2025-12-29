@@ -371,7 +371,12 @@ internal fun AppNavGraph(
         val bookingId = backStackEntry.arguments?.getString("bookingId") ?: return@composable
         BookingDetailScreen(
             bookingId = bookingId,
-            onBack = { nav.popBackStack() }
+            onBack = { nav.popBackStack() },
+            onJoinSession = { bookingId ->
+                nav.navigate(Routes.videoCall(bookingId)) {
+                    launchSingleTop = true
+                }
+            }
         )
     }
 
@@ -385,6 +390,11 @@ internal fun AppNavGraph(
         NotificationsScreen(
             onBack = { nav.popBackStack() },
             onOpenDetail = { route -> nav.navigate(route) },
+            onJoinSession = { bookingId ->
+                nav.navigate(Routes.videoCall(bookingId)) {
+                    launchSingleTop = true
+                }
+            },
             viewModel = notificationsVm
         )
     }
@@ -394,7 +404,12 @@ internal fun AppNavGraph(
             ?: return@composable
         NotificationDetailScreen(
             notificationId = notificationId,
-            onBack = { nav.popBackStack() }
+            onBack = { nav.popBackStack() },
+            onJoinSession = { bookingId ->
+                nav.navigate(Routes.videoCall(bookingId)) {
+                    launchSingleTop = true
+                }
+            }
         )
     }
 
@@ -407,6 +422,9 @@ internal fun AppNavGraph(
                 nav.navigate(Routes.videoCall(convId)) {
                     launchSingleTop = true
                 }
+            },
+            onOpenBookingDetail = { bookingId ->
+                nav.navigate("booking_detail/$bookingId")
             }
         )
     }

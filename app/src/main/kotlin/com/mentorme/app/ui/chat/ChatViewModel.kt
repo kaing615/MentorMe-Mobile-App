@@ -35,6 +35,9 @@ class ChatViewModel @Inject constructor(
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
     private var currentConversationId: String? = null
     private var currentUserId: String? = null
 
@@ -65,17 +68,49 @@ class ChatViewModel @Inject constructor(
     fun loadMessages(conversationId: String) {
         viewModelScope.launch {
             _loading.value = true
+            
+            // Load messages
             when (val res = chatRepository.getMessages(conversationId)) {
                 is AppResult.Success -> {
                     _messages.value = res.data
+                    
                     val last = res.data.lastOrNull()
                     if (last != null) {
                         updateConversationPreview(conversationId, last, incrementUnread = false)
                     }
                 }
-                is AppResult.Error -> Unit
+                is AppResult.Error -> {
+                    _errorMessage.value = res.throwable
+                }
                 AppResult.Loading -> Unit
             }
+            
+            // Load restriction info separately
+            when (val restrictionRes = chatRepository.getChatRestrictionInfo(conversationId)) {
+                is AppResult.Success -> {
+                    val info = restrictionRes.data
+                    _conversations.update { list ->
+                        list.map { convo ->
+                            if (convo.id == conversationId) {
+                                convo.copy(
+                                    myMessageCount = info.myMessageCount,
+                                    sessionPhase = info.sessionPhase,
+                                    preSessionCount = info.preSessionCount,
+                                    postSessionCount = info.postSessionCount,
+                                    weeklyMessageCount = info.weeklyMessageCount
+                                )
+                            } else {
+                                convo
+                            }
+                        }
+                    }
+                }
+                is AppResult.Error -> {
+                    // Silently fail - not critical
+                }
+                AppResult.Loading -> Unit
+            }
+            
             _loading.value = false
         }
     }
@@ -83,16 +118,39 @@ class ChatViewModel @Inject constructor(
     fun sendMessage(conversationId: String, text: String) {
         if (text.isBlank()) return
         viewModelScope.launch {
+            _errorMessage.value = null
             when (val res = chatRepository.sendMessage(conversationId, text)) {
                 is AppResult.Success -> {
                     val msg = res.data
-                    _messages.update { it + msg }
-                    updateConversationPreview(conversationId, msg, incrementUnread = false)
+                    val isNew = addOrUpdateMessage(msg)
+                    
+                    // Update message count if message is from current user
+                    if (isNew && msg.fromCurrentUser) {
+                        _conversations.update { list ->
+                            list.map { convo ->
+                                if (convo.id == conversationId) {
+                                    convo.copy(myMessageCount = convo.myMessageCount + 1)
+                                } else {
+                                    convo
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (isNew) {
+                        updateConversationPreview(conversationId, msg, incrementUnread = false)
+                    }
                 }
-                is AppResult.Error -> Unit
+                is AppResult.Error -> {
+                    _errorMessage.value = res.throwable
+                }
                 AppResult.Loading -> Unit
             }
         }
+    }
+
+    fun clearError() {
+        _errorMessage.value = null
     }
 
     private fun observeUser() {
@@ -114,6 +172,7 @@ class ChatViewModel @Inject constructor(
                     is RealtimeEvent.SessionParticipantJoined -> updateConversationSession(event.payload.bookingId, true)
                     is RealtimeEvent.SessionEnded -> updateConversationSession(event.payload.bookingId, false)
                     is RealtimeEvent.BookingChanged -> refreshConversations()
+                    is RealtimeEvent.UserOnlineStatusChanged -> updateUserOnlineStatus(event.userId, event.isOnline)
                     else -> Unit
                 }
             }
@@ -122,12 +181,25 @@ class ChatViewModel @Inject constructor(
 
     private fun handleIncomingMessage(payload: ChatSocketPayload) {
         val message = payload.toChatMessage(currentUserId) ?: return
-        val bookingId = message.conversationId
-        if (bookingId == currentConversationId) {
-            _messages.update { it + message }
-            updateConversationPreview(bookingId, message, incrementUnread = false)
+        val conversationId = message.conversationId
+        if (conversationId == currentConversationId) {
+            val isNew = addOrUpdateMessage(message)
+            if (isNew) {
+                if (message.fromCurrentUser) {
+                    _conversations.update { list ->
+                        list.map { convo ->
+                            if (convo.id == conversationId) {
+                                convo.copy(myMessageCount = convo.myMessageCount + 1)
+                            } else {
+                                convo
+                            }
+                        }
+                    }
+                }
+                updateConversationPreview(conversationId, message, incrementUnread = false)
+            }
         } else {
-            updateConversationPreview(bookingId, message, incrementUnread = true)
+            updateConversationPreview(conversationId, message, incrementUnread = true)
         }
     }
 
@@ -152,6 +224,22 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    private fun addOrUpdateMessage(message: Message): Boolean {
+        var isNew = false
+        _messages.update { list ->
+            val index = list.indexOfFirst { it.id == message.id }
+            if (index == -1) {
+                isNew = true
+                list + message
+            } else {
+                val updated = list.toMutableList()
+                updated[index] = message
+                updated
+            }
+        }
+        return isNew
+    }
+
     private fun updateConversationSession(bookingId: String?, active: Boolean) {
         val targetId = bookingId?.trim().orEmpty()
         if (targetId.isBlank()) return
@@ -170,6 +258,18 @@ class ChatViewModel @Inject constructor(
         _conversations.update { list ->
             list.map { convo ->
                 if (convo.id == conversationId) convo.copy(unreadCount = 0) else convo
+            }
+        }
+    }
+    
+    private fun updateUserOnlineStatus(userId: String, isOnline: Boolean) {
+        _conversations.update { list ->
+            list.map { convo ->
+                if (convo.peerId == userId) {
+                    convo.copy(isOnline = isOnline)
+                } else {
+                    convo
+                }
             }
         }
     }

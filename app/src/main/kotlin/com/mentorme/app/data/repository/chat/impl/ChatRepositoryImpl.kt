@@ -9,6 +9,7 @@ import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.model.BookingStatus
 import com.mentorme.app.data.model.chat.Conversation
 import com.mentorme.app.data.model.chat.Message
+import com.mentorme.app.data.model.chat.ChatRestrictionInfo
 import com.mentorme.app.data.network.api.chat.ChatApiService
 import com.mentorme.app.data.repository.BookingRepository
 import com.mentorme.app.data.repository.chat.ChatRepository
@@ -110,6 +111,25 @@ class ChatRepositoryImpl @Inject constructor(
                 AppResult.failure(e.message ?: "Failed to send message")
             }
         }
+
+    override suspend fun getChatRestrictionInfo(conversationId: String): AppResult<ChatRestrictionInfo> =
+        withContext(Dispatchers.IO) {
+            try {
+                val response = chatApiService.getChatRestrictionInfo(conversationId)
+                if (response.isSuccessful) {
+                    val envelope: ApiEnvelope<ChatRestrictionInfo>? = response.body()
+                    if (envelope?.success == true && envelope.data != null) {
+                        AppResult.success(envelope.data)
+                    } else {
+                        AppResult.failure(envelope?.message ?: "Failed to get restriction info")
+                    }
+                } else {
+                    AppResult.failure("HTTP ${response.code()}: ${response.message()}")
+                }
+            } catch (e: Exception) {
+                AppResult.failure(e.message ?: "Failed to get restriction info")
+            }
+        }
 }
 
 private fun ApiMessage.toChatMessage(currentUserId: String?): Message? {
@@ -122,7 +142,9 @@ private fun ApiMessage.toChatMessage(currentUserId: String?): Message? {
         conversationId = bookingId,
         text = content,
         createdAtIso = created,
-        fromCurrentUser = senderId == currentUserId
+        fromCurrentUser = senderId == currentUserId,
+        senderName = sender?.fullName,
+        senderAvatar = sender?.avatar
     )
 }
 
@@ -135,8 +157,10 @@ private fun toConversation(booking: Booking, currentUserId: String?): Conversati
         ?: "Unknown"
     val peerRole = if (isMentor) "mentee" else "mentor"
     val startIso = booking.startTimeIso ?: booking.createdAt
+    val endIso = booking.endTimeIso
     val hasActive = isSessionActive(booking)
-    val nextSessionIso = if (booking.status == BookingStatus.CONFIRMED && !hasActive) startIso else null
+    val hasUpcoming = booking.status == BookingStatus.CONFIRMED && !hasActive
+    val nextSessionIso = if (hasUpcoming) startIso else null
 
     return Conversation(
         id = booking.id,
@@ -149,7 +173,12 @@ private fun toConversation(booking: Booking, currentUserId: String?): Conversati
         lastMessageTimeIso = startIso,
         unreadCount = 0,
         hasActiveSession = hasActive,
-        nextSessionDateTimeIso = nextSessionIso
+        nextSessionDateTimeIso = nextSessionIso,
+        nextSessionStartIso = if (hasUpcoming) startIso else null,
+        nextSessionEndIso = if (hasUpcoming) endIso else null,
+        nextSessionBookingId = if (hasUpcoming) booking.id else null,
+        bookingStatus = booking.status,
+        myMessageCount = 0 // Will be updated when messages are loaded
     )
 }
 

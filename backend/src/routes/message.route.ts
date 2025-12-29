@@ -1,10 +1,13 @@
 import { Router } from 'express';
-import { auth } from '../middlewares/auth.middleware';
+import { getChatRestrictionInfo, getMessages, sendMessage } from '../controllers/message.controller';
 import { validate } from '../handlers/request.handler';
-import { getMessages, sendMessage } from '../controllers/message.controller';
+import { auth } from '../middlewares/auth.middleware';
 import { messageBookingIdRules, sendMessageRules } from '../middlewares/validators/message.validator';
 
 const router = Router();
+
+// Get chat restriction info for a booking (must be before /:bookingId)
+router.get('/:bookingId/restriction-info', auth, messageBookingIdRules, validate, getChatRestrictionInfo);
 
 // List messages for a booking
 router.get('/:bookingId', auth, messageBookingIdRules, validate, getMessages);

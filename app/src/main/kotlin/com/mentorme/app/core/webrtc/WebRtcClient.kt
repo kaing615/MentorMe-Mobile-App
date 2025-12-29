@@ -34,6 +34,7 @@ class WebRtcClient(
     }
 
     private val eglBase: EglBase = EglBase.create()
+    val eglContext: EglBase.Context get() = eglBase.eglBaseContext
     private val peerConnectionFactory: PeerConnectionFactory by lazy { createPeerConnectionFactory() }
     private var peerConnection: PeerConnection? = null
     private var localRenderer: SurfaceViewRenderer? = null
@@ -68,18 +69,35 @@ class WebRtcClient(
     }
 
     fun attachLocalRenderer(renderer: SurfaceViewRenderer) {
+        Log.d(TAG, "attachLocalRenderer called, localVideoTrack exists: ${localVideoTrack != null}")
+        try {
+            renderer.init(eglBase.eglBaseContext, null)
+            renderer.setEnableHardwareScaler(true)
+            renderer.setMirror(true)
+            Log.d(TAG, "Local renderer initialized successfully")
+        } catch (e: IllegalStateException) {
+            Log.w(TAG, "Local renderer already initialized: ${e.message}")
+        }
         localRenderer = renderer
-        renderer.init(eglBase.eglBaseContext, null)
-        renderer.setEnableHardwareScaler(true)
-        renderer.setMirror(true)
-        localVideoTrack?.addSink(renderer)
+        // Add existing track if already created
+        localVideoTrack?.let { 
+            Log.d(TAG, "Adding local video track to renderer")
+            it.addSink(renderer)
+        }
     }
 
     fun attachRemoteRenderer(renderer: SurfaceViewRenderer) {
+        Log.d(TAG, "attachRemoteRenderer called")
+        try {
+            renderer.init(eglBase.eglBaseContext, null)
+            renderer.setEnableHardwareScaler(true)
+            renderer.setMirror(false)
+            Log.d(TAG, "Remote renderer initialized successfully")
+        } catch (e: IllegalStateException) {
+            Log.w(TAG, "Remote renderer already initialized: ${e.message}")
+        }
         remoteRenderer = renderer
-        renderer.init(eglBase.eglBaseContext, null)
-        renderer.setEnableHardwareScaler(true)
-        renderer.setMirror(false)
+        // Remote track will be added via onRemoteTrack callback
     }
 
     fun ensurePeerConnection() {
@@ -90,12 +108,14 @@ class WebRtcClient(
     }
 
     fun startLocalMedia() {
+        Log.d(TAG, "startLocalMedia called, current tracks - video: ${localVideoTrack != null}, audio: ${localAudioTrack != null}")
         if (localVideoTrack == null && localAudioTrack == null) {
             val videoCapturer = createCameraCapturer() ?: return
             val surfaceHelper = SurfaceTextureHelper.create("CaptureThread", eglBase.eglBaseContext)
             val videoSource = peerConnectionFactory.createVideoSource(false)
             videoCapturer.initialize(surfaceHelper, context, videoSource.capturerObserver)
             videoCapturer.startCapture(720, 1280, 30)
+            Log.d(TAG, "Camera capturer started: 720x1280@30fps")
 
             val videoTrack = peerConnectionFactory.createVideoTrack("VIDEO", videoSource)
             val audioSource = peerConnectionFactory.createAudioSource(MediaConstraints())
@@ -108,9 +128,13 @@ class WebRtcClient(
             this.localAudioTrack = audioTrack
             localTracksAttached = false
 
-            localRenderer?.let { videoTrack.addSink(it) }
+            localRenderer?.let { 
+                Log.d(TAG, "Adding newly created video track to local renderer")
+                videoTrack.addSink(it) 
+            } ?: Log.w(TAG, "No local renderer available to add video track")
             localVideoTrack?.setEnabled(isVideoEnabled)
             localAudioTrack?.setEnabled(isAudioEnabled)
+            Log.d(TAG, "Local media tracks created - video enabled: $isVideoEnabled, audio enabled: $isAudioEnabled")
         }
 
         attachLocalTracksIfPossible()

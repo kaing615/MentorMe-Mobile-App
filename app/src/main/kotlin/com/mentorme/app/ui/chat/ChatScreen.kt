@@ -34,15 +34,68 @@ import com.mentorme.app.ui.chat.components.ProfileSheet
 fun ChatScreen(
     conversationId: String,
     onBack: () -> Unit,
-    onJoinSession: () -> Unit
+    onJoinSession: () -> Unit,
+    onOpenBookingDetail: (String) -> Unit = {}
 ) {
     val viewModel = hiltViewModel<ChatViewModel>()
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
     val messages by viewModel.messages.collectAsStateWithLifecycle()
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val conversation = remember(conversations, conversationId) {
         conversations.find { it.id == conversationId }
     }
     var showProfile by remember { mutableStateOf(false) }
+
+    // Chat restriction logic
+    val isMenteeChattingWithMentor = conversation?.peerRole == "mentor"
+    val isBookingConfirmed = conversation?.bookingStatus == com.mentorme.app.data.model.BookingStatus.CONFIRMED
+    val sessionPhase = conversation?.sessionPhase ?: "outside"
+    val myMessageCount = conversation?.myMessageCount ?: 0
+    val preSessionCount = conversation?.preSessionCount ?: 0
+    val postSessionCount = conversation?.postSessionCount ?: 0
+    val weeklyMessageCount = conversation?.weeklyMessageCount ?: 0
+    
+    val maxFreeMessages = 10
+    val preSessionLimit = 5
+    val postSessionLimit = 3
+    val weeklyLimit = 2
+    
+    val canSendMessage = when {
+        !isMenteeChattingWithMentor -> true  // Mentor always can send
+        !isBookingConfirmed -> myMessageCount < maxFreeMessages  // Not confirmed: 10 free messages
+        sessionPhase == "during" -> false  // During session: chat disabled
+        sessionPhase == "pre" -> preSessionCount < preSessionLimit  // Pre-session: 5 messages
+        sessionPhase == "post" -> postSessionCount < postSessionLimit  // Post-session: 3 messages
+        else -> weeklyMessageCount < weeklyLimit  // Outside window: 2 messages/week
+    }
+    
+    val showWarning = when {
+        !isMenteeChattingWithMentor -> false
+        !isBookingConfirmed -> myMessageCount in (maxFreeMessages - 3) until maxFreeMessages
+        sessionPhase == "pre" -> preSessionCount in (preSessionLimit - 2) until preSessionLimit
+        sessionPhase == "post" -> postSessionCount in (postSessionLimit - 1) until postSessionLimit
+        sessionPhase == "outside" -> weeklyMessageCount in (weeklyLimit - 1) until weeklyLimit
+        else -> false
+    }
+    
+    val warningMessage = when {
+        !isMenteeChattingWithMentor -> ""
+        !isBookingConfirmed -> "Còn ${maxFreeMessages - myMessageCount} tin nhắn miễn phí. Đặt lịch tư vấn để tiếp tục!"
+        sessionPhase == "pre" -> "Còn ${preSessionLimit - preSessionCount}/${preSessionLimit} tin nhắn chuẩn bị. Dành câu hỏi chính cho phiên tư vấn!"
+        sessionPhase == "post" -> "Còn ${postSessionLimit - postSessionCount}/${postSessionLimit} tin nhắn follow-up."
+        sessionPhase == "outside" -> "Còn ${weeklyLimit - weeklyMessageCount}/${weeklyLimit} tin nhắn tuần này."
+        else -> ""
+    }
+    
+    val disabledPlaceholder = when {
+        !isMenteeChattingWithMentor -> ""
+        !isBookingConfirmed -> "Đã hết ${maxFreeMessages} tin nhắn miễn phí. Vui lòng đặt lịch tư vấn."
+        sessionPhase == "during" -> "Phiên tư vấn đang diễn ra. Vui lòng trao đổi trực tiếp với mentor."
+        sessionPhase == "pre" -> "Đã hết ${preSessionLimit} tin nhắn chuẩn bị. Dành câu hỏi cho phiên tư vấn nhé!"
+        sessionPhase == "post" -> "Đã hết ${postSessionLimit} tin nhắn follow-up. Đặt phiên mới nếu cần tư vấn thêm."
+        sessionPhase == "outside" -> "Đã hết ${weeklyLimit} tin nhắn/tuần. Hỏi nhiều qua chat sẽ mất giá trị phiên tư vấn."
+        else -> ""
+    }
 
     CompositionLocalProvider(LocalContentColor provides Color.White) {
         val listState = rememberLazyListState()
@@ -116,6 +169,67 @@ fun ChatScreen(
                     }
                 }
             }
+            
+            // Banner phiên học sắp tới
+            if (conversation?.nextSessionStartIso != null && conversation.hasActiveSession == false) {
+                Surface(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                        .liquidGlassStrong(radius = 20.dp, alpha = 0.26f)
+                        .background(Color(0xFF3B82F6).copy(alpha = 0.18f)),
+                    tonalElevation = 0.dp,
+                    color = Color.Transparent
+                ) {
+                    Row(
+                        Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Phiên học sắp tới", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Với ${conversation.peerName} - ${conversation.nextSessionDateTimeIso.orEmpty()}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        MMButton(
+                            text = "Xem chi tiết",
+                            onClick = { 
+                                conversation.nextSessionBookingId?.let { bookingId ->
+                                    onOpenBookingDetail(bookingId)
+                                }
+                            },
+                            useGlass = false,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF2563EB),
+                                contentColor = Color.White
+                            )
+                        )
+                    }
+                }
+            }
+
+            // Warning banner for message limit
+            if (showWarning && warningMessage.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                        .liquidGlassStrong(radius = 20.dp, alpha = 0.26f)
+                        .background(Color(0xFFF59E0B).copy(alpha = 0.18f)),
+                    tonalElevation = 0.dp,
+                    color = Color.Transparent
+                ) {
+                    Row(
+                        Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "⚠️ $warningMessage",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
 
             // Messages list
             LazyColumn(
@@ -139,8 +253,12 @@ fun ChatScreen(
             // Composer (glass + imePadding)
             ChatComposer(
                 onSend = { text ->
-                    viewModel.sendMessage(conversationId, text)
+                    if (canSendMessage) {
+                        viewModel.sendMessage(conversationId, text)
+                    }
                 },
+                enabled = canSendMessage,
+                placeholder = if (!canSendMessage) disabledPlaceholder else "Nhập tin nhắn...",
                 modifier = Modifier
                     .fillMaxWidth()
                     .imePadding()

@@ -237,15 +237,16 @@ fun MentorCard(
                 }
             }
 
-            // Price and action buttons
+            // Price and action buttons - Professional style matching MentorDetailSheet
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Price info
                 Column {
                     Text(
-                        text = "${mentor.hourlyRate.compactVnd()} VNĐ/giờ",   // ⬅️ rút gọn theo k/M
+                        text = "${mentor.hourlyRate.compactVnd()} VNĐ/giờ",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
@@ -258,26 +259,50 @@ fun MentorCard(
                     )
                 }
 
+                // Action buttons - ✅ Matching MentorDetailSheet style
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MMButton(
-                        text = "Xem hồ sơ",
+                    // Secondary: View Profile (Subtle glass)
+                    Surface(
                         onClick = onViewProfile,
-                        size = MMButtonSize.Compact
-                    )
+                        modifier = Modifier.heightIn(min = 48.dp), // ✅ Taller
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color.White.copy(alpha = 0.1f)
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                        ) {
+                            Text(
+                                "Xem hồ sơ",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White.copy(alpha = 0.9f)
+                            )
+                        }
+                    }
 
+                    // Primary: Book Now (Professional Blue) - Only if available
                     if (mentor.isAvailable) {
-                        MMButton(
-                            text = "Đặt lịch",
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.VideoCall,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            },
+                        Button(
                             onClick = onBookSession,
-                            size = MMButtonSize.Compact
-                        )
+                            modifier = Modifier.heightIn(min = 48.dp), // ✅ Taller
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF2563EB), // ✅ Professional Blue
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.VideoCall,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "Đặt lịch",
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
             }

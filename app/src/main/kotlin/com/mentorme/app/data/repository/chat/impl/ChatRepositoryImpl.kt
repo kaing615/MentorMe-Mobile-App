@@ -60,6 +60,54 @@ class ChatRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getConversationByPeerId(peerId: String): AppResult<Conversation?> = withContext(Dispatchers.IO) {
+        try {
+            val role = dataStoreManager.getUserRole().first()
+            val userId = dataStoreManager.getUserId().first()
+
+            // Get all bookings and find one with this peer
+            val response = if (role.isNullOrBlank()) {
+                bookingRepository.getBookings(page = 1, limit = 50)
+            } else {
+                bookingRepository.getBookings(role = role, page = 1, limit = 50)
+            }
+
+            if (response is AppResult.Success) {
+                val bookings = response.data.bookings
+
+                // Find bookings with this specific peer (not cancelled/failed/declined)
+                val peerBookings = bookings.filter { booking ->
+                    val isMentor = booking.mentorId == userId
+                    val bookingPeerId = if (isMentor) booking.menteeId else booking.mentorId
+                    val isValidStatus = booking.status != BookingStatus.CANCELLED &&
+                        booking.status != BookingStatus.FAILED &&
+                        booking.status != BookingStatus.DECLINED
+
+                    bookingPeerId == peerId && isValidStatus
+                }
+
+                if (peerBookings.isEmpty()) {
+                    // No conversation exists with this peer
+                    return@withContext AppResult.success(null)
+                }
+
+                // Use the most recent booking for conversation data
+                val latestBooking = peerBookings.maxByOrNull {
+                    it.startTimeIso ?: it.createdAt
+                } ?: peerBookings.first()
+
+                val conversation = toConversation(latestBooking, userId, peerBookings)
+                AppResult.success(conversation)
+            } else if (response is AppResult.Error) {
+                AppResult.failure(response.throwable)
+            } else {
+                AppResult.failure("Failed to check conversation")
+            }
+        } catch (e: Exception) {
+            AppResult.failure(e.message ?: "Failed to check conversation")
+        }
+    }
+
     override suspend fun getMessages(
         conversationId: String,
         limit: Int
@@ -148,7 +196,7 @@ private fun ApiMessage.toChatMessage(currentUserId: String?): Message? {
     )
 }
 
-private fun toConversation(booking: Booking, currentUserId: String?): Conversation {
+private fun toConversation(booking: Booking, currentUserId: String?, peerBookings: List<Booking>? = null): Conversation {
     val isMentor = booking.mentorId == currentUserId
     val peerSummary = if (isMentor) booking.mentee else booking.mentor
     val peerId = if (isMentor) booking.menteeId else booking.mentorId
@@ -161,6 +209,9 @@ private fun toConversation(booking: Booking, currentUserId: String?): Conversati
     val hasActive = isSessionActive(booking)
     val hasUpcoming = booking.status == BookingStatus.CONFIRMED && !hasActive
     val nextSessionIso = if (hasUpcoming) startIso else null
+    val upcomingBooking = peerBookings?.firstOrNull { pb ->
+        pb.status == BookingStatus.CONFIRMED && !isSessionActive(pb)
+    }
 
     return Conversation(
         id = booking.id,
@@ -174,9 +225,9 @@ private fun toConversation(booking: Booking, currentUserId: String?): Conversati
         unreadCount = 0,
         hasActiveSession = hasActive,
         nextSessionDateTimeIso = nextSessionIso,
-        nextSessionStartIso = if (hasUpcoming) startIso else null,
-        nextSessionEndIso = if (hasUpcoming) endIso else null,
-        nextSessionBookingId = if (hasUpcoming) booking.id else null,
+        nextSessionStartIso = if (hasUpcoming) upcomingBooking?.startTimeIso else null,
+        nextSessionEndIso = if (hasUpcoming) upcomingBooking?.endTimeIso else null,
+        nextSessionBookingId = if (hasUpcoming) upcomingBooking?.id else null,
         bookingStatus = booking.status,
         myMessageCount = 0 // Will be updated when messages are loaded
     )

@@ -103,7 +103,11 @@ fun NotificationDetailScreen(
                             .padding(16.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        LiquidGlassCard(radius = 22.dp) {
+                        LiquidGlassCard(
+                            radius = 22.dp,
+                            alpha = 0.12f, // ✅ Standard glass for readability
+                            borderAlpha = 0.25f // ✅ Soft border
+                        ) {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -152,7 +156,11 @@ private fun NotificationDetailHero(
 ) {
     val typeStyle = notificationTypeStyle(item.type)
 
-    LiquidGlassCard(radius = 24.dp) {
+    LiquidGlassCard(
+        radius = 24.dp,
+        alpha = 0.12f, // ✅ Standard glass for readability
+        borderAlpha = 0.25f // ✅ Soft border
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -175,7 +183,8 @@ private fun NotificationDetailHero(
                     Text(
                         item.title,
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White // ✅ Full white for titles
                     )
                     Text(
                         "${relativeTime(item.timestamp)} • ${formatNotificationTime(item.timestamp)}",
@@ -195,7 +204,11 @@ private fun NotificationDetailHero(
 private fun NotificationDetailBody(
     item: NotificationItem
 ) {
-    LiquidGlassCard(radius = 22.dp) {
+    LiquidGlassCard(
+        radius = 22.dp,
+        alpha = 0.12f, // ✅ Standard glass for readability
+        borderAlpha = 0.25f // ✅ Soft border
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -205,12 +218,13 @@ private fun NotificationDetailBody(
             Text(
                 stringResource(R.string.notification_body_label),
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White.copy(alpha = 0.7f) // ✅ Label: 70% opacity
             )
             Text(
                 item.body,
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color.White.copy(alpha = 0.9f)
+                color = Color.White // ✅ Body: Full white for readability
             )
         }
     }
@@ -222,7 +236,11 @@ private fun NotificationDetailMeta(
 ) {
     val typeStyle = notificationTypeStyle(item.type)
 
-    LiquidGlassCard(radius = 22.dp) {
+    LiquidGlassCard(
+        radius = 22.dp,
+        alpha = 0.12f, // ✅ Standard glass for readability
+        borderAlpha = 0.25f // ✅ Soft border
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -232,7 +250,8 @@ private fun NotificationDetailMeta(
             Text(
                 stringResource(R.string.notification_info_label),
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White.copy(alpha = 0.7f) // ✅ Label: 70% opacity
             )
             NotificationMetaRow(label = stringResource(R.string.notification_label_type), value = stringResource(typeStyle.labelRes))
             NotificationMetaRow(label = stringResource(R.string.notification_label_time), value = formatNotificationTime(item.timestamp))
@@ -262,7 +281,11 @@ private fun NotificationDetailActions(
         item.type == com.mentorme.app.data.model.NotificationType.BOOKING_REMINDER ||
         item.type == com.mentorme.app.data.model.NotificationType.BOOKING_CONFIRMED
     )) {
-        LiquidGlassCard(radius = 22.dp) {
+        LiquidGlassCard(
+            radius = 22.dp,
+            alpha = 0.12f, // ✅ Standard glass for readability
+            borderAlpha = 0.25f // ✅ Soft border
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -272,7 +295,8 @@ private fun NotificationDetailActions(
                 Text(
                     "Actions",
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White.copy(alpha = 0.7f) // ✅ Label: 70% opacity
                 )
                 MMGhostButton(
                     onClick = { onJoinSession(bookingId) },
@@ -282,7 +306,7 @@ private fun NotificationDetailActions(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(androidx.compose.material.icons.Icons.Default.VideoCall, contentDescription = null)
+                        Icon(Icons.Default.VideoCall, contentDescription = null)
                         Text("Join Session")
                     }
                 }

@@ -105,6 +105,60 @@ export const getMessages = asyncHandler(async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/v1/messages/peer/:peerId
+ * List all messages with a specific peer across all bookings
+ */
+export const getMessagesByPeer = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id ?? (req as any).user?._id;
+  if (!userId) {
+    return unauthorized(res, 'USER_NOT_AUTHENTICATED');
+  }
+
+  const { peerId } = req.params as { peerId: string };
+  const limit = Math.min(Number(req.query.limit) || 200, 500);
+  const before = req.query.before ? new Date(String(req.query.before)) : null;
+
+  // Find all bookings between current user and peer
+  const bookings = await Booking.find({
+    $or: [
+      { mentor: userId, mentee: peerId },
+      { mentor: peerId, mentee: userId }
+    ],
+    status: { $nin: ['Cancelled', 'Failed', 'Declined'] }
+  }).lean();
+
+  if (bookings.length === 0) {
+    return ok(res, []); // No bookings found, return empty array
+  }
+
+  const bookingIds = bookings.map(b => b._id);
+
+  // Query messages from all bookings
+  const query: any = { booking: { $in: bookingIds } };
+  if (before && !Number.isNaN(before.getTime())) {
+    query.createdAt = { $lt: before };
+  }
+
+  const messages = await Message.find(query)
+    .sort({ createdAt: 1 })
+    .limit(limit)
+    .lean();
+
+  const senderIds = Array.from(new Set(messages.map((m) => String(m.sender))));
+  const senderMap = new Map<string, SenderPayload | null>();
+  await Promise.all(
+    senderIds.map(async (id) => {
+      senderMap.set(id, await buildSenderPayload(id));
+    })
+  );
+
+  return ok(
+    res,
+    messages.map((message) => formatMessage(message, senderMap.get(String(message.sender))))
+  );
+});
+
+/**
  * POST /api/v1/messages
  * Send a message for a booking
  */
@@ -353,6 +407,7 @@ export const getChatRestrictionInfo = asyncHandler(async (req: Request, res: Res
 
 export default {
   getMessages,
+  getMessagesByPeer,
   sendMessage,
   getChatRestrictionInfo,
 };

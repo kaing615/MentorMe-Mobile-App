@@ -95,15 +95,17 @@ object NetworkModule {
     @Singleton
     fun provideChatApiService(retrofit: Retrofit): ChatApiService {
         return retrofit.create(ChatApiService::class.java)
-    fun provideWalletApi(retrofit: Retrofit): WalletApi {
-        return retrofit.create(WalletApi::class.java)
     }
 
     @Provides
     @Singleton
     fun provideSessionApiService(retrofit: Retrofit): SessionApiService {
         return retrofit.create(SessionApiService::class.java)
-    fun provideWalletRepository(api: WalletApi): WalletRepository {
-        return WalletRepository(api)
+    }
+
+    @Provides
+    @Singleton
+    fun provideWalletApi(retrofit: Retrofit): WalletApi {
+        return retrofit.create(WalletApi::class.java)
     }
 }

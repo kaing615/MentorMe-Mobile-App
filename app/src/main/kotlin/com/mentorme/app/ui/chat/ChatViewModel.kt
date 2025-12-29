@@ -51,7 +51,25 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             _loading.value = true
             when (val res = chatRepository.getConversations()) {
-                is AppResult.Success -> _conversations.value = res.data
+                is AppResult.Success -> {
+                    _conversations.value = res.data
+                    
+                    // Load last message preview for each conversation
+                    res.data.forEach { conversation ->
+                        launch {
+                            when (val msgRes = chatRepository.getMessages(conversation.id, limit = 1)) {
+                                is AppResult.Success -> {
+                                    val lastMsg = msgRes.data.lastOrNull()
+                                    if (lastMsg != null) {
+                                        updateConversationPreview(conversation.id, lastMsg, incrementUnread = false)
+                                    }
+                                }
+                                is AppResult.Error -> Unit
+                                AppResult.Loading -> Unit
+                            }
+                        }
+                    }
+                }
                 is AppResult.Error -> Unit
                 AppResult.Loading -> Unit
             }

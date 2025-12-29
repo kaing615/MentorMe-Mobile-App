@@ -12,8 +12,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.mentorme.app.data.model.chat.Conversation
 import com.mentorme.app.ui.theme.GradientSecondary
 import com.mentorme.app.ui.theme.gradientBackground
@@ -36,20 +38,32 @@ fun ConversationCard(
             Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar text fallback
-            Box(
-                Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .gradientBackground(GradientSecondary),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(conversation.peerName.firstOrNull()?.uppercase() ?: "?", fontWeight = FontWeight.Bold)
+            // Avatar with fallback
+            Box(contentAlignment = Alignment.BottomStart) {
+                if (conversation.peerAvatar != null) {
+                    AsyncImage(
+                        model = conversation.peerAvatar,
+                        contentDescription = conversation.peerName,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .gradientBackground(GradientSecondary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(conversation.peerName.firstOrNull()?.uppercase() ?: "?", fontWeight = FontWeight.Bold)
+                    }
+                }
                 // Online dot
                 if (conversation.isOnline) {
                     Box(
                         Modifier
-                            .align(Alignment.BottomStart)
                             .offset(x = (-2).dp, y = 2.dp)
                             .size(10.dp)
                             .clip(CircleShape)

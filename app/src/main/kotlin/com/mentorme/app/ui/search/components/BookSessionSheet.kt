@@ -236,14 +236,12 @@ fun BookSessionContent(
                 SelectionHintCard()
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                MMGhostButton(
-                    onClick = onClose,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
-                ) { Text("Hủy") }
-                MMPrimaryButton(
+            // ✅ Action buttons - Matching MentorDetailSheet style
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                // Primary: Confirm booking (Professional Blue)
+                Button(
                     onClick = {
-                        val slot = selectedSlot ?: return@MMPrimaryButton
+                        val slot = selectedSlot ?: return@Button
                         onConfirm(
                             slot.occurrenceId,
                             slot.date,
@@ -253,13 +251,42 @@ fun BookSessionContent(
                             note
                         )
                     },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp),
-                    enabled = selectedSlot != null
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp), // ✅ Taller matching MentorDetailSheet
+                    enabled = selectedSlot != null,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2563EB), // ✅ Professional Blue
+                        contentColor = Color.White,
+                        disabledContainerColor = Color(0xFF2563EB).copy(alpha = 0.4f),
+                        disabledContentColor = Color.White.copy(alpha = 0.6f)
+                    ),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     Icon(Icons.Default.Check, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Xác nhận đặt lịch")
+                    Text("Xác nhận đặt lịch", fontWeight = FontWeight.SemiBold)
                 }
+
+                // Secondary: Cancel (Subtle glass)
+                Surface(
+                    onClick = onClose,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp), // ✅ Taller
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.White.copy(alpha = 0.1f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            "Hủy",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White.copy(alpha = 0.9f)
+                        )
+                    }
+                }
+
                 if (selectedSlot == null) {
                     Text(
                         "Chọn một khung giờ để tiếp tục.",

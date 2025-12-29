@@ -108,4 +108,10 @@ object NetworkModule {
     fun provideWalletApi(retrofit: Retrofit): WalletApi {
         return retrofit.create(WalletApi::class.java)
     }
+
+    @Provides
+    @Singleton
+    fun provideWalletApi(retrofit: Retrofit): WalletApi {
+        return retrofit.create(WalletApi::class.java)
+    }
 }

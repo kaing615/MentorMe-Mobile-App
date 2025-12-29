@@ -8,6 +8,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.SnackbarHostState
+import kotlinx.coroutines.launch
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import com.mentorme.app.domain.usecase.chat.GetConversationWithPeerUseCase
+import com.mentorme.app.core.utils.AppResult
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -58,6 +67,12 @@ import com.mentorme.app.ui.videocall.VideoCallScreen
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface ChatNavDeps {
+    fun getConversationWithPeerUseCase(): GetConversationWithPeerUseCase
+}
+
 @Composable
 internal fun AppNavGraph(
     nav: NavHostController,
@@ -74,6 +89,13 @@ internal fun AppNavGraph(
     blurEnabled: Boolean = false
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // ✅ Get chat use case for navigation
+    val chatDeps = remember(context) {
+        EntryPointAccessors.fromApplication(context, ChatNavDeps::class.java)
+    }
+    val getConversationUseCase = remember { chatDeps.getConversationWithPeerUseCase() }
 
     val hazeModifier = if (blurEnabled && hazeState != null) {
         Modifier.hazeSource(state = hazeState)
@@ -198,6 +220,39 @@ internal fun AppNavGraph(
             onJoinSession = { bookingId ->
                 nav.navigate(Routes.videoCall(bookingId)) {
                     launchSingleTop = true
+                }
+            },
+            onMessage = { mentorId ->
+                // ✅ Open chat with mentor
+                scope.launch {
+                    when (val result = getConversationUseCase(mentorId)) {
+                        is AppResult.Success -> {
+                            val conversationId = result.data
+                            if (conversationId != null) {
+                                // Conversation exists, navigate to chat
+                                nav.navigate("${Routes.Chat}/$conversationId") {
+                                    launchSingleTop = true
+                                }
+                            } else {
+                                // No conversation exists - need to book first
+                                Toast.makeText(
+                                    context,
+                                    "Bạn cần đặt lịch với mentor này trước khi có thể nhắn tin",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                        is AppResult.Error -> {
+                            Toast.makeText(
+                                context,
+                                "Không thể mở chat: ${result.throwable}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                        AppResult.Loading -> {
+                            // Should not happen
+                        }
+                    }
                 }
             },
             onBookSlot = { mentor, occurrenceId, date, startTime, endTime, priceVnd, note ->
@@ -341,6 +396,39 @@ internal fun AppNavGraph(
             onBook = { id ->
                 val targetId = if (id.startsWith("m") && id.drop(1).all { it.isDigit() }) id.drop(1) else id
                 nav.navigate("booking/$targetId")
+            },
+            onMessage = { mentorId ->
+                //  STEP C: Open chat with mentor
+                scope.launch {
+                    when (val result = getConversationUseCase(mentorId)) {
+                        is AppResult.Success -> {
+                            val conversationId = result.data
+                            if (conversationId != null) {
+                                // Conversation exists, navigate to chat
+                                nav.navigate("${Routes.Chat}/$conversationId") {
+                                    launchSingleTop = true
+                                }
+                            } else {
+                                // No conversation exists - need to book first
+                                Toast.makeText(
+                                    context,
+                                    "Bạn cần đặt lịch với mentor này trước khi có thể nhắn tin",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                        is AppResult.Error -> {
+                            Toast.makeText(
+                                context,
+                                "Không thể mở chat: ${result.throwable}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                        AppResult.Loading -> {
+                            // Should not happen
+                        }
+                    }
+                }
             },
             onBookSlot = { mentor, occurrenceId, date, startTime, endTime, priceVnd, note ->
                 nav.currentBackStackEntry?.savedStateHandle?.set("booking_notes", note)
@@ -679,6 +767,6 @@ internal fun AppNavGraph(
             )
         }
     }
-    }
-}
+        } // End NavHost
+    } // End Box
 }

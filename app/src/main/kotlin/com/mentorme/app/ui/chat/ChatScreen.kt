@@ -231,22 +231,30 @@ fun ChatScreen(
                 }
             }
 
-            // Messages list
-            LazyColumn(
-                state = listState,
+            // Messages list with background
+            Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                reverseLayout = false,
-                contentPadding = PaddingValues(
-                    top = 8.dp,
-                    bottom = composerOverlayDp + 12.dp
-                )
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .liquidGlassStrong(radius = 24.dp, alpha = 0.22f)
+                    .background(Color(0xFF000000).copy(alpha = 0.15f))
             ) {
-                items(messages) { m ->
-                    MessageBubbleGlass(m)
-                    Spacer(Modifier.height(8.dp))
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 12.dp),
+                    reverseLayout = false,
+                    contentPadding = PaddingValues(
+                        top = 12.dp,
+                        bottom = composerOverlayDp + 12.dp
+                    )
+                ) {
+                    items(messages) { m ->
+                        MessageBubbleGlass(m)
+                        Spacer(Modifier.height(8.dp))
+                    }
                 }
             }
 

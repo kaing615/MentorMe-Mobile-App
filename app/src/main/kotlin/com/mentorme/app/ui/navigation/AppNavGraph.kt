@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -15,6 +16,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.mentorme.app.data.mock.MockData
+import com.mentorme.app.data.session.SessionManager
 import com.mentorme.app.ui.auth.AuthScreen
 import com.mentorme.app.ui.auth.AuthViewModel
 import com.mentorme.app.ui.auth.RegisterPayload
@@ -49,6 +51,7 @@ import com.mentorme.app.ui.wallet.EditPaymentMethodScreen
 import com.mentorme.app.ui.wallet.PaymentMethod
 import com.mentorme.app.ui.wallet.PaymentMethodScreen
 import com.mentorme.app.ui.wallet.TopUpScreen
+import com.mentorme.app.ui.wallet.WalletViewModel
 import com.mentorme.app.ui.wallet.WithdrawScreen
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
@@ -386,10 +389,14 @@ internal fun AppNavGraph(
     composable(Routes.Profile) {
         val localAuthVm = hiltViewModel<AuthViewModel>()
         val profileVm = hiltViewModel<com.mentorme.app.ui.profile.ProfileViewModel>()
+        val profileEntry = remember { nav.getBackStackEntry(Routes.Profile) }
+        val walletVm: WalletViewModel = hiltViewModel(profileEntry)
+
         ProfileScreen(
             vm = profileVm,
             user = UserHeader(fullName = "Nguyễn Văn A", email = "a@example.com", role = UserRole.MENTEE),
             notificationsViewModel = notificationsVm,
+            walletViewModel = walletVm,
             onOpenNotifications = { nav.navigate(Routes.Notifications) },
             onOpenTopUp = { nav.navigate(Routes.TopUp) },
             onOpenWithdraw = { nav.navigate(Routes.Withdraw) },
@@ -552,13 +559,15 @@ internal fun AppNavGraph(
     }
 
     // ---------- WALLET ----------
-    composable(Routes.TopUp) {
-        TopUpScreen(
-            balance = 8_500_000L,
-            onBack = { nav.popBackStack() },
-            onSubmit = { _, _ -> nav.popBackStack() }
-        )
-    }
+        composable(Routes.TopUp) { backStackEntry ->
+            val parentEntry = remember { nav.getBackStackEntry(Routes.Profile) }
+            val walletVm: WalletViewModel = hiltViewModel(parentEntry)
+
+            TopUpScreen(
+                onBack = { nav.popBackStack() },
+                walletViewModel = walletVm
+            )
+        }
 
     composable(Routes.Withdraw) {
         WithdrawScreen(

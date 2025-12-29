@@ -50,9 +50,30 @@ import kotlinx.coroutines.launch
 import java.util.*
 
 private fun mockTxLocal(): List<WalletTx> = listOf(
-    WalletTx("t1", GregorianCalendar(2025, 8, 21, 10, 15).time, TxType.TOP_UP, +5_000_000, "Thu nhập tháng 8", TxStatus.SUCCESS),
-    WalletTx("t2", GregorianCalendar(2025, 8, 20, 14, 0).time, TxType.WITHDRAW, -2_000_000, "Rút về VCB", TxStatus.SUCCESS),
-    WalletTx("t3", GregorianCalendar(2025, 8, 19, 9, 30).time, TxType.PAYMENT, +500_000, "Booking #123", TxStatus.SUCCESS),
+    WalletTx(
+        id = "t1",
+        date = GregorianCalendar(2025, 8, 21, 10, 15).timeInMillis,
+        type = TxType.TOP_UP,
+        amount = 5_000_000,
+        note = "Thu nhập tháng 8",
+        status = TxStatus.SUCCESS
+    ),
+    WalletTx(
+        id = "t2",
+        date = GregorianCalendar(2025, 8, 20, 14, 0).timeInMillis,
+        type = TxType.WITHDRAW,
+        amount = -2_000_000,
+        note = "Rút về VCB",
+        status = TxStatus.SUCCESS
+    ),
+    WalletTx(
+        id = "t3",
+        date = GregorianCalendar(2025, 8, 19, 9, 30).timeInMillis,
+        type = TxType.PAYMENT,
+        amount = 500_000,
+        note = "Booking #123",
+        status = TxStatus.SUCCESS
+    ),
 )
 
 // ✅ helper map target -> tab index

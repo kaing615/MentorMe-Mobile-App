@@ -3,9 +3,8 @@ import Wallet from "../models/wallet.model";
 import WalletTransaction from "../models/walletTransaction.model";
 import Booking from "../models/booking.model";
 
-/**
- * Retry wrapper for transient transaction errors
- */
+/* -------------------- Retry helper -------------------- */
+
 async function retryTransaction<T>(
   operation: () => Promise<T>,
   maxRetries = 3
@@ -20,7 +19,7 @@ async function retryTransaction<T>(
         error?.errorLabels?.includes("TransientTransactionError") ||
         error?.message?.includes("WriteConflict");
       if (isTransient && attempt < maxRetries) {
-        await new Promise((resolve) => setTimeout(resolve, 50 * attempt));
+        await new Promise((r) => setTimeout(r, 50 * attempt));
         continue;
       }
       break;
@@ -29,14 +28,13 @@ async function retryTransaction<T>(
   throw lastError;
 }
 
-/**
- * Helper to get or create a wallet for a user (atomic upsert, race-safe)
- */
+/* -------------------- Wallet helper -------------------- */
+
 async function getOrCreateWallet(
   userId: string,
   currency: "VND" | "USD",
   session?: mongoose.ClientSession
-): Promise<any> {
+) {
   const userObjectId = new mongoose.Types.ObjectId(userId);
 
   const wallet = await Wallet.findOneAndUpdate(
@@ -58,7 +56,8 @@ async function getOrCreateWallet(
   return wallet;
 }
 
-// Booking statuses that must NEVER accept payment capture
+/* -------------------- Constants -------------------- */
+
 const TERMINAL_BOOKING_STATUSES = new Set([
   "Failed",
   "Cancelled",
@@ -66,23 +65,34 @@ const TERMINAL_BOOKING_STATUSES = new Set([
   "Completed",
 ]);
 
-/**
- * Capture payment from mentee and credit mentor.
- * IMPORTANT:
- * - Should be called when booking is still in PaymentPending.
- * - Must be idempotent (duplicate webhook must not double charge).
- */
+/* -------------------- Custom Error -------------------- */
+
+export class InsufficientBalanceError extends Error {
+  requiredTopup: number;
+  currentBalance: number;
+
+  constructor(requiredTopup: number, currentBalance: number) {
+    super("INSUFFICIENT_BALANCE");
+    this.requiredTopup = requiredTopup;
+    this.currentBalance = currentBalance;
+  }
+}
+
+/* =====================================================
+   CAPTURE BOOKING PAYMENT
+   - Trừ tiền trực tiếp từ ví mentee
+   - Nếu không đủ -> throw InsufficientBalanceError
+   ===================================================== */
+
 export async function captureBookingPayment(bookingId: string): Promise<void> {
   await retryTransaction(async () => {
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
-      // Load booking (inside txn)
       const booking = await Booking.findById(bookingId).session(session);
-      if (!booking) throw new Error("Booking not found");
+      if (!booking) throw new Error("BOOKING_NOT_FOUND");
 
-      // ✅ Guard booking status (prevent capture after expiry/cancel/fail)
       const status = String((booking as any).status);
       if (TERMINAL_BOOKING_STATUSES.has(status)) {
         const err: any = new Error(`BOOKING_TERMINAL:${status}`);
@@ -90,8 +100,7 @@ export async function captureBookingPayment(bookingId: string): Promise<void> {
         throw err;
       }
 
-      // ✅ Only capture when PaymentPending.
-      // If already moved forward (Confirmed/PendingMentor) => idempotent ignore.
+      // Idempotent: chỉ capture khi PaymentPending
       if (status !== "PaymentPending") {
         await session.commitTransaction();
         session.endSession();
@@ -101,7 +110,6 @@ export async function captureBookingPayment(bookingId: string): Promise<void> {
       const menteeId = String((booking as any).mentee);
       const mentorId = String((booking as any).mentor);
 
-      // Determine amount
       const amountMinor =
         (booking as any).priceMinor != null
           ? Number((booking as any).priceMinor)
@@ -113,45 +121,42 @@ export async function captureBookingPayment(bookingId: string): Promise<void> {
 
       const idempotencyKey = `booking_payment:${bookingId}`;
 
-      // Idempotency check: mentee debit tx exists => already captured
-      const existingTx = await WalletTransaction.findOne({
+      // Idempotency check
+      const existed = await WalletTransaction.findOne({
         userId: new mongoose.Types.ObjectId(menteeId),
         source: "BOOKING_PAYMENT",
         idempotencyKey,
       }).session(session);
 
-      if (existingTx) {
+      if (existed) {
         await session.commitTransaction();
         session.endSession();
         return;
       }
 
-      // Determine currency
-      let currency: "VND" | "USD" = ((booking as any).currency as any) || "VND";
+      let currency: "VND" | "USD" =
+        ((booking as any).currency as any) || "VND";
 
-      // Get/create wallets
       const menteeWallet = await getOrCreateWallet(menteeId, currency, session);
       const mentorWallet = await getOrCreateWallet(mentorId, currency, session);
 
-      // If booking currency is missing, use mentee wallet currency
-      if (!(booking as any).currency) currency = menteeWallet.currency;
-
-      // Currency match
-      if (mentorWallet.currency !== currency) throw new Error("CURRENCY_MISMATCH");
-
-      const skipBalanceCheck =
-        (process.env.SKIP_PAYMENT_BALANCE_CHECK || "false").toLowerCase() === "true";
-
-      // Balance check (optional skip for dev/testing)
-      if (menteeWallet.balanceMinor < amountMinor) {
-        if (!skipBalanceCheck) {
-          throw new Error("INSUFFICIENT_BALANCE");
-        }
-        menteeWallet.balanceMinor = amountMinor;
+      if (mentorWallet.currency !== currency) {
+        throw new Error("CURRENCY_MISMATCH");
       }
 
-      // Debit mentee
-      const menteeBalanceBefore = menteeWallet.balanceMinor;
+      /* --------- CORE LOGIC: CHECK BALANCE --------- */
+
+      if (menteeWallet.balanceMinor < amountMinor) {
+        const requiredTopup = amountMinor - menteeWallet.balanceMinor;
+        throw new InsufficientBalanceError(
+          requiredTopup,
+          menteeWallet.balanceMinor
+        );
+      }
+
+      /* --------- DEBIT MENTEE --------- */
+
+      const menteeBefore = menteeWallet.balanceMinor;
       menteeWallet.balanceMinor -= amountMinor;
       await menteeWallet.save({ session });
 
@@ -159,12 +164,12 @@ export async function captureBookingPayment(bookingId: string): Promise<void> {
         [
           {
             walletId: menteeWallet._id,
-            userId: new mongoose.Types.ObjectId(menteeId),
+            userId: menteeWallet.userId,
             type: "DEBIT",
             source: "BOOKING_PAYMENT",
             amountMinor,
             currency,
-            balanceBeforeMinor: menteeBalanceBefore,
+            balanceBeforeMinor: menteeBefore,
             balanceAfterMinor: menteeWallet.balanceMinor,
             referenceType: "BOOKING",
             referenceId: booking._id,
@@ -174,8 +179,9 @@ export async function captureBookingPayment(bookingId: string): Promise<void> {
         { session }
       );
 
-      // Credit mentor
-      const mentorBalanceBefore = mentorWallet.balanceMinor;
+      /* --------- CREDIT MENTOR --------- */
+
+      const mentorBefore = mentorWallet.balanceMinor;
       mentorWallet.balanceMinor += amountMinor;
       await mentorWallet.save({ session });
 
@@ -183,12 +189,12 @@ export async function captureBookingPayment(bookingId: string): Promise<void> {
         [
           {
             walletId: mentorWallet._id,
-            userId: new mongoose.Types.ObjectId(mentorId),
+            userId: mentorWallet.userId,
             type: "CREDIT",
-            source: "BOOKING_PAYMENT",
+            source: "BOOKING_EARN",
             amountMinor,
             currency,
-            balanceBeforeMinor: mentorBalanceBefore,
+            balanceBeforeMinor: mentorBefore,
             balanceAfterMinor: mentorWallet.balanceMinor,
             referenceType: "BOOKING",
             referenceId: booking._id,
@@ -204,10 +210,10 @@ export async function captureBookingPayment(bookingId: string): Promise<void> {
       await session.abortTransaction();
       session.endSession();
 
-      // Duplicate idempotencyKey unique index => treat as success
       if (
         error?.code === 11000 &&
-        (error?.keyPattern?.idempotencyKey || error?.message?.includes("idempotencyKey"))
+        (error?.keyPattern?.idempotencyKey ||
+          error?.message?.includes("idempotencyKey"))
       ) {
         return;
       }
@@ -216,11 +222,10 @@ export async function captureBookingPayment(bookingId: string): Promise<void> {
   });
 }
 
-/**
- * Refund payment to mentee and debit mentor.
- * Called AFTER booking is cancelled/declined.
- * Must be idempotent.
- */
+/* =====================================================
+   REFUND BOOKING PAYMENT
+   ===================================================== */
+
 export async function refundBookingPayment(bookingId: string): Promise<void> {
   await retryTransaction(async () => {
     const session = await mongoose.startSession();
@@ -228,13 +233,12 @@ export async function refundBookingPayment(bookingId: string): Promise<void> {
 
     try {
       const booking = await Booking.findById(bookingId).session(session);
-      if (!booking) throw new Error("Booking not found");
+      if (!booking) throw new Error("BOOKING_NOT_FOUND");
 
       const menteeId = String((booking as any).mentee);
       const mentorId = String((booking as any).mentor);
       const idempotencyKey = `booking_refund:${bookingId}`;
 
-      // Idempotency check: mentee refund tx exists => already refunded
       const existingRefund = await WalletTransaction.findOne({
         userId: new mongoose.Types.ObjectId(menteeId),
         source: "BOOKING_REFUND",
@@ -247,7 +251,6 @@ export async function refundBookingPayment(bookingId: string): Promise<void> {
         return;
       }
 
-      // Verify original payment exists (mentee DEBIT)
       const originalPayment = await WalletTransaction.findOne({
         userId: new mongoose.Types.ObjectId(menteeId),
         source: "BOOKING_PAYMENT",
@@ -257,7 +260,6 @@ export async function refundBookingPayment(bookingId: string): Promise<void> {
       }).session(session);
 
       if (!originalPayment) {
-        // No payment captured => nothing to refund
         await session.commitTransaction();
         session.endSession();
         return;
@@ -269,11 +271,12 @@ export async function refundBookingPayment(bookingId: string): Promise<void> {
       const menteeWallet = await getOrCreateWallet(menteeId, currency, session);
       const mentorWallet = await getOrCreateWallet(mentorId, currency, session);
 
-      if (mentorWallet.currency !== currency) throw new Error("CURRENCY_MISMATCH");
-      if (mentorWallet.balanceMinor < amountMinor) throw new Error("MENTOR_INSUFFICIENT_BALANCE");
+      if (mentorWallet.balanceMinor < amountMinor) {
+        throw new Error("MENTOR_INSUFFICIENT_BALANCE");
+      }
 
       // Debit mentor
-      const mentorBalanceBefore = mentorWallet.balanceMinor;
+      const mentorBefore = mentorWallet.balanceMinor;
       mentorWallet.balanceMinor -= amountMinor;
       await mentorWallet.save({ session });
 
@@ -281,12 +284,12 @@ export async function refundBookingPayment(bookingId: string): Promise<void> {
         [
           {
             walletId: mentorWallet._id,
-            userId: new mongoose.Types.ObjectId(mentorId),
+            userId: mentorWallet.userId,
             type: "DEBIT",
             source: "BOOKING_REFUND",
             amountMinor,
             currency,
-            balanceBeforeMinor: mentorBalanceBefore,
+            balanceBeforeMinor: mentorBefore,
             balanceAfterMinor: mentorWallet.balanceMinor,
             referenceType: "BOOKING",
             referenceId: booking._id,
@@ -297,7 +300,7 @@ export async function refundBookingPayment(bookingId: string): Promise<void> {
       );
 
       // Refund mentee
-      const menteeBalanceBefore = menteeWallet.balanceMinor;
+      const menteeBefore = menteeWallet.balanceMinor;
       menteeWallet.balanceMinor += amountMinor;
       await menteeWallet.save({ session });
 
@@ -305,12 +308,12 @@ export async function refundBookingPayment(bookingId: string): Promise<void> {
         [
           {
             walletId: menteeWallet._id,
-            userId: new mongoose.Types.ObjectId(menteeId),
+            userId: menteeWallet.userId,
             type: "REFUND",
             source: "BOOKING_REFUND",
             amountMinor,
             currency,
-            balanceBeforeMinor: menteeBalanceBefore,
+            balanceBeforeMinor: menteeBefore,
             balanceAfterMinor: menteeWallet.balanceMinor,
             referenceType: "BOOKING",
             referenceId: booking._id,
@@ -328,7 +331,8 @@ export async function refundBookingPayment(bookingId: string): Promise<void> {
 
       if (
         error?.code === 11000 &&
-        (error?.keyPattern?.idempotencyKey || error?.message?.includes("idempotencyKey"))
+        (error?.keyPattern?.idempotencyKey ||
+          error?.message?.includes("idempotencyKey"))
       ) {
         return;
       }

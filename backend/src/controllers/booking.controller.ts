@@ -37,7 +37,7 @@ import {
   notifyBookingReminder,
 } from '../utils/notification.service';
 import { generateBookingIcs } from '../utils/ics.service';
-import { refundBookingPayment } from '../services/walletBooking.service';
+import { captureBookingPayment, refundBookingPayment } from '../services/walletBooking.service';
 
 const BOOKING_EXPIRY_MINUTES = parseInt(process.env.BOOKING_EXPIRY_MINUTES || '15', 10) || 15;
 const LATE_CANCEL_MINUTES = parseInt(process.env.LATE_CANCEL_MINUTES || '1440', 10) || 1440;
@@ -338,6 +338,53 @@ export const createBooking = asyncHandler(async (req: Request, res: Response) =>
     }
   }
 });
+
+/**
+ * POST /api/bookings/:id/capture
+ * Retry wallet payment capture for PaymentPending booking
+ */
+export const captureBooking = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id ?? (req as any).user?._id;
+  if (!userId) {
+    return unauthorized(res, 'USER_NOT_AUTHENTICATED');
+  }
+
+  const { id: bookingId } = req.params;
+
+  const booking = await Booking.findById(bookingId);
+  if (!booking) {
+    return notFound(res, 'Booking not found');
+  }
+
+  // Only mentee can trigger payment
+  if (String(booking.mentee) !== String(userId)) {
+    return forbidden(res, 'ONLY_MENTEE_CAN_PAY');
+  }
+
+  if (booking.status !== 'PaymentPending') {
+    return badRequest(res, 'BOOKING_NOT_PAYABLE');
+  }
+
+  try {
+    await captureBookingPayment(bookingId);
+
+    // Re-fetch booking after capture
+    const updated = await Booking.findById(bookingId);
+    if (!updated) return ok(res, null, 'Payment captured');
+
+    return ok(res, updated, 'PAYMENT_CAPTURED');
+  } catch (err: any) {
+    if (err?.message === 'INSUFFICIENT_BALANCE') {
+      return badRequest(res, {
+        code: 'INSUFFICIENT_BALANCE',
+        message: 'Wallet balance is not enough',
+      });
+    }
+
+    throw err;
+  }
+});
+
 
 /**
  * GET /api/bookings

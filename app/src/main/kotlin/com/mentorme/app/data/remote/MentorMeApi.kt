@@ -28,6 +28,10 @@ import com.mentorme.app.data.dto.notifications.NotificationUnreadCount
 import com.mentorme.app.data.dto.notifications.NotificationReadResponse
 import com.mentorme.app.data.dto.notifications.NotificationReadAllResponse
 import com.mentorme.app.data.dto.notifications.NotificationPreferencesDto
+import com.mentorme.app.data.dto.*
+import com.mentorme.app.data.dto.wallet.TopupRequest
+import com.mentorme.app.data.dto.wallet.TopupResponse
+import com.mentorme.app.data.dto.wallet.WalletDto
 
 // Model imports
 import com.mentorme.app.data.model.Booking

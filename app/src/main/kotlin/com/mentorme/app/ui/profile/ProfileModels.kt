@@ -31,19 +31,11 @@ enum class TxStatus { PENDING, SUCCESS, FAILED }
 
 data class WalletTx(
     val id: String,
-    val date: Date,
+    val date: Long,
     val type: TxType,
     val amount: Long,     // + vào ví, - ra ví (VND)
     val note: String,
     val status: TxStatus
-)
-
-fun mockTx(): List<WalletTx> = listOf(
-    WalletTx("t1", GregorianCalendar(2025, 8, 21, 10, 15).time, TxType.TOP_UP, +300_000, "Nạp MoMo", TxStatus.SUCCESS),
-    WalletTx("t2", GregorianCalendar(2025, 8, 20, 14, 0).time, TxType.PAYMENT, -850_000, "Thanh toán buổi 60’", TxStatus.SUCCESS),
-    WalletTx("t3", GregorianCalendar(2025, 8, 19, 9, 30).time, TxType.WITHDRAW, -500_000, "Rút về ngân hàng", TxStatus.PENDING),
-    WalletTx("t4", GregorianCalendar(2025, 8, 18, 16, 45).time, TxType.REFUND, +120_000, "Hoàn tiền phí", TxStatus.SUCCESS),
-    WalletTx("t5", GregorianCalendar(2025, 8, 17, 11, 5).time, TxType.PAYMENT, -450_000, "Thanh toán buổi 30’", TxStatus.FAILED)
 )
 
 enum class UserRole { MENTEE, MENTOR }

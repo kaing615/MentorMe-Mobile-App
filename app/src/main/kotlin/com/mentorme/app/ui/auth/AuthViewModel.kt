@@ -22,6 +22,7 @@ import javax.inject.Inject
 import com.mentorme.app.core.datastore.DataStoreManager
 import com.mentorme.app.core.notifications.PushTokenManager
 import com.google.firebase.messaging.FirebaseMessaging
+import com.mentorme.app.data.session.SessionManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -153,6 +154,8 @@ class AuthViewModel @Inject constructor(
 
                     if (!token.isNullOrBlank()) {
                         saveAndConfirmToken(token)
+                        SessionManager.setToken(token)
+                        Log.d(TAG, "Token saved & activated")
                     }
 
                     val roleStrFromData = data?.role ?: data?.user?.role
@@ -515,6 +518,7 @@ class AuthViewModel @Inject constructor(
             }
 
             dataStoreManager.clearToken()
+            SessionManager.clear()
             dataStoreManager.clearUserInfo()
 
             _authState.value = AuthState()

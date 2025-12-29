@@ -3,7 +3,7 @@ import { IWalletTransaction } from "../../models/walletTransaction.model";
 
 export interface WalletDto {
   walletId: string | null;
-  balance: number;
+  balanceMinor: number;
   currency: "VND" | "USD";
 }
 
@@ -24,7 +24,7 @@ export function mapWalletToDto(wallet: IWallet | null): WalletDto {
   if (!wallet) {
     return {
       walletId: null,
-      balance: 0,
+      balanceMinor: 0,
       currency: "VND",
     };
   }
@@ -32,7 +32,7 @@ export function mapWalletToDto(wallet: IWallet | null): WalletDto {
   const doc = wallet as any;
   return {
     walletId: doc.id ?? doc._id?.toString() ?? null,
-    balance: wallet.balanceMinor,
+    balanceMinor: wallet.balanceMinor,
     currency: wallet.currency,
   };
 }

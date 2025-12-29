@@ -22,8 +22,11 @@ const TERMINAL_BOOKING_STATUSES = new Set([
   "Completed",
 ]);
 
-const CAPTURE_FAILURE_ERRORS = new Set([
+const NON_TERMINAL_CAPTURE_ERRORS = new Set([
   "INSUFFICIENT_BALANCE",
+]);
+
+const TERMINAL_CAPTURE_ERRORS = new Set([
   "INVALID_AMOUNT",
   "CURRENCY_MISMATCH",
   "WALLET_LOCKED",
@@ -150,21 +153,15 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
       case "payment.failed":
       case "payment.expired":
       case "payment.cancelled": {
-        // Idempotent: if already terminal, do nothing
-        if (!TERMINAL_BOOKING_STATUSES.has(bookingStatus)) {
-          await failBooking(bookingId);
-          try {
-            const paymentNotificationData = await buildPaymentNotificationData(booking, {
-              paymentId,
-              status,
-              event,
-            });
-            await notifyPaymentFailed(paymentNotificationData);
-          } catch (err) {
-            console.error("Failed to send payment failed notification:", err);
-          }
-        }
-        break;
+        // Wallet-based system:
+        // Gateway failure does NOT decide booking fate
+        return ok(res, {
+          processed: true,
+          ignored: true,
+          reason: `gateway_${event}_ignored`,
+          bookingId,
+          event,
+        });
       }
 
       default:
@@ -184,30 +181,47 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
       });
     }
 
-    if (isSuccessEvent && CAPTURE_FAILURE_ERRORS.has(errorMessage)) {
-      if (bookingStatus === "PaymentPending") {
-        try {
-          await failBooking(bookingId);
-        } catch (failErr: any) {
-          if (!String(failErr?.message ?? "").includes("Cannot fail booking")) {
-            console.error("Failed to mark booking failed:", failErr);
-          }
+    // ===== WALLET NOT ENOUGH MONEY (NON-TERMINAL) =====
+if (isSuccessEvent && errorMessage === "INSUFFICIENT_BALANCE") {
+  // Do NOT fail booking
+  // Do NOT notify payment failed
+  // Keep booking in PaymentPending so user can top-up
+
+  return ok(res, {
+    processed: true,
+    ignored: true,
+    reason: "wallet_insufficient_balance",
+    bookingId,
+    event,
+  });
+}
+
+  // ===== TERMINAL WALLET / PAYMENT ERRORS =====
+  if (isSuccessEvent && TERMINAL_CAPTURE_ERRORS.has(errorMessage)) {
+    if (bookingStatus === "PaymentPending") {
+      try {
+        await failBooking(bookingId);
+      } catch (failErr: any) {
+        if (!String(failErr?.message ?? "").includes("Cannot fail booking")) {
+          console.error("Failed to mark booking failed:", failErr);
         }
       }
-
-      try {
-        const paymentNotificationData = await buildPaymentNotificationData(booking, {
-          paymentId,
-          status,
-          event,
-        });
-        await notifyPaymentFailed(paymentNotificationData);
-      } catch (notifyErr) {
-        console.error("Failed to send payment failed notification:", notifyErr);
-      }
-
-      return badRequest(res, errorMessage);
     }
+
+    try {
+      const paymentNotificationData = await buildPaymentNotificationData(booking, {
+        paymentId,
+        status,
+        event,
+      });
+      await notifyPaymentFailed(paymentNotificationData);
+    } catch (notifyErr) {
+      console.error("Failed to send payment failed notification:", notifyErr);
+    }
+
+    return badRequest(res, errorMessage);
+  }
+
 
     console.error(`Failed to process payment webhook for ${bookingId}:`, errorMessage);
 

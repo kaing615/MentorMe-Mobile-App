@@ -41,8 +41,8 @@ class ChatRepositoryImpl @Inject constructor(
                 val bookings = response.data.bookings
                 val filtered = bookings.filterNot { booking ->
                     booking.status == BookingStatus.CANCELLED ||
-                        booking.status == BookingStatus.FAILED ||
-                        booking.status == BookingStatus.DECLINED
+                            booking.status == BookingStatus.FAILED ||
+                            booking.status == BookingStatus.DECLINED
                 }
 
                 // Group bookings by peerId to create one conversation per mentor-mentee pair
@@ -68,6 +68,54 @@ class ChatRepositoryImpl @Inject constructor(
             }
         } catch (e: Exception) {
             AppResult.failure(e.message ?: "Failed to load conversations")
+        }
+    }
+
+    override suspend fun getConversationByPeerId(peerId: String): AppResult<Conversation?> = withContext(Dispatchers.IO) {
+        try {
+            val role = dataStoreManager.getUserRole().first()
+            val userId = dataStoreManager.getUserId().first()
+
+            // Get all bookings to find conversation with this peer
+            val response = if (role.isNullOrBlank()) {
+                bookingRepository.getBookings(page = 1, limit = 50)
+            } else {
+                bookingRepository.getBookings(role = role, page = 1, limit = 50)
+            }
+
+            if (response is AppResult.Success) {
+                val bookings = response.data.bookings
+
+                // Find bookings with this specific peer (not cancelled/failed/declined)
+                val peerBookings = bookings.filter { booking ->
+                    val isMentor = booking.mentorId == userId
+                    val bookingPeerId = if (isMentor) booking.menteeId else booking.mentorId
+                    val isValidStatus = booking.status != BookingStatus.CANCELLED &&
+                        booking.status != BookingStatus.FAILED &&
+                        booking.status != BookingStatus.DECLINED
+
+                    bookingPeerId == peerId && isValidStatus
+                }
+
+                if (peerBookings.isEmpty()) {
+                    // No conversation exists with this peer
+                    return@withContext AppResult.success(null)
+                }
+
+                // Use the most recent booking for conversation data
+                val latestBooking = peerBookings.maxByOrNull {
+                    it.startTimeIso ?: it.createdAt
+                } ?: peerBookings.first()
+
+                val conversation = toConversation(latestBooking, userId, peerBookings)
+                AppResult.success(conversation)
+            } else if (response is AppResult.Error) {
+                AppResult.failure(response.throwable)
+            } else {
+                AppResult.failure("Failed to check conversation")
+            }
+        } catch (e: Exception) {
+            AppResult.failure(e.message ?: "Failed to check conversation")
         }
     }
 

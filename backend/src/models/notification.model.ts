@@ -8,6 +8,7 @@ export type TNotificationType =
   | 'booking_reminder'
   | 'booking_pending'
   | 'booking_declined'
+  | 'booking_no_show'
   | 'payment_success'
   | 'payment_failed';
 
@@ -36,6 +37,7 @@ const NotificationSchema = new Schema<INotification>(
       'booking_reminder',
       'booking_pending',
       'booking_declined',
+      'booking_no_show',
       'payment_success',
       'payment_failed',
     ],

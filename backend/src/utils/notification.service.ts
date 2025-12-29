@@ -26,6 +26,10 @@ export interface PaymentNotificationData extends NotificationData {
   event?: string;
 }
 
+export interface NoShowNotificationData extends NotificationData {
+  noShowBy: 'mentor' | 'mentee' | 'both';
+}
+
 type NotificationPayload = {
   id: string;
   userId: string;
@@ -298,6 +302,31 @@ export async function notifyBookingDeclined(data: NotificationData) {
     `Bạn đã từ chối lịch với ${menteeName} lúc ${dateStr}.`,
     { bookingId, menteeId, startTime: dateIso }
   );
+}
+
+export async function notifyBookingNoShow(data: NoShowNotificationData) {
+  const { bookingId, mentorId, menteeId, mentorName, menteeName, startTime, noShowBy } = data;
+  const dateIso = startTime.toISOString();
+  const dateStr = formatDateTimeVi(startTime);
+
+  const mentorTitle = 'Session no-show';
+  const menteeTitle = 'Session no-show';
+
+  let mentorBody = `Session with ${menteeName} at ${dateStr} was marked as no-show.`;
+  let menteeBody = `Session with ${mentorName} at ${dateStr} was marked as no-show.`;
+
+  if (noShowBy === 'mentor') {
+    mentorBody = `You were marked as no-show for the session with ${menteeName} at ${dateStr}.`;
+    menteeBody = `Mentor ${mentorName} did not join the session at ${dateStr}.`;
+  } else if (noShowBy === 'mentee') {
+    mentorBody = `Mentee ${menteeName} did not join the session at ${dateStr}.`;
+    menteeBody = `You were marked as no-show for the session with ${mentorName} at ${dateStr}.`;
+  }
+
+  const payload = { bookingId, mentorId, menteeId, startTime: dateIso, noShowBy };
+
+  await createNotification(menteeId, 'booking_no_show', menteeTitle, menteeBody, payload);
+  await createNotification(mentorId, 'booking_no_show', mentorTitle, mentorBody, payload);
 }
 
 export async function notifyPaymentSuccess(data: PaymentNotificationData) {

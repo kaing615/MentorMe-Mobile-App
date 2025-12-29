@@ -8,7 +8,10 @@ export type TBookingStatus =
   | 'Failed'
   | 'Cancelled'
   | 'Declined'
-  | 'Completed';
+  | 'Completed'
+  | 'NoShowMentor'
+  | 'NoShowMentee'
+  | 'NoShowBoth';
 
 export interface IBooking extends Document {
   _id: Types.ObjectId;
@@ -47,7 +50,18 @@ const BookingSchema = new Schema<IBooking>(
     price: { type: Number, required: true, min: 0 },
     status: {
       type: String,
-      enum: ['PaymentPending', 'PendingMentor', 'Confirmed', 'Failed', 'Cancelled', 'Declined', 'Completed'],
+      enum: [
+        'PaymentPending',
+        'PendingMentor',
+        'Confirmed',
+        'Failed',
+        'Cancelled',
+        'Declined',
+        'Completed',
+        'NoShowMentor',
+        'NoShowMentee',
+        'NoShowBoth',
+      ],
       default: 'PaymentPending',
       index: true,
     },
@@ -74,7 +88,19 @@ BookingSchema.index(
   { occurrence: 1 },
   {
     unique: true,
-    partialFilterExpression: { status: { $nin: ['Failed', 'Cancelled', 'Declined', 'Completed'] } },
+    partialFilterExpression: {
+      status: {
+        $nin: [
+          'Failed',
+          'Cancelled',
+          'Declined',
+          'Completed',
+          'NoShowMentor',
+          'NoShowMentee',
+          'NoShowBoth',
+        ],
+      },
+    },
   }
 );
 

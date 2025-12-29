@@ -42,6 +42,8 @@ tags:
     description: User presence tracking (ping to update online status)
   - name: Reviews
     description: Review and rating system (mentee reviews mentor after completed booking)
+  - name: Sessions
+    description: WebRTC signaling guard (join token + waiting room) and session logs
 
 components:
   securitySchemes:
@@ -132,7 +134,19 @@ components:
 
     BookingStatus:
       type: string
-      enum: [PaymentPending, PendingMentor, Confirmed, Failed, Cancelled, Declined, Completed]
+      enum:
+        [
+          PaymentPending,
+          PendingMentor,
+          Confirmed,
+          Failed,
+          Cancelled,
+          Declined,
+          Completed,
+          NoShowMentor,
+          NoShowMentee,
+          NoShowBoth,
+        ]
 
     Booking:
       type: object
@@ -909,6 +923,7 @@ components:
         - booking_reminder
         - booking_pending
         - booking_declined
+        - booking_no_show
         - payment_success
         - payment_failed
 
@@ -2428,7 +2443,19 @@ paths:
           required: false
           schema:
             type: string
-            enum: [PaymentPending, PendingMentor, Confirmed, Failed, Cancelled, Declined, Completed]
+            enum:
+              [
+                PaymentPending,
+                PendingMentor,
+                Confirmed,
+                Failed,
+                Cancelled,
+                Declined,
+                Completed,
+                NoShowMentor,
+                NoShowMentee,
+                NoShowBoth,
+              ]
         - in: query
           name: page
           required: false
@@ -4202,6 +4229,119 @@ paths:
                           limit: { type: integer }
         "401":
           description: Unauthorized
+
+  /sessions/{bookingId}/join-token:
+    post:
+      tags:
+        - Sessions
+      summary: Create a short-lived join token for WebRTC session
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Join token issued
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          token: { type: string }
+                          expiresAt: { type: string, format: date-time }
+                          role:
+                            type: string
+                            enum: [mentor, mentee]
+        "400":
+          description: Bad request (session window closed, not ready)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Booking not found
+
+  /sessions/{bookingId}/log:
+    get:
+      tags:
+        - Sessions
+      summary: Get session log for a booking
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session log
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        nullable: true
+                        type: object
+                        properties:
+                          id: { type: string }
+                          bookingId: { type: string }
+                          mentorId: { type: string }
+                          menteeId: { type: string }
+                          scheduledStart: { type: string, format: date-time }
+                          scheduledEnd: { type: string, format: date-time }
+                          actualStart: { type: string, format: date-time, nullable: true }
+                          actualEnd: { type: string, format: date-time, nullable: true }
+                          durationSec: { type: integer, nullable: true }
+                          status:
+                            type: string
+                            enum: [waiting, active, ended, no_show]
+                          endReason:
+                            type: string
+                            nullable: true
+                            enum:
+                              - completed
+                              - ended_by_mentor
+                              - ended_by_mentee
+                              - no_show_mentor
+                              - no_show_mentee
+                              - no_show_both
+                              - auto_end
+                          waitingRoomMs: { type: integer, nullable: true }
+                          mentorJoinAt: { type: string, format: date-time, nullable: true }
+                          menteeJoinAt: { type: string, format: date-time, nullable: true }
+                          mentorAdmitAt: { type: string, format: date-time, nullable: true }
+                          mentorDisconnects: { type: integer }
+                          menteeDisconnects: { type: integer }
+                          qos:
+                            type: object
+                            nullable: true
+                            properties:
+                              mentor: { type: object }
+                              mentee: { type: object }
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Booking not found
 
 security:
   - BearerAuth: []

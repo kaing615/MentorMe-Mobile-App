@@ -49,11 +49,14 @@ const MENTOR_CONFIRM_DEADLINE_HOURS =
 const VALID_TRANSITIONS: Record<TBookingStatus, TBookingStatus[]> = {
   PaymentPending: ['PendingMentor', 'Confirmed', 'Failed', 'Cancelled'],
   PendingMentor: ['Confirmed', 'Declined', 'Cancelled'],
-  Confirmed: ['Completed', 'Cancelled'],
+  Confirmed: ['Completed', 'Cancelled', 'NoShowMentor', 'NoShowMentee', 'NoShowBoth'],
   Failed: [],
   Cancelled: [],
   Declined: [],
   Completed: [],
+  NoShowMentor: [],
+  NoShowMentee: [],
+  NoShowBoth: [],
 };
 
 function canTransition(from: TBookingStatus, to: TBookingStatus): boolean {
@@ -250,7 +253,9 @@ export const createBooking = asyncHandler(async (req: Request, res: Response) =>
       // Check if mentee already has an active booking for this occurrence
       const existingBooking = await Booking.findOne({
         occurrence: occurrenceId,
-        status: { $nin: ['Failed', 'Cancelled', 'Declined', 'Completed'] },
+        status: {
+          $nin: ['Failed', 'Cancelled', 'Declined', 'Completed', 'NoShowMentor', 'NoShowMentee', 'NoShowBoth'],
+        },
       }).session(session);
 
       if (existingBooking) {

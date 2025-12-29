@@ -6,6 +6,17 @@ import { createAdapter } from "@socket.io/redis-adapter";
 import { createClient } from "redis";
 import redis from "../utils/redis";
 import User from "../models/user.model";
+import Booking from "../models/booking.model";
+import SessionLog from "../models/sessionLog.model";
+import {
+  getSessionStateTtlSeconds,
+  isWithinSessionWindow,
+  recordSessionAdmit,
+  recordSessionDisconnect,
+  recordSessionEnd,
+  recordSessionJoin,
+  recordSessionQoS,
+} from "../services/session.service";
 
 type SocketUser = {
   id: string;
@@ -18,6 +29,31 @@ type JwtPayload = {
   id: string;
   email: string;
   role: string;
+};
+
+type SessionJoinPayload = {
+  jti?: string;
+  bookingId: string;
+  userId: string;
+  role: "mentor" | "mentee";
+};
+
+type SessionState = {
+  bookingId: string;
+  role: "mentor" | "mentee";
+  live: boolean;
+};
+
+type SocketAck = (payload: { ok: boolean; message?: string; data?: unknown }) => void;
+
+type SignalPayload = {
+  bookingId: string;
+  data: unknown;
+};
+
+type QosPayload = {
+  bookingId: string;
+  stats: Record<string, unknown>;
 };
 
 let io: SocketIOServer | null = null;
@@ -118,6 +154,51 @@ async function authenticateSocket(token: string): Promise<SocketUser> {
   return { id: payload.id, email: payload.email, role: payload.role };
 }
 
+function getSessionJoinSecret() {
+  return process.env.SESSION_JOIN_JWT_SECRET || process.env.JWT_SECRET;
+}
+
+function verifySessionJoinToken(token: string): SessionJoinPayload {
+  const secret = getSessionJoinSecret();
+  if (!secret) {
+    throw new Error("SESSION_JOIN_JWT_SECRET not configured");
+  }
+
+  const payload = jwt.verify(token, secret, {
+    issuer: "mentorme",
+    audience: "mentorme-session",
+    algorithms: ["HS256"],
+    clockTolerance: 5,
+  }) as SessionJoinPayload;
+
+  if (!payload?.bookingId || !payload?.userId || !payload?.role) {
+    throw new Error("Invalid join token");
+  }
+
+  if (payload.role !== "mentor" && payload.role !== "mentee") {
+    throw new Error("Invalid join token role");
+  }
+
+  return payload;
+}
+
+function getSessionRooms(bookingId: string) {
+  return {
+    liveRoom: `session:${bookingId}:live`,
+    waitingRoom: `session:${bookingId}:waiting`,
+  };
+}
+
+function getSessionAdmitKey(bookingId: string) {
+  return `session:admitted:${bookingId}`;
+}
+
+function respond(callback: SocketAck | undefined, payload: { ok: boolean; message?: string; data?: unknown }) {
+  if (typeof callback === "function") {
+    callback(payload);
+  }
+}
+
 async function setupRedisAdapter(socketServer: SocketIOServer) {
   const enabled =
     (process.env.SOCKET_REDIS_ENABLED || "true").toLowerCase() !== "false";
@@ -175,6 +256,258 @@ export async function initSocket(server: HttpServer) {
     if (user?.id) {
       socket.join(`user:${user.id}`);
     }
+
+    const leaveSessionRooms = (bookingId: string) => {
+      const rooms = getSessionRooms(bookingId);
+      socket.leave(rooms.liveRoom);
+      socket.leave(rooms.waitingRoom);
+    };
+
+    const relaySignal = (event: string, payload: SignalPayload) => {
+      const session = socket.data.session as SessionState | undefined;
+      if (!session || session.bookingId !== payload.bookingId || !session.live) return;
+      const rooms = getSessionRooms(session.bookingId);
+      socket.to(rooms.liveRoom).emit(event, {
+        bookingId: session.bookingId,
+        fromUserId: user?.id,
+        fromRole: session.role,
+        data: payload.data,
+      });
+    };
+
+    const readNumber = (value: unknown, min = 0, max?: number) => {
+      if (typeof value !== "number" || Number.isNaN(value)) return undefined;
+      const safe = Math.max(min, value);
+      if (typeof max === "number") return Math.min(max, safe);
+      return safe;
+    };
+
+    socket.on("session:join", async (payload: { token?: string }, callback?: SocketAck) => {
+      try {
+        if (!payload?.token || typeof payload.token !== "string") {
+          return respond(callback, { ok: false, message: "JOIN_TOKEN_REQUIRED" });
+        }
+
+        const joinPayload = verifySessionJoinToken(payload.token);
+        const socketUser = socket.data.user as SocketUser | undefined;
+
+        if (!socketUser || String(socketUser.id) !== String(joinPayload.userId)) {
+          return respond(callback, { ok: false, message: "UNAUTHORIZED" });
+        }
+
+        const booking = await Booking.findById(joinPayload.bookingId).lean();
+        if (!booking) {
+          return respond(callback, { ok: false, message: "BOOKING_NOT_FOUND" });
+        }
+
+        if (booking.status !== "Confirmed") {
+          return respond(callback, { ok: false, message: "SESSION_NOT_READY" });
+        }
+
+        const isMentor = String(booking.mentor) === String(joinPayload.userId);
+        const isMentee = String(booking.mentee) === String(joinPayload.userId);
+        if (!isMentor && !isMentee) {
+          return respond(callback, { ok: false, message: "ACCESS_DENIED" });
+        }
+
+        if (joinPayload.role === "mentor" && !isMentor) {
+          return respond(callback, { ok: false, message: "ROLE_MISMATCH" });
+        }
+        if (joinPayload.role === "mentee" && !isMentee) {
+          return respond(callback, { ok: false, message: "ROLE_MISMATCH" });
+        }
+
+        const now = new Date();
+        if (!isWithinSessionWindow(now, new Date(booking.startTime), new Date(booking.endTime))) {
+          return respond(callback, { ok: false, message: "SESSION_WINDOW_CLOSED" });
+        }
+
+        const currentSession = socket.data.session as SessionState | undefined;
+        if (currentSession && currentSession.bookingId !== String(booking._id)) {
+          leaveSessionRooms(currentSession.bookingId);
+        }
+
+        const bookingId = String(booking._id);
+        const rooms = getSessionRooms(bookingId);
+        const admitKey = getSessionAdmitKey(bookingId);
+        let admitted = false;
+        try {
+          admitted = Boolean(await redis.get(admitKey));
+        } catch {
+          admitted = false;
+        }
+        if (!admitted) {
+          const log = await SessionLog.findOne({ booking: bookingId })
+            .select("mentorAdmitAt")
+            .lean();
+          admitted = Boolean(log?.mentorAdmitAt);
+        }
+
+        if (joinPayload.role === "mentor") {
+          socket.join(rooms.liveRoom);
+          socket.data.session = { bookingId, role: "mentor", live: true };
+        } else if (admitted) {
+          socket.join(rooms.liveRoom);
+          socket.data.session = { bookingId, role: "mentee", live: true };
+        } else {
+          socket.join(rooms.waitingRoom);
+          socket.data.session = { bookingId, role: "mentee", live: false };
+        }
+
+        await recordSessionJoin(booking as any, joinPayload.role);
+
+        respond(callback, { ok: true, data: { bookingId, role: joinPayload.role, admitted } });
+        socket.emit("session:joined", { bookingId, role: joinPayload.role, admitted });
+
+        if (joinPayload.role === "mentee" && !admitted) {
+          socket.emit("session:waiting", { bookingId });
+        }
+
+        socket.to(rooms.liveRoom).emit("session:participant-joined", {
+          bookingId,
+          userId: socketUser.id,
+          role: joinPayload.role,
+        });
+      } catch (err) {
+        return respond(callback, { ok: false, message: "SESSION_JOIN_FAILED" });
+      }
+    });
+
+    socket.on("session:admit", async (payload: { bookingId?: string }, callback?: SocketAck) => {
+      try {
+        const bookingId =
+          payload?.bookingId || (socket.data.session as SessionState | undefined)?.bookingId;
+        const session = socket.data.session as SessionState | undefined;
+
+        if (!bookingId || !session || session.bookingId !== bookingId) {
+          return respond(callback, { ok: false, message: "SESSION_NOT_JOINED" });
+        }
+
+        if (session.role !== "mentor") {
+          return respond(callback, { ok: false, message: "MENTOR_ONLY" });
+        }
+
+        const booking = await Booking.findById(bookingId).lean();
+        if (!booking) {
+          return respond(callback, { ok: false, message: "BOOKING_NOT_FOUND" });
+        }
+
+        if (booking.status !== "Confirmed") {
+          return respond(callback, { ok: false, message: "SESSION_NOT_READY" });
+        }
+
+        if (String(booking.mentor) !== String(user?.id)) {
+          return respond(callback, { ok: false, message: "ACCESS_DENIED" });
+        }
+
+        const admittedAt = new Date();
+        const ttlSeconds = getSessionStateTtlSeconds(new Date(booking.endTime));
+        try {
+          await redis.setEx(getSessionAdmitKey(bookingId), ttlSeconds, "1");
+        } catch {}
+
+        await recordSessionAdmit(booking as any, admittedAt);
+
+        const rooms = getSessionRooms(bookingId);
+        const waitingSockets = await io?.in(rooms.waitingRoom).fetchSockets();
+        if (waitingSockets && waitingSockets.length) {
+          for (const waitingSocket of waitingSockets) {
+            waitingSocket.leave(rooms.waitingRoom);
+            waitingSocket.join(rooms.liveRoom);
+            if (waitingSocket.data.session) {
+              (waitingSocket.data.session as SessionState).live = true;
+            }
+            waitingSocket.emit("session:admitted", {
+              bookingId,
+              admittedAt: admittedAt.toISOString(),
+            });
+          }
+        }
+
+        io?.to(rooms.liveRoom).emit("session:ready", { bookingId });
+        respond(callback, { ok: true, data: { bookingId } });
+      } catch (err) {
+        return respond(callback, { ok: false, message: "SESSION_ADMIT_FAILED" });
+      }
+    });
+
+    socket.on("session:leave", (payload: { bookingId?: string }, callback?: SocketAck) => {
+      const session = socket.data.session as SessionState | undefined;
+      const bookingId = payload?.bookingId || session?.bookingId;
+      if (!bookingId || !session || session.bookingId !== bookingId) {
+        return respond(callback, { ok: false, message: "SESSION_NOT_JOINED" });
+      }
+
+      const rooms = getSessionRooms(bookingId);
+      socket.leave(rooms.liveRoom);
+      socket.leave(rooms.waitingRoom);
+      socket.data.session = undefined;
+
+      socket.to(rooms.liveRoom).emit("session:participant-left", {
+        bookingId,
+        userId: user?.id,
+        role: session.role,
+      });
+
+      return respond(callback, { ok: true });
+    });
+
+    socket.on("session:end", async (payload: { bookingId?: string }, callback?: SocketAck) => {
+      const session = socket.data.session as SessionState | undefined;
+      const bookingId = payload?.bookingId || session?.bookingId;
+      if (!bookingId || !session || session.bookingId !== bookingId) {
+        return respond(callback, { ok: false, message: "SESSION_NOT_JOINED" });
+      }
+
+      const endReason = session.role === "mentor" ? "ended_by_mentor" : "ended_by_mentee";
+      await recordSessionEnd(bookingId, endReason);
+
+      const rooms = getSessionRooms(bookingId);
+      io?.to(rooms.liveRoom).emit("session:ended", {
+        bookingId,
+        endedBy: session.role,
+      });
+
+      try {
+        await redis.del(getSessionAdmitKey(bookingId));
+      } catch {}
+
+      return respond(callback, { ok: true });
+    });
+
+    socket.on("signal:offer", (payload: SignalPayload) => relaySignal("signal:offer", payload));
+    socket.on("signal:answer", (payload: SignalPayload) => relaySignal("signal:answer", payload));
+    socket.on("signal:ice", (payload: SignalPayload) => relaySignal("signal:ice", payload));
+
+    socket.on("session:qos", async (payload: QosPayload) => {
+      const session = socket.data.session as SessionState | undefined;
+      if (!session || !session.live || session.bookingId !== payload?.bookingId) return;
+
+      const stats = payload.stats || {};
+      const report = {
+        timestamp: new Date(),
+        rttMs: readNumber(stats.rttMs),
+        jitterMs: readNumber(stats.jitterMs),
+        packetLoss: readNumber(stats.packetLoss, 0, 100),
+        bitrateKbps: readNumber(stats.bitrateKbps),
+      };
+
+      await recordSessionQoS(session.bookingId, session.role, report);
+    });
+
+    socket.on("disconnect", async () => {
+      const session = socket.data.session as SessionState | undefined;
+      if (!session) return;
+
+      await recordSessionDisconnect(session.bookingId, session.role);
+
+      const rooms = getSessionRooms(session.bookingId);
+      socket.to(rooms.liveRoom).emit("session:participant-left", {
+        bookingId: session.bookingId,
+        userId: user?.id,
+        role: session.role,
+      });
+    });
   });
 
   try {

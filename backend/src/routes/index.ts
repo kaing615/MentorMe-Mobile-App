@@ -44,7 +44,7 @@ router.use("/webhooks", webhookRouter);
 router.use("/home", homeRouter);
 router.use("/presence", presenceRouter);
 
-// Reviews (note: /bookings/:id/review is handled by reviewRouter)
+// Reviews
 router.use("/", reviewRouter);
 
 // Notifications (device tokens, push)

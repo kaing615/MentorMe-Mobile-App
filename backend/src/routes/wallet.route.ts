@@ -43,4 +43,13 @@ router.get(
   walletController.listTransactions
 );
 
+router.post(
+  "/debits",
+  auth,
+  requireRoles(MENTEE_ROLE),
+  mockDebitValidator,
+  validate,
+  walletController.withdraw
+);
+
 export default router;

@@ -58,6 +58,22 @@ android {
     buildFeatures {
         compose = true
     }
+
+    packaging {
+        resources {
+            pickFirsts.add("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
+
+            excludes.addAll(
+                listOf(
+                    "META-INF/DEPENDENCIES",
+                    "META-INF/LICENSE",
+                    "META-INF/LICENSE.txt",
+                    "META-INF/NOTICE",
+                    "META-INF/NOTICE.txt"
+                )
+            )
+        }
+    }
 }
 
 dependencies {
@@ -98,6 +114,15 @@ dependencies {
     implementation(libs.hilt.android)
     implementation(libs.hilt.navigation.compose)
     implementation(libs.androidx.material3)
+    implementation(libs.identity.jvm)
+    ksp(libs.hilt.compiler)
+
+    // Room database (removed duplicate)
+    implementation("androidx.room:room-ktx:2.6.1")
+
+    // Haze for blur effects
+    implementation(libs.haze)
+
     ksp(libs.hilt.compiler)
 
     // Room database (removed duplicate)

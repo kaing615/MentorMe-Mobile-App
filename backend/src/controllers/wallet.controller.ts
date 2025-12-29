@@ -291,9 +291,123 @@ export const listTransactions = asyncHandler(
   }
 );
 
+// POST /wallet/debits
+export const withdraw = asyncHandler(async (req: Request, res: Response) => {
+  const userId = getUserId(req);
+  if (!userId) return forbidden(res, "Unauthorized");
+
+  const amount = Number(req.body?.amount ?? 0);
+  const currency = (req.body?.currency ?? "VND") as "VND" | "USD";
+  const clientRequestId = String(req.body?.clientRequestId ?? "").trim();
+  const payoutInfo = req.body?.payoutInfo ?? null; // optional payout details (bank account, momo id, ...)
+
+  if (!amount || amount <= 0 || !clientRequestId) {
+    return badRequest(res, "amount and clientRequestId are required");
+  }
+
+  const idempotencyKey = clientRequestId;
+
+  // If there's an existing identical withdraw tx (idempotency), return it
+  const existingTx = await WalletTransaction.findOne({
+    userId,
+    source: "MANUAL_WITHDRAW",
+    idempotencyKey,
+  });
+
+  if (existingTx) {
+    const wallet = await Wallet.findById(existingTx.walletId);
+    return ok(res, {
+      idempotent: true,
+      wallet: mapWalletToDto(wallet),
+      transaction: mapWalletTransactionToDto(existingTx),
+    });
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const wallet = await getOrCreateWallet(userId, currency, session);
+
+    const balanceBefore = wallet.balanceMinor;
+    const amountMinor = amount;
+
+    if (balanceBefore < amountMinor) {
+      await session.abortTransaction();
+      session.endSession();
+      return badRequest(res, "INSUFFICIENT_BALANCE");
+    }
+
+    // Subtract immediately (optimistic) to avoid double-spend
+    const balanceAfter = balanceBefore - amountMinor;
+    wallet.balanceMinor = balanceAfter;
+    await wallet.save({ session });
+
+    const [tx] = await WalletTransaction.create(
+      [
+        {
+          walletId: wallet._id,
+          userId,
+          type: "DEBIT",
+          source: "MANUAL_WITHDRAW",
+          amountMinor,
+          currency,
+          balanceBeforeMinor: balanceBefore,
+          balanceAfterMinor: balanceAfter,
+          idempotencyKey,
+          metadata: {
+            payoutInfo, // store payout details for reconciliation
+            providerStatus: "PENDING", // optional hint for external payout system
+          },
+        },
+      ],
+      { session }
+    );
+
+    // Here: trigger actual payout to provider (async). Do NOT block UI on slow provider.
+    // Example: push to queue / call payout service
+    // await payoutService.enqueuePayout({ txId: tx._id, amount: amountMinor, payoutInfo });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return created(res, {
+      idempotent: false,
+      wallet: mapWalletToDto(wallet),
+      transaction: mapWalletTransactionToDto(tx),
+    });
+  } catch (err: any) {
+    await session.abortTransaction();
+    session.endSession();
+
+    if (err?.message === "WALLET_LOCKED") {
+      return badRequest(res, "Wallet is locked");
+    }
+
+    if (err?.code === 11000) {
+      // idempotency race
+      const tx = await WalletTransaction.findOne({
+        userId,
+        source: "MANUAL_WITHDRAW",
+        idempotencyKey,
+      });
+      const wallet = tx ? await Wallet.findById(tx.walletId) : null;
+
+      return ok(res, {
+        idempotent: true,
+        wallet: mapWalletToDto(wallet),
+        transaction: tx ? mapWalletTransactionToDto(tx) : null,
+      });
+    }
+
+    throw err;
+  }
+});
+
 export default {
   getMyWallet,
   mockTopup,
   mockDebit,
   listTransactions,
+  withdraw,
 };

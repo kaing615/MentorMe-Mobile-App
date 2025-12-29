@@ -3,6 +3,7 @@ import { WalletCurrency } from "./wallet.model";
 
 export type WalletTransactionType = "CREDIT" | "DEBIT" | "REFUND";
 export type WalletTransactionSource =
+  | "BOOKING_EARN"
   | "MANUAL_TOPUP"
   | "MANUAL_WITHDRAW"
   | "BOOKING_PAYMENT"

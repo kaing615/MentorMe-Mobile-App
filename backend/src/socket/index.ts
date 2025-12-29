@@ -8,13 +8,13 @@ import Booking from "../models/booking.model";
 import SessionLog from "../models/sessionLog.model";
 import User from "../models/user.model";
 import {
-    getSessionStateTtlSeconds,
-    isWithinSessionWindow,
-    recordSessionAdmit,
-    recordSessionDisconnect,
-    recordSessionEnd,
-    recordSessionJoin,
-    recordSessionQoS,
+  getSessionStateTtlSeconds,
+  isWithinSessionWindow,
+  recordSessionAdmit,
+  recordSessionDisconnect,
+  recordSessionEnd,
+  recordSessionJoin,
+  recordSessionQoS,
 } from "../services/session.service";
 import redis from "../utils/redis";
 

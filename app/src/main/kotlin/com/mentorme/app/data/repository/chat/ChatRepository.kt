@@ -7,6 +7,7 @@ import com.mentorme.app.data.model.chat.Message
 
 interface ChatRepository {
     suspend fun getConversations(): AppResult<List<Conversation>>
+    suspend fun getConversationByPeerId(peerId: String): AppResult<Conversation?>
     suspend fun getMessages(conversationId: String, limit: Int = 50): AppResult<List<Message>>
     suspend fun sendMessage(conversationId: String, text: String): AppResult<Message>
     suspend fun getChatRestrictionInfo(conversationId: String): AppResult<ChatRestrictionInfo>

@@ -36,6 +36,9 @@ import kotlin.math.max
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.composed
+import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.launch
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 private fun formatCurrencyVnd(amount: Long): String {
     val nf = NumberFormat.getCurrencyInstance(Locale("vi", "VN"))
@@ -67,7 +70,8 @@ private fun WalletTopBar(title: String, onBack: () -> Unit) {
 }
 
 /* ---------------------------------
-   Màn hình NẠP TIỀN
+   Màn hình NẠP TIỀN (UI-only)
+   GIỮ NGUYÊN UI như yêu cầu
 ---------------------------------- */
 @Composable
 fun TopUpScreen(
@@ -173,7 +177,7 @@ fun TopUpScreen(
             ConfirmSheet(
                 title = "Xác nhận nạp",
                 lines = listOf(
-                    "Số tiền" to formatCurrencyVnd(amount),
+                    "Số tiền" to formatCurrencyVnd(max(0, amount)),
                     "Phương thức" to method.label
                 ),
                 confirmText = "Nạp ngay",
@@ -210,7 +214,52 @@ private fun MethodRowTopUp(selected: TopUpMethod, onSelected: (TopUpMethod) -> U
 }
 
 /* ---------------------------------
-   Màn hình RÚT TIỀN
+   Wrapper: TopUpScreen sử dụng Shared WalletViewModel
+   (không thay đổi UI, chỉ kết nối ViewModel và show snackbar khi số dư tăng)
+---------------------------------- */
+
+@Composable
+fun TopUpScreen(
+    onBack: () -> Unit,
+    walletViewModel: WalletViewModel
+) {
+    val uiState by walletViewModel.uiState.collectAsState()
+    val balance = (uiState as? WalletUiState.Success)?.wallet?.balanceMinor ?: 0L
+
+    // Snackbar
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Collect top-up events
+    LaunchedEffect(walletViewModel) {
+        walletViewModel.topUpEvents.collect { ev ->
+            when (ev) {
+                is WalletViewModel.TopUpEvent.Success -> {
+                    snackbarHostState.showSnackbar("Nạp tiền thành công")
+                    // tùy ux: nav.popBackStack() từ caller; hoặc gửi event navigation
+                }
+                is WalletViewModel.TopUpEvent.Error -> {
+                    snackbarHostState.showSnackbar("Lỗi: ${ev.message ?: "Không xác định"}")
+                }
+            }
+        }
+    }
+
+    // Reuse existing UI (không đổi)
+    TopUpScreen( // existing UI function defined earlier
+        balance = balance,
+        onBack = onBack,
+        onSubmit = { amount, _method ->
+            walletViewModel.topUp(amount)
+        }
+    )
+
+    Box(Modifier.fillMaxSize()) {
+        SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp))
+    }
+}
+
+/* ---------------------------------
+   Màn hình RÚT TIỀN (giữ nguyên như trước)
 ---------------------------------- */
 @Composable
 fun WithdrawScreen(
@@ -280,8 +329,6 @@ fun WithdrawScreen(
                             )
                         }
                     }
-
-                    val canWithdraw = amount >= 50_000 && amount <= balance
 
                     MMPrimaryButton(
                         onClick = { if (canWithdraw) showConfirm = true },
@@ -459,4 +506,3 @@ private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier = composed
         interactionSource = remember { MutableInteractionSource() }
     ) { onClick() }
 }
-

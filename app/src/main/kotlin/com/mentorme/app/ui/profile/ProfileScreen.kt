@@ -48,15 +48,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import com.mentorme.app.core.datastore.DataStoreManager
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.mentorme.app.data.session.SessionManager
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
 import com.mentorme.app.ui.notifications.NotificationsViewModel
 import com.mentorme.app.ui.profile.components.ProfileTab
 import com.mentorme.app.ui.profile.components.SettingsTab
 import com.mentorme.app.ui.profile.components.StatsTab
 import com.mentorme.app.ui.profile.components.WalletTab
+import com.mentorme.app.ui.profile.components.WalletTabWithVm
 import com.mentorme.app.ui.wallet.PaymentMethod
+import com.mentorme.app.ui.wallet.WalletViewModel
 import com.mentorme.app.ui.wallet.initialPaymentMethods
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /* =======================
@@ -69,6 +76,7 @@ fun ProfileScreen(
     vm: ProfileViewModel,
     user: UserHeader,
     notificationsViewModel: NotificationsViewModel,
+    walletViewModel: WalletViewModel,
     onOpenSettings: (() -> Unit)? = null,
     onOpenNotifications: (() -> Unit)? = null,
     onOpenTopUp: () -> Unit = {},
@@ -76,7 +84,7 @@ fun ProfileScreen(
     onOpenChangeMethod: () -> Unit = {},
     onAddMethod: () -> Unit = {},
     methods: List<PaymentMethod> = initialPaymentMethods(),
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -252,8 +260,8 @@ fun ProfileScreen(
                             },
                             onCancel = { vm.toggleEdit() }
                         )
-                        1 -> WalletTab(
-                            balance = 8500000L,
+                        1 -> WalletTabWithVm(
+                            walletViewModel = walletViewModel,
                             onTopUp = onOpenTopUp,
                             onWithdraw = onOpenWithdraw,
                             onChangeMethod = onOpenChangeMethod,
@@ -295,6 +303,7 @@ fun ProfileScreenRoute(
         role = UserRole.MENTEE
     ),
     notificationsViewModel: NotificationsViewModel = hiltViewModel(),
+    walletViewModel: WalletViewModel = hiltViewModel(),
     onOpenSettings: (() -> Unit)? = null,
     onOpenNotifications: (() -> Unit)? = null,
     onOpenTopUp: () -> Unit = {},
@@ -308,6 +317,7 @@ fun ProfileScreenRoute(
         vm = vm,
         user = user,
         notificationsViewModel = notificationsViewModel,
+        walletViewModel = walletViewModel,
         onOpenSettings = onOpenSettings,
         onOpenNotifications = onOpenNotifications,
         onOpenTopUp = onOpenTopUp,

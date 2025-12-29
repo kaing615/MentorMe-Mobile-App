@@ -10,6 +10,8 @@ import com.mentorme.app.data.network.api.home.HomeApiService
 import com.mentorme.app.data.network.api.review.ReviewApiService
 import com.mentorme.app.data.network.api.chat.ChatApiService
 import com.mentorme.app.data.network.api.session.SessionApiService
+import com.mentorme.app.data.remote.WalletApi
+import com.mentorme.app.data.repository.wallet.WalletRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -93,11 +95,15 @@ object NetworkModule {
     @Singleton
     fun provideChatApiService(retrofit: Retrofit): ChatApiService {
         return retrofit.create(ChatApiService::class.java)
+    fun provideWalletApi(retrofit: Retrofit): WalletApi {
+        return retrofit.create(WalletApi::class.java)
     }
 
     @Provides
     @Singleton
     fun provideSessionApiService(retrofit: Retrofit): SessionApiService {
         return retrofit.create(SessionApiService::class.java)
+    fun provideWalletRepository(api: WalletApi): WalletRepository {
+        return WalletRepository(api)
     }
 }

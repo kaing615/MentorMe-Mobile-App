@@ -5,13 +5,16 @@ import android.provider.Settings
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessaging
 import com.mentorme.app.core.appstate.AppForegroundTracker
+import com.mentorme.app.core.datastore.DataStoreManager
 import com.mentorme.app.core.notifications.NotificationHelper
 import com.mentorme.app.core.notifications.PushTokenManager
 import com.mentorme.app.core.realtime.SocketManager
+import com.mentorme.app.data.session.SessionManager
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 
 @HiltAndroidApp
@@ -21,9 +24,14 @@ class MentorMeApplication : Application() {
     lateinit var pushTokenManager: PushTokenManager
     @Inject
     lateinit var socketManager: SocketManager
+    @Inject lateinit var dataStoreManager: DataStoreManager
 
     override fun onCreate() {
         super.onCreate()
+        CoroutineScope(Dispatchers.Default).launch {
+            val token = dataStoreManager.getToken().firstOrNull()
+            SessionManager.setToken(token)
+        }
         AppForegroundTracker.init(this)
         NotificationHelper.ensureChannels(this)
         socketManager.start()

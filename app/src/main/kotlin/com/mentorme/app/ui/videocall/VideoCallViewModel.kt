@@ -364,6 +364,11 @@ class VideoCallViewModel @Inject constructor(
     private fun acceptOffer(sdp: SessionDescription) {
         Log.d("VideoCallVM", "Accepting offer and creating answer")
         
+        if (!permissionsGranted) {
+            Log.w("VideoCallVM", "Cannot accept offer - permissions not granted")
+            return
+        }
+        
         callStarted = true
         webRtcClient.ensurePeerConnection()
         webRtcClient.startLocalMedia()
@@ -420,6 +425,11 @@ class VideoCallViewModel @Inject constructor(
         
         val role = currentRole ?: run {
             Log.w("VideoCallVM", "Cannot start call - no role assigned")
+            return
+        }
+        
+        if (!permissionsGranted) {
+            Log.w("VideoCallVM", "Cannot start call - permissions not granted")
             return
         }
         

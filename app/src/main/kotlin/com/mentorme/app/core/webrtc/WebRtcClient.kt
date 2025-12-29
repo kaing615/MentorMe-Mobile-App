@@ -233,17 +233,27 @@ class WebRtcClient(
 
     fun release() {
         try {
+            // Remove sinks before disposing tracks to prevent crashes
+            localVideoTrack?.removeSink(localRenderer)
+            
             videoCapturer?.stopCapture()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.w("WebRtcClient", "Error during cleanup: ${e.message}")
         }
-        videoCapturer?.dispose()
-        videoSource?.dispose()
-        audioSource?.dispose()
-        localVideoTrack?.dispose()
-        localAudioTrack?.dispose()
-        peerConnection?.dispose()
-        localRenderer?.release()
-        remoteRenderer?.release()
+        
+        try {
+            videoCapturer?.dispose()
+            videoSource?.dispose()
+            audioSource?.dispose()
+            localVideoTrack?.dispose()
+            localAudioTrack?.dispose()
+            peerConnection?.dispose()
+            localRenderer?.release()
+            remoteRenderer?.release()
+        } catch (e: Exception) {
+            android.util.Log.w("WebRtcClient", "Error disposing resources: ${e.message}")
+        }
+        
         videoCapturer = null
         videoSource = null
         audioSource = null

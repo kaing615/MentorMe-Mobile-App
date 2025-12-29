@@ -5,7 +5,6 @@ import jwt from "jsonwebtoken";
 import { createClient } from "redis";
 import { Socket, Server as SocketIOServer } from "socket.io";
 import Booking from "../models/booking.model";
-import SessionLog from "../models/sessionLog.model";
 import User from "../models/user.model";
 import {
   getSessionStateTtlSeconds,
@@ -346,18 +345,17 @@ export async function initSocket(server: HttpServer) {
 
         const bookingId = String(booking._id);
         const rooms = getSessionRooms(bookingId);
-        const admitKey = getSessionAdmitKey(bookingId);
+        
+        // Mentee always needs fresh admission for each session
+        // Don't use cached admit status from Redis/DB
         let admitted = false;
-        try {
-          admitted = Boolean(await redis.get(admitKey));
-        } catch {
-          admitted = false;
-        }
-        if (!admitted) {
-          const log = await SessionLog.findOne({ booking: bookingId })
-            .select("mentorAdmitAt")
-            .lean();
-          admitted = Boolean(log?.mentorAdmitAt);
+        
+        // Only check if mentor is already in the session (meaning mentee should auto-admit)
+        if (joinPayload.role === "mentee") {
+          const liveRoomSockets = await io.in(rooms.liveRoom).fetchSockets();
+          // Auto-admit mentee only if mentor is already in liveRoom
+          admitted = liveRoomSockets.some((s: any) => s.data?.session?.role === "mentor");
+          console.log(`[Session] Mentee joining - mentor already present: ${admitted}`);
         }
 
         if (joinPayload.role === "mentor") {

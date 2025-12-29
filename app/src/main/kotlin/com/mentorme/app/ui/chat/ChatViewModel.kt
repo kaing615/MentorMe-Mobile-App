@@ -87,7 +87,11 @@ class ChatViewModel @Inject constructor(
             }
             
             // Load restriction info separately
-            when (val restrictionRes = chatRepository.getChatRestrictionInfo(conversationId)) {
+            val conversation = _conversations.value.find { it.id == conversationId }
+            val bookingId = conversation?.primaryBookingId
+            
+            if (bookingId != null) {
+                when (val restrictionRes = chatRepository.getChatRestrictionInfo(bookingId)) {
                 is AppResult.Success -> {
                     val info = restrictionRes.data
                     _conversations.update { list ->
@@ -111,6 +115,7 @@ class ChatViewModel @Inject constructor(
                 }
                 AppResult.Loading -> Unit
             }
+            }
             
             _loading.value = false
         }
@@ -120,7 +125,17 @@ class ChatViewModel @Inject constructor(
         if (text.isBlank()) return
         viewModelScope.launch {
             _errorMessage.value = null
-            when (val res = chatRepository.sendMessage(conversationId, text)) {
+            
+            // Get primaryBookingId from conversation
+            val conversation = _conversations.value.find { it.id == conversationId }
+            val bookingId = conversation?.primaryBookingId
+            
+            if (bookingId == null) {
+                _errorMessage.value = "Cannot send message: Booking not found"
+                return@launch
+            }
+            
+            when (val res = chatRepository.sendMessage(bookingId, text)) {
                 is AppResult.Success -> {
                     val msg = res.data
                     val isNew = addOrUpdateMessage(msg)

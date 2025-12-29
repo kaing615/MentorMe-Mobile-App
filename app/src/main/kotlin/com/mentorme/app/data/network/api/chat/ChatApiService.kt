@@ -19,6 +19,13 @@ interface ChatApiService {
         @Query("before") before: String? = null
     ): Response<ApiEnvelope<List<Message>>>
 
+    @GET("messages/peer/{peerId}")
+    suspend fun getMessagesByPeer(
+        @Path("peerId") peerId: String,
+        @Query("limit") limit: Int = 200,
+        @Query("before") before: String? = null
+    ): Response<ApiEnvelope<List<Message>>>
+
     @POST("messages")
     suspend fun sendMessage(
         @Body request: SendMessageRequest

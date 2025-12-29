@@ -123,6 +123,14 @@ dependencies {
     // Haze for blur effects
     implementation(libs.haze)
 
+    ksp(libs.hilt.compiler)
+
+    // Room database (removed duplicate)
+    implementation("androidx.room:room-ktx:2.6.1")
+
+    // Haze for blur effects
+    implementation(libs.haze)
+
     // Networking
     implementation(libs.retrofit)
     implementation(libs.retrofit.gson)

@@ -18,7 +18,6 @@ import presenceRouter from "./presence.route";
 import reviewRouter from "./review.route";
 import notificationRouter from "./notification.route";
 
-
 const router = Router();
 
 // Auth + user

@@ -563,15 +563,15 @@ internal fun AppNavGraph(
     }
 
     // ---------- WALLET ----------
-        composable(Routes.TopUp) { backStackEntry ->
-            val parentEntry = remember { nav.getBackStackEntry(Routes.Profile) }
-            val walletVm: WalletViewModel = hiltViewModel(parentEntry)
+    composable(Routes.TopUp) { backStackEntry ->
+        val parentEntry = remember { nav.getBackStackEntry(Routes.Profile) }
+        val walletVm: WalletViewModel = hiltViewModel(parentEntry)
 
-            TopUpScreen(
-                onBack = { nav.popBackStack() },
-                walletViewModel = walletVm
-            )
-        }
+        TopUpScreen(
+             onBack = { nav.popBackStack() },
+             walletViewModel = walletVm
+         )
+    }
 
     composable(Routes.Withdraw) {
         WithdrawScreen(

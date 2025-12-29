@@ -153,6 +153,7 @@ class VideoCallViewModel @Inject constructor(
     fun setPermissionsGranted(granted: Boolean) {
         permissionsGranted = granted
         if (granted) {
+            startLocalPreview()
             pendingOffer?.let { offer ->
                 pendingOffer = null
                 acceptOffer(offer)
@@ -351,6 +352,10 @@ class VideoCallViewModel @Inject constructor(
             }
         }
         startQosReporting()
+    }
+
+    private fun startLocalPreview() {
+        webRtcClient.startLocalMedia()
     }
 
     private fun emitSdp(event: String, sdp: SessionDescription) {

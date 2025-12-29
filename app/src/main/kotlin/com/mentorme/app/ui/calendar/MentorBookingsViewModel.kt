@@ -8,6 +8,7 @@ import com.mentorme.app.core.realtime.RealtimeEventBus
 import com.mentorme.app.data.dto.MentorDeclineRequest
 import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.remote.MentorMeApi
+import com.mentorme.app.ui.home.WaitingSession
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,6 +45,9 @@ class MentorBookingsViewModel @Inject constructor(
     private val _bookings = MutableStateFlow<List<Booking>>(emptyList())
     val bookings: StateFlow<List<Booking>> = _bookings.asStateFlow()
 
+    private val _waitingSession = MutableStateFlow<WaitingSession?>(null)
+    val waitingSession: StateFlow<WaitingSession?> = _waitingSession.asStateFlow()
+
     init {
         observeRealtimeEvents()
     }
@@ -71,10 +75,32 @@ class MentorBookingsViewModel @Inject constructor(
             RealtimeEventBus.events.collect { event ->
                 when (event) {
                     is RealtimeEvent.BookingChanged -> updateBooking(event.bookingId)
-                    is RealtimeEvent.SessionReady -> updateBooking(event.payload.bookingId ?: return@collect)
+                    is RealtimeEvent.SessionReady -> {
+                        updateBooking(event.payload.bookingId ?: return@collect)
+                        // Clear waiting session when ready
+                        if (_waitingSession.value?.bookingId == event.payload.bookingId) {
+                            _waitingSession.value = null
+                        }
+                    }
                     is RealtimeEvent.SessionAdmitted -> updateBooking(event.payload.bookingId ?: return@collect)
-                    is RealtimeEvent.SessionParticipantJoined -> updateBooking(event.payload.bookingId ?: return@collect)
-                    is RealtimeEvent.SessionEnded -> updateBooking(event.payload.bookingId ?: return@collect)
+                    is RealtimeEvent.SessionParticipantJoined -> {
+                        updateBooking(event.payload.bookingId ?: return@collect)
+                        // Show waiting session banner when mentee joins
+                        if (event.payload.role == "mentee") {
+                            _waitingSession.value = WaitingSession(
+                                bookingId = event.payload.bookingId ?: return@collect,
+                                menteeUserId = event.payload.userId,
+                                menteeName = null
+                            )
+                        }
+                    }
+                    is RealtimeEvent.SessionEnded -> {
+                        updateBooking(event.payload.bookingId ?: return@collect)
+                        // Clear waiting session when ended
+                        if (_waitingSession.value?.bookingId == event.payload.bookingId) {
+                            _waitingSession.value = null
+                        }
+                    }
                     else -> Unit
                 }
             }
@@ -130,6 +156,10 @@ class MentorBookingsViewModel @Inject constructor(
                 onResult(false)
             }
         }
+    }
+
+    fun dismissWaitingSession() {
+        _waitingSession.value = null
     }
 
     private companion object { const val TAG = "MentorBookingsVM" }

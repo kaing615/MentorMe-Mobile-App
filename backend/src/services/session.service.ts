@@ -15,7 +15,7 @@ type BookingLike = {
 };
 
 const SESSION_JOIN_EARLY_MINUTES =
-  parseInt(process.env.SESSION_JOIN_EARLY_MINUTES || '10', 10) || 10;
+  parseInt(process.env.SESSION_JOIN_EARLY_MINUTES || '20', 10) || 30;
 const SESSION_JOIN_LATE_MINUTES =
   parseInt(process.env.SESSION_JOIN_LATE_MINUTES || '15', 10) || 15;
 const SESSION_GRACE_MINUTES =

@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.mentorme.app.ui.components.ui.GlassOverlay
 import com.mentorme.app.ui.components.ui.MMButton
+import com.mentorme.app.ui.components.session.ActiveSessionBanner
 import com.mentorme.app.ui.mentors.MentorCard
 import com.mentorme.app.ui.search.components.BookSessionContent
 import com.mentorme.app.ui.search.components.MentorDetailSheet
@@ -102,6 +103,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     onSearch: (String) -> Unit = {},
     onNavigateToMentors: () -> Unit = {},
+    onJoinSession: (String) -> Unit = {},
     onBookSlot: (
         mentor: Mentor,
         occurrenceId: String,
@@ -226,6 +228,17 @@ fun HomeScreen(
         // Show content when loaded
         if (!uiState.isLoading || uiState.isRefreshing) {
 
+        // Active Session Banner - hiển thị khi có mentee đang đợi
+        uiState.waitingSession?.let { session ->
+            item {
+                ActiveSessionBanner(
+                    bookingId = session.bookingId,
+                    menteeName = session.menteeName,
+                    onJoinSession = onJoinSession,
+                    onDismiss = { viewModel.dismissWaitingSession() }
+                )
+            }
+        }
 
         item { SectionTitle("Thống kê nhanh") }
         items(quickStats.chunked(2)) { row ->

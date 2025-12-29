@@ -43,6 +43,7 @@ class WebRtcClient(
     private var audioSource: AudioSource? = null
     private var localVideoTrack: VideoTrack? = null
     private var localAudioTrack: AudioTrack? = null
+    private var localTracksAttached = false
 
     private var isVideoEnabled = true
     private var isAudioEnabled = true
@@ -82,35 +83,37 @@ class WebRtcClient(
     }
 
     fun ensurePeerConnection() {
-        if (peerConnection != null) return
-        peerConnection = createPeerConnection()
+        if (peerConnection == null) {
+            peerConnection = createPeerConnection()
+        }
+        attachLocalTracksIfPossible()
     }
 
     fun startLocalMedia() {
-        if (localVideoTrack != null || localAudioTrack != null) return
+        if (localVideoTrack == null && localAudioTrack == null) {
+            val videoCapturer = createCameraCapturer() ?: return
+            val surfaceHelper = SurfaceTextureHelper.create("CaptureThread", eglBase.eglBaseContext)
+            val videoSource = peerConnectionFactory.createVideoSource(false)
+            videoCapturer.initialize(surfaceHelper, context, videoSource.capturerObserver)
+            videoCapturer.startCapture(720, 1280, 30)
 
-        val videoCapturer = createCameraCapturer() ?: return
-        val surfaceHelper = SurfaceTextureHelper.create("CaptureThread", eglBase.eglBaseContext)
-        val videoSource = peerConnectionFactory.createVideoSource(false)
-        videoCapturer.initialize(surfaceHelper, context, videoSource.capturerObserver)
-        videoCapturer.startCapture(720, 1280, 30)
+            val videoTrack = peerConnectionFactory.createVideoTrack("VIDEO", videoSource)
+            val audioSource = peerConnectionFactory.createAudioSource(MediaConstraints())
+            val audioTrack = peerConnectionFactory.createAudioTrack("AUDIO", audioSource)
 
-        val videoTrack = peerConnectionFactory.createVideoTrack("VIDEO", videoSource)
-        val audioSource = peerConnectionFactory.createAudioSource(MediaConstraints())
-        val audioTrack = peerConnectionFactory.createAudioTrack("AUDIO", audioSource)
+            this.videoCapturer = videoCapturer
+            this.videoSource = videoSource
+            this.localVideoTrack = videoTrack
+            this.audioSource = audioSource
+            this.localAudioTrack = audioTrack
+            localTracksAttached = false
 
-        this.videoCapturer = videoCapturer
-        this.videoSource = videoSource
-        this.localVideoTrack = videoTrack
-        this.audioSource = audioSource
-        this.localAudioTrack = audioTrack
+            localRenderer?.let { videoTrack.addSink(it) }
+            localVideoTrack?.setEnabled(isVideoEnabled)
+            localAudioTrack?.setEnabled(isAudioEnabled)
+        }
 
-        localRenderer?.let { videoTrack.addSink(it) }
-        localVideoTrack?.setEnabled(isVideoEnabled)
-        localAudioTrack?.setEnabled(isAudioEnabled)
-
-        peerConnection?.addTrack(videoTrack)
-        peerConnection?.addTrack(audioTrack)
+        attachLocalTracksIfPossible()
     }
 
     fun createOffer(onSdpReady: (SessionDescription) -> Unit) {
@@ -195,6 +198,7 @@ class WebRtcClient(
         localVideoTrack = null
         localAudioTrack = null
         peerConnection = null
+        localTracksAttached = false
     }
 
     private fun createPeerConnection(): PeerConnection? {
@@ -220,6 +224,17 @@ class WebRtcClient(
                 }
             }
         })
+    }
+
+    private fun attachLocalTracksIfPossible() {
+        if (localTracksAttached) return
+        val pc = peerConnection ?: return
+        val videoTrack = localVideoTrack
+        val audioTrack = localAudioTrack
+        if (videoTrack == null && audioTrack == null) return
+        videoTrack?.let { pc.addTrack(it) }
+        audioTrack?.let { pc.addTrack(it) }
+        localTracksAttached = true
     }
 
     private fun createPeerConnectionFactory(): PeerConnectionFactory {

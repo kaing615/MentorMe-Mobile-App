@@ -43,6 +43,7 @@ interface MentorCalendarDeps {
 @Composable
 fun MentorCalendarScreen(
     onViewSession: (String) -> Unit = {},
+    onJoinSession: (String) -> Unit = {},
     onCreateSession: () -> Unit = {},
     onUpdateAvailability: () -> Unit = {},
     onCancelSession: (String) -> Unit = {},
@@ -65,6 +66,7 @@ fun MentorCalendarScreen(
     // Observe availability + bookings state
     val slotsState = vm.slots.collectAsState()
     val mentorBookings = bookingsVm.bookings.collectAsStateWithLifecycle()
+    val waitingSession = bookingsVm.waitingSession.collectAsStateWithLifecycle()
 
     // Resolve mentorId: always from DataStore (no nav arg)
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -246,6 +248,16 @@ fun MentorCalendarScreen(
                         color = Color.White.copy(alpha = 0.7f)
                     )
                     Spacer(Modifier.height(6.dp))
+                }
+
+                // Active Session Banner
+                waitingSession.value?.let { session ->
+                    com.mentorme.app.ui.components.session.CompactSessionBanner(
+                        bookingId = session.bookingId,
+                        menteeName = session.menteeName,
+                        onJoinSession = onJoinSession
+                    )
+                    Spacer(Modifier.height(12.dp))
                 }
 
                 // Display content based on activeTab

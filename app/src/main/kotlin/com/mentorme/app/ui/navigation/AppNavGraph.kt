@@ -192,6 +192,11 @@ internal fun AppNavGraph(
         HomeScreen(
             onNavigateToMentors = { goToSearch(nav) },
             onSearch = { _ -> goToSearch(nav) },
+            onJoinSession = { bookingId ->
+                nav.navigate(Routes.videoCall(bookingId)) {
+                    launchSingleTop = true
+                }
+            },
             onBookSlot = { mentor, occurrenceId, date, startTime, endTime, priceVnd, note ->
                 nav.currentBackStackEntry?.savedStateHandle?.set("booking_notes", note)
                 nav.currentBackStackEntry?.savedStateHandle?.set("booking_mentor_name", mentor.name)
@@ -245,6 +250,11 @@ internal fun AppNavGraph(
     composable(Routes.MentorCalendar) {
         MentorCalendarScreen(
             onViewSession = { sessionId -> Log.d("AppNav", "View session $sessionId - TODO") },
+            onJoinSession = { bookingId ->
+                nav.navigate(Routes.videoCall(bookingId)) {
+                    launchSingleTop = true
+                }
+            },
             onCreateSession = { Log.d("AppNav", "Create session - TODO") },
             onUpdateAvailability = { Log.d("AppNav", "Update availability - TODO") },
             onCancelSession = { sessionId -> Log.d("AppNav", "Cancel session $sessionId - TODO") }

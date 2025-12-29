@@ -1,7 +1,7 @@
 // path: src/utils/notification.service.ts
+import { Types } from 'mongoose';
 import Notification, { INotification, TNotificationType } from '../models/notification.model';
 import User from '../models/user.model';
-import { Types } from 'mongoose';
 import { emitToUser } from '../socket';
 import { sendPushToUser } from './push.service';
 
@@ -164,7 +164,9 @@ export async function createNotification(
   if (!created) return null;
 
   const payload = toNotificationPayload(created);
+  console.log(`[NOTIFICATION] Emitting socket event to user ${payload.userId}: type=${type}, title=${title}`);
   emitToUser(payload.userId, 'notifications:new', payload);
+  console.log(`[NOTIFICATION] Socket event emitted for user ${payload.userId}`);
 
   if (await shouldSendPush(payload.userId, type)) {
     const pushData = buildPushData(type, payload.id, data);
@@ -330,6 +332,7 @@ export async function notifyBookingNoShow(data: NoShowNotificationData) {
 }
 
 export async function notifyPaymentSuccess(data: PaymentNotificationData) {
+  console.log(`[NOTIFICATION] notifyPaymentSuccess called for booking ${data.bookingId}`);
   const {
     bookingId,
     mentorId,
@@ -357,6 +360,7 @@ export async function notifyPaymentSuccess(data: PaymentNotificationData) {
     event,
   };
 
+  console.log(`[NOTIFICATION] Creating notification for mentee ${menteeId}...`);
   await createNotification(
     menteeId,
     'payment_success',
@@ -366,6 +370,7 @@ export async function notifyPaymentSuccess(data: PaymentNotificationData) {
     { dedupeKey: buildPaymentDedupeKey('payment_success', menteeId, bookingId) }
   );
 
+  console.log(`[NOTIFICATION] Creating notification for mentor ${mentorId}...`);
   await createNotification(
     mentorId,
     'payment_success',
@@ -374,6 +379,7 @@ export async function notifyPaymentSuccess(data: PaymentNotificationData) {
     payload,
     { dedupeKey: buildPaymentDedupeKey('payment_success', mentorId, bookingId) }
   );
+  console.log(`[NOTIFICATION] Payment success notifications created for booking ${bookingId}`);
 }
 
 export async function notifyPaymentFailed(data: PaymentNotificationData) {
@@ -404,11 +410,18 @@ export async function notifyPaymentFailed(data: PaymentNotificationData) {
     event,
   };
 
+  // Check if it's insufficient balance
+  const isInsufficientBalance = status === 'insufficient_balance';
+  const menteeTitle = isInsufficientBalance ? 'Số dư không đủ' : 'Thanh toán thất bại';
+  const menteeBody = isInsufficientBalance 
+    ? `Số dư ví không đủ để thanh toán lịch với ${mentorName}. Vui lòng nạp thêm tiền và thử lại.`
+    : `Thanh toán lịch với ${mentorName} không thành công. Vui lòng thử lại.`;
+
   await createNotification(
     menteeId,
     'payment_failed',
-    'Thanh toán thất bại',
-    `Thanh toán lịch với ${mentorName} không thành công. Vui lòng thử lại.`,
+    menteeTitle,
+    menteeBody,
     payload,
     { dedupeKey: buildPaymentDedupeKey('payment_failed', menteeId, bookingId) }
   );

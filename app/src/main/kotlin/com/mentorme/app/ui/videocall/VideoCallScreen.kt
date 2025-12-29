@@ -114,7 +114,12 @@ fun VideoCallScreen(
     ) {
         AndroidView(
             factory = { ctx ->
-                SurfaceViewRenderer(ctx).also { viewModel.bindRemoteRenderer(it) }
+                SurfaceViewRenderer(ctx).apply {
+                    // Initialize renderer on creation
+                    post {
+                        viewModel.bindRemoteRenderer(this)
+                    }
+                }
             },
             modifier = Modifier.fillMaxSize()
         )
@@ -123,7 +128,11 @@ fun VideoCallScreen(
             factory = { ctx ->
                 SurfaceViewRenderer(ctx).apply {
                     setZOrderMediaOverlay(true)
-                }.also { viewModel.bindLocalRenderer(it) }
+                    // Initialize renderer on creation
+                    post {
+                        viewModel.bindLocalRenderer(this)
+                    }
+                }
             },
             modifier = Modifier
                 .padding(12.dp)

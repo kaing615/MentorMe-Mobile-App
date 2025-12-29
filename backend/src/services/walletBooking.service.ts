@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
+import Booking from "../models/booking.model";
 import Wallet from "../models/wallet.model";
 import WalletTransaction from "../models/walletTransaction.model";
-import Booking from "../models/booking.model";
 
 /* -------------------- Retry helper -------------------- */
 
@@ -146,7 +146,10 @@ export async function captureBookingPayment(bookingId: string): Promise<void> {
 
       /* --------- CORE LOGIC: CHECK BALANCE --------- */
 
-      if (menteeWallet.balanceMinor < amountMinor) {
+      // TESTING: Skip balance check if SKIP_PAYMENT_BALANCE_CHECK=true
+      const skipBalanceCheck = (process.env.SKIP_PAYMENT_BALANCE_CHECK || "false").toLowerCase() === "true";
+      
+      if (!skipBalanceCheck && menteeWallet.balanceMinor < amountMinor) {
         const requiredTopup = amountMinor - menteeWallet.balanceMinor;
         throw new InsufficientBalanceError(
           requiredTopup,

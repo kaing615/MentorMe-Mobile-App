@@ -24,6 +24,7 @@ import com.mentorme.app.data.mapper.SessionReadyPayload
 import com.mentorme.app.data.mapper.SessionSignalPayload
 import com.mentorme.app.data.mapper.SessionWaitingPayload
 import com.mentorme.app.data.mapper.toNotificationItem
+import com.mentorme.app.data.model.NotificationType
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.socket.client.IO
 import io.socket.client.Socket
@@ -165,7 +166,13 @@ class SocketManager @Inject constructor(
         }
         RealtimeEventBus.emit(RealtimeEvent.NotificationReceived(item, payload))
         val pushEnabled = NotificationPreferencesStore.prefs.value.isPushEnabled(item.type)
-        if (!AppForegroundTracker.isForeground.value && pushEnabled &&
+        
+        // For payment notifications, show popup even in foreground
+        val isPaymentNotification = item.type == NotificationType.PAYMENT_SUCCESS || 
+                                     item.type == NotificationType.PAYMENT_FAILED
+        val shouldShowInForeground = isPaymentNotification
+        
+        if ((shouldShowInForeground || !AppForegroundTracker.isForeground.value) && pushEnabled &&
             NotificationDeduper.shouldNotify(item.id, item.title, item.body, item.type)
         ) {
             NotificationHelper.showNotification(appContext, item.title, item.body, item.type, route)

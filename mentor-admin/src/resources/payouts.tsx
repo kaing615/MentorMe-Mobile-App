@@ -160,7 +160,7 @@ export function PayoutList() {
         <TextField source="status" />
         <NumberField source="attemptCount" />
         <TextField source="externalId" />
-        <DateField source="createdAt" showTime />
+        <DateField source="createdAt" showTime />   
         <DateField source="updatedAt" showTime />
         <ApprovePayoutButton />
         <RetryPayoutButton />

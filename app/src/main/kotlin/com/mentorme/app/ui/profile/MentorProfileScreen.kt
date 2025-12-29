@@ -111,7 +111,7 @@ fun MentorProfileScreen(
         selectedTab = tabIndexFor(startTarget)
     }
 
-    val tabs = listOf("Hồ sơ", "Dashboard", "Ví", "Cài đặt")
+    val tabs = listOf("Hồ sơ", "Thống kê", "Ví", "Cài đặt")
 
     Box(Modifier.fillMaxSize()) {
         LiquidBackground(
@@ -136,12 +136,6 @@ fun MentorProfileScreen(
                                         fontWeight = FontWeight.Bold
                                     )
                                     Spacer(Modifier.width(6.dp))
-                                    Icon(
-                                        Icons.Filled.Star,
-                                        contentDescription = "Verified",
-                                        tint = Color(0xFFFFD700),
-                                        modifier = Modifier.size(18.dp)
-                                    )
                                 }
                                 Text(
                                     "Quản lý thương hiệu cá nhân",
@@ -446,8 +440,8 @@ private fun MentorWalletTab(
                 Spacer(Modifier.height(8.dp))
                 Text(formatMoneyShortVnd(balance, true), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color(0xFF34D399))
                 Spacer(Modifier.height(16.dp))
-                MMGhostButton(onClick = onWithdraw, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Outlined.ArrowDownward, null)
+                MMPrimaryButton(onClick = onWithdraw, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.ArrowDownward, null, tint = Color.White)
                     Spacer(Modifier.width(8.dp))
                     Text("Rút tiền về tài khoản")
                 }
@@ -598,16 +592,23 @@ private fun MentorSettingsTab(
         }
 
         LiquidGlassCard(radius = 22.dp) {
-            Column(Modifier.padding(16.dp)) {
-                Text("Hệ thống", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
-                MentorSettingItem(Icons.Outlined.Settings, "Cài đặt chung", "Bảo mật, thông báo", onClick = {
-                    Log.d(TAG, "Click SettingItem: Cài đặt chung")
-                    onOpenSettings()
-                })
-                MentorSettingItem(Icons.AutoMirrored.Outlined.Logout, "Đăng xuất", null, isDestructive = true, onClick = {
-                    Log.d(TAG, "Click SettingItem: Đăng xuất")
-                    onLogout()
-                })
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.AccountCircle, contentDescription = null, tint = Color.White)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Tài khoản", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                }
+                MMPrimaryButton(
+                    onClick = {
+                        Log.d(TAG, "Click SettingItem: Đăng xuất")
+                        onLogout()
+                    },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                ) {
+                    Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = null, tint = Color.White)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Đăng xuất")
+                }
             }
         }
     }

@@ -45,8 +45,19 @@ class ChatRepositoryImpl @Inject constructor(
                         booking.status == BookingStatus.DECLINED
                 }
 
-                val conversations = filtered.map { booking ->
-                    toConversation(booking, userId)
+                // Group bookings by peerId to create one conversation per mentor-mentee pair
+                val groupedByPeer = filtered.groupBy { booking ->
+                    val isMentor = booking.mentorId == userId
+                    if (isMentor) booking.menteeId else booking.mentorId
+                }
+
+                val conversations = groupedByPeer.map { (peerId, peerBookings) ->
+                    // Use the most recent booking for conversation data
+                    val latestBooking = peerBookings.maxByOrNull { 
+                        it.startTimeIso ?: it.createdAt 
+                    } ?: peerBookings.first()
+                    
+                    toConversation(latestBooking, userId, peerBookings)
                 }.sortedByDescending { it.lastMessageTimeIso }
 
                 AppResult.success(conversations)
@@ -114,7 +125,8 @@ class ChatRepositoryImpl @Inject constructor(
     ): AppResult<List<Message>> = withContext(Dispatchers.IO) {
         try {
             val userId = dataStoreManager.getUserId().first()
-            val response = chatApiService.getMessages(conversationId, limit, null)
+            // conversationId is now peerId, use getMessagesByPeer endpoint
+            val response = chatApiService.getMessagesByPeer(conversationId, limit, null)
             if (response.isSuccessful) {
                 val envelope: ApiEnvelope<List<ApiMessage>>? = response.body()
                 if (envelope?.success == true && envelope.data != null) {
@@ -212,10 +224,28 @@ private fun toConversation(booking: Booking, currentUserId: String?, peerBooking
     val upcomingBooking = peerBookings?.firstOrNull { pb ->
         pb.status == BookingStatus.CONFIRMED && !isSessionActive(pb)
     }
+    
+    // Find active or most recent confirmed booking for session info
+    val activeBooking = allBookings.firstOrNull { isSessionActive(it) }
+    val confirmedBookings = allBookings.filter { it.status == BookingStatus.CONFIRMED }
+    val upcomingBooking = confirmedBookings
+        .filter { !isSessionActive(it) }
+        .minByOrNull { it.startTimeIso ?: "" }
+    
+    val sessionBooking = activeBooking ?: upcomingBooking
+    val startIso = sessionBooking?.startTimeIso ?: booking.startTimeIso ?: booking.createdAt
+    val endIso = sessionBooking?.endTimeIso
+    val hasActive = activeBooking != null
+    val hasUpcoming = upcomingBooking != null && !hasActive
+    val nextSessionIso = if (hasUpcoming) upcomingBooking?.startTimeIso else null
+
+    // Use the first booking ID as primary booking for sending messages and restrictions
+    val primaryBookingId = allBookings.firstOrNull()?.id ?: booking.id
 
     return Conversation(
-        id = booking.id,
+        id = peerId, // Use peerId as conversation ID
         peerId = peerId,
+        primaryBookingId = primaryBookingId,
         peerName = peerName,
         peerAvatar = peerSummary?.avatar,
         peerRole = peerRole,

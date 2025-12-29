@@ -9,8 +9,11 @@ import com.mentorme.app.data.remote.WalletApi
 import com.mentorme.app.ui.profile.WalletTx
 import com.mentorme.app.data.mapper.toUi
 import retrofit2.Response
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class WalletRepository(private val api: WalletApi) {
+@Singleton
+class WalletRepository @Inject constructor(private val api: WalletApi) {
 
     suspend fun mockTopup(amount: Long, currency: String = "VND", clientRequestId: String): TopupResponse {
         val req =

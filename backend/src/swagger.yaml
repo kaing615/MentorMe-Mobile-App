@@ -4410,6 +4410,145 @@ paths:
         "404":
           description: Booking not found
 
+  /messages/peer/{peerId}:
+    get:
+      tags:
+        - Messages
+      summary: List all chat messages with a specific peer across all bookings
+      description: Retrieve conversation history with a peer (mentor or mentee) from all non-cancelled bookings
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: peerId
+          required: true
+          schema:
+            type: string
+          description: The ID of the peer user (mentor or mentee)
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 200
+        - in: query
+          name: before
+          schema:
+            type: string
+            format: date-time
+          description: Return messages before this timestamp
+      responses:
+        "200":
+          description: Messages list from all bookings with the peer
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string }
+                            bookingId: { type: string }
+                            senderId: { type: string }
+                            receiverId: { type: string }
+                            content: { type: string }
+                            messageType: { type: string, enum: [text, image, file] }
+                            timestamp: { type: string, format: date-time }
+                            sender:
+                              type: object
+                              nullable: true
+                              properties:
+                                id: { type: string }
+                                email: { type: string, nullable: true }
+                                fullName: { type: string, nullable: true }
+                                avatar: { type: string, nullable: true }
+                                role: { type: string, nullable: true }
+                                createdAt: { type: string, format: date-time, nullable: true }
+        "401":
+          description: Unauthorized
+
+  /messages/{bookingId}/restriction-info:
+    get:
+      tags:
+        - Messages
+      summary: Get chat restriction information for a booking
+      description: Returns current session phase, message counts, and limits for chat restrictions
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Chat restriction info
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          bookingId: { type: string }
+                          bookingStatus: { type: string }
+                          isConfirmed: { type: boolean }
+                          sessionPhase: 
+                            type: string
+                            enum: [pre, during, post, outside]
+                            description: Current phase relative to session (pre=3 days before, during=active, post=3 days after, outside=none)
+                          myMessageCount: 
+                            type: integer
+                            description: Total messages sent by current user for this booking
+                          preSessionCount: 
+                            type: integer
+                            description: Messages sent in pre-session window
+                          postSessionCount: 
+                            type: integer
+                            description: Messages sent in post-session window
+                          weeklyMessageCount: 
+                            type: integer
+                            description: Messages sent in the last 7 days
+                          limits:
+                            type: object
+                            properties:
+                              maxFreeMessages: 
+                                type: integer
+                                example: 10
+                                description: Max messages before booking confirmation
+                              preSessionLimit: 
+                                type: integer
+                                example: 5
+                                description: Max messages in 3-day pre-session window
+                              postSessionLimit: 
+                                type: integer
+                                example: 3
+                                description: Max messages in 3-day post-session window
+                              weeklyLimit: 
+                                type: integer
+                                example: 2
+                                description: Max messages per week outside session windows
+                              sessionWindowDays: 
+                                type: integer
+                                example: 3
+                                description: Number of days before/after session for windows
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Booking not found
+
   /messages:
     post:
       tags:

@@ -3,8 +3,9 @@ package com.mentorme.app.data.model.chat
 import com.mentorme.app.data.model.BookingStatus
 
 data class Conversation(
-    val id: String,
+    val id: String, // Now using peerId instead of bookingId
     val peerId: String,
+    val primaryBookingId: String? = null, // For restriction info and sending messages
     val peerName: String,
     val peerAvatar: String? = null,
     val peerRole: String = "mentor",

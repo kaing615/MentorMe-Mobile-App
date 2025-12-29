@@ -15,6 +15,7 @@ import org.webrtc.MediaConstraints
 import org.webrtc.PeerConnection
 import org.webrtc.PeerConnectionFactory
 import org.webrtc.RTCStatsReport
+import org.webrtc.RtpTransceiver
 import org.webrtc.SessionDescription
 import org.webrtc.SurfaceTextureHelper
 import org.webrtc.SurfaceViewRenderer
@@ -211,7 +212,7 @@ class WebRtcClient(
                 events.onConnectionStateChanged(newState)
             }
 
-            override fun onTrack(transceiver: PeerConnection.RtpTransceiver) {
+            override fun onTrack(transceiver: RtpTransceiver) {
                 val track = transceiver.receiver.track()
                 if (track is VideoTrack) {
                     remoteRenderer?.let { track.addSink(it) }
@@ -309,5 +310,5 @@ open class PeerConnectionObserver : PeerConnection.Observer {
     override fun onDataChannel(dataChannel: org.webrtc.DataChannel) {}
     override fun onRenegotiationNeeded() {}
     override fun onConnectionChange(newState: PeerConnection.PeerConnectionState) {}
-    override fun onTrack(transceiver: PeerConnection.RtpTransceiver) {}
+    override fun onTrack(transceiver: RtpTransceiver) {}
 }

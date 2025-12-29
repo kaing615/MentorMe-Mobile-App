@@ -83,6 +83,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -158,8 +159,8 @@ dependencies {
         exclude(group = "org.json", module = "json")
     }
 
-    // WebRTC
-    implementation("org.webrtc:google-webrtc:1.0.32006")
+    // WebRTC (Maven Central)
+    implementation("org.jitsi:webrtc:124.0.0")
 
     // Testing
     testImplementation(libs.junit)

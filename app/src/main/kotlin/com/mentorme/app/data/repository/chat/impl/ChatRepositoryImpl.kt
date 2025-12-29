@@ -30,7 +30,11 @@ class ChatRepositoryImpl @Inject constructor(
         try {
             val role = dataStoreManager.getUserRole().first()
             val userId = dataStoreManager.getUserId().first()
-            val response = bookingRepository.getBookings(role = role, page = 1, limit = 50)
+            val response = if (role.isNullOrBlank()) {
+                bookingRepository.getBookings(page = 1, limit = 50)
+            } else {
+                bookingRepository.getBookings(role = role, page = 1, limit = 50)
+            }
 
             if (response is AppResult.Success) {
                 val bookings = response.data.bookings
@@ -127,7 +131,7 @@ private fun toConversation(booking: Booking, currentUserId: String?): Conversati
     val peerSummary = if (isMentor) booking.mentee else booking.mentor
     val peerId = if (isMentor) booking.menteeId else booking.mentorId
     val peerName = peerSummary?.fullName
-        ?: if (isMentor) booking.menteeFullName else booking.mentorFullName
+        ?: (if (isMentor) booking.menteeFullName else booking.mentorFullName)
         ?: "Unknown"
     val peerRole = if (isMentor) "mentee" else "mentor"
     val startIso = booking.startTimeIso ?: booking.createdAt

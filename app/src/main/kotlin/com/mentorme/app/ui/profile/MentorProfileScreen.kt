@@ -132,7 +132,7 @@ fun MentorProfileScreen(
         selectedTab = tabIndexFor(startTarget)
     }
 
-    val tabs = listOf("Hồ sơ", "Dashboard", "Ví", "Cài đặt")
+    val tabs = listOf("Hồ sơ", "Thống kê", "Ví", "Cài đặt")
 
     Box(Modifier.fillMaxSize()) {
         LiquidBackground(
@@ -219,7 +219,6 @@ fun MentorProfileScreen(
                         .fillMaxSize()
                         .padding(padding)
                         .padding(horizontal = 16.dp)
-                        .padding(top = 12.dp, bottom = 92.dp)
                 ) {
                     LiquidGlassCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -277,7 +276,7 @@ fun MentorProfileScreen(
                         }
                     }
 
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(12.dp))
 
                     when (selectedTab) {
                         0 -> MentorInfoTab(
@@ -346,7 +345,13 @@ private fun MentorInfoTab(
     val headline = skillsText.ifBlank { profile.preferredLanguages.joinToString(", ") }
         .ifBlank { "Mentor" }
 
-    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(
+        Modifier
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding()
+            .padding(bottom = 100.dp), // ✅ Extra space: system nav bar + GlassBottomBar (64dp + spacing)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         LiquidGlassCard(radius = 22.dp) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Row(
@@ -412,7 +417,13 @@ private fun MentorStatsTab(
     onViewDetail: () -> Unit,
     onViewReviews: () -> Unit
 ) {
-    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(
+        Modifier
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding()
+            .padding(bottom = 100.dp), // ✅ Extra space for GlassBottomBar
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             MentorStatCard("Rating", "4.9⭐", Icons.Filled.Star, Color(0xFFFFD700), Modifier.weight(1f)) { onViewReviews() }
             MentorStatCard("Học viên", "50+", Icons.Outlined.Groups, Color(0xFF34D399), Modifier.weight(1f)) { onViewDetail() }
@@ -460,7 +471,13 @@ private fun MentorWalletTab(
 ) {
     val txs = remember { mockTxLocal() }
 
-    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(
+        Modifier
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding()
+            .padding(bottom = 100.dp), // ✅ Extra space for GlassBottomBar
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         LiquidGlassCard(radius = 22.dp) {
             Column(Modifier.padding(16.dp)) {
                 Row { Icon(Icons.Outlined.AccountBalanceWallet, null); Spacer(Modifier.width(8.dp)); Text("Thu nhập khả dụng") }
@@ -531,7 +548,13 @@ private fun MentorSettingsTab(
         notificationPreferences.pushSystem
 
     val TAG = "MentorProfileUI"
-    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(
+        Modifier
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding()
+            .padding(bottom = 100.dp), // ✅ Extra space for GlassBottomBar
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         LiquidGlassCard(radius = 22.dp) {
             Column(Modifier.padding(16.dp)) {
                 Text("Quản lý dịch vụ", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))

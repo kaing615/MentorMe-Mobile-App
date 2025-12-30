@@ -29,6 +29,7 @@ import com.mentorme.app.ui.theme.LiquidGlassCard
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PaymentMethodScreen(
+    walletViewModel: WalletViewModel,
     methods: List<PaymentMethod>,
     onBack: () -> Unit,
     onChosen: (PaymentMethod) -> Unit,
@@ -38,6 +39,10 @@ fun PaymentMethodScreen(
     // selected có thể null khi danh sách rỗng
     var selected by remember(methods) {
         mutableStateOf(methods.firstOrNull { it.isDefault } ?: methods.firstOrNull())
+    }
+
+    LaunchedEffect(Unit) {
+        walletViewModel.loadPaymentMethods()
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -93,7 +98,11 @@ fun PaymentMethodScreen(
 
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                         MMPrimaryButton(
-                            onClick = { selected?.let(onChosen) },
+                            onClick = {
+                                selected?.let {
+                                    walletViewModel.setDefaultPaymentMethod(it.id)
+                                }
+                            },
                             modifier = Modifier.weight(1f).alpha(if (canAct) 1f else 0.5f)
                         ) { Text("Đặt làm mặc định") }
 

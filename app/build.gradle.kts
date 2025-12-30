@@ -101,6 +101,22 @@ android {
             )
         }
     }
+
+    packaging {
+        resources {
+            pickFirsts.add("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
+
+            excludes.addAll(
+                listOf(
+                    "META-INF/DEPENDENCIES",
+                    "META-INF/LICENSE",
+                    "META-INF/LICENSE.txt",
+                    "META-INF/NOTICE",
+                    "META-INF/NOTICE.txt"
+                )
+            )
+        }
+    }
 }
 
 dependencies {

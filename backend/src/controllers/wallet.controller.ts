@@ -8,6 +8,8 @@ import {
   mapWalletToDto,
   mapWalletTransactionToDto,
 } from "../utils/mappers/wallet.mapper";
+import { maskAccountNumber } from "../utils/maskAccount";
+import PaymentMethod from "../models/paymentMethod.model";
 
 const { ok, created, badRequest, forbidden } = responseHandler;
 
@@ -95,30 +97,31 @@ export const mockTopup = asyncHandler(async (req: Request, res: Response) => {
     await wallet.save({ session });
 
     const [tx] = await WalletTransaction.create(
-      [
-        {
-          walletId: wallet._id,
-          userId,
-          type: "CREDIT",
-          source: "MANUAL_TOPUP",
-          amountMinor,
-          currency,
-          balanceBeforeMinor: balanceBefore,
-          balanceAfterMinor: balanceAfter,
-          idempotencyKey,
-        },
-      ],
-      { session }
-    );
+    [
+      {
+        walletId: wallet._id,
+        userId,
+        type: "CREDIT",
+        source: "MANUAL_TOPUP",
+        amountMinor,
+        currency,
+        balanceBeforeMinor: balanceBefore,
+        balanceAfterMinor: balanceAfter,
+        idempotencyKey,
+      },
+    ],
+    { session }
+  );
 
-    await session.commitTransaction();
-    session.endSession();
+  await session.commitTransaction();
+  session.endSession();
 
-    return created(res, {
-      idempotent: false,
-      wallet: mapWalletToDto(wallet),
-      transaction: mapWalletTransactionToDto(tx),
-    });
+  return created(res, {
+    idempotent: false,
+    wallet: mapWalletToDto(wallet),
+    transaction: mapWalletTransactionToDto(tx),
+  });
+
   } catch (err: any) {
     await session.abortTransaction();
     session.endSession();
@@ -297,6 +300,23 @@ export const withdraw = asyncHandler(async (req: Request, res: Response) => {
   if (!userId) return forbidden(res, "Unauthorized");
 
   const amount = Number(req.body?.amount ?? 0);
+  const paymentMethodId = req.body?.paymentMethodId
+    ? String(req.body.paymentMethodId).trim()
+    : null;
+
+  const paymentMethod = paymentMethodId
+    ? await PaymentMethod.findOne({ _id: paymentMethodId, userId })
+    : await PaymentMethod.findOne({ userId, isDefault: true });
+
+  if (!paymentMethod) {
+    return badRequest(res, "PAYMENT_METHOD_REQUIRED");
+  }
+
+  const MIN_WITHDRAW_AMOUNT = 50000;
+  if (amount < MIN_WITHDRAW_AMOUNT) {
+    return badRequest(res, "MIN_WITHDRAW_50K");
+  }
+
   const currency = (req.body?.currency ?? "VND") as "VND" | "USD";
   const clientRequestId = String(req.body?.clientRequestId ?? "").trim();
   const payoutInfo = req.body?.payoutInfo ?? null; // optional payout details (bank account, momo id, ...)
@@ -356,8 +376,13 @@ export const withdraw = asyncHandler(async (req: Request, res: Response) => {
           balanceAfterMinor: balanceAfter,
           idempotencyKey,
           metadata: {
-            payoutInfo, // store payout details for reconciliation
-            providerStatus: "PENDING", // optional hint for external payout system
+            payoutInfo: {
+              paymentMethodId: paymentMethod._id,
+              type: paymentMethod.type,
+              provider: paymentMethod.provider,
+              accountMasked: maskAccountNumber(paymentMethod.accountNumber),
+            },
+            providerStatus: "PENDING",
           },
         },
       ],

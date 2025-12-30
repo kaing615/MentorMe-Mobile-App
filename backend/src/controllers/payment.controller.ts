@@ -259,6 +259,27 @@ if (isSuccessEvent && errorMessage === "INSUFFICIENT_BALANCE") {
   return ok(res, { processed: true, event, bookingId });
 });
 
+export const payBookingByWallet = asyncHandler(async (req, res) => {
+  const bookingId = req.params.id;
+  const userId = (req as any).user.id;
+
+  const booking = await Booking.findById(bookingId);
+  if (!booking) return notFound(res, "Booking not found");
+
+  if (booking.status !== "PaymentPending") {
+    return badRequest(res, "Booking is not payable");
+  }
+
+  await captureBookingPayment(bookingId);
+
+  await confirmBooking(bookingId);
+
+  return ok(res, {
+    success: true,
+    bookingId,
+  });
+});
+
 export default {
   paymentWebhook,
 };

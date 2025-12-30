@@ -308,4 +308,15 @@ class BookingRepositoryImpl @Inject constructor(
             AppResult.failure(e)
         }
     }
+
+    override suspend fun payBooking(
+        bookingId: String
+    ): AppResult<Unit> {
+        return try {
+            api.payBooking(bookingId)
+            AppResult.Success(Unit)
+        } catch (e: Exception) {
+            AppResult.failure(e)
+        }
+    }
 }

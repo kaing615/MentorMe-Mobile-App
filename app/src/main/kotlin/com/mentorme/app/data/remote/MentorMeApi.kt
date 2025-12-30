@@ -123,6 +123,11 @@ interface MentorMeApi {
         @Body request: PaymentWebhookRequest
     ): Response<ApiEnvelope<Map<String, Any>>>
 
+    @POST("payments/bookings/{id}/pay")
+    suspend fun payBooking(
+        @Path("id") bookingId: String
+    ): ApiEnvelope<Unit>
+
     // Availability endpoints
 
     /**

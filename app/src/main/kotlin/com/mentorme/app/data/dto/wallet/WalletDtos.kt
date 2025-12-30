@@ -48,12 +48,13 @@ data class TopupResponse(
 data class DebitRequest(
     val amount: Long,
     val currency: String = "VND",
-    val clientRequestId: String
+    val clientRequestId: String,
+    val paymentMethodId: String? = null
 )
 
 data class DebitResponse(
     val idempotent: Boolean,
-    val wallet: WalletDto,
+    val wallet: WalletDto?,
     val transaction: WalletTransactionDto?
 )
 

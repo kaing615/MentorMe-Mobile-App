@@ -39,6 +39,8 @@ import androidx.compose.ui.composed
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
+import com.mentorme.app.ui.navigation.Routes
 
 private fun formatCurrencyVnd(amount: Long): String {
     val nf = NumberFormat.getCurrencyInstance(Locale("vi", "VN"))
@@ -264,22 +266,23 @@ fun TopUpScreen(
 @Composable
 fun WithdrawScreen(
     balance: Long,
-    bankInfo: BankInfo,
+    initialMethod: PaymentMethod,
     onBack: () -> Unit,
-    onSubmit: (amount: Long, bank: BankInfo) -> Unit
+    onChangeMethod: () -> Unit,
+    onSubmit: (amount: Long, method: PaymentMethod) -> Unit
 ) {
     var amountText by remember { mutableStateOf("") }
     var showConfirm by remember { mutableStateOf(false) }
-    val amount = amountText.filter { it.isDigit() }.toLongOrNull() ?: 0L
+    var selectedMethod by remember { mutableStateOf(initialMethod) }
 
+    val amount = amountText.filter { it.isDigit() }.toLongOrNull() ?: 0L
     val canWithdraw = amount >= 50_000 && amount <= balance
 
     Box(Modifier.fillMaxSize()) {
         com.mentorme.app.ui.theme.LiquidBackground(
-            modifier = Modifier
-                .matchParentSize()
-                .zIndex(-1f)
+            Modifier.matchParentSize().zIndex(-1f)
         )
+
         CompositionLocalProvider(LocalContentColor provides Color.White) {
             Scaffold(
                 containerColor = Color.Transparent,
@@ -294,36 +297,56 @@ fun WithdrawScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
 
+                    // ----- Amount -----
                     LiquidGlassCard(radius = 22.dp) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Outlined.AttachMoney, null, tint = Color.White)
+                                Icon(Icons.Outlined.AttachMoney, null)
                                 Spacer(Modifier.width(8.dp))
                                 Text("Nhập số tiền rút", style = MaterialTheme.typography.titleMedium)
                             }
+
                             MMTextField(
                                 value = amountText,
-                                onValueChange = { new -> amountText = new.filter { it.isDigit() }.take(12) },
+                                onValueChange = { amountText = it.filter(Char::isDigit).take(12) },
                                 singleLine = true,
-                                placeholder = "VD: 300000",
+                                placeholder = "VD: 300000"
                             )
-                            val warn = when {
-                                amountText.isBlank() -> "Tối thiểu 50.000₫"
-                                amount < 50_000      -> "Số tiền tối thiểu 50.000₫"
-                                amount > balance     -> "Vượt quá số dư khả dụng"
-                                else -> null
+
+                            when {
+                                amountText.isBlank() ->
+                                    Text("Tối thiểu 50.000₫", color = Color.White.copy(.7f))
+                                amount < 50_000 ->
+                                    Text("Số tiền tối thiểu 50.000₫", color = Color(0xFFFFD54F))
+                                amount > balance ->
+                                    Text("Vượt quá số dư khả dụng", color = Color(0xFFFF6B6B))
+                                else ->
+                                    Text("Xem trước: ${formatCurrencyVnd(amount)}", color = Color.White.copy(.85f))
                             }
-                            if (warn != null) Text(warn, style = MaterialTheme.typography.bodySmall, color = Color(0xFFFFD54F))
-                            if (amount > 0) Text("Xem trước: ${formatCurrencyVnd(amount)}", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(.85f))
                         }
                     }
 
+                    // ----- Payment Method -----
                     LiquidGlassCard(radius = 22.dp) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("Tài khoản nhận", style = MaterialTheme.typography.titleMedium)
-                            BankBox(bankInfo)
+                        Column(
+                            Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Tài khoản nhận", style = MaterialTheme.typography.titleMedium)
+                                TextButton(onClick = onChangeMethod) {
+                                    Text("Thay đổi", color = Color.White)
+                                }
+                            }
+
+                            PaymentMethodBox(selectedMethod)
+
                             Text(
-                                "Lưu ý: rút tiền xử lý trong giờ làm việc (9:00–17:00, T2–T6).",
+                                "Tiền sẽ được xử lý trong giờ làm việc (T2–T6).",
                                 color = Color.White.copy(.75f),
                                 style = MaterialTheme.typography.bodySmall
                             )
@@ -332,33 +355,118 @@ fun WithdrawScreen(
 
                     MMPrimaryButton(
                         onClick = { if (canWithdraw) showConfirm = true },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .alpha(if (canWithdraw) 1f else 0.5f)
-                    ) { Text("Xác nhận rút") }
+                        modifier = Modifier.fillMaxWidth().alpha(if (canWithdraw) 1f else 0.5f)
+                    ) { Text("Xác nhận rút tiền") }
 
-                    MMGhostButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Huỷ") }
+                    MMGhostButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
+                        Text("Huỷ")
+                    }
                 }
             }
         }
 
+        // ----- Confirm sheet -----
         if (showConfirm) {
             ConfirmSheet(
-                title = "Xác nhận rút",
+                title = "Xác nhận rút tiền",
                 lines = listOf(
                     "Số tiền" to formatCurrencyVnd(amount),
-                    "Ngân hàng" to bankInfo.bankName,
-                    "Số tài khoản" to bankInfo.accountNumber,
-                    "Chủ tài khoản" to bankInfo.accountName
+                    "Phương thức" to "${selectedMethod.label} • ${selectedMethod.detail}"
                 ),
                 confirmText = "Rút ngay",
                 onDismiss = { showConfirm = false },
                 onConfirm = {
                     showConfirm = false
-                    onSubmit(max(0, amount), bankInfo)
+                    onSubmit(amount, selectedMethod)
                 }
             )
         }
+    }
+}
+
+@Composable
+fun WithdrawScreen(
+    navController: NavHostController,
+    walletViewModel: WalletViewModel,
+    onBack: () -> Unit
+) {
+    val uiState by walletViewModel.uiState.collectAsState()
+    val balance = (uiState as? WalletUiState.Success)?.wallet?.balanceMinor ?: 0L
+
+    val methods by walletViewModel.paymentMethods.collectAsState()
+    val defaultMethod = methods.firstOrNull { it.isDefault } ?: return
+
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
+    var selectedMethod by remember { mutableStateOf(defaultMethod) }
+
+    LaunchedEffect(Unit) {
+        walletViewModel.ensureLoaded()
+    }
+
+    LaunchedEffect(Unit) {
+        savedStateHandle
+            ?.getStateFlow<String?>("payment_method_id", null)
+            ?.collect { methodId ->
+                methods.find { it.id == methodId }?.let {
+                    selectedMethod = it
+                }
+            }
+    }
+
+    LaunchedEffect(walletViewModel) {
+        walletViewModel.withdrawEvents.collect { ev ->
+            when (ev) {
+                is WalletViewModel.WithdrawEvent.Success -> {
+                    snackbarHostState.showSnackbar("Đã gửi yêu cầu rút tiền")
+                    onBack()
+                }
+                is WalletViewModel.WithdrawEvent.Error -> {
+                    snackbarHostState.showSnackbar(ev.message)
+                }
+            }
+        }
+    }
+
+    if (methods.isEmpty()) {
+        Box(
+            Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Chưa có phương thức rút tiền", color = Color.White)
+                Spacer(Modifier.height(12.dp))
+                MMPrimaryButton(onClick = {
+                    navController.navigate(Routes.AddPaymentMethod)
+                }) {
+                    Text("Thêm phương thức")
+                }
+            }
+        }
+        return
+    }
+
+    WithdrawScreen(
+        balance = balance,
+        initialMethod = selectedMethod,
+        onBack = onBack,
+        onChangeMethod = {
+            navController.navigate(Routes.PaymentMethods)
+        },
+        onSubmit = { amount, method ->
+            walletViewModel.withdraw(
+                amountMinor = amount,
+                paymentMethodId = method.id
+            )
+        }
+    )
+
+    Box(Modifier.fillMaxSize()) {
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp)
+        )
     }
 }
 
@@ -369,29 +477,31 @@ data class BankInfo(
 )
 
 @Composable
-private fun BankBox(info: BankInfo) {
+private fun PaymentMethodBox(method: PaymentMethod) {
+    val icon = when (method.provider) {
+        PayProvider.MOMO -> Icons.Outlined.Payments
+        PayProvider.ZALOPAY -> Icons.Outlined.CreditCard
+        PayProvider.BANK -> Icons.Outlined.AccountBalance
+    }
+
     Row(
-        modifier = Modifier
+        Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .liquidGlass(radius = 16.dp, alpha = 0.18f, borderAlpha = 0.25f)
+            .liquidGlass(radius = 16.dp)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        val bg = Brush.linearGradient(listOf(Color(0xFF60A5FA), Color(0xFFA78BFA)))
         Box(
-            modifier = Modifier
-                .size(42.dp)
-                .clip(CircleShape)
-                .background(bg),
+            Modifier.size(42.dp).clip(CircleShape)
+                .background(Color.White.copy(.15f)),
             contentAlignment = Alignment.Center
-        ) { Icon(Icons.Outlined.AccountBalance, null, tint = Color.White) }
+        ) { Icon(icon, null) }
 
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(info.bankName, fontWeight = FontWeight.SemiBold)
-            Text("STK: ${info.accountNumber}", color = Color.White.copy(.85f))
-            Text("Chủ TK: ${info.accountName}", color = Color.White.copy(.75f), style = MaterialTheme.typography.bodySmall)
+            Text(method.label, fontWeight = FontWeight.SemiBold)
+            Text(method.detail, color = Color.White.copy(.8f))
         }
     }
 }

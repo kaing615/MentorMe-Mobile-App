@@ -65,33 +65,6 @@ object NetworkModule {
     fun provideMentorMeApi(retrofit: Retrofit): MentorMeApi =
         retrofit.create(MentorMeApi::class.java)
 
-    @Provides @Singleton
-    fun provideAuthApiService(retrofit: Retrofit): AuthApiService =
-        retrofit.create(AuthApiService::class.java)
-
-    @Provides @Singleton
-    fun provideProfileApiService(retrofit: Retrofit): ProfileApiService =
-        retrofit.create(ProfileApiService::class.java)
-
-    @Provides @Singleton
-    fun provideHomeApiService(retrofit: Retrofit): HomeApiService =
-        retrofit.create(HomeApiService::class.java)
-
-    @Provides @Singleton
-    fun provideReviewApiService(retrofit: Retrofit): ReviewApiService =
-        retrofit.create(ReviewApiService::class.java)
-
-    @Provides @Singleton
-    fun provideChatApiService(retrofit: Retrofit): ChatApiService =
-        retrofit.create(ChatApiService::class.java)
-
-    @Provides @Singleton
-    fun provideSessionApiService(retrofit: Retrofit): SessionApiService =
-        retrofit.create(SessionApiService::class.java)
-
-    @Provides @Singleton
-    fun provideWalletApi(retrofit: Retrofit): WalletApi =
-        retrofit.create(WalletApi::class.java)
 
     @Provides @Singleton
     fun providePaymentMethodApi(retrofit: Retrofit): PaymentMethodApi =
@@ -148,4 +121,4 @@ object NetworkModule {
             api = walletApi,
             paymentMethodApi = paymentMethodApi
         )
-}
+

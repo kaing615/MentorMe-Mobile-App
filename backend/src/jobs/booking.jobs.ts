@@ -4,6 +4,9 @@ import {
   processExpiredBookings,
   processPendingMentorBookings,
 } from '../controllers/booking.controller';
+import { processNoShowBookings } from '../services/session.service';
+import { notifyBookingNoShow } from '../utils/notification.service';
+import { getUserInfo } from '../utils/userInfo';
 
 const QUEUE_NAME = process.env.BOOKING_QUEUE_NAME || 'booking-jobs';
 const JOB_NAME = 'booking-tick';
@@ -22,15 +25,37 @@ function getConnectionOptions() {
 }
 
 async function runBookingJobs() {
-  const [expiredCount, declinedCount, reminders] = await Promise.all([
+  const [expiredCount, declinedCount, reminders, noShowCount] = await Promise.all([
     processExpiredBookings(),
     processPendingMentorBookings(),
     processBookingReminders(),
+    processNoShowBookings(async ({ booking, noShowBy }) => {
+      const [mentorInfo, menteeInfo] = await Promise.all([
+        getUserInfo(String(booking.mentor)),
+        getUserInfo(String(booking.mentee)),
+      ]);
+
+      await notifyBookingNoShow({
+        bookingId: String(booking._id),
+        mentorId: String(booking.mentor),
+        menteeId: String(booking.mentee),
+        mentorName: mentorInfo.name,
+        menteeName: menteeInfo.name,
+        startTime: new Date(booking.startTime),
+        noShowBy,
+      });
+    }),
   ]);
 
-  if (expiredCount || declinedCount || reminders.reminded24h || reminders.reminded1h) {
+  if (
+    expiredCount ||
+    declinedCount ||
+    noShowCount ||
+    reminders.reminded24h ||
+    reminders.reminded1h
+  ) {
     console.log(
-      `Booking jobs: expired=${expiredCount}, declined=${declinedCount}, reminders24h=${reminders.reminded24h}, reminders1h=${reminders.reminded1h}`
+      `Booking jobs: expired=${expiredCount}, declined=${declinedCount}, noShow=${noShowCount}, reminders24h=${reminders.reminded24h}, reminders1h=${reminders.reminded1h}`
     );
   }
 }

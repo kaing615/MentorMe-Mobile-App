@@ -1,7 +1,7 @@
 // path: src/utils/notification.service.ts
+import { Types } from 'mongoose';
 import Notification, { INotification, TNotificationType } from '../models/notification.model';
 import User from '../models/user.model';
-import { Types } from 'mongoose';
 import { emitToUser } from '../socket';
 import { sendPushToUser } from './push.service';
 
@@ -24,6 +24,10 @@ export interface PaymentNotificationData extends NotificationData {
   paymentId?: string;
   status?: string;
   event?: string;
+}
+
+export interface NoShowNotificationData extends NotificationData {
+  noShowBy: 'mentor' | 'mentee' | 'both';
 }
 
 type NotificationPayload = {
@@ -160,7 +164,9 @@ export async function createNotification(
   if (!created) return null;
 
   const payload = toNotificationPayload(created);
+  console.log(`[NOTIFICATION] Emitting socket event to user ${payload.userId}: type=${type}, title=${title}`);
   emitToUser(payload.userId, 'notifications:new', payload);
+  console.log(`[NOTIFICATION] Socket event emitted for user ${payload.userId}`);
 
   if (await shouldSendPush(payload.userId, type)) {
     const pushData = buildPushData(type, payload.id, data);
@@ -300,7 +306,33 @@ export async function notifyBookingDeclined(data: NotificationData) {
   );
 }
 
+export async function notifyBookingNoShow(data: NoShowNotificationData) {
+  const { bookingId, mentorId, menteeId, mentorName, menteeName, startTime, noShowBy } = data;
+  const dateIso = startTime.toISOString();
+  const dateStr = formatDateTimeVi(startTime);
+
+  const mentorTitle = 'Session no-show';
+  const menteeTitle = 'Session no-show';
+
+  let mentorBody = `Session with ${menteeName} at ${dateStr} was marked as no-show.`;
+  let menteeBody = `Session with ${mentorName} at ${dateStr} was marked as no-show.`;
+
+  if (noShowBy === 'mentor') {
+    mentorBody = `You were marked as no-show for the session with ${menteeName} at ${dateStr}.`;
+    menteeBody = `Mentor ${mentorName} did not join the session at ${dateStr}.`;
+  } else if (noShowBy === 'mentee') {
+    mentorBody = `Mentee ${menteeName} did not join the session at ${dateStr}.`;
+    menteeBody = `You were marked as no-show for the session with ${mentorName} at ${dateStr}.`;
+  }
+
+  const payload = { bookingId, mentorId, menteeId, startTime: dateIso, noShowBy };
+
+  await createNotification(menteeId, 'booking_no_show', menteeTitle, menteeBody, payload);
+  await createNotification(mentorId, 'booking_no_show', mentorTitle, mentorBody, payload);
+}
+
 export async function notifyPaymentSuccess(data: PaymentNotificationData) {
+  console.log(`[NOTIFICATION] notifyPaymentSuccess called for booking ${data.bookingId}`);
   const {
     bookingId,
     mentorId,
@@ -328,6 +360,7 @@ export async function notifyPaymentSuccess(data: PaymentNotificationData) {
     event,
   };
 
+  console.log(`[NOTIFICATION] Creating notification for mentee ${menteeId}...`);
   await createNotification(
     menteeId,
     'payment_success',
@@ -337,6 +370,7 @@ export async function notifyPaymentSuccess(data: PaymentNotificationData) {
     { dedupeKey: buildPaymentDedupeKey('payment_success', menteeId, bookingId) }
   );
 
+  console.log(`[NOTIFICATION] Creating notification for mentor ${mentorId}...`);
   await createNotification(
     mentorId,
     'payment_success',
@@ -345,6 +379,7 @@ export async function notifyPaymentSuccess(data: PaymentNotificationData) {
     payload,
     { dedupeKey: buildPaymentDedupeKey('payment_success', mentorId, bookingId) }
   );
+  console.log(`[NOTIFICATION] Payment success notifications created for booking ${bookingId}`);
 }
 
 export async function notifyPaymentFailed(data: PaymentNotificationData) {
@@ -375,11 +410,18 @@ export async function notifyPaymentFailed(data: PaymentNotificationData) {
     event,
   };
 
+  // Check if it's insufficient balance
+  const isInsufficientBalance = status === 'insufficient_balance';
+  const menteeTitle = isInsufficientBalance ? 'Số dư không đủ' : 'Thanh toán thất bại';
+  const menteeBody = isInsufficientBalance 
+    ? `Số dư ví không đủ để thanh toán lịch với ${mentorName}. Vui lòng nạp thêm tiền và thử lại.`
+    : `Thanh toán lịch với ${mentorName} không thành công. Vui lòng thử lại.`;
+
   await createNotification(
     menteeId,
     'payment_failed',
-    'Thanh toán thất bại',
-    `Thanh toán lịch với ${mentorName} không thành công. Vui lòng thử lại.`,
+    menteeTitle,
+    menteeBody,
     payload,
     { dedupeKey: buildPaymentDedupeKey('payment_failed', menteeId, bookingId) }
   );

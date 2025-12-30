@@ -5,5 +5,7 @@ data class Message(
     val conversationId: String,
     val text: String,
     val createdAtIso: String,
-    val fromCurrentUser: Boolean
+    val fromCurrentUser: Boolean,
+    val senderName: String? = null,
+    val senderAvatar: String? = null
 )

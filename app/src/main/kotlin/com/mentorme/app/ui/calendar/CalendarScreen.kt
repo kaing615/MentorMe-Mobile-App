@@ -136,6 +136,9 @@ fun CalendarScreen(
     val completed = remember(bookings, nowDate, nowTime) {
         bookings.filter {
             it.status == BookingStatus.COMPLETED ||
+                    it.status == BookingStatus.NO_SHOW_MENTOR ||
+                    it.status == BookingStatus.NO_SHOW_MENTEE ||
+                    it.status == BookingStatus.NO_SHOW_BOTH ||
                     (it.status == BookingStatus.CONFIRMED && isPast(it.date, it.endTime, nowDate, nowTime))
         }.sortedWith(compareByDescending<Booking> { it.date }.thenByDescending { it.startTime })
     }
@@ -505,6 +508,15 @@ private fun BookingCard(
                             modifier = Modifier.weight(1f)
                         )
                     }
+                    BookingStatus.NO_SHOW_MENTOR,
+                    BookingStatus.NO_SHOW_MENTEE,
+                    BookingStatus.NO_SHOW_BOTH -> {
+                        MMGhostButton(
+                            text = "Đặt lại",
+                            onClick = { onRebook(booking) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                     BookingStatus.CANCELLED,
                     BookingStatus.DECLINED -> {
                         MMButton(
@@ -538,6 +550,9 @@ private fun StatusPill(status: BookingStatus) {
         BookingStatus.PENDING_MENTOR -> Triple("Chờ mentor", Color(0xFFF59E0B), "⏳")
         BookingStatus.CONFIRMED -> Triple("Xác nhận", Color(0xFF10B981), "✅")
         BookingStatus.COMPLETED -> Triple("Hoàn thành", Color(0xFF8B5CF6), "🎉")
+        BookingStatus.NO_SHOW_MENTOR -> Triple("No-show mentor", Color(0xFFF97316), "⚠️")
+        BookingStatus.NO_SHOW_MENTEE -> Triple("No-show mentee", Color(0xFFF97316), "⚠️")
+        BookingStatus.NO_SHOW_BOTH -> Triple("No-show cả hai", Color(0xFFF97316), "⚠️")
         BookingStatus.CANCELLED -> Triple("Đã hủy", Color(0xFFEF4444), "❌")
         BookingStatus.DECLINED -> Triple("Từ chối", Color(0xFFEF4444), "🚫")
         BookingStatus.FAILED -> Triple("Thất bại", Color(0xFFEF4444), "⚠️")

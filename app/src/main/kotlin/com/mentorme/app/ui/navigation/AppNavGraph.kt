@@ -17,6 +17,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.mentorme.app.data.mock.MockData
+import com.mentorme.app.data.session.SessionManager
 import com.mentorme.app.ui.auth.AuthScreen
 import com.mentorme.app.ui.auth.AuthViewModel
 import com.mentorme.app.ui.auth.RegisterPayload
@@ -52,8 +53,15 @@ import com.mentorme.app.ui.wallet.PaymentMethodScreen
 import com.mentorme.app.ui.wallet.TopUpScreen
 import com.mentorme.app.ui.wallet.WalletViewModel
 import com.mentorme.app.ui.wallet.WithdrawScreen
+import com.mentorme.app.ui.videocall.VideoCallScreen
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface ChatNavDeps {
+    fun getConversationWithPeerUseCase(): GetConversationWithPeerUseCase
+}
 
 @Composable
 internal fun AppNavGraph(
@@ -70,6 +78,13 @@ internal fun AppNavGraph(
     blurEnabled: Boolean = false,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // ✅ Get chat use case for navigation
+    val chatDeps = remember(context) {
+        EntryPointAccessors.fromApplication(context, ChatNavDeps::class.java)
+    }
+    val getConversationUseCase = remember { chatDeps.getConversationWithPeerUseCase() }
 
     val hazeModifier = if (blurEnabled && hazeState != null) {
         Modifier.hazeSource(state = hazeState)
@@ -196,63 +211,95 @@ internal fun AppNavGraph(
                 )
             }
 
-            // ---------- MAIN APP ----------
-            composable(Routes.Home) {
-                HomeScreen(
-                    onNavigateToMentors = { goToSearch(nav) },
-                    onSearch = { _ -> goToSearch(nav) },
-                    onBookSlot = { mentor, occurrenceId, date, startTime, endTime, priceVnd, note ->
-                        nav.currentBackStackEntry?.savedStateHandle?.set("booking_notes", note)
-                        nav.currentBackStackEntry?.savedStateHandle?.set(
-                            "booking_mentor_name",
-                            mentor.name
-                        )
-                        nav.navigate("bookingSummary/${mentor.id}/$date/$startTime/$endTime/$priceVnd/$occurrenceId")
-                    },
-                    onOverlayOpened = { onOverlayVisibleChange(true) },
-                    onOverlayClosed = { onOverlayVisibleChange(false) }
-                )
-            }
-
-            // ---------- MENTOR SCREENS ----------
-            composable(Routes.MentorDashboard) {
-                val profileVm: com.mentorme.app.ui.profile.ProfileViewModel = hiltViewModel()
-                MentorDashboardScreen(
-                    vm = profileVm,
-                    onViewSchedule = {
-                        nav.navigate(Routes.MentorCalendar) {
-                            launchSingleTop = true
-                            restoreState = true
+    // ---------- MAIN APP ----------
+    composable(Routes.Home) {
+        HomeScreen(
+            onNavigateToMentors = { goToSearch(nav) },
+            onSearch = { _ -> goToSearch(nav) },
+            onJoinSession = { bookingId ->
+                nav.navigate(Routes.videoCall(bookingId)) {
+                    launchSingleTop = true
+                }
+            },
+            onMessage = { mentorId ->
+                // ✅ Open chat with mentor
+                scope.launch {
+                    when (val result = getConversationUseCase(mentorId)) {
+                        is AppResult.Success -> {
+                            val conversationId = result.data
+                            if (conversationId != null) {
+                                // Conversation exists, navigate to chat
+                                nav.navigate("${Routes.Chat}/$conversationId") {
+                                    launchSingleTop = true
+                                }
+                            } else {
+                                // No conversation exists - need to book first
+                                Toast.makeText(
+                                    context,
+                                    "Bạn cần đặt lịch với mentor này trước khi có thể nhắn tin",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
                         }
-                    },
-                    onViewStudents = { Log.d("AppNav", "Navigate to students list - TODO") },
-                    onViewEarnings = { Log.d("AppNav", "Navigate to earnings - TODO") },
-                    onViewReviews = { Log.d("AppNav", "Navigate to reviews - TODO") },
-                    onJoinSession = { sessionId ->
-                        Log.d(
-                            "AppNav",
-                            "Join session $sessionId - TODO"
-                        )
-                    },
-                    onViewAllSessions = {
-                        nav.navigate(Routes.MentorCalendar) {
-                            launchSingleTop = true
-                            restoreState = true
+                        is AppResult.Error -> {
+                            Toast.makeText(
+                                context,
+                                "Không thể mở chat: ${result.throwable}",
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
-                    },
-                    onUpdateProfile = {
-                        nav.navigate(Routes.mentorProfile("profile")) {
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    onOpenSettings = {
-                        nav.navigate(Routes.mentorProfile("settings")) {
-                            launchSingleTop = true
-                            restoreState = true
+                        AppResult.Loading -> {
+                            // Should not happen
                         }
                     }
-                )
+                }
+            },
+            onBookSlot = { mentor, occurrenceId, date, startTime, endTime, priceVnd, note ->
+                nav.currentBackStackEntry?.savedStateHandle?.set("booking_notes", note)
+                nav.currentBackStackEntry?.savedStateHandle?.set("booking_mentor_name", mentor.name)
+                nav.navigate("bookingSummary/${mentor.id}/$date/$startTime/$endTime/$priceVnd/$occurrenceId")
+            },
+            onOverlayOpened = { onOverlayVisibleChange(true) },
+            onOverlayClosed = { onOverlayVisibleChange(false) }
+        )
+    }
+
+    // ---------- MENTOR SCREENS ----------
+    composable(Routes.MentorDashboard) {
+        val profileVm: com.mentorme.app.ui.profile.ProfileViewModel = hiltViewModel()
+        MentorDashboardScreen(
+            vm = profileVm,
+            onViewSchedule = {
+                nav.navigate(Routes.MentorCalendar) {
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            },
+            onViewStudents = { Log.d("AppNav", "Navigate to students list - TODO") },
+            onViewEarnings = { Log.d("AppNav", "Navigate to earnings - TODO") },
+            onViewReviews = { Log.d("AppNav", "Navigate to reviews - TODO") },
+            onJoinSession = { sessionId ->
+                nav.navigate(Routes.videoCall(sessionId)) {
+                    launchSingleTop = true
+                }
+            },
+            onViewAllSessions = {
+                nav.navigate(Routes.MentorCalendar) {
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            },
+            onUpdateProfile = {
+                nav.navigate(Routes.mentorProfile("profile")) {
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            },
+            onOpenSettings = {
+                nav.navigate(Routes.mentorProfile("settings")) {
+                    launchSingleTop = true
+                    restoreState = true
+                }
             }
 
             composable(Routes.MentorCalendar) {
@@ -370,47 +417,82 @@ internal fun AppNavGraph(
                 )
             }
 
-            composable(Routes.search) {
-                SearchMentorScreen(
-                    onOpenProfile = { /* handled by sheet inside SearchMentorScreen */ },
-                    onBook = { id ->
-                        val targetId = if (id.startsWith("m") && id.drop(1)
-                                .all { it.isDigit() }
-                        ) id.drop(1) else id
-                        nav.navigate("booking/$targetId")
-                    },
-                    onBookSlot = { mentor, occurrenceId, date, startTime, endTime, priceVnd, note ->
-                        nav.currentBackStackEntry?.savedStateHandle?.set("booking_notes", note)
-                        nav.currentBackStackEntry?.savedStateHandle?.set(
-                            "booking_mentor_name",
-                            mentor.name
-                        )
-                        nav.navigate("bookingSummary/${mentor.id}/$date/$startTime/$endTime/$priceVnd/$occurrenceId")
-                    },
-                    onOverlayOpened = { onOverlayVisibleChange(true) },
-                    onOverlayClosed = { onOverlayVisibleChange(false) }
-                )
-            }
-
-            composable(
-                route = Routes.CalendarWithTab,
-                arguments = listOf()
-            ) { backStackEntry ->
-                val tabArg = backStackEntry.arguments?.getString("tab")
-                MenteeCalendarScreen(
-                    startTab = CalendarTab.fromRouteArg(tabArg),
-                    onOpenDetail = { booking ->
-                        nav.navigate("booking_detail/${booking.id}")
+    composable(Routes.search) {
+        SearchMentorScreen(
+            onOpenProfile = { /* handled by sheet inside SearchMentorScreen */ },
+            onBook = { id ->
+                val targetId = if (id.startsWith("m") && id.drop(1).all { it.isDigit() }) id.drop(1) else id
+                nav.navigate("booking/$targetId")
+            },
+            onMessage = { mentorId ->
+                //  STEP C: Open chat with mentor
+                scope.launch {
+                    when (val result = getConversationUseCase(mentorId)) {
+                        is AppResult.Success -> {
+                            val conversationId = result.data
+                            if (conversationId != null) {
+                                // Conversation exists, navigate to chat
+                                nav.navigate("${Routes.Chat}/$conversationId") {
+                                    launchSingleTop = true
+                                }
+                            } else {
+                                // No conversation exists - need to book first
+                                Toast.makeText(
+                                    context,
+                                    "Bạn cần đặt lịch với mentor này trước khi có thể nhắn tin",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                        is AppResult.Error -> {
+                            Toast.makeText(
+                                context,
+                                "Không thể mở chat: ${result.throwable}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                        AppResult.Loading -> {
+                            // Should not happen
+                        }
                     }
-                )
+                }
+            },
+            onBookSlot = { mentor, occurrenceId, date, startTime, endTime, priceVnd, note ->
+                nav.currentBackStackEntry?.savedStateHandle?.set("booking_notes", note)
+                nav.currentBackStackEntry?.savedStateHandle?.set("booking_mentor_name", mentor.name)
+                nav.navigate("bookingSummary/${mentor.id}/$date/$startTime/$endTime/$priceVnd/$occurrenceId")
+            },
+            onOverlayOpened = { onOverlayVisibleChange(true) },
+            onOverlayClosed = { onOverlayVisibleChange(false) }
+        )
+    }
+
+    composable(
+        route = Routes.CalendarWithTab,
+        arguments = listOf()
+    ) { backStackEntry ->
+        val tabArg = backStackEntry.arguments?.getString("tab")
+        MenteeCalendarScreen(
+            startTab = CalendarTab.fromRouteArg(tabArg),
+            onJoinSession = { booking ->
+                nav.navigate(Routes.videoCall(booking.id)) {
+                    launchSingleTop = true
+                }
+            },
+            onOpenDetail = { booking ->
+                nav.navigate("booking_detail/${booking.id}")
             }
 
             composable("booking_detail/{bookingId}") { backStackEntry ->
-                val bookingId =
-                    backStackEntry.arguments?.getString("bookingId") ?: return@composable
+                val bookingId = backStackEntry.arguments?.getString("bookingId") ?: return@composable
                 BookingDetailScreen(
                     bookingId = bookingId,
-                    onBack = { nav.popBackStack() }
+                    onBack = { nav.popBackStack() },
+                    onJoinSession = { bookingId ->
+                        nav.navigate(Routes.videoCall(bookingId)) {
+                            launchSingleTop = true
+                        }
+                    }
                 )
             }
 
@@ -420,60 +502,79 @@ internal fun AppNavGraph(
                 })
             }
 
-            composable(Routes.Notifications) {
-                NotificationsScreen(
-                    onBack = { nav.popBackStack() },
-                    onOpenDetail = { route -> nav.navigate(route) },
-                    viewModel = notificationsVm
-                )
+    composable(Routes.Notifications) {
+        NotificationsScreen(
+            onBack = { nav.popBackStack() },
+            onOpenDetail = { route -> nav.navigate(route) },
+            onJoinSession = { bookingId ->
+                nav.navigate(Routes.videoCall(bookingId)) {
+                    launchSingleTop = true
+                }
+            },
+            viewModel = notificationsVm
+        )
+    }
+
+    composable(Routes.NotificationDetail) { backStackEntry ->
+        val notificationId = backStackEntry.arguments?.getString("notificationId")
+            ?: return@composable
+        NotificationDetailScreen(
+            notificationId = notificationId,
+            onBack = { nav.popBackStack() },
+            onJoinSession = { bookingId ->
+                nav.navigate(Routes.videoCall(bookingId)) {
+                    launchSingleTop = true
+                }
             }
+        )
+    }
 
-            composable(Routes.NotificationDetail) { backStackEntry ->
-                val notificationId = backStackEntry.arguments?.getString("notificationId")
-                    ?: return@composable
-                NotificationDetailScreen(
-                    notificationId = notificationId,
-                    onBack = { nav.popBackStack() }
-                )
+    composable("${Routes.Chat}/{conversationId}") { backStackEntry ->
+        val convId = backStackEntry.arguments?.getString("conversationId") ?: return@composable
+        ChatScreen(
+            conversationId = convId,
+            onBack = { nav.popBackStack() },
+            onJoinSession = {
+                nav.navigate(Routes.videoCall(convId)) {
+                    launchSingleTop = true
+                }
+            },
+            onOpenBookingDetail = { bookingId ->
+                nav.navigate("booking_detail/$bookingId")
             }
+        )
+    }
 
-            composable("${Routes.Chat}/{conversationId}") { backStackEntry ->
-                val convId =
-                    backStackEntry.arguments?.getString("conversationId") ?: return@composable
-                ChatScreen(
-                    conversationId = convId,
-                    onBack = { nav.popBackStack() },
-                    onJoinSession = { /* TODO */ }
-                )
-            }
+    composable("${Routes.VideoCall}/{bookingId}") { backStackEntry ->
+        val bookingId = backStackEntry.arguments?.getString("bookingId") ?: return@composable
+        VideoCallScreen(
+            bookingId = bookingId,
+            onBack = { nav.popBackStack() }
+        )
+    }
 
-            composable(Routes.Profile) {
-                val localAuthVm = hiltViewModel<AuthViewModel>()
-                val profileVm = hiltViewModel<com.mentorme.app.ui.profile.ProfileViewModel>()
-                val profileEntry = remember { nav.getBackStackEntry(Routes.Profile) }
-                val walletVm: WalletViewModel = hiltViewModel(profileEntry)
+    composable(Routes.Profile) {
+        val localAuthVm = hiltViewModel<AuthViewModel>()
+        val profileVm = hiltViewModel<com.mentorme.app.ui.profile.ProfileViewModel>()
+        val profileEntry = remember { nav.getBackStackEntry(Routes.Profile) }
+        val walletVm: WalletViewModel = hiltViewModel(profileEntry)
 
-                ProfileScreen(
-                    vm = profileVm,
-                    user = UserHeader(
-                        fullName = "Nguyễn Văn A",
-                        email = "a@example.com",
-                        role = UserRole.MENTEE
-                    ),
-                    notificationsViewModel = notificationsVm,
-                    walletViewModel = walletVm,
-                    onOpenNotifications = { nav.navigate(Routes.Notifications) },
-                    onOpenTopUp = { nav.navigate(Routes.TopUp) },
-                    onOpenWithdraw = { nav.navigate(Routes.Withdraw) },
-                    onOpenChangeMethod = { nav.navigate(Routes.PaymentMethods) },
-                    onAddMethod = { nav.navigate(Routes.AddPaymentMethod) },
-                    onLogout = {
-                        localAuthVm.signOut {
-                            nav.navigate(Routes.Auth) {
-                                popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
-                                launchSingleTop = true
-                            }
-                        }
+        ProfileScreen(
+            vm = profileVm,
+            user = UserHeader(fullName = "Nguyễn Văn A", email = "a@example.com", role = UserRole.MENTEE),
+            notificationsViewModel = notificationsVm,
+            walletViewModel = walletVm,
+            onOpenNotifications = { nav.navigate(Routes.Notifications) },
+            onOpenTopUp = { nav.navigate(Routes.TopUp) },
+            onOpenWithdraw = { nav.navigate(Routes.Withdraw) },
+            onOpenChangeMethod = { nav.navigate(Routes.PaymentMethods) },
+            onAddMethod = { nav.navigate(Routes.AddPaymentMethod) },
+            methods = payMethods,
+            onLogout = {
+                localAuthVm.signOut {
+                    nav.navigate(Routes.Auth) {
+                        popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
+                        launchSingleTop = true
                     }
                 )
             }

@@ -15,11 +15,9 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Timelapse
+import androidx.compose.material.icons.filled.VideoCall
 import androidx.compose.material.icons.filled.WorkspacePremium
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -38,9 +36,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.mentorme.app.ui.components.ui.GlassOverlay
 import com.mentorme.app.ui.components.ui.MMButton
-import com.mentorme.app.ui.mentors.MentorCard
+import com.mentorme.app.ui.components.session.ActiveSessionBanner
 import com.mentorme.app.ui.search.components.BookSessionContent
 import com.mentorme.app.ui.search.components.MentorDetailSheet
 import com.mentorme.app.ui.theme.LiquidGlassCard
@@ -102,6 +106,8 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     onSearch: (String) -> Unit = {},
     onNavigateToMentors: () -> Unit = {},
+    onJoinSession: (String) -> Unit = {},
+    onMessage: (String) -> Unit = {}, //  NEW: Callback to open chat with mentorId
     onBookSlot: (
         mentor: Mentor,
         occurrenceId: String,
@@ -226,6 +232,17 @@ fun HomeScreen(
         // Show content when loaded
         if (!uiState.isLoading || uiState.isRefreshing) {
 
+        // Active Session Banner - hiển thị khi có mentee đang đợi
+        uiState.waitingSession?.let { session ->
+            item {
+                ActiveSessionBanner(
+                    bookingId = session.bookingId,
+                    menteeName = session.menteeName,
+                    onJoinSession = onJoinSession,
+                    onDismiss = { viewModel.dismissWaitingSession() }
+                )
+            }
+        }
 
         item { SectionTitle("Thống kê nhanh") }
         items(quickStats.chunked(2)) { row ->
@@ -321,13 +338,15 @@ fun HomeScreen(
             )
         }
         items(uiState.featuredMentors) { mentor ->
-            MentorCard(
+            HomeMentorCard(
                 mentor = mentor,
                 onViewProfile = {
+                    // ✅ Trigger GlassOverlay with MentorDetailSheet
                     selectedMentor = mentor
                     showDetail = true
                 },
                 onBookSession = {
+                    // ✅ Trigger GlassOverlay with BookSessionContent
                     selectedMentor = mentor
                     showBooking = true
                 }
@@ -458,7 +477,12 @@ fun HomeScreen(
                             showDetail = false
                             showBooking = true
                         },
-                        onMessage = { _ -> /* TODO */ }
+                        onMessage = { mentorId ->
+                            //  Close sheet first
+                            showDetail = false
+                            //  Trigger parent callback
+                            onMessage(mentorId)
+                        }
                     )
                 }
                 showBooking -> {
@@ -511,3 +535,211 @@ private fun SectionHeader(title: String, subtitle: String) {
         )
     }
 }
+
+
+// ===== HOME MENTOR CARD - Premium Glassmorphism (Private component) =====
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun HomeMentorCard(
+    mentor: Mentor,
+    onViewProfile: () -> Unit,
+    onBookSession: () -> Unit
+) {
+    LiquidGlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        radius = 22.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Row 1: Avatar + Name + Title + Rating
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                // Avatar
+                val avatarUrl = mentor.imageUrl.trim()
+                val initials = mentor.name
+                    .trim()
+                    .split(Regex("\\s+"))
+                    .filter { it.isNotBlank() }
+                    .mapNotNull { it.firstOrNull() }
+                    .take(2)
+                    .joinToString("")
+
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFF667eea), Color(0xFF764ba2))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (avatarUrl.isNotBlank()) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(avatarUrl)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.matchParentSize().clip(CircleShape)
+                        )
+                    } else {
+                        Text(
+                            text = initials,
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                // Name + Title
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = mentor.name,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = mentor.role,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.8f)
+                    )
+                    if (mentor.company.isNotBlank()) {
+                        Text(
+                            text = mentor.company,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+
+                // Rating pill (top-right)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White.copy(alpha = 0.12f))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = null,
+                            tint = Color(0xFFFFD700),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "${mentor.rating}",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            // Row 2: Skills (FlowRow with glass chips)
+            if (mentor.skills.isNotEmpty()) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    mentor.skills.take(4).forEach { skill ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.White.copy(alpha = 0.12f))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = skill,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.9f)
+                            )
+                        }
+                    }
+                    if (mentor.skills.size > 4) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.White.copy(alpha = 0.12f))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = "+${mentor.skills.size - 4}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.75f)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Row 3: Action Buttons (✅ CRITICAL - Matching MentorDetailSheet style)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Button 2: View Profile (Ghost style)
+                Surface(
+                    onClick = onViewProfile,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color.White.copy(alpha = 0.1f)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.padding(vertical = 12.dp)
+                    ) {
+                        Text(
+                            "Xem hồ sơ",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White.copy(alpha = 0.9f)
+                        )
+                    }
+                }
+
+                // Button 1: Book Session (✅ Vibrant Blue #2563EB)
+                if (mentor.isAvailable) {
+                    Button(
+                        onClick = onBookSession,
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2563EB), // ✅ Vibrant Blue
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.VideoCall,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Đặt lịch",
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+

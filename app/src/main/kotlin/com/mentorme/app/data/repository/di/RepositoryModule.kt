@@ -14,6 +14,8 @@ import com.mentorme.app.data.repository.review.ReviewRepository
 import com.mentorme.app.data.repository.review.ReviewRepositoryImpl
 import com.mentorme.app.data.repository.notifications.NotificationRepository
 import com.mentorme.app.data.repository.notifications.NotificationRepositoryImpl
+import com.mentorme.app.data.repository.chat.ChatRepository
+import com.mentorme.app.data.repository.chat.impl.ChatRepositoryImpl
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -69,6 +71,12 @@ abstract class RepositoryModule {
     abstract fun bindNotificationRepository(
         impl: NotificationRepositoryImpl
     ): NotificationRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindChatRepository(
+        impl: ChatRepositoryImpl
+    ): ChatRepository
 }
 
 // --- Use case providers ---

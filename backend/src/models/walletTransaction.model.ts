@@ -52,6 +52,7 @@ const WalletTransactionSchema = new Schema<IWalletTransaction>(
     source: {
       type: String,
       enum: [
+        "BOOKING_EARN",
         "MANUAL_TOPUP",
         "MANUAL_WITHDRAW",
         "BOOKING_PAYMENT",
@@ -76,12 +77,12 @@ const WalletTransactionSchema = new Schema<IWalletTransaction>(
     balanceBeforeMinor: {
       type: Number,
       required: true,
-      min: 0,
+      // Removed min: 0 to allow negative balance in test mode
     },
     balanceAfterMinor: {
       type: Number,
       required: true,
-      min: 0,
+      // Removed min: 0 to allow negative balance in test mode
     },
     referenceType: {
       type: String,

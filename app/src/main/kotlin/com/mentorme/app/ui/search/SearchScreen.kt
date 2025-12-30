@@ -74,6 +74,7 @@ fun SearchMentorScreen(
     mentors: List<HomeMentor> = SearchMockData.mentors,
     onOpenProfile: (String) -> Unit = {},
     onBook: (String) -> Unit = {},
+    onMessage: (String) -> Unit = {}, //  NEW: Callback to open chat with mentorId
     onBookSlot: (
         mentor: HomeMentor,
         occurrenceId: String,
@@ -411,7 +412,12 @@ fun SearchMentorScreen(
                                     showDetail = false
                                     showBooking = true
                                 },
-                                onMessage = { _ -> /* TODO */ }
+                                onMessage = { mentorId ->
+                                    //  Close sheet first
+                                    showDetail = false
+                                    //  Trigger parent callback
+                                    onMessage(mentorId)
+                                }
                             )
                         }
                         showBooking -> {

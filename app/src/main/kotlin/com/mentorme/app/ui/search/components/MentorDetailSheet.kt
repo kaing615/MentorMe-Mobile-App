@@ -1,5 +1,6 @@
 package com.mentorme.app.ui.search.components
 
+import android.app.Activity
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -13,16 +14,25 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.VideoCall
+import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.mentorme.app.ui.home.Mentor as HomeMentor
 import com.mentorme.app.core.utils.Logx
 import com.mentorme.app.data.dto.profile.ProfileDto
@@ -76,6 +86,7 @@ fun MentorDetailSheet(
     onMessage: (String) -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val view = LocalView.current
     val deps = remember(context) { EntryPointAccessors.fromApplication(context, MentorDetailDeps::class.java) }
     val getCalendar = remember { deps.getPublicCalendarUseCase() }
     val getProfile = remember { deps.getPublicProfileUseCase() }
@@ -84,6 +95,24 @@ fun MentorDetailSheet(
     var loading by remember { mutableStateOf(true) }
     var profile by remember { mutableStateOf<ProfileDto?>(null) }
     var profileLoading by remember { mutableStateOf(false) }
+
+    // ✅ IMMERSIVE MODE: Hide Status Bar when this sheet is shown
+    DisposableEffect(Unit) {
+        val window = (context as? Activity)?.window
+        val insetsController = window?.let { WindowCompat.getInsetsController(it, view) }
+
+        insetsController?.apply {
+            // Hide status bar
+            hide(WindowInsetsCompat.Type.statusBars())
+            // Make it show again with swipe
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+
+        onDispose {
+            // ✅ RESTORE: Show status bar when leaving this screen
+            insetsController?.show(WindowInsetsCompat.Type.statusBars())
+        }
+    }
 
     LaunchedEffect(mentorId) {
         loading = true
@@ -165,26 +194,31 @@ fun MentorDetailContent(
     var activeTab by remember { mutableStateOf(0) }
 
     CompositionLocalProvider(LocalContentColor provides Color.White) {
-        Column(Modifier.fillMaxSize().padding(top = 24.dp)) {
-            // Header
+        Column(Modifier.fillMaxSize()) {
+            //  Top spacer to prevent title from being too close to screen bezel/camera cutout
+            Spacer(Modifier.height(32.dp))
+
+            // Header - Clean & Minimal
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 4.dp),
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "✨ Chi tiết mentor",
+                    "Chi tiết mentor",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
                 )
-                IconButton(onClick = onClose) { Icon(Icons.Default.Close, null) }
+                IconButton(onClick = onClose) {
+                    Icon(Icons.Default.Close, null, tint = Color.White.copy(alpha = 0.9f))
+                }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(16.dp))
 
-            // Top summary
+            // Top summary - Cleaner layout
             val profileName = profile?.fullName?.trim().orEmpty()
             val displayName = if (profileName.isNotBlank()) profileName else mentor.name
             val headline = profile?.headline?.trim().takeIf { !it.isNullOrBlank() }
@@ -196,84 +230,100 @@ fun MentorDetailContent(
                 profile?.location?.trim().takeIf { !it.isNullOrBlank() }
             ).joinToString(" • ")
 
-            Column(Modifier.padding(horizontal = 16.dp)) {
+            Column(Modifier.padding(horizontal = 20.dp)) {
                 Text(
                     displayName,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 Text(
                     subtitle.ifBlank { baseRole },
-                    style = MaterialTheme.typography.bodySmall
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.8f)
                 )
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    AssistChip(
-                        onClick = {},
-                        label = { Text("⭐ ${"%.1f".format(mentor.rating)}", modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) },
-                        modifier = Modifier.defaultMinSize(minWidth = 112.dp, minHeight = 36.dp),
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = Color.White.copy(0.14f)
-                        ),
-                        border = AssistChipDefaults.assistChipBorder(
-                            enabled = true,
-                            borderColor = Color.White.copy(0.28f),
-                            borderWidth = 1.dp
-                        ),
-                        shape = RoundedCornerShape(16.dp)
-                    )
-                    AssistChip(
-                        onClick = {},
-                        label = { Text("${mentor.hourlyRate} VNĐ/giờ", modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) },
-                        modifier = Modifier.defaultMinSize(minWidth = 112.dp, minHeight = 36.dp),
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = Color.White.copy(0.14f)
-                        ),
-                        border = AssistChipDefaults.assistChipBorder(
-                            enabled = true,
-                            borderColor = Color.White.copy(0.28f),
-                            borderWidth = 1.dp
-                        ),
-                        shape = RoundedCornerShape(16.dp)
-                    )
-                }
                 Spacer(Modifier.height(16.dp))
 
-                // Stacked CTAs
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // Rating & Price - Cleaner chips without heavy borders
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color.White.copy(0.16f)
+                    ) {
+                        Text(
+                            "⭐ ${"%.1f".format(mentor.rating)}",
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color.White.copy(0.16f)
+                    ) {
+                        Text(
+                            "${mentor.hourlyRate} VNĐ/giờ",
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+                Spacer(Modifier.height(20.dp))
+
+                //  Action Buttons - Professional Blue Primary + Taller Height (56.dp)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // PRIMARY: Book Now (Professional Blue, Solid, High contrast)
                     Button(
                         onClick = { onBookNow(mentor.id) },
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 56.dp), // ✅ Increased from 50.dp
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2563EB), // ✅ Professional Blue instead of Green
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(16.dp)
                     ) {
                         Icon(Icons.Default.CalendarToday, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Đặt lịch ngay")
+                        Text("Đặt lịch", fontWeight = FontWeight.SemiBold)
                     }
-                    OutlinedButton(
+
+                    // SECONDARY: Message (Subtle)
+                    Surface(
                         onClick = { onMessage(mentor.id) },
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f))
+                        modifier = Modifier
+                            .weight(0.38f)
+                            .heightIn(min = 56.dp), // ✅ Increased from 50.dp
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color.White.copy(alpha = 0.1f)
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.Message, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Nhắn tin")
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.Message,
+                                contentDescription = "Message",
+                                tint = Color.White.copy(alpha = 0.9f)
+                            )
+                        }
                     }
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(24.dp))
 
-            // Edge-to-edge segmented tabs (pill)
+            //  Cleaner segmented tabs with increased height
             SegmentedTabs(
                 titles = listOf("Tổng quan", "Kinh nghiệm", "Đánh giá", "Lịch trống"),
                 selectedIndex = activeTab,
                 onSelect = { activeTab = it },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
             )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(20.dp))
 
             // Content
             when (activeTab) {
@@ -286,7 +336,7 @@ fun MentorDetailContent(
     }
 }
 
-// ✅ Thay thế toàn bộ SegmentedTabs hiện tại bằng phiên bản này
+//  Clean, borderless segmented tabs
 @Composable
 fun SegmentedTabs(
     titles: List<String>,
@@ -294,39 +344,39 @@ fun SegmentedTabs(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val outerShape = RoundedCornerShape(18.dp)
+    val outerShape = RoundedCornerShape(20.dp)
     Surface(
-        modifier = modifier
-            .fillMaxWidth(),
-        color = Color.White.copy(alpha = 0.12f),
-        shape = outerShape,
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f))
+        modifier = modifier.fillMaxWidth(),
+        color = Color.White.copy(alpha = 0.08f), // Subtle background
+        shape = outerShape
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(4.dp),
+                .padding(8.dp), //  Increased internal padding from 6.dp to 8.dp
             verticalAlignment = Alignment.CenterVertically
         ) {
             titles.forEachIndexed { index, title ->
                 val selected = index == selectedIndex
-                val innerShape = RoundedCornerShape(14.dp)
+                val innerShape = RoundedCornerShape(16.dp)
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = 46.dp)
+                        .heightIn(min = 54.dp) //  Increased from 44.dp to 54.dp
                         .clip(innerShape)
-                        .background(if (selected) Color.White.copy(alpha = 0.28f) else Color.Transparent)
+                        .background(if (selected) Color.White.copy(alpha = 0.22f) else Color.Transparent)
                         .clickable { onSelect(index) },
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.labelMedium, //  Changed from labelLarge for better fit
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (selected) Color.White else Color.White.copy(alpha = 0.7f),
                         maxLines = 1,
                         softWrap = false,
                         overflow = TextOverflow.Ellipsis,
-                        letterSpacing = 0.2.sp
+                        letterSpacing = 0.15.sp // ✅ Slightly tighter spacing
                     )
                 }
             }
@@ -342,85 +392,153 @@ private fun OverviewTab(mentor: HomeMentor, profile: ProfileDto?) {
         ?: profile?.headline?.trim().takeIf { !it.isNullOrBlank() }
         ?: "Senior ${mentor.role} với nhiều kinh nghiệm thực chiến. Chia sẻ về lộ trình, kỹ năng và định hướng."
     val skills = (profile?.skills?.filter { it.isNotBlank() } ?: mentor.skills).filter { it.isNotBlank() }
-    val languages = profile?.languages?.filter { it.isNotBlank() } ?: emptyList()
-    val infoLines = mutableListOf<String>()
-    if (languages.isNotEmpty()) {
-        infoLines.add("Ngôn ngữ: ${languages.joinToString(", ")}")
-    } else {
-        infoLines.add("Ngôn ngữ: Tiếng Việt, English")
-    }
-    profile?.location?.trim()?.takeIf { it.isNotBlank() }?.let { loc ->
-        infoLines.add("Địa điểm: $loc")
-    }
-    infoLines.add("Hình thức: Online")
+    val languages = profile?.languages?.filter { it.isNotBlank() } ?: listOf("Tiếng Việt", "English")
+    val location = profile?.location?.trim()?.takeIf { it.isNotBlank() } ?: "Online"
+
     LazyColumn(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
+        // Bio/Description - Keep one subtle card for long text
         item {
             Surface(
-                color = Color.White.copy(alpha = 0.12f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f)),
-                shape = RoundedCornerShape(16.dp),
+                color = Color.White.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(18.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     summaryText,
-                    modifier = Modifier.padding(18.dp),
-                    style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp)
+                    modifier = Modifier.padding(20.dp),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        lineHeight = 24.sp,
+                        color = Color.White.copy(alpha = 0.95f)
+                    )
                 )
             }
         }
+
+        // Skills - Keep chips but cleaner
         if (skills.isNotEmpty()) {
             item {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    skills.forEach {
-                        AssistChip(
-                            onClick = {},
-                            label = { Text(it, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) },
-                            modifier = Modifier.defaultMinSize(minWidth = 112.dp, minHeight = 36.dp),
-                            colors = AssistChipDefaults.assistChipColors(
-                                containerColor = Color.White.copy(alpha = 0.14f)
-                            ),
-                            border = AssistChipDefaults.assistChipBorder(
-                                enabled = true,
-                                borderColor = Color.White.copy(alpha = 0.28f),
-                                borderWidth = 1.dp
-                            ),
-                            shape = RoundedCornerShape(16.dp)
-                        )
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "Chuyên môn",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White.copy(alpha = 0.9f)
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        skills.forEach { skill ->
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = Color.White.copy(alpha = 0.12f)
+                            ) {
+                                Text(
+                                    skill,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
-        items(infoLines) { line ->
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = Color.White.copy(alpha = 0.12f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(line, modifier = Modifier.padding(16.dp))
+
+        // Info rows - NO MORE SURFACE WRAPPERS!
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Languages
+                InfoRow(
+                    icon = Icons.Default.Language,
+                    label = "Ngôn ngữ",
+                    value = languages.joinToString(", ")
+                )
+
+                // Location
+                InfoRow(
+                    icon = Icons.Default.LocationOn,
+                    label = "Địa điểm",
+                    value = location
+                )
+
+                // Format
+                InfoRow(
+                    icon = Icons.Default.VideoCall,
+                    label = "Hình thức",
+                    value = "Online"
+                )
             }
+        }
+    }
+}
+
+// Helper composable for clean info rows
+@Composable
+private fun InfoRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Color.White.copy(alpha = 0.7f),
+            modifier = Modifier.size(20.dp)
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.6f)
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.95f)
+            )
         }
     }
 }
 
 @Composable
 private fun ExperienceTab(profile: ProfileDto?) {
-    val entries = mutableListOf<String>()
-    profile?.experience?.trim()?.takeIf { it.isNotBlank() }?.let { entries.add(it) }
-    profile?.education?.trim()?.takeIf { it.isNotBlank() }?.let { entries.add(it) }
+    data class ExperienceEntry(
+        val type: String, // "work" or "education"
+        val content: String
+    )
+
+    val entries = mutableListOf<ExperienceEntry>()
+
+    profile?.experience?.trim()?.takeIf { it.isNotBlank() }?.let {
+        entries.add(ExperienceEntry("work", it))
+    }
+    profile?.education?.trim()?.takeIf { it.isNotBlank() }?.let {
+        entries.add(ExperienceEntry("education", it))
+    }
+
     if (entries.isEmpty()) {
         entries.addAll(
             listOf(
-                "Senior Software Engineer • 2020 - nay • Tech Company\nPhát triển hệ thống backend phục vụ hàng triệu người dùng.",
-                "Software Engineer • 2018 - 2020 • Startup\nXây dựng sản phẩm từ giai đoạn đầu, làm việc trong team nhỏ."
+                ExperienceEntry(
+                    "work",
+                    "Senior Software Engineer • 2020 - nay • Tech Company\nPhát triển hệ thống backend phục vụ hàng triệu người dùng."
+                ),
+                ExperienceEntry(
+                    "work",
+                    "Software Engineer • 2018 - 2020 • Startup\nXây dựng sản phẩm từ giai đoạn đầu, làm việc trong team nhỏ."
+                )
             )
         )
     }
@@ -428,16 +546,38 @@ private fun ExperienceTab(profile: ProfileDto?) {
     LazyColumn(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        items(entries) { s ->
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = Color.White.copy(alpha = 0.12f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f)),
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(s, modifier = Modifier.padding(18.dp), style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp)) }
+        items(entries) { entry ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                // Icon based on type
+                Icon(
+                    imageVector = if (entry.type == "education")
+                        Icons.Default.School
+                    else
+                        Icons.Default.Work,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.7f),
+                    modifier = Modifier
+                        .size(22.dp)
+                        .padding(top = 2.dp)
+                )
+
+                // Content
+                Text(
+                    entry.content,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        lineHeight = 24.sp,
+                        color = Color.White.copy(alpha = 0.95f)
+                    )
+                )
+            }
         }
     }
 }

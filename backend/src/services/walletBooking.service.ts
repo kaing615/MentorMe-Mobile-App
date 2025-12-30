@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
+import Booking from "../models/booking.model";
 import Wallet from "../models/wallet.model";
 import WalletTransaction from "../models/walletTransaction.model";
-import Booking from "../models/booking.model";
 
 /* -------------------- Retry helper -------------------- */
 

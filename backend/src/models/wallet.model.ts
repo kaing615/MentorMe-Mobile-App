@@ -25,7 +25,7 @@ const WalletSchema = new Schema<IWallet>(
       type: Number,
       required: true,
       default: 0,
-      min: 0,
+      // Removed min: 0 to allow negative balance in test mode
     },
     currency: {
       type: String,

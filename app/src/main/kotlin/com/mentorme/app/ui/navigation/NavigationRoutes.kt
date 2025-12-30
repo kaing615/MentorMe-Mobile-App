@@ -24,6 +24,8 @@ object Routes {
     const val Messages = "messages"
     const val Profile = "profile"
     const val Chat = "chat"
+    const val VideoCall = "video_call"
+    fun videoCall(bookingId: String) = "$VideoCall/$bookingId"
     const val search = "search"
 
     const val TopUp = "wallet/topup"

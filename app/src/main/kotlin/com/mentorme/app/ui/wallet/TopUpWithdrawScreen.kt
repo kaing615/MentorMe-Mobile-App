@@ -353,7 +353,6 @@ fun WithdrawScreen(
                         }
                     }
 
-
                     MMPrimaryButton(
                         onClick = { if (canWithdraw) showConfirm = true },
                         modifier = Modifier.fillMaxWidth().alpha(if (canWithdraw) 1f else 0.5f)

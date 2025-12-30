@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.filled.VideoCall
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DoneAll
 import androidx.compose.material.icons.outlined.Notifications
@@ -74,6 +75,7 @@ fun NotificationsScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
     onOpenDetail: (String) -> Unit = {},
+    onJoinSession: (String) -> Unit = {},
     showDetailDialog: Boolean = true,
     viewModel: NotificationsViewModel = hiltViewModel()
 ) {
@@ -184,6 +186,7 @@ fun NotificationsScreen(
                                             onOpenDetail(detailRoute)
                                         }
                                     },
+                                    onJoinSession = onJoinSession,
                                     onMarkRead = { viewModel.markRead(it) }
                                 )
                             }
@@ -214,7 +217,8 @@ private fun NotificationFilterBar(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .liquidGlass(radius = 18.dp, alpha = 0.14f, borderAlpha = 0.28f)
+            .background(Color.White.copy(alpha = 0.08f)) // ✅ Frosted Mist: Soft glass pill
+            .border(1.dp, Color.White.copy(alpha = 0.15f), shape) // ✅ Gentle border
             .padding(4.dp)
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -254,11 +258,14 @@ private fun NotificationFilterOption(
         .clip(shape)
         .clickable(onClick = onClick)
 
-    val containerModifier = baseModifier.liquidGlass(
-        radius = 14.dp,
-        alpha = if (selected) 0.22f else 0.1f,
-        borderAlpha = if (selected) 0.45f else 0.25f
-    )
+    val containerModifier = if (selected) {
+        baseModifier
+            .background(Color.White.copy(alpha = 0.2f)) // ✅ Active: Distinct frosted layer
+            .border(1.dp, Color.White.copy(alpha = 0.3f), shape)
+    } else {
+        baseModifier
+            .background(Color.Transparent)
+    }
 
     Box(modifier = containerModifier, contentAlignment = Alignment.Center) {
         Row(
@@ -312,30 +319,36 @@ private fun NotificationEmptyState(
 private fun NotificationRow(
     item: NotificationItem,
     onOpenDetail: () -> Unit,
+    onJoinSession: (String) -> Unit = {},
     onMarkRead: (String) -> Unit
 ) {
     val typeStyle = notificationTypeStyle(item.type)
-    val isBooking = isBookingNotification(item.type)
-    val cardAlpha = when {
-        isBooking && !item.read -> 0.3f
-        isBooking && item.read -> 0.2f
-        !item.read -> 0.22f
-        else -> 0.12f
+
+    // Extract booking ID from deepLink
+    val bookingId = item.deepLink?.let { link ->
+        when {
+            link.startsWith("booking_detail/") -> link.removePrefix("booking_detail/")
+            link.startsWith("video_call/") -> link.removePrefix("video_call/")
+            else -> null
+        }
     }
-    val borderAlpha = when {
-        isBooking && !item.read -> 0.65f
-        isBooking && item.read -> 0.45f
-        !item.read -> 0.4f
-        else -> 0.25f
-    }
-    val cardTint = Color.White
-    val unreadOverlay = if (!item.read) Color(0xFF22C55E).copy(alpha = 0.16f) else Color.Transparent
+    
+    val showJoinButton = bookingId != null && (
+        item.type == com.mentorme.app.data.model.NotificationType.BOOKING_REMINDER ||
+        item.type == com.mentorme.app.data.model.NotificationType.BOOKING_CONFIRMED
+    )
+    
+    // ✅ Soft & Airy Frosted Mist Style: White tint with gentle alpha
+    val cardAlpha = if (!item.read) 0.20f else 0.08f // Unread: Distinct frosted | Read: Very subtle
+    val borderAlpha = 0.25f // ✅ Soft white outline
+    val cardTint = Color.White // ✅ White tint for Frosted Mist
+    val unreadOverlay = if (!item.read) Color(0xFF22C55E).copy(alpha = 0.08f) else Color.Transparent // ✅ Very subtle green tint
 
     LiquidGlassCard(
         radius = 22.dp,
         alpha = cardAlpha,
         borderAlpha = borderAlpha,
-        strong = isBooking,
+        strong = false,
         tint = cardTint
     ) {
         if (!item.read) {
@@ -345,6 +358,9 @@ private fun NotificationRow(
                     .background(unreadOverlay)
             )
         }
+        Column(
+            modifier = Modifier.fillMaxWidth()
+        ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -376,7 +392,8 @@ private fun NotificationRow(
                         item.title,
                         fontWeight = if (item.read) FontWeight.Medium else FontWeight.SemiBold,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        color = Color.White // ✅ Ensure white text
                     )
                     if (!item.read) {
                         Spacer(Modifier.width(6.dp))
@@ -384,7 +401,7 @@ private fun NotificationRow(
                             modifier = Modifier
                                 .size(8.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF22D3EE))
+                                .background(Color(0xFF22D3EE)) // Blue dot indicator
                         )
                     }
                 }
@@ -414,6 +431,29 @@ private fun NotificationRow(
                     )
                 }
             }
+        }
+        
+        // Join Session button for booking notifications
+        if (showJoinButton && bookingId != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 14.dp, end = 14.dp, bottom = 14.dp)
+            ) {
+                MMGhostButton(
+                    onClick = { onJoinSession(bookingId) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        androidx.compose.material.icons.Icons.Default.VideoCall,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Join Session")
+                }
+            }
+        }
         }
     }
 }

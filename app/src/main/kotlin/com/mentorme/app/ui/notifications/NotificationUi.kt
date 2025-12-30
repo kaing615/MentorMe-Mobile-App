@@ -135,8 +135,8 @@ internal fun NotificationStatusPill(
     Box(
         modifier = modifier
             .clip(shape)
-            .background(accent.copy(alpha = 0.18f))
-            .border(1.dp, accent.copy(alpha = 0.5f), shape)
+            .background(accent.copy(alpha = 0.12f)) // ✅ Softer Frosted Mist: 0.12f
+            .border(1.dp, accent.copy(alpha = 0.4f), shape) // ✅ Softer border: 0.4f
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
         Text(
@@ -159,8 +159,8 @@ internal fun NotificationTypePill(
     Box(
         modifier = modifier
             .clip(shape)
-            .background(color.copy(alpha = 0.2f))
-            .border(1.dp, color.copy(alpha = 0.5f), shape)
+            .background(color.copy(alpha = 0.12f)) // ✅ Softer Frosted Mist: 0.12f
+            .border(1.dp, color.copy(alpha = 0.4f), shape) // ✅ Softer border: 0.4f
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
         Text(

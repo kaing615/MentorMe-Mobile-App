@@ -193,10 +193,16 @@ interface MentorMeApi {
 
     // Messages endpoints
     @GET("messages/{bookingId}")
-    suspend fun getMessages(@Path("bookingId") bookingId: String): Response<List<ApiMessage>>
+    suspend fun getMessages(
+        @Path("bookingId") bookingId: String,
+        @Query("limit") limit: Int = 50,
+        @Query("before") before: String? = null
+    ): Response<ApiEnvelope<List<ApiMessage>>>
 
     @POST("messages")
-    suspend fun sendMessage(@Body messageRequest: SendMessageRequest): Response<ApiMessage>
+    suspend fun sendMessage(
+        @Body messageRequest: SendMessageRequest
+    ): Response<ApiEnvelope<ApiMessage>>
 
     // Notifications
     @POST("notifications/devices")

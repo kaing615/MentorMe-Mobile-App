@@ -42,6 +42,10 @@ tags:
     description: User presence tracking (ping to update online status)
   - name: Reviews
     description: Review and rating system (mentee reviews mentor after completed booking)
+  - name: Sessions
+    description: WebRTC signaling guard (join token + waiting room) and session logs
+  - name: Messages
+    description: Chat between mentor and mentee (booking-based)
 
 components:
   securitySchemes:
@@ -132,7 +136,19 @@ components:
 
     BookingStatus:
       type: string
-      enum: [PaymentPending, PendingMentor, Confirmed, Failed, Cancelled, Declined, Completed]
+      enum:
+        [
+          PaymentPending,
+          PendingMentor,
+          Confirmed,
+          Failed,
+          Cancelled,
+          Declined,
+          Completed,
+          NoShowMentor,
+          NoShowMentee,
+          NoShowBoth,
+        ]
 
     Booking:
       type: object
@@ -909,6 +925,7 @@ components:
         - booking_reminder
         - booking_pending
         - booking_declined
+        - booking_no_show
         - payment_success
         - payment_failed
 
@@ -2428,7 +2445,19 @@ paths:
           required: false
           schema:
             type: string
-            enum: [PaymentPending, PendingMentor, Confirmed, Failed, Cancelled, Declined, Completed]
+            enum:
+              [
+                PaymentPending,
+                PendingMentor,
+                Confirmed,
+                Failed,
+                Cancelled,
+                Declined,
+                Completed,
+                NoShowMentor,
+                NoShowMentee,
+                NoShowBoth,
+              ]
         - in: query
           name: page
           required: false
@@ -4202,6 +4231,382 @@ paths:
                           limit: { type: integer }
         "401":
           description: Unauthorized
+
+  /sessions/{bookingId}/join-token:
+    post:
+      tags:
+        - Sessions
+      summary: Create a short-lived join token for WebRTC session
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Join token issued
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          token: { type: string }
+                          expiresAt: { type: string, format: date-time }
+                          role:
+                            type: string
+                            enum: [mentor, mentee]
+        "400":
+          description: Bad request (session window closed, not ready)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Booking not found
+
+  /sessions/{bookingId}/log:
+    get:
+      tags:
+        - Sessions
+      summary: Get session log for a booking
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session log
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        nullable: true
+                        type: object
+                        properties:
+                          id: { type: string }
+                          bookingId: { type: string }
+                          mentorId: { type: string }
+                          menteeId: { type: string }
+                          scheduledStart: { type: string, format: date-time }
+                          scheduledEnd: { type: string, format: date-time }
+                          actualStart: { type: string, format: date-time, nullable: true }
+                          actualEnd: { type: string, format: date-time, nullable: true }
+                          durationSec: { type: integer, nullable: true }
+                          status:
+                            type: string
+                            enum: [waiting, active, ended, no_show]
+                          endReason:
+                            type: string
+                            nullable: true
+                            enum:
+                              - completed
+                              - ended_by_mentor
+                              - ended_by_mentee
+                              - no_show_mentor
+                              - no_show_mentee
+                              - no_show_both
+                              - auto_end
+                          waitingRoomMs: { type: integer, nullable: true }
+                          mentorJoinAt: { type: string, format: date-time, nullable: true }
+                          menteeJoinAt: { type: string, format: date-time, nullable: true }
+                          mentorAdmitAt: { type: string, format: date-time, nullable: true }
+                          mentorDisconnects: { type: integer }
+                          menteeDisconnects: { type: integer }
+                          qos:
+                            type: object
+                            nullable: true
+                            properties:
+                              mentor: { type: object }
+                              mentee: { type: object }
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Booking not found
+
+  /messages/{bookingId}:
+    get:
+      tags:
+        - Messages
+      summary: List chat messages for a booking
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - in: query
+          name: before
+          schema:
+            type: string
+            format: date-time
+          description: Return messages before this timestamp
+      responses:
+        "200":
+          description: Messages list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string }
+                            bookingId: { type: string }
+                            senderId: { type: string }
+                            receiverId: { type: string }
+                            content: { type: string }
+                            messageType: { type: string, enum: [text, image, file] }
+                            timestamp: { type: string, format: date-time }
+                            sender:
+                              type: object
+                              nullable: true
+                              properties:
+                                id: { type: string }
+                                email: { type: string, nullable: true }
+                                fullName: { type: string, nullable: true }
+                                avatar: { type: string, nullable: true }
+                                role: { type: string, nullable: true }
+                                createdAt: { type: string, format: date-time, nullable: true }
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Booking not found
+
+  /messages/peer/{peerId}:
+    get:
+      tags:
+        - Messages
+      summary: List all chat messages with a specific peer across all bookings
+      description: Retrieve conversation history with a peer (mentor or mentee) from all non-cancelled bookings
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: peerId
+          required: true
+          schema:
+            type: string
+          description: The ID of the peer user (mentor or mentee)
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 200
+        - in: query
+          name: before
+          schema:
+            type: string
+            format: date-time
+          description: Return messages before this timestamp
+      responses:
+        "200":
+          description: Messages list from all bookings with the peer
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string }
+                            bookingId: { type: string }
+                            senderId: { type: string }
+                            receiverId: { type: string }
+                            content: { type: string }
+                            messageType: { type: string, enum: [text, image, file] }
+                            timestamp: { type: string, format: date-time }
+                            sender:
+                              type: object
+                              nullable: true
+                              properties:
+                                id: { type: string }
+                                email: { type: string, nullable: true }
+                                fullName: { type: string, nullable: true }
+                                avatar: { type: string, nullable: true }
+                                role: { type: string, nullable: true }
+                                createdAt: { type: string, format: date-time, nullable: true }
+        "401":
+          description: Unauthorized
+
+  /messages/{bookingId}/restriction-info:
+    get:
+      tags:
+        - Messages
+      summary: Get chat restriction information for a booking
+      description: Returns current session phase, message counts, and limits for chat restrictions
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Chat restriction info
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          bookingId: { type: string }
+                          bookingStatus: { type: string }
+                          isConfirmed: { type: boolean }
+                          sessionPhase: 
+                            type: string
+                            enum: [pre, during, post, outside]
+                            description: Current phase relative to session (pre=3 days before, during=active, post=3 days after, outside=none)
+                          myMessageCount: 
+                            type: integer
+                            description: Total messages sent by current user for this booking
+                          preSessionCount: 
+                            type: integer
+                            description: Messages sent in pre-session window
+                          postSessionCount: 
+                            type: integer
+                            description: Messages sent in post-session window
+                          weeklyMessageCount: 
+                            type: integer
+                            description: Messages sent in the last 7 days
+                          limits:
+                            type: object
+                            properties:
+                              maxFreeMessages: 
+                                type: integer
+                                example: 10
+                                description: Max messages before booking confirmation
+                              preSessionLimit: 
+                                type: integer
+                                example: 5
+                                description: Max messages in 3-day pre-session window
+                              postSessionLimit: 
+                                type: integer
+                                example: 3
+                                description: Max messages in 3-day post-session window
+                              weeklyLimit: 
+                                type: integer
+                                example: 2
+                                description: Max messages per week outside session windows
+                              sessionWindowDays: 
+                                type: integer
+                                example: 3
+                                description: Number of days before/after session for windows
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Booking not found
+
+  /messages:
+    post:
+      tags:
+        - Messages
+      summary: Send a chat message for a booking
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bookingId, content]
+              properties:
+                bookingId: { type: string }
+                content: { type: string }
+                messageType:
+                  type: string
+                  enum: [text, image, file]
+      responses:
+        "200":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          bookingId: { type: string }
+                          senderId: { type: string }
+                          receiverId: { type: string }
+                          content: { type: string }
+                          messageType: { type: string, enum: [text, image, file] }
+                          timestamp: { type: string, format: date-time }
+                          sender:
+                            type: object
+                            nullable: true
+                            properties:
+                              id: { type: string }
+                              email: { type: string, nullable: true }
+                              fullName: { type: string, nullable: true }
+                              avatar: { type: string, nullable: true }
+                              role: { type: string, nullable: true }
+                              createdAt: { type: string, format: date-time, nullable: true }
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "404":
+          description: Booking not found
 
 security:
   - BearerAuth: []

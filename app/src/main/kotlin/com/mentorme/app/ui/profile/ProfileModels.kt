@@ -26,7 +26,7 @@ fun formatMoneyShortVnd(amount: Long, withCurrency: Boolean = false): String {
     return if (withCurrency) "$text ₫" else text
 }
 
-enum class TxType { TOP_UP, WITHDRAW, PAYMENT, REFUND }
+enum class TxType { TOP_UP, WITHDRAW, PAYMENT, EARN, REFUND }
 enum class TxStatus { PENDING, SUCCESS, FAILED }
 
 data class WalletTx(

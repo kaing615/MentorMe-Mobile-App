@@ -194,20 +194,9 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
 
     // ===== WALLET NOT ENOUGH MONEY (NON-TERMINAL) =====
 if (isSuccessEvent && errorMessage === "INSUFFICIENT_BALANCE") {
-  console.log(`[WEBHOOK] Insufficient balance for booking ${bookingId} - keeping PaymentPending`);
-  
-  // Notify user about insufficient balance
-  try {
-    const paymentNotificationData = await buildPaymentNotificationData(booking, {
-      paymentId,
-      status: 'insufficient_balance',
-      event,
-    });
-    await notifyPaymentFailed(paymentNotificationData);
-    console.log(`[WEBHOOK] Insufficient balance notification sent for booking ${bookingId}`);
-  } catch (notifyErr) {
-    console.error("[WEBHOOK] Failed to send insufficient balance notification:", notifyErr);
-  }
+  // Do NOT fail booking
+  // Do NOT notify payment failed
+  // Keep booking in PaymentPending so user can top-up
 
   return ok(res, {
     processed: true,
@@ -220,7 +209,6 @@ if (isSuccessEvent && errorMessage === "INSUFFICIENT_BALANCE") {
 
   // ===== TERMINAL WALLET / PAYMENT ERRORS =====
   if (isSuccessEvent && TERMINAL_CAPTURE_ERRORS.has(errorMessage)) {
-    console.log(`[WEBHOOK] Terminal error ${errorMessage} for booking ${bookingId} - failing booking`);
     if (bookingStatus === "PaymentPending") {
       try {
         await failBooking(bookingId);
@@ -257,6 +245,27 @@ if (isSuccessEvent && errorMessage === "INSUFFICIENT_BALANCE") {
   }
 
   return ok(res, { processed: true, event, bookingId });
+});
+
+export const payBookingByWallet = asyncHandler(async (req, res) => {
+  const bookingId = req.params.id;
+  const userId = (req as any).user.id;
+
+  const booking = await Booking.findById(bookingId);
+  if (!booking) return notFound(res, "Booking not found");
+
+  if (booking.status !== "PaymentPending") {
+    return badRequest(res, "Booking is not payable");
+  }
+
+  await captureBookingPayment(bookingId);
+
+  await confirmBooking(bookingId);
+
+  return ok(res, {
+    success: true,
+    bookingId,
+  });
 });
 
 export default {

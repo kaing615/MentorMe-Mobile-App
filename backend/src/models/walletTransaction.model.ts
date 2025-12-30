@@ -56,6 +56,7 @@ const WalletTransactionSchema = new Schema<IWalletTransaction>(
         "MANUAL_TOPUP",
         "MANUAL_WITHDRAW",
         "BOOKING_PAYMENT",
+        "BOOKING_EARN",
         "BOOKING_REFUND",
         "MENTOR_PAYOUT",
         "MENTOR_PAYOUT_REFUND",

@@ -51,8 +51,23 @@ fun MenteeCalendarScreen(
     }
     val submitReview = remember { deps.submitReviewUseCase() }
 
-    LaunchedEffect(Unit) {
-        vm.refresh()
+    LaunchedEffect(vm) {
+        vm.paymentEvents.collect { event ->
+            when (event) {
+                MenteeBookingsViewModel.PaymentEvent.Success -> {
+                    Toast.makeText(context, "Thanh toán thành công", Toast.LENGTH_SHORT).show()
+                }
+                is MenteeBookingsViewModel.PaymentEvent.Failed -> {
+                    Toast.makeText(context, event.message, Toast.LENGTH_LONG).show()
+                }
+                MenteeBookingsViewModel.PaymentEvent.InsufficientBalance -> {
+                    Toast.makeText(context, "Số dư không đủ", Toast.LENGTH_LONG).show()
+                }
+                MenteeBookingsViewModel.PaymentEvent.Loading -> {
+                    // show loading if cần
+                }
+            }
+        }
     }
 
     CalendarScreen(
@@ -66,10 +81,7 @@ fun MenteeCalendarScreen(
         },
         onRebook = { Toast.makeText(context, "Đặt lại chưa hỗ trợ", Toast.LENGTH_SHORT).show() },
         onPay = { booking ->
-            vm.simulatePaymentSuccess(booking.id) { ok, err ->
-                val msg = if (ok) "Đã gửi webhook thanh toán" else ErrorUtils.getUserFriendlyErrorMessage(err)
-                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
-            }
+            vm.payBooking(booking.id)
         },
         onCancel = { booking ->
             vm.cancelBooking(booking.id, "Mentee cancelled") { ok, err ->

@@ -72,6 +72,7 @@ import java.text.DateFormat
 import java.text.ParseException
 import java.util.Date
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.SnackbarHostState
 import androidx.hilt.navigation.compose.hiltViewModel
 import java.time.Instant
 import kotlin.math.sign
@@ -190,6 +191,7 @@ fun WalletTab(
                     FilterChipPill("Nạp", selected = filter == TxType.TOP_UP) { filter = TxType.TOP_UP }
                     FilterChipPill("Rút", selected = filter == TxType.WITHDRAW) { filter = TxType.WITHDRAW }
                     FilterChipPill("Thanh toán", selected = filter == TxType.PAYMENT) { filter = TxType.PAYMENT }
+                    FilterChipPill("Thu nhập", selected = filter == TxType.EARN) { filter = TxType.EARN }
                     FilterChipPill("Hoàn tiền", selected = filter == TxType.REFUND) { filter = TxType.REFUND }
                 }
             }
@@ -225,25 +227,59 @@ fun WalletTabWithVm(
     onWithdraw: () -> Unit,
     onChangeMethod: () -> Unit,
     onAddMethod: () -> Unit,
-    methods: List<PaymentMethod>
 ) {
     LaunchedEffect(Unit) {
-        walletViewModel.ensureLoaded()
+        walletViewModel.loadWallet()
+        walletViewModel.loadPaymentMethods()
     }
+
     val uiState by walletViewModel.uiState.collectAsState()
 
     val balance = (uiState as? WalletUiState.Success)?.wallet?.balanceMinor ?: 0L
     val txDtos = (uiState as? WalletUiState.Success)?.wallet?.transactions ?: emptyList()
     val walletTxs = txDtos.mapNotNull { mapTransactionDtoToWalletTx(it) }
 
+    val methods by walletViewModel.paymentMethods.collectAsState()
+
+    // collect event để show snackbar hoặc reload nếu cần
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(walletViewModel) {
+        walletViewModel.topUpEvents.collect { ev ->
+            when (ev) {
+                is WalletViewModel.TopUpEvent.Success -> {
+                    // đảm bảo reload (nếu ViewModel chưa cập nhật đầy đủ)
+                    walletViewModel.loadWallet()
+                    snackbarHostState.showSnackbar("Nạp tiền thành công")
+                }
+                is WalletViewModel.TopUpEvent.Error -> {
+                    snackbarHostState.showSnackbar(ev.message ?: "Lỗi khi nạp tiền")
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(walletViewModel) {
+        walletViewModel.withdrawEvents.collect { ev ->
+            when (ev) {
+                is WalletViewModel.WithdrawEvent.Success -> {
+                    walletViewModel.loadWallet()
+                    snackbarHostState.showSnackbar("Rút tiền thành công")
+                }
+                is WalletViewModel.WithdrawEvent.Error -> {
+                    snackbarHostState.showSnackbar(ev.message)
+                }
+            }
+        }
+    }
+
     WalletTab(
         balance = balance,
         transactions = walletTxs,
+        methods = methods,
         onTopUp = onTopUp,
         onWithdraw = onWithdraw,
         onChangeMethod = onChangeMethod,
-        onAddMethod = onAddMethod,
-        methods = methods
+        onAddMethod = onAddMethod
     )
 }
 
@@ -254,36 +290,32 @@ fun WalletTabWithVm(
  */
 private fun mapTransactionDtoToWalletTx(dto: WalletTransactionDto): WalletTx? {
     return try {
-        // parse type -> TxType
-        val type = when (dto.type.uppercase()) {
-            "CREDIT" -> TxType.TOP_UP
-            "DEBIT" -> TxType.WITHDRAW
-            "REFUND" -> TxType.REFUND
-            "BOOKING_PAYMENT", "BOOKING_REFUND", "MANUAL_TOPUP", "MANUAL_WITHDRAW" -> {
-                when (dto.source?.uppercase()) {
-                    "MANUAL_TOPUP" -> TxType.TOP_UP
-                    "MANUAL_WITHDRAW" -> TxType.WITHDRAW
-                    "BOOKING_PAYMENT" -> TxType.PAYMENT
-                    "BOOKING_REFUND" -> TxType.REFUND
+        val src = dto.source?.uppercase()
+
+        val type = when {
+            src == "MANUAL_TOPUP" -> TxType.TOP_UP
+            src == "MANUAL_WITHDRAW" -> TxType.WITHDRAW
+            src == "BOOKING_PAYMENT" -> TxType.PAYMENT
+            src == "BOOKING_EARN" -> TxType.EARN
+            src == "BOOKING_REFUND" -> TxType.REFUND
+            else -> {
+                when (dto.type.uppercase()) {
+                    "CREDIT" -> TxType.TOP_UP
+                    "DEBIT" -> TxType.WITHDRAW
+                    "REFUND" -> TxType.REFUND
                     else -> TxType.PAYMENT
                 }
             }
-            else -> TxType.PAYMENT
         }
 
         val signedAmount = when (type) {
-            TxType.TOP_UP,
-            TxType.REFUND -> dto.amount     // +
-            TxType.WITHDRAW,
-            TxType.PAYMENT -> -dto.amount   // -
+            TxType.TOP_UP, TxType.REFUND, TxType.EARN -> dto.amount
+            TxType.WITHDRAW, TxType.PAYMENT -> -dto.amount
         }
 
-        // Parse createdAt -> epoch millis (Long)
         val timestamp: Long = try {
-            // Preferred: ISO instant e.g. "2025-12-29T05:00:00.000Z"
             Instant.parse(dto.createdAt).toEpochMilli()
         } catch (e: Exception) {
-            // Fallback: try simple parse patterns or current time
             try {
                 val df = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault())
                 df.parse(dto.createdAt)?.time ?: System.currentTimeMillis()
@@ -293,23 +325,25 @@ private fun mapTransactionDtoToWalletTx(dto: WalletTransactionDto): WalletTx? {
         }
 
         val status = TxStatus.SUCCESS
-        val note = when (dto.source) {
+        val note = when (src) {
             "MANUAL_TOPUP" -> "Nạp tiền"
             "MANUAL_WITHDRAW" -> "Rút tiền"
             "BOOKING_PAYMENT" -> "Thanh toán"
             "BOOKING_REFUND" -> "Hoàn tiền"
+            "BOOKING_EARN" -> "Thu nhập"
             else -> "Giao dịch"
         }
 
         WalletTx(
             id = dto.id,
-            date = timestamp,          // <-- Long epoch millis
+            date = timestamp,
             type = type,
             amount = signedAmount,
             note = note,
             status = status
         )
     } catch (e: Exception) {
+        e.printStackTrace()
         null
     }
 }
@@ -334,7 +368,8 @@ private fun TransactionRow(tx: WalletTx) {
     val (icon, tint) = when (tx.type) {
         TxType.TOP_UP -> Icons.Outlined.ArrowUpward to Color(0xFF22C55E)
         TxType.WITHDRAW -> Icons.Outlined.ArrowDownward to Color(0xFFEF4444)
-        TxType.PAYMENT -> Icons.Outlined.ReceiptLong to Color(0xFF60A5FA)
+        TxType.PAYMENT -> Icons.Outlined.ArrowDownward to Color(0xFF60A5FA)
+        TxType.EARN -> Icons.Outlined.ArrowUpward to Color(0xFF22C55E)
         TxType.REFUND -> Icons.Outlined.Cached to Color(0xFFF59E0B)
     }
     val amountText = (if (tx.amount > 0) "+ " else "- ") + formatCurrencyVnd(kotlin.math.abs(tx.amount))

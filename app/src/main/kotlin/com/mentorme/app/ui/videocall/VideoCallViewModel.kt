@@ -107,6 +107,8 @@ class VideoCallViewModel @Inject constructor(
     private var renderersAttached = false
     private var timeCheckJob: Job? = null
     private var participantLeftJob: Job? = null
+    private var statusEmitJob: Job? = null
+    private var stopEmissionJob: Job? = null
 
     private val webRtcClient = WebRtcClient(
         context = appContext,
@@ -429,9 +431,9 @@ class VideoCallViewModel @Inject constructor(
         // Cancel any existing delayed end call
         participantLeftJob?.cancel()
         participantLeftJob = viewModelScope.launch {
-            Log.d("VideoCallVM", "Peer left, waiting ${PARTICIPANT_LEFT_TIMEOUT_MS}ms before ending call")
+            Log.d("VideoCallVM", "Peer left, waiting ${PARTICIPANT_LEFT_TIMEOUT_MS / 1000}s before ending call")
             delay(PARTICIPANT_LEFT_TIMEOUT_MS)
-            Log.d("VideoCallVM", "Peer did not rejoin, ending call")
+            Log.d("VideoCallVM", "Peer did not rejoin after ${PARTICIPANT_LEFT_TIMEOUT_MS / 1000}s, ending call")
             _state.update { it.copy(phase = CallPhase.Ended) }
             cleanupCall()
         }
@@ -449,6 +451,13 @@ class VideoCallViewModel @Inject constructor(
         if (bookingId != currentBookingId) return
         
         Log.d("VideoCallVM", "Received offer from peer")
+        
+        // Cancel participantLeftJob - peer is sending offer, they're still active
+        if (participantLeftJob != null) {
+            Log.d("VideoCallVM", "Received offer from peer - cancelling participantLeftJob")
+            participantLeftJob?.cancel()
+            participantLeftJob = null
+        }
         
         val sdp = parseSessionDescription(payload.data) ?: run {
             Log.e("VideoCallVM", "Failed to parse offer SDP")
@@ -493,6 +502,13 @@ class VideoCallViewModel @Inject constructor(
         
         Log.d("VideoCallVM", "Received answer from peer")
         
+        // Cancel participantLeftJob - peer is sending answer, they're still active
+        if (participantLeftJob != null) {
+            Log.d("VideoCallVM", "Received answer from peer - cancelling participantLeftJob")
+            participantLeftJob?.cancel()
+            participantLeftJob = null
+        }
+        
         val sdp = parseSessionDescription(payload.data) ?: run {
             Log.e("VideoCallVM", "Failed to parse answer SDP")
             return
@@ -516,6 +532,14 @@ class VideoCallViewModel @Inject constructor(
         
         Log.d("VideoCallVM", "Received ICE candidate from peer: ${candidate.sdpMid}")
         
+        // If we receive ICE candidate from peer, they're still trying to connect
+        // Cancel any pending participantLeftJob
+        if (participantLeftJob != null) {
+            Log.d("VideoCallVM", "Received ICE from peer - cancelling participantLeftJob")
+            participantLeftJob?.cancel()
+            participantLeftJob = null
+        }
+        
         webRtcClient.ensurePeerConnection()
         webRtcClient.addIceCandidate(candidate)
     }
@@ -524,26 +548,40 @@ class VideoCallViewModel @Inject constructor(
         val bookingId = payload.bookingId ?: return
         if (bookingId != currentBookingId) return
         
-        Log.d("VideoCallVM", "Peer status changed: ${payload.status} (userId: ${payload.userId})")
+        val jobActive = participantLeftJob?.isActive == true
+        Log.d("VideoCallVM", "Peer status changed: ${payload.status} (userId: ${payload.userId}, participantLeftJob active: $jobActive)")
         
         // Cancel delayed end call if peer is reconnecting or connected
         // This means peer is still in the session and trying to recover
         if (payload.status == "reconnecting" || payload.status == "connected") {
+            val wasCancelled = participantLeftJob?.isActive == true
             participantLeftJob?.cancel()
             participantLeftJob = null
-            Log.d("VideoCallVM", "Cancelled participantLeftJob - peer status: ${payload.status}")
+            Log.d("VideoCallVM", "Cancelled participantLeftJob (was ${if (wasCancelled) "active" else "inactive"}) - peer status: ${payload.status}")
         }
         
-        // If peer reconnected successfully, reset our reconnection attempts
-        // This prevents us from ending the call when peer recovers
+        // If peer reconnected successfully, reset our reconnection state
+        // But keep emitting status if we're in a stable state to help peer
         if (payload.status == "connected") {
-            resetReconnectState()
+            reconnectAttempts = 0
+            reconnectJob?.cancel()
+            reconnectJob = null
+            // Don't stop status emission yet - keep emitting to ensure peer is stable
+            
+            // If we're in call and we're the mentor, we need to create a new offer
+            // because the mentee is waiting for us to initiate the handshake
+            val currentPhase = _state.value.phase
+            if (currentRole == "mentor" && (currentPhase == CallPhase.InCall || currentPhase == CallPhase.Reconnecting)) {
+                Log.d("VideoCallVM", "Peer reconnected, mentor creating new offer")
+                webRtcClient.createOffer { offer ->
+                    Log.d("VideoCallVM", "New offer created for reconnected peer, emitting")
+                    emitSdp("signal:offer", offer)
+                }
+            }
+            
             // If we were in reconnecting state and we're the mentee, the mentor will send a new offer
-            // If we're the mentor, we should create a new offer
-            if (_state.value.phase == CallPhase.Reconnecting) {
-                if (currentRole == "mentor") {
-                    retry()
-                } else {
+            if (currentPhase == CallPhase.Reconnecting) {
+                if (currentRole == "mentee") {
                     // Mentee just waits for new offer from mentor
                     _state.update { it.copy(phase = CallPhase.Connecting) }
                 }
@@ -624,11 +662,24 @@ class VideoCallViewModel @Inject constructor(
         Log.d("VideoCallVM", "PeerConnection state changed: $state, current phase: ${_state.value.phase}")
         when (state) {
             PeerConnection.PeerConnectionState.CONNECTED -> {
-                resetReconnectState()
                 markInCall()
+                reconnectAttempts = 0
+                reconnectJob?.cancel()
+                reconnectJob = null
+                // Start emitting "connected" status periodically to ensure peer receives it
+                // This will cancel peer's participantLeftJob
+                startStatusEmission("connected")
             }
             PeerConnection.PeerConnectionState.DISCONNECTED,
             PeerConnection.PeerConnectionState.FAILED -> {
+                // Immediately notify peer that we're having connection issues
+                // This helps them cancel any participant-left timer
+                currentBookingId?.let { bookingId ->
+                    socketManager.emit("session:status", mapOf(
+                        "bookingId" to bookingId,
+                        "status" to "reconnecting"
+                    ))
+                }
                 handleReconnect("Connection lost")
             }
             PeerConnection.PeerConnectionState.CLOSED -> {
@@ -658,8 +709,11 @@ class VideoCallViewModel @Inject constructor(
             peerConnectionStatus = null // Clear peer status when we're connected
         ) }
         
-        // Notify peer that we're connected
+        // Notify peer that we're connected (immediate single emit)
+        // Periodic emission will continue in handleConnectionState
         currentBookingId?.let { bookingId ->
+            val socketConnected = socketManager.isConnected()
+            Log.d("VideoCallVM", "Marking in call, emitting connected status (socket connected: $socketConnected)")
             socketManager.emit("session:status", mapOf(
                 "bookingId" to bookingId,
                 "status" to "connected"
@@ -711,13 +765,8 @@ class VideoCallViewModel @Inject constructor(
             reconnectAttempt = reconnectAttempts
         ) }
         
-        // Notify peer about reconnecting
-        currentBookingId?.let { bookingId ->
-            socketManager.emit("session:status", mapOf(
-                "bookingId" to bookingId,
-                "status" to "reconnecting"
-            ))
-        }
+        // Start periodic status emission to ensure peer receives it
+        startStatusEmission("reconnecting")
         
         if (reconnectJob == null) {
             reconnectJob = viewModelScope.launch {
@@ -854,6 +903,47 @@ class VideoCallViewModel @Inject constructor(
             }
         }
     }
+    
+    private fun startStatusEmission(status: String) {
+        // Cancel any existing emission job
+        statusEmitJob?.cancel()
+        stopEmissionJob?.cancel()
+        
+        statusEmitJob = viewModelScope.launch {
+            var emissionCount = 0
+            while (true) {
+                currentBookingId?.let { bookingId ->
+                    emissionCount++
+                    val socketConnected = socketManager.isConnected()
+                    Log.d("VideoCallVM", "Emitting status #$emissionCount: $status for booking: $bookingId (socket connected: $socketConnected)")
+                    socketManager.emit("session:status", mapOf(
+                        "bookingId" to bookingId,
+                        "status" to status
+                    ))
+                }
+                delay(3_000) // Emit every 3 seconds
+            }
+        }
+        
+        // Auto-stop emission after 30 seconds to save resources
+        // By this time peer should have received the status
+        stopEmissionJob = viewModelScope.launch {
+            delay(30_000)
+            Log.d("VideoCallVM", "Auto-stopping status emission after 30s")
+            stopStatusEmission()
+        }
+    }
+    
+    private fun stopStatusEmission() {
+        val wasActive = statusEmitJob?.isActive == true
+        statusEmitJob?.cancel()
+        statusEmitJob = null
+        stopEmissionJob?.cancel()
+        stopEmissionJob = null
+        if (wasActive) {
+            Log.d("VideoCallVM", "Stopped status emission")
+        }
+    }
 
     private fun cleanupCall() {
         qosJob?.cancel()
@@ -866,6 +956,10 @@ class VideoCallViewModel @Inject constructor(
         timeCheckJob = null
         participantLeftJob?.cancel()
         participantLeftJob = null
+        statusEmitJob?.cancel()
+        statusEmitJob = null
+        stopEmissionJob?.cancel()
+        stopEmissionJob = null
         webRtcClient.release()
         callStarted = false
         sessionReady = false
@@ -880,9 +974,11 @@ class VideoCallViewModel @Inject constructor(
     }
 
     private fun resetReconnectState() {
+        Log.d("VideoCallVM", "Resetting reconnect state")
         reconnectAttempts = 0
         reconnectJob?.cancel()
         reconnectJob = null
+        stopStatusEmission()
     }
 
     private fun setError(message: String) {
@@ -899,6 +995,6 @@ class VideoCallViewModel @Inject constructor(
     private companion object {
         const val RECONNECT_DELAY_MS = 5_000L // 5 seconds - give more time for network recovery
         const val MAX_RECONNECT_ATTEMPTS = 5 // Match UI state
-        const val PARTICIPANT_LEFT_TIMEOUT_MS = 30_000L // 30 seconds - wait for peer to reconnect before ending call
+        const val PARTICIPANT_LEFT_TIMEOUT_MS = 120_000L // 120 seconds - wait for socket reconnect + emit status
     }
 }

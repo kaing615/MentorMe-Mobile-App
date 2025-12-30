@@ -1,7 +1,10 @@
 package com.mentorme.app.core.webrtc
 
 import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.os.Build
 import android.util.Log
 import org.webrtc.AudioSource
 import org.webrtc.AudioTrack
@@ -48,6 +51,12 @@ class WebRtcClient(
 
     private var isVideoEnabled = true
     private var isAudioEnabled = true
+    private var isSpeakerEnabled = true
+    
+    private val audioManager: AudioManager by lazy {
+        context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    }
+    private var audioFocusRequest: AudioFocusRequest? = null
 
     companion object {
         private const val TAG = "WebRtcClient"
@@ -79,22 +88,45 @@ class WebRtcClient(
             
             localRenderer = renderer
             
-            // Add existing track if already created
-            localVideoTrack?.let { 
-                Log.d(TAG, "Adding local video track to renderer")
-                // Ensure track is added on the renderer's thread
-                renderer.post {
-                    it.addSink(renderer)
-                    Log.d(TAG, "Local video track sink added to renderer")
+            // Add existing track if already created and not disposed
+            localVideoTrack?.let { track ->
+                try {
+                    // Check if track is still valid by checking state
+                    if (track.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
+                        Log.d(TAG, "Adding local video track to renderer")
+                        // Ensure track is added on the renderer's thread
+                        renderer.post {
+                            try {
+                                track.addSink(renderer)
+                                Log.d(TAG, "Local video track sink added to renderer")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to add sink to local renderer: ${e.message}")
+                            }
+                        }
+                    } else {
+                        Log.w(TAG, "Local video track is ended, cannot add sink")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error checking local track state: ${e.message}")
                 }
             }
         } catch (e: IllegalStateException) {
             Log.w(TAG, "Local renderer already initialized: ${e.message}")
             localRenderer = renderer
-            // Still try to add the track if it exists
-            localVideoTrack?.let { 
-                renderer.post {
-                    it.addSink(renderer)
+            // Still try to add the track if it exists and is valid
+            localVideoTrack?.let { track ->
+                try {
+                    if (track.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
+                        renderer.post {
+                            try {
+                                track.addSink(renderer)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to add sink in catch block: ${e.message}")
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error in catch block: ${e.message}")
                 }
             }
         }
@@ -132,6 +164,10 @@ class WebRtcClient(
 
     fun startLocalMedia() {
         Log.d(TAG, "startLocalMedia called, current tracks - video: ${localVideoTrack != null}, audio: ${localAudioTrack != null}")
+        
+        // Setup audio for the call
+        setupAudioForCall()
+        
         if (localVideoTrack == null && localAudioTrack == null) {
             val videoCapturer = createCameraCapturer() ?: return
             val surfaceHelper = SurfaceTextureHelper.create("CaptureThread", eglBase.eglBaseContext)
@@ -143,6 +179,8 @@ class WebRtcClient(
             val videoTrack = peerConnectionFactory.createVideoTrack("VIDEO", videoSource)
             val audioSource = peerConnectionFactory.createAudioSource(MediaConstraints())
             val audioTrack = peerConnectionFactory.createAudioTrack("AUDIO", audioSource)
+            
+            Log.d(TAG, "Audio track created - ID: ${audioTrack.id()}, state: ${audioTrack.state()}, enabled: ${audioTrack.enabled()}")
 
             this.videoCapturer = videoCapturer
             this.videoSource = videoSource
@@ -155,9 +193,17 @@ class WebRtcClient(
                 Log.d(TAG, "Adding newly created video track to local renderer")
                 // Ensure track is added on the renderer's thread
                 renderer.post {
-                    videoTrack.addSink(renderer)
-                    renderer.visibility = android.view.View.VISIBLE
-                    Log.d(TAG, "Newly created local video track sink added to renderer")
+                    try {
+                        if (videoTrack.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
+                            videoTrack.addSink(renderer)
+                            renderer.visibility = android.view.View.VISIBLE
+                            Log.d(TAG, "Newly created local video track sink added to renderer")
+                        } else {
+                            Log.w(TAG, "Newly created track is already ended")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to add newly created track to renderer: ${e.message}")
+                    }
                 }
             } ?: Log.w(TAG, "No local renderer available to add video track")
             localVideoTrack?.setEnabled(isVideoEnabled)
@@ -220,8 +266,86 @@ class WebRtcClient(
     }
 
     fun setSpeakerEnabled(enabled: Boolean) {
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
-        audioManager.isSpeakerphoneOn = enabled
+        try {
+            isSpeakerEnabled = enabled
+            
+            if (enabled) {
+                // Switch to speaker (loa ngoài)
+                audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+                audioManager.isSpeakerphoneOn = true
+                audioManager.setStreamVolume(
+                    AudioManager.STREAM_VOICE_CALL,
+                    audioManager.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL),
+                    0
+                )
+                Log.d(TAG, "Audio routed to SPEAKER")
+            } else {
+                // Switch to earpiece (loa trong)
+                audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+                audioManager.isSpeakerphoneOn = false
+                Log.d(TAG, "Audio routed to EARPIECE")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting speaker mode: ${e.message}", e)
+        }
+    }
+    
+    private fun setupAudioForCall() {
+        try {
+            // Request audio focus
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val audioAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+                
+                audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                    .setAudioAttributes(audioAttributes)
+                    .setAcceptsDelayedFocusGain(true)
+                    .setOnAudioFocusChangeListener { focusChange ->
+                        Log.d(TAG, "Audio focus changed: $focusChange")
+                    }
+                    .build()
+                
+                audioManager.requestAudioFocus(audioFocusRequest!!)
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager.requestAudioFocus(
+                    null,
+                    AudioManager.STREAM_VOICE_CALL,
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
+                )
+            }
+            
+            // Set audio mode for communication
+            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+            
+            // Apply current speaker setting
+            setSpeakerEnabled(isSpeakerEnabled)
+            
+            Log.d(TAG, "Audio setup completed - Mode: ${audioManager.mode}, Speaker: ${audioManager.isSpeakerphoneOn}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting up audio: ${e.message}", e)
+        }
+    }
+    
+    private fun releaseAudioFocus() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+            } else {
+                @Suppress("DEPRECATION")
+                audioManager.abandonAudioFocus(null)
+            }
+            
+            // Reset audio mode
+            audioManager.mode = AudioManager.MODE_NORMAL
+            audioManager.isSpeakerphoneOn = false
+            
+            Log.d(TAG, "Audio focus released")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error releasing audio focus: ${e.message}", e)
+        }
     }
 
     fun getStats(callback: (RtcStats?) -> Unit) {
@@ -233,8 +357,19 @@ class WebRtcClient(
 
     fun release() {
         try {
+            // Release audio focus first
+            releaseAudioFocus()
+            
             // Remove sinks before disposing tracks to prevent crashes
-            localVideoTrack?.removeSink(localRenderer)
+            try {
+                localVideoTrack?.let { track ->
+                    if (track.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
+                        track.removeSink(localRenderer)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Error removing local video sink: ${e.message}")
+            }
             
             videoCapturer?.stopCapture()
         } catch (e: Exception) {
@@ -280,22 +415,36 @@ class WebRtcClient(
 
             override fun onTrack(transceiver: RtpTransceiver) {
                 val track = transceiver.receiver.track()
-                Log.d(TAG, "onTrack received: type=${track?.kind()}, id=${track?.id()}, enabled=${track?.enabled()}")
+                Log.d(TAG, "onTrack received: type=${track?.kind()}, id=${track?.id()}, enabled=${track?.enabled()}, state=${track?.state()}")
+                
                 if (track is VideoTrack) {
                     Log.d(TAG, "Remote video track received, renderer available: ${remoteRenderer != null}")
                     remoteRenderer?.let { renderer ->
                         Log.d(TAG, "Adding remote video track to renderer")
                         // Ensure track is added on the renderer's thread
                         renderer.post {
-                            track.addSink(renderer)
-                            // Ensure visibility
-                            renderer.visibility = android.view.View.VISIBLE
-                            Log.d(TAG, "Remote video track sink added to renderer, visibility set to VISIBLE")
+                            try {
+                                if (track.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
+                                    track.addSink(renderer)
+                                    // Ensure visibility
+                                            renderer.visibility = android.view.View.VISIBLE
+                                    Log.d(TAG, "Remote video track sink added to renderer, visibility set to VISIBLE")
+                                } else {
+                                    Log.w(TAG, "Remote track is ended, cannot add sink")
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to add remote track to renderer: ${e.message}")
+                            }
                         }
                     } ?: Log.w(TAG, "Remote renderer not available to add track")
                     events.onRemoteTrack(track)
+                } else if (track is AudioTrack) {
+                    Log.d(TAG, "Remote AUDIO track received - ID: ${track.id()}, enabled: ${track.enabled()}, state: ${track.state()}")
+                    // Ensure audio track is enabled for playback
+                    track.setEnabled(true)
+                    Log.d(TAG, "Remote audio track enabled for playback")
                 } else {
-                    Log.d(TAG, "Non-video track received: ${track?.kind()}")
+                    Log.d(TAG, "Non-video/audio track received: ${track?.kind()}")
                 }
             }
         })
@@ -307,9 +456,18 @@ class WebRtcClient(
         val videoTrack = localVideoTrack
         val audioTrack = localAudioTrack
         if (videoTrack == null && audioTrack == null) return
-        videoTrack?.let { pc.addTrack(it) }
-        audioTrack?.let { pc.addTrack(it) }
+        
+        videoTrack?.let { 
+            pc.addTrack(it)
+            Log.d(TAG, "Local video track attached to peer connection")
+        }
+        audioTrack?.let { 
+            pc.addTrack(it)
+            Log.d(TAG, "Local audio track attached to peer connection - enabled: ${it.enabled()}, state: ${it.state()}")
+        }
+        
         localTracksAttached = true
+        Log.d(TAG, "Local tracks attached - video: ${videoTrack != null}, audio: ${audioTrack != null}")
     }
 
     private fun createPeerConnectionFactory(): PeerConnectionFactory {

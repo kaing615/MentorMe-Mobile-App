@@ -11,6 +11,7 @@ import com.mentorme.app.data.mapper.toNotificationItem
 import com.mentorme.app.data.model.NotificationItem
 import com.mentorme.app.data.model.NotificationPreferences
 import com.mentorme.app.data.repository.notifications.NotificationRepository
+import com.mentorme.app.data.repository.BookingRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -22,7 +23,8 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class NotificationsViewModel @Inject constructor(
     private val notificationRepository: NotificationRepository,
-    private val notificationCache: NotificationCache
+    private val notificationCache: NotificationCache,
+    private val bookingRepository: BookingRepository
 ) : ViewModel() {
 
     private val _loading = MutableStateFlow(false)
@@ -33,6 +35,44 @@ class NotificationsViewModel @Inject constructor(
 
     private val _preferences = MutableStateFlow(NotificationPreferences())
     val preferences: StateFlow<NotificationPreferences> = _preferences.asStateFlow()
+
+    /**
+     * Validate if a booking can still be joined (session hasn't ended yet)
+     * Returns: null if session can be joined, error message if session has ended
+     */
+    suspend fun validateBookingTime(bookingId: String): String? {
+        return try {
+            when (val result = bookingRepository.getBookingById(bookingId)) {
+                is AppResult.Success -> {
+                    val booking = result.data
+                    // Parse endTimeIso or combine date + endTime
+                    val endTimeStr = booking.endTimeIso ?: "${booking.date}T${booking.endTime}:00"
+                    val endTime = try {
+                        java.time.ZonedDateTime.parse(endTimeStr)
+                    } catch (e: Exception) {
+                        // If parsing fails, try with simple format
+                        java.time.LocalDateTime.parse(endTimeStr.replace("Z", ""))
+                            .atZone(java.time.ZoneId.systemDefault())
+                    }
+                    val now = java.time.ZonedDateTime.now()
+                    
+                    if (now.isAfter(endTime)) {
+                        "Phiên học đã kết thúc từ lâu. Bạn không thể tham gia nữa."
+                    } else {
+                        null // Can join
+                    }
+                }
+                is AppResult.Error -> {
+                    Logx.e(TAG, { "validate booking failed: ${result.throwable}" })
+                    "Không thể kiểm tra thông tin phiên học. Vui lòng thử lại."
+                }
+                else -> null
+            }
+        } catch (e: Exception) {
+            Logx.e(TAG, { "validate booking time error: ${e.message}" })
+            null // Allow join on error to avoid blocking
+        }
+    }
 
     fun refresh(read: Boolean? = null, type: String? = null) {
         viewModelScope.launch {

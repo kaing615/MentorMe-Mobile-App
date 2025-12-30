@@ -924,14 +924,8 @@ class VideoCallViewModel @Inject constructor(
                 delay(3_000) // Emit every 3 seconds
             }
         }
-        
-        // Auto-stop emission after 30 seconds to save resources
-        // By this time peer should have received the status
-        stopEmissionJob = viewModelScope.launch {
-            delay(30_000)
-            Log.d("VideoCallVM", "Auto-stopping status emission after 30s")
-            stopStatusEmission()
-        }
+        // Note: No auto-stop - will run until manually stopped or call ended
+        // This ensures peer always receives status even after multiple reconnects
     }
     
     private fun stopStatusEmission() {

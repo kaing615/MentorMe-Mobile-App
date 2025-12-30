@@ -17,8 +17,11 @@ import com.mentorme.app.data.remote.PaymentMethodApi
 import com.mentorme.app.ui.wallet.PaymentMethod
 import retrofit2.Response
 import java.util.UUID
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class WalletRepository(
+@Singleton
+class WalletRepository @Inject constructor(
     private val api: WalletApi,
     private val paymentMethodApi: PaymentMethodApi
 ) {

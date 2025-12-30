@@ -26,7 +26,6 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.mentorme.app.data.mock.MockData
-import com.mentorme.app.data.session.SessionManager
 import com.mentorme.app.ui.auth.AuthScreen
 import com.mentorme.app.ui.auth.AuthViewModel
 import com.mentorme.app.ui.auth.RegisterPayload
@@ -63,8 +62,16 @@ import com.mentorme.app.ui.wallet.TopUpScreen
 import com.mentorme.app.ui.wallet.WalletViewModel
 import com.mentorme.app.ui.wallet.WithdrawScreen
 import com.mentorme.app.ui.videocall.VideoCallScreen
+import androidx.compose.runtime.rememberCoroutineScope
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
+import com.mentorme.app.domain.usecase.chat.GetConversationWithPeerUseCase
+import com.mentorme.app.core.utils.AppResult
+import kotlinx.coroutines.launch
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)
@@ -81,7 +88,7 @@ internal fun AppNavGraph(
     notificationsVm: NotificationsViewModel,
     pendingRoleHint: String?,
     onPendingRoleHintChange: (String?) -> Unit,
-    overlayVisible: Boolean,
+    @Suppress("UNUSED_PARAMETER") overlayVisible: Boolean,
     onOverlayVisibleChange: (Boolean) -> Unit,
     hazeState: HazeState? = null,
     blurEnabled: Boolean = false,
@@ -234,7 +241,7 @@ internal fun AppNavGraph(
                 // ✅ Open chat with mentor
                 scope.launch {
                     when (val result = getConversationUseCase(mentorId)) {
-                        is AppResult.Success -> {
+                        is AppResult.Success<*> -> {
                             val conversationId = result.data
                             if (conversationId != null) {
                                 // Conversation exists, navigate to chat
@@ -310,8 +317,10 @@ internal fun AppNavGraph(
                     restoreState = true
                 }
             }
+        )
+    }
 
-            composable(Routes.MentorCalendar) {
+    composable(Routes.MentorCalendar) {
                 MentorCalendarScreen(
                     onViewSession = { sessionId ->
                         Log.d(
@@ -322,28 +331,28 @@ internal fun AppNavGraph(
                     onCreateSession = { Log.d("AppNav", "Create session - TODO") },
                     onUpdateAvailability = { Log.d("AppNav", "Update availability - TODO") },
                     onCancelSession = { sessionId ->
-                        Log.d(
-                            "AppNav",
-                            "Cancel session $sessionId - TODO"
-                        )
-                    }
+                Log.d(
+                    "AppNav",
+                    "Cancel session $sessionId - TODO"
                 )
             }
+        )
+    }
 
-            composable(Routes.MentorMessages) {
+    composable(Routes.MentorMessages) {
                 MentorMessagesScreen(
                     onOpenConversation = { convId -> nav.navigate("${Routes.Chat}/$convId") },
                     onFilterStudents = { Log.d("AppNav", "Filter students - TODO") },
-                    onSearchConversations = { query ->
-                        Log.d(
-                            "AppNav",
-                            "Search conversations: $query - TODO"
-                        )
-                    }
+            onSearchConversations = { query ->
+                Log.d(
+                    "AppNav",
+                    "Search conversations: $query - TODO"
                 )
             }
+        )
+    }
 
-            composable(Routes.MentorProfile) {
+    composable(Routes.MentorProfile) {
                 val localAuthVm = hiltViewModel<AuthViewModel>()
                 MentorProfileScreen(
                     notificationsViewModel = notificationsVm,
@@ -371,21 +380,21 @@ internal fun AppNavGraph(
                     },
                     onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
                     onOpenNotifications = { nav.navigate(Routes.Notifications) },
-                    onLogout = {
-                        localAuthVm.signOut {
-                            nav.navigate(Routes.Auth) {
-                                popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
-                                launchSingleTop = true
-                            }
-                        }
+            onLogout = {
+                localAuthVm.signOut {
+                    nav.navigate(Routes.Auth) {
+                        popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
+                        launchSingleTop = true
                     }
-                )
+                }
             }
+        )
+    }
 
-            composable(
-                route = Routes.MentorProfileWithTarget,
-                arguments = listOf()
-            ) { backStackEntry ->
+    composable(
+        route = Routes.MentorProfileWithTarget,
+        arguments = listOf()
+    ) { backStackEntry ->
                 val localAuthVm = hiltViewModel<AuthViewModel>()
                 val target = backStackEntry.arguments?.getString("target") ?: "profile"
 
@@ -415,16 +424,16 @@ internal fun AppNavGraph(
                     },
                     onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
                     onOpenNotifications = { nav.navigate(Routes.Notifications) },
-                    onLogout = {
-                        localAuthVm.signOut {
-                            nav.navigate(Routes.Auth) {
-                                popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
-                                launchSingleTop = true
-                            }
-                        }
+            onLogout = {
+                localAuthVm.signOut {
+                    nav.navigate(Routes.Auth) {
+                        popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
+                        launchSingleTop = true
                     }
-                )
+                }
             }
+        )
+    }
 
     composable(Routes.search) {
         SearchMentorScreen(
@@ -437,7 +446,7 @@ internal fun AppNavGraph(
                 //  STEP C: Open chat with mentor
                 scope.launch {
                     when (val result = getConversationUseCase(mentorId)) {
-                        is AppResult.Success -> {
+                        is AppResult.Success<*> -> {
                             val conversationId = result.data
                             if (conversationId != null) {
                                 // Conversation exists, navigate to chat
@@ -491,8 +500,10 @@ internal fun AppNavGraph(
             onOpenDetail = { booking ->
                 nav.navigate("booking_detail/${booking.id}")
             }
+        )
+    }
 
-            composable("booking_detail/{bookingId}") { backStackEntry ->
+    composable("booking_detail/{bookingId}") { backStackEntry ->
                 val bookingId = backStackEntry.arguments?.getString("bookingId") ?: return@composable
                 BookingDetailScreen(
                     bookingId = bookingId,
@@ -500,16 +511,16 @@ internal fun AppNavGraph(
                     onJoinSession = { bookingId ->
                         nav.navigate(Routes.videoCall(bookingId)) {
                             launchSingleTop = true
-                        }
-                    }
-                )
+                }
             }
+        )
+    }
 
-            composable(Routes.Messages) {
-                MessagesScreen(onOpenConversation = { convId ->
-                    nav.navigate("${Routes.Chat}/$convId")
-                })
-            }
+    composable(Routes.Messages) {
+        MessagesScreen(onOpenConversation = { convId ->
+            nav.navigate("${Routes.Chat}/$convId")
+        })
+    }
 
     composable(Routes.Notifications) {
         NotificationsScreen(
@@ -578,18 +589,20 @@ internal fun AppNavGraph(
             onOpenWithdraw = { nav.navigate(Routes.Withdraw) },
             onOpenChangeMethod = { nav.navigate(Routes.PaymentMethods) },
             onAddMethod = { nav.navigate(Routes.AddPaymentMethod) },
-            methods = payMethods,
+            methods = emptyList(),
             onLogout = {
                 localAuthVm.signOut {
                     nav.navigate(Routes.Auth) {
                         popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
                         launchSingleTop = true
                     }
-                )
+                }
             }
+        )
+    }
 
-            // ---------- BOOKING ----------
-            composable("booking/{mentorId}") { backStackEntry ->
+    // ---------- BOOKING ----------
+    composable("booking/{mentorId}") { backStackEntry ->
                 val mentorId = backStackEntry.arguments?.getString("mentorId") ?: return@composable
                 val mentor = MockData.mockMentors.find { it.id == mentorId }
                     ?: com.mentorme.app.data.model.Mentor(
@@ -703,7 +716,7 @@ internal fun AppNavGraph(
                             topic = "Mentor Session",
                             notes = it.notes
                         )) {
-                            is com.mentorme.app.core.utils.AppResult.Success -> {
+                            is AppResult.Success -> {
                                 nav.navigate(Routes.calendar("pending")) {
                                     popUpTo(nav.graph.findStartDestination().id) {
                                         inclusive = false
@@ -712,7 +725,7 @@ internal fun AppNavGraph(
                                 }
                             }
 
-                            is com.mentorme.app.core.utils.AppResult.Error -> {
+                            is AppResult.Error -> {
                                 val msg = res.throwable
                                 val code = msg.substringAfter("HTTP ", "").substringBefore(":")
                                     .toIntOrNull()
@@ -744,7 +757,7 @@ internal fun AppNavGraph(
                                 }
                             }
 
-                            com.mentorme.app.core.utils.AppResult.Loading -> Unit
+                            AppResult.Loading -> Unit
                         }
                     },
                     onBack = { nav.popBackStack() }

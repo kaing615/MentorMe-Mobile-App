@@ -26,6 +26,10 @@ object Routes {
     const val Chat = "chat"
     const val VideoCall = "video_call"
     fun videoCall(bookingId: String) = "$VideoCall/$bookingId"
+
+    const val BookingDetail = "booking_detail/{bookingId}"
+    fun bookingDetail(bookingId: String) = "booking_detail/$bookingId"
+
     const val search = "search"
 
     const val TopUp = "wallet/topup"

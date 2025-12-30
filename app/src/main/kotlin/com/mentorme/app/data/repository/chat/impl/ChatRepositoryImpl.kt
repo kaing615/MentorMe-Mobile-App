@@ -53,10 +53,10 @@ class ChatRepositoryImpl @Inject constructor(
 
                 val conversations = groupedByPeer.map { (peerId, peerBookings) ->
                     // Use the most recent booking for conversation data
-                    val latestBooking = peerBookings.maxByOrNull { 
-                        it.startTimeIso ?: it.createdAt 
+                    val latestBooking = peerBookings.maxByOrNull {
+                        it.startTimeIso ?: it.createdAt
                     } ?: peerBookings.first()
-                    
+
                     toConversation(latestBooking, userId, peerBookings)
                 }.sortedByDescending { it.lastMessageTimeIso }
 
@@ -216,14 +216,14 @@ private fun toConversation(booking: Booking, currentUserId: String?, allBookings
         ?: (if (isMentor) booking.menteeFullName else booking.mentorFullName)
         ?: "Unknown"
     val peerRole = if (isMentor) "mentee" else "mentor"
-    
+
     // Find active or most recent confirmed booking for session info
     val activeBooking = allBookings.firstOrNull { isSessionActive(it) }
     val confirmedBookings = allBookings.filter { it.status == BookingStatus.CONFIRMED }
     val upcomingBooking = confirmedBookings
         .filter { !isSessionActive(it) }
         .minByOrNull { it.startTimeIso ?: "" }
-    
+
     val sessionBooking = activeBooking ?: upcomingBooking
     val startIso = sessionBooking?.startTimeIso ?: booking.startTimeIso ?: booking.createdAt
     val endIso = sessionBooking?.endTimeIso

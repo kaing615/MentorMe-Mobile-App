@@ -70,6 +70,9 @@ interface MentorMeApi {
     @GET("mentors/{id}")
     suspend fun getMentor(@Path("id") id: String): Response<ApiEnvelope<MentorCardDto>>
 
+    @GET("mentors/me/stats")
+    suspend fun getMentorStats(): Response<ApiEnvelope<com.mentorme.app.data.dto.mentor.MentorStatsDto>>
+
 
     // Booking endpoints
     @POST("bookings")

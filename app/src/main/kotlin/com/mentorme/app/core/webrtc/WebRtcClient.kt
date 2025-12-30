@@ -74,15 +74,29 @@ class WebRtcClient(
             renderer.init(eglBase.eglBaseContext, null)
             renderer.setEnableHardwareScaler(true)
             renderer.setMirror(true)
-            Log.d(TAG, "Local renderer initialized successfully")
+            renderer.setScalingType(org.webrtc.RendererCommon.ScalingType.SCALE_ASPECT_FILL)
+            Log.d(TAG, "Local renderer initialized successfully with mirror=true")
+            
+            localRenderer = renderer
+            
+            // Add existing track if already created
+            localVideoTrack?.let { 
+                Log.d(TAG, "Adding local video track to renderer")
+                // Ensure track is added on the renderer's thread
+                renderer.post {
+                    it.addSink(renderer)
+                    Log.d(TAG, "Local video track sink added to renderer")
+                }
+            }
         } catch (e: IllegalStateException) {
             Log.w(TAG, "Local renderer already initialized: ${e.message}")
-        }
-        localRenderer = renderer
-        // Add existing track if already created
-        localVideoTrack?.let { 
-            Log.d(TAG, "Adding local video track to renderer")
-            it.addSink(renderer)
+            localRenderer = renderer
+            // Still try to add the track if it exists
+            localVideoTrack?.let { 
+                renderer.post {
+                    it.addSink(renderer)
+                }
+            }
         }
     }
 
@@ -92,12 +106,21 @@ class WebRtcClient(
             renderer.init(eglBase.eglBaseContext, null)
             renderer.setEnableHardwareScaler(true)
             renderer.setMirror(false)
-            Log.d(TAG, "Remote renderer initialized successfully")
+            renderer.setScalingType(org.webrtc.RendererCommon.ScalingType.SCALE_ASPECT_FILL)
+            Log.d(TAG, "Remote renderer initialized successfully with SCALE_ASPECT_FILL")
+            
+            remoteRenderer = renderer
+            // Remote track will be added via onRemoteTrack callback when received
         } catch (e: IllegalStateException) {
             Log.w(TAG, "Remote renderer already initialized: ${e.message}")
+            remoteRenderer = renderer
+            // Try to set scaling anyway
+            try {
+                renderer.setScalingType(org.webrtc.RendererCommon.ScalingType.SCALE_ASPECT_FILL)
+            } catch (ex: Exception) {
+                Log.w(TAG, "Could not set scaling type: ${ex.message}")
+            }
         }
-        remoteRenderer = renderer
-        // Remote track will be added via onRemoteTrack callback
     }
 
     fun ensurePeerConnection() {
@@ -128,9 +151,14 @@ class WebRtcClient(
             this.localAudioTrack = audioTrack
             localTracksAttached = false
 
-            localRenderer?.let { 
+            localRenderer?.let { renderer ->
                 Log.d(TAG, "Adding newly created video track to local renderer")
-                videoTrack.addSink(it) 
+                // Ensure track is added on the renderer's thread
+                renderer.post {
+                    videoTrack.addSink(renderer)
+                    renderer.visibility = android.view.View.VISIBLE
+                    Log.d(TAG, "Newly created local video track sink added to renderer")
+                }
             } ?: Log.w(TAG, "No local renderer available to add video track")
             localVideoTrack?.setEnabled(isVideoEnabled)
             localAudioTrack?.setEnabled(isAudioEnabled)
@@ -205,17 +233,27 @@ class WebRtcClient(
 
     fun release() {
         try {
+            // Remove sinks before disposing tracks to prevent crashes
+            localVideoTrack?.removeSink(localRenderer)
+            
             videoCapturer?.stopCapture()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.w("WebRtcClient", "Error during cleanup: ${e.message}")
         }
-        videoCapturer?.dispose()
-        videoSource?.dispose()
-        audioSource?.dispose()
-        localVideoTrack?.dispose()
-        localAudioTrack?.dispose()
-        peerConnection?.dispose()
-        localRenderer?.release()
-        remoteRenderer?.release()
+        
+        try {
+            videoCapturer?.dispose()
+            videoSource?.dispose()
+            audioSource?.dispose()
+            localVideoTrack?.dispose()
+            localAudioTrack?.dispose()
+            peerConnection?.dispose()
+            localRenderer?.release()
+            remoteRenderer?.release()
+        } catch (e: Exception) {
+            android.util.Log.w("WebRtcClient", "Error disposing resources: ${e.message}")
+        }
+        
         videoCapturer = null
         videoSource = null
         audioSource = null
@@ -242,9 +280,22 @@ class WebRtcClient(
 
             override fun onTrack(transceiver: RtpTransceiver) {
                 val track = transceiver.receiver.track()
+                Log.d(TAG, "onTrack received: type=${track?.kind()}, id=${track?.id()}, enabled=${track?.enabled()}")
                 if (track is VideoTrack) {
-                    remoteRenderer?.let { track.addSink(it) }
+                    Log.d(TAG, "Remote video track received, renderer available: ${remoteRenderer != null}")
+                    remoteRenderer?.let { renderer ->
+                        Log.d(TAG, "Adding remote video track to renderer")
+                        // Ensure track is added on the renderer's thread
+                        renderer.post {
+                            track.addSink(renderer)
+                            // Ensure visibility
+                            renderer.visibility = android.view.View.VISIBLE
+                            Log.d(TAG, "Remote video track sink added to renderer, visibility set to VISIBLE")
+                        }
+                    } ?: Log.w(TAG, "Remote renderer not available to add track")
                     events.onRemoteTrack(track)
+                } else {
+                    Log.d(TAG, "Non-video track received: ${track?.kind()}")
                 }
             }
         })

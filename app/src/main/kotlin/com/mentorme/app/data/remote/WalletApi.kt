@@ -34,4 +34,9 @@ interface WalletApi {
         @Query("type") type: String? = null,
         @Query("source") source: String? = null
     ): ApiResponse<WalletTransactionListResponse>
+
+    @POST("wallet/debits")
+    suspend fun withdraw(
+        @Body req: DebitRequest
+    ): Response<DebitResponse>
 }

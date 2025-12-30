@@ -30,12 +30,13 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import com.mentorme.app.ui.components.ui.MMGhostButton
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.mentorme.app.data.dto.paymentMethods.AddPaymentMethodRequest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddPaymentMethodScreen(
     onBack: () -> Unit,
-    onSaved: (PaymentMethod) -> Unit
+    onSaved: (com.mentorme.app.data.dto.paymentMethods.AddPaymentMethodRequest) -> Unit
 ) {
     var provider by remember { mutableStateOf(PayProvider.MOMO) }
 
@@ -160,31 +161,33 @@ fun AddPaymentMethodScreen(
                     MMPrimaryButton(
                         onClick = {
                             if (!isValid) return@MMPrimaryButton
-                            val id = UUID.randomUUID().toString()
-                            val method = when (provider) {
-                                PayProvider.MOMO -> PaymentMethod(
-                                    id = id,
-                                    provider = provider,
-                                    label = "MoMo",
-                                    detail = maskPhone(phone),
+
+                            // Tạo request gửi lên ViewModel -> repo -> backend
+                            val req = when (provider) {
+                                PayProvider.MOMO -> AddPaymentMethodRequest(
+                                    type = "EWALLET",
+                                    provider = "MOMO",
+                                    accountName = "MoMo",
+                                    accountNumber = phone.filter { it.isDigit() },
                                     isDefault = false
                                 )
-                                PayProvider.ZALOPAY -> PaymentMethod(
-                                    id = id,
-                                    provider = provider,
-                                    label = "ZaloPay",
-                                    detail = maskPhone(phone),
+                                PayProvider.ZALOPAY -> AddPaymentMethodRequest(
+                                    type = "EWALLET",
+                                    provider = "ZALOPAY",
+                                    accountName = "ZaloPay",
+                                    accountNumber = phone.filter { it.isDigit() },
                                     isDefault = false
                                 )
-                                PayProvider.BANK -> PaymentMethod(
-                                    id = id,
-                                    provider = provider,
-                                    label = bankName.ifBlank { "Ngân hàng" },
-                                    detail = maskAccount(accNumber),
+                                PayProvider.BANK -> AddPaymentMethodRequest(
+                                    type = "BANK",
+                                    provider = bankName.ifBlank { "BANK" }, // provider = tên ngân hàng
+                                    accountName = accName.ifBlank { "Chủ tài khoản" },
+                                    accountNumber = accNumber.filter { it.isDigit() },
                                     isDefault = false
                                 )
                             }
-                            onSaved(method)
+
+                            onSaved(req)
                         },
                         modifier = Modifier
                             .fillMaxWidth()

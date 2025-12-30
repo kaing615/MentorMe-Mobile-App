@@ -77,8 +77,6 @@ fun AppNav(
     val hazeContentState = remember { HazeState() }
     val hazeBackgroundState = remember { HazeState() }
 
-    // Local UI state
-    var payMethods by remember { mutableStateOf(initialPaymentMethods()) }
     var overlayVisible by remember { mutableStateOf(false) }
     var pendingRoleHint by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingRoute by rememberSaveable { mutableStateOf<String?>(null) }
@@ -288,14 +286,13 @@ fun AppNav(
                     AppNavGraph(
                         nav = nav,
                         sessionVm = sessionVm,
-                            sessionState = sessionState,
-                            authVm = authVm,
-                            notificationsVm = notificationsVm,
-                            payMethods = payMethods,
-                            pendingRoleHint = pendingRoleHint,
-                            onPendingRoleHintChange = { pendingRoleHint = it },
-                            overlayVisible = overlayVisible,
-                            onOverlayVisibleChange = { overlayVisible = it },
+                        sessionState = sessionState,
+                        authVm = authVm,
+                        notificationsVm = notificationsVm,
+                        pendingRoleHint = pendingRoleHint,
+                        onPendingRoleHintChange = { pendingRoleHint = it },
+                        overlayVisible = overlayVisible,
+                        onOverlayVisibleChange = { overlayVisible = it },
                         hazeState = hazeContentState,
                         blurEnabled = blurEnabled
                     )

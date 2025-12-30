@@ -1,19 +1,19 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../handlers/async.handler";
-import { ok, badRequest, notFound } from "../handlers/response.handler";
+import { badRequest, notFound, ok } from "../handlers/response.handler";
 import Booking from "../models/booking.model";
-import {
-  confirmBooking,
-  failBooking,
-  markBookingPendingMentor,
-} from "./booking.controller";
 import { captureBookingPayment } from "../services/walletBooking.service";
 import {
-  notifyPaymentFailed,
-  notifyPaymentSuccess,
-  PaymentNotificationData,
+    notifyPaymentFailed,
+    notifyPaymentSuccess,
+    PaymentNotificationData,
 } from "../utils/notification.service";
 import { getUserInfo } from "../utils/userInfo";
+import {
+    confirmBooking,
+    failBooking,
+    markBookingPendingMentor,
+} from "./booking.controller";
 
 const TERMINAL_BOOKING_STATUSES = new Set([
   "Failed",
@@ -78,6 +78,8 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
     metadata?: Record<string, unknown>;
   };
 
+  console.log(`[WEBHOOK] Received payment webhook: event=${event}, bookingId=${bookingId}, paymentId=${paymentId}, status=${status}`);
+
   if (!event || !bookingId) {
     return badRequest(res, "event and bookingId are required");
   }
@@ -85,6 +87,8 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
   // ✅ Do NOT lean(): we want fresh status checks (and possible re-fetch)
   let booking = await Booking.findById(bookingId);
   if (!booking) return notFound(res, "Booking not found");
+  
+  console.log(`[WEBHOOK] Booking found: id=${bookingId}, status=${(booking as any).status}`);
 
   const bookingStatus = String((booking as any).status);
   const isSuccessEvent = event === "payment.success" || event === "payment.completed";
@@ -106,6 +110,7 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
 
         // ✅ Only accept success when PaymentPending
         if (bookingStatus !== "PaymentPending") {
+          console.log(`[WEBHOOK] Ignoring - booking not PaymentPending: status=${bookingStatus}`);
           return ok(res, {
             processed: true,
             ignored: true,
@@ -115,8 +120,10 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
           });
         }
 
+        console.log(`[WEBHOOK] Capturing payment for booking ${bookingId}...`);
         // Capture wallet transfer (idempotent)
         await captureBookingPayment(bookingId);
+        console.log(`[WEBHOOK] Payment captured successfully for booking ${bookingId}`);
 
         // Re-fetch booking (avoid stale)
         booking = await Booking.findById(bookingId);
@@ -136,6 +143,7 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
           }
         }
 
+        console.log(`[WEBHOOK] Sending payment success notification for booking ${bookingId}...`);
         try {
           const paymentNotificationData = await buildPaymentNotificationData(booking, {
             paymentId,
@@ -143,8 +151,9 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
             event,
           });
           await notifyPaymentSuccess(paymentNotificationData);
+          console.log(`[WEBHOOK] Payment success notification sent for booking ${bookingId}`);
         } catch (err) {
-          console.error("Failed to send payment success notification:", err);
+          console.error("[WEBHOOK] Failed to send payment success notification:", err);
         }
 
         break;
@@ -170,6 +179,8 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
     }
   } catch (err: any) {
     const errorMessage = String(err?.message ?? "");
+    console.error(`[WEBHOOK] Error during webhook processing for ${bookingId}:`, err);
+    console.error(`[WEBHOOK] Error message: ${errorMessage}`);
 
     if (isBookingTerminalError(err)) {
       return ok(res, {
@@ -234,6 +245,27 @@ if (isSuccessEvent && errorMessage === "INSUFFICIENT_BALANCE") {
   }
 
   return ok(res, { processed: true, event, bookingId });
+});
+
+export const payBookingByWallet = asyncHandler(async (req, res) => {
+  const bookingId = req.params.id;
+  const userId = (req as any).user.id;
+
+  const booking = await Booking.findById(bookingId);
+  if (!booking) return notFound(res, "Booking not found");
+
+  if (booking.status !== "PaymentPending") {
+    return badRequest(res, "Booking is not payable");
+  }
+
+  await captureBookingPayment(bookingId);
+
+  await confirmBooking(bookingId);
+
+  return ok(res, {
+    success: true,
+    bookingId,
+  });
 });
 
 export default {

@@ -56,7 +56,6 @@ import com.mentorme.app.ui.search.SearchMentorScreen
 import com.mentorme.app.ui.session.SessionState
 import com.mentorme.app.ui.session.SessionViewModel
 import com.mentorme.app.ui.wallet.AddPaymentMethodScreen
-import com.mentorme.app.ui.wallet.BankInfo
 import com.mentorme.app.ui.wallet.EditPaymentMethodScreen
 import com.mentorme.app.ui.wallet.PaymentMethod
 import com.mentorme.app.ui.wallet.PaymentMethodScreen
@@ -80,13 +79,12 @@ internal fun AppNavGraph(
     sessionState: SessionState,
     authVm: AuthViewModel,
     notificationsVm: NotificationsViewModel,
-    payMethods: List<PaymentMethod>,
     pendingRoleHint: String?,
     onPendingRoleHintChange: (String?) -> Unit,
     overlayVisible: Boolean,
     onOverlayVisibleChange: (Boolean) -> Unit,
     hazeState: HazeState? = null,
-    blurEnabled: Boolean = false
+    blurEnabled: Boolean = false,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -111,106 +109,116 @@ internal fun AppNavGraph(
             startDestination = Routes.Auth,
             modifier = Modifier.fillMaxSize()
         ) {
-    // ---------- AUTH ----------
-    composable(Routes.Auth) {
-        AuthScreen(
-            onLogin = { email, pass ->
-                val ok = email.isNotBlank() && pass.isNotBlank()
-                if (ok) {
-                    // Don't navigate from here. Let SessionViewModel / backend change session state.
-                    // Trigger a refresh to pick up new session state once backend returns token/status.
-                    sessionVm.refreshStatus()
-                }
-                ok
-            },
-            onRegister = { p: RegisterPayload ->
-                val ok = p.fullName.isNotBlank() && p.email.isNotBlank() && p.password.length >= 6
-                if (ok) {
-                    sessionVm.refreshStatus()
-                }
-                ok
-            },
-            onResetPassword = { /* TODO */ },
-            onNavigateToMenteeHome = {
-                // user explicitly chose mentee flow during auth -> hint role locally
-                onPendingRoleHintChange("mentee")
-                sessionVm.refreshStatus()
-            },
-            onNavigateToMentorHome = {
-                onPendingRoleHintChange("mentor")
-                sessionVm.refreshStatus()
-            },
-            onNavigateToOnboarding = { tokenFromAuth: String?, role: String? ->
-                // Auth flow decided onboarding is next. Set a local hint so we can navigate immediately
-                onPendingRoleHintChange(role ?: pendingRoleHint)
-                // backend should set status to onboarding; refresh to pick it up
-                sessionVm.refreshStatus()
-            },
-            onNavigateToReview = {
-                // user wants to go to pending review flow
-                sessionVm.refreshStatus()
-            },
-            onLogout = {
-                authVm.signOut {
-                    nav.navigate(Routes.Auth) {
-                        popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
-                        launchSingleTop = true
+            // ---------- AUTH ----------
+            composable(Routes.Auth) {
+                AuthScreen(
+                    onLogin = { email, pass ->
+                        val ok = email.isNotBlank() && pass.isNotBlank()
+                        if (ok) {
+                            // Don't navigate from here. Let SessionViewModel / backend change session state.
+                            // Trigger a refresh to pick up new session state once backend returns token/status.
+                            sessionVm.refreshStatus()
+                        }
+                        ok
+                    },
+                    onRegister = { p: RegisterPayload ->
+                        val ok =
+                            p.fullName.isNotBlank() && p.email.isNotBlank() && p.password.length >= 6
+                        if (ok) {
+                            sessionVm.refreshStatus()
+                        }
+                        ok
+                    },
+                    onResetPassword = { /* TODO */ },
+                    onNavigateToMenteeHome = {
+                        // user explicitly chose mentee flow during auth -> hint role locally
+                        onPendingRoleHintChange("mentee")
+                        sessionVm.refreshStatus()
+                    },
+                    onNavigateToMentorHome = {
+                        onPendingRoleHintChange("mentor")
+                        sessionVm.refreshStatus()
+                    },
+                    onNavigateToOnboarding = { tokenFromAuth: String?, role: String? ->
+                        // Auth flow decided onboarding is next. Set a local hint so we can navigate immediately
+                        onPendingRoleHintChange(role ?: pendingRoleHint)
+                        // backend should set status to onboarding; refresh to pick it up
+                        sessionVm.refreshStatus()
+                    },
+                    onNavigateToReview = {
+                        // user wants to go to pending review flow
+                        sessionVm.refreshStatus()
+                    },
+                    onLogout = {
+                        authVm.signOut {
+                            nav.navigate(Routes.Auth) {
+                                popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
                     }
+                )
+            }
+
+            // ---------- ONBOARDING ----------
+            composable(Routes.Onboarding) { backStackEntry ->
+                val roleArg = backStackEntry.arguments?.getString("role") ?: sessionState.role
+                ?: pendingRoleHint ?: "mentee"
+
+                if (roleArg == "mentor") {
+                    MentorOnboardingScreen(
+                        onBack = { nav.popBackStack() },
+                        onDoneGoHome = {
+                            // Do NOT navigate here. Update server / refresh session and let AppNav route.
+                            sessionVm.refreshStatus()
+                        },
+                        onGoToReview = {
+                            sessionVm.refreshStatus()
+                        }
+                    )
+                } else {
+                    MenteeOnboardingScreen(
+                        onBack = { nav.popBackStack() },
+                        onDoneGoHome = {
+                            sessionVm.refreshStatus()
+                        },
+                        onGoToReview = {
+                            sessionVm.refreshStatus()
+                        }
+                    )
                 }
             }
-        )
-    }
 
-    // ---------- ONBOARDING ----------
-    composable(Routes.Onboarding) { backStackEntry ->
-        val roleArg = backStackEntry.arguments?.getString("role") ?: sessionState.role ?: pendingRoleHint ?: "mentee"
-
-        if (roleArg == "mentor") {
-            MentorOnboardingScreen(
-                onBack = { nav.popBackStack() },
-                onDoneGoHome = {
-                    // Do NOT navigate here. Update server / refresh session and let AppNav route.
-                    sessionVm.refreshStatus()
-                },
-                onGoToReview = {
-                    sessionVm.refreshStatus()
-                }
-            )
-        } else {
-            MenteeOnboardingScreen(
-                onBack = { nav.popBackStack() },
-                onDoneGoHome = {
-                    sessionVm.refreshStatus()
-                },
-                onGoToReview = {
-                    sessionVm.refreshStatus()
-                }
-            )
-        }
-    }
-
-    // ---------- PENDING APPROVAL ----------
-    composable(Routes.PendingApproval) {
-        PendingApprovalScreen(
-            onRefreshStatus = {
-                sessionVm.refreshStatus() { ok, status ->
-                    if (!ok) {
-                        Toast.makeText(context, "Không thể làm mới trạng thái.", Toast.LENGTH_SHORT).show()
-                    } else if (status == "pending-mentor") {
-                        Toast.makeText(context, "Hồ sơ vẫn đang chờ duyệt.", Toast.LENGTH_SHORT).show()
+            // ---------- PENDING APPROVAL ----------
+            composable(Routes.PendingApproval) {
+                PendingApprovalScreen(
+                    onRefreshStatus = {
+                        sessionVm.refreshStatus() { ok, status ->
+                            if (!ok) {
+                                Toast.makeText(
+                                    context,
+                                    "Không thể làm mới trạng thái.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else if (status == "pending-mentor") {
+                                Toast.makeText(
+                                    context,
+                                    "Hồ sơ vẫn đang chờ duyệt.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    },
+                    onBackToLogin = {
+                        authVm.signOut {
+                            nav.navigate(Routes.Auth) {
+                                popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
                     }
-                }
-            },
-            onBackToLogin = {
-                authVm.signOut {
-                    nav.navigate(Routes.Auth) {
-                        popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
-                        launchSingleTop = true
-                    }
-                }
+                )
             }
-        )
-    }
 
     // ---------- MAIN APP ----------
     composable(Routes.Home) {
@@ -302,93 +310,121 @@ internal fun AppNavGraph(
                     restoreState = true
                 }
             }
-        )
-    }
 
-    composable(Routes.MentorCalendar) {
-        MentorCalendarScreen(
-            onViewSession = { sessionId -> Log.d("AppNav", "View session $sessionId - TODO") },
-            onJoinSession = { bookingId ->
-                nav.navigate(Routes.videoCall(bookingId)) {
-                    launchSingleTop = true
-                }
-            },
-            onCreateSession = { Log.d("AppNav", "Create session - TODO") },
-            onUpdateAvailability = { Log.d("AppNav", "Update availability - TODO") },
-            onCancelSession = { sessionId -> Log.d("AppNav", "Cancel session $sessionId - TODO") }
-        )
-    }
-
-    composable(Routes.MentorMessages) {
-        MentorMessagesScreen(
-            onOpenConversation = { convId -> nav.navigate("${Routes.Chat}/$convId") },
-            onFilterStudents = { Log.d("AppNav", "Filter students - TODO") },
-            onSearchConversations = { query -> Log.d("AppNav", "Search conversations: $query - TODO") }
-        )
-    }
-
-    composable(Routes.MentorProfile) {
-        val localAuthVm = hiltViewModel<AuthViewModel>()
-        MentorProfileScreen(
-            notificationsViewModel = notificationsVm,
-            startTarget = "profile",
-            onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
-            onViewEarnings = { Log.d("AppNav", "MentorProfile: onViewEarnings - TODO") },
-            onViewReviews = { Log.d("AppNav", "MentorProfile: onViewReviews - TODO") },
-            onUpdateAvailability = {
-                nav.navigate(Routes.MentorCalendar) {
-                    launchSingleTop = true
-                    restoreState = true
-                }
-            },
-            onManageServices = { Log.d("AppNav", "MentorProfile: onManageServices - TODO") },
-            onViewStatistics = { Log.d("AppNav", "MentorProfile: onViewStatistics - TODO") },
-            onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
-            onOpenNotifications = { nav.navigate(Routes.Notifications) },
-            onLogout = {
-                localAuthVm.signOut {
-                    nav.navigate(Routes.Auth) {
-                        popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
-                        launchSingleTop = true
+            composable(Routes.MentorCalendar) {
+                MentorCalendarScreen(
+                    onViewSession = { sessionId ->
+                        Log.d(
+                            "AppNav",
+                            "View session $sessionId - TODO"
+                        )
+                    },
+                    onCreateSession = { Log.d("AppNav", "Create session - TODO") },
+                    onUpdateAvailability = { Log.d("AppNav", "Update availability - TODO") },
+                    onCancelSession = { sessionId ->
+                        Log.d(
+                            "AppNav",
+                            "Cancel session $sessionId - TODO"
+                        )
                     }
-                }
+                )
             }
-        )
-    }
 
-    composable(
-        route = Routes.MentorProfileWithTarget,
-        arguments = listOf()
-    ) { backStackEntry ->
-        val localAuthVm = hiltViewModel<AuthViewModel>()
-        val target = backStackEntry.arguments?.getString("target") ?: "profile"
-
-        MentorProfileScreen(
-            notificationsViewModel = notificationsVm,
-            startTarget = target,
-            onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
-            onViewEarnings = { Log.d("AppNav", "MentorProfile: onViewEarnings - TODO") },
-            onViewReviews = { Log.d("AppNav", "MentorProfile: onViewReviews - TODO") },
-            onUpdateAvailability = {
-                nav.navigate(Routes.MentorCalendar) {
-                    launchSingleTop = true
-                    restoreState = true
-                }
-            },
-            onManageServices = { Log.d("AppNav", "MentorProfile: onManageServices - TODO") },
-            onViewStatistics = { Log.d("AppNav", "MentorProfile: onViewStatistics - TODO") },
-            onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
-            onOpenNotifications = { nav.navigate(Routes.Notifications) },
-            onLogout = {
-                localAuthVm.signOut {
-                    nav.navigate(Routes.Auth) {
-                        popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
-                        launchSingleTop = true
+            composable(Routes.MentorMessages) {
+                MentorMessagesScreen(
+                    onOpenConversation = { convId -> nav.navigate("${Routes.Chat}/$convId") },
+                    onFilterStudents = { Log.d("AppNav", "Filter students - TODO") },
+                    onSearchConversations = { query ->
+                        Log.d(
+                            "AppNav",
+                            "Search conversations: $query - TODO"
+                        )
                     }
-                }
+                )
             }
-        )
-    }
+
+            composable(Routes.MentorProfile) {
+                val localAuthVm = hiltViewModel<AuthViewModel>()
+                MentorProfileScreen(
+                    notificationsViewModel = notificationsVm,
+                    startTarget = "profile",
+                    onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
+                    onViewEarnings = { Log.d("AppNav", "MentorProfile: onViewEarnings - TODO") },
+                    onViewReviews = { Log.d("AppNav", "MentorProfile: onViewReviews - TODO") },
+                    onUpdateAvailability = {
+                        nav.navigate(Routes.MentorCalendar) {
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onManageServices = {
+                        Log.d(
+                            "AppNav",
+                            "MentorProfile: onManageServices - TODO"
+                        )
+                    },
+                    onViewStatistics = {
+                        Log.d(
+                            "AppNav",
+                            "MentorProfile: onViewStatistics - TODO"
+                        )
+                    },
+                    onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
+                    onOpenNotifications = { nav.navigate(Routes.Notifications) },
+                    onLogout = {
+                        localAuthVm.signOut {
+                            nav.navigate(Routes.Auth) {
+                                popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    }
+                )
+            }
+
+            composable(
+                route = Routes.MentorProfileWithTarget,
+                arguments = listOf()
+            ) { backStackEntry ->
+                val localAuthVm = hiltViewModel<AuthViewModel>()
+                val target = backStackEntry.arguments?.getString("target") ?: "profile"
+
+                MentorProfileScreen(
+                    notificationsViewModel = notificationsVm,
+                    startTarget = target,
+                    onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
+                    onViewEarnings = { Log.d("AppNav", "MentorProfile: onViewEarnings - TODO") },
+                    onViewReviews = { Log.d("AppNav", "MentorProfile: onViewReviews - TODO") },
+                    onUpdateAvailability = {
+                        nav.navigate(Routes.MentorCalendar) {
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onManageServices = {
+                        Log.d(
+                            "AppNav",
+                            "MentorProfile: onManageServices - TODO"
+                        )
+                    },
+                    onViewStatistics = {
+                        Log.d(
+                            "AppNav",
+                            "MentorProfile: onViewStatistics - TODO"
+                        )
+                    },
+                    onSettings = { Log.d("AppNav", "MentorProfile: onSettings - TODO") },
+                    onOpenNotifications = { nav.navigate(Routes.Notifications) },
+                    onLogout = {
+                        localAuthVm.signOut {
+                            nav.navigate(Routes.Auth) {
+                                popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    }
+                )
+            }
 
     composable(Routes.search) {
         SearchMentorScreen(
@@ -455,27 +491,25 @@ internal fun AppNavGraph(
             onOpenDetail = { booking ->
                 nav.navigate("booking_detail/${booking.id}")
             }
-        )
-    }
 
-    composable("booking_detail/{bookingId}") { backStackEntry ->
-        val bookingId = backStackEntry.arguments?.getString("bookingId") ?: return@composable
-        BookingDetailScreen(
-            bookingId = bookingId,
-            onBack = { nav.popBackStack() },
-            onJoinSession = { bookingId ->
-                nav.navigate(Routes.videoCall(bookingId)) {
-                    launchSingleTop = true
-                }
+            composable("booking_detail/{bookingId}") { backStackEntry ->
+                val bookingId = backStackEntry.arguments?.getString("bookingId") ?: return@composable
+                BookingDetailScreen(
+                    bookingId = bookingId,
+                    onBack = { nav.popBackStack() },
+                    onJoinSession = { bookingId ->
+                        nav.navigate(Routes.videoCall(bookingId)) {
+                            launchSingleTop = true
+                        }
+                    }
+                )
             }
-        )
-    }
 
-    composable(Routes.Messages) {
-        MessagesScreen(onOpenConversation = { convId ->
-            nav.navigate("${Routes.Chat}/$convId")
-        })
-    }
+            composable(Routes.Messages) {
+                MessagesScreen(onOpenConversation = { convId ->
+                    nav.navigate("${Routes.Chat}/$convId")
+                })
+            }
 
     composable(Routes.Notifications) {
         NotificationsScreen(
@@ -551,220 +585,253 @@ internal fun AppNavGraph(
                         popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
                         launchSingleTop = true
                     }
+                )
+            }
+
+            // ---------- BOOKING ----------
+            composable("booking/{mentorId}") { backStackEntry ->
+                val mentorId = backStackEntry.arguments?.getString("mentorId") ?: return@composable
+                val mentor = MockData.mockMentors.find { it.id == mentorId }
+                    ?: com.mentorme.app.data.model.Mentor(
+                        id = mentorId,
+                        email = "",
+                        fullName = "Mentor",
+                        avatar = null,
+                        role = com.mentorme.app.data.model.UserRole.MENTOR,
+                        createdAt = "",
+                        bio = "",
+                        skills = emptyList(),
+                        hourlyRate = 0.0,
+                        rating = 0.0,
+                        totalReviews = 0,
+                        availability = emptyList(),
+                        verified = false,
+                        experience = "",
+                        education = "",
+                        languages = emptyList()
+                    )
+
+                val vm = hiltViewModel<com.mentorme.app.ui.booking.BookingFlowViewModel>()
+                LaunchedEffect(mentorId) { vm.load(mentorId) }
+                val uiState by vm.state.collectAsState()
+                val slots =
+                    (uiState as? com.mentorme.app.ui.booking.BookingFlowViewModel.UiState.Success<
+                            List<com.mentorme.app.ui.booking.BookingFlowViewModel.TimeSlotUi>
+                            >)?.data ?: emptyList()
+                val loading =
+                    uiState is com.mentorme.app.ui.booking.BookingFlowViewModel.UiState.Loading
+                val error =
+                    (uiState as? com.mentorme.app.ui.booking.BookingFlowViewModel.UiState.Error)?.message
+
+                BookingChooseTimeScreen(
+                    mentor = mentor,
+                    slots = slots,
+                    loading = loading,
+                    errorMessage = error,
+                    onNext = { d: BookingDraft ->
+                        nav.currentBackStackEntry?.savedStateHandle?.set("booking_notes", d.notes)
+                        nav.navigate("bookingSummary/${mentor.id}/${d.date}/${d.startTime}/${d.endTime}/${d.priceVnd}/${d.occurrenceId}")
+                    },
+                    onClose = { nav.popBackStack() }
+                )
+            }
+
+            composable("bookingSummary/{mentorId}/{date}/{start}/{end}/{price}/{occurrenceId}") { backStackEntry ->
+                val mentorId = backStackEntry.arguments?.getString("mentorId") ?: return@composable
+                val date = backStackEntry.arguments?.getString("date") ?: ""
+                val startTime = backStackEntry.arguments?.getString("start") ?: ""
+                val endTime = backStackEntry.arguments?.getString("end") ?: ""
+                val priceVnd = backStackEntry.arguments?.getString("price")?.toLongOrNull() ?: 0L
+                val occurrenceIdRaw = backStackEntry.arguments?.getString("occurrenceId")
+                val occurrenceId = if (occurrenceIdRaw.isNullOrBlank()) {
+                    "${date}_${startTime}"
+                } else {
+                    occurrenceIdRaw
                 }
-            }
-        )
-    }
+                val notes =
+                    nav.previousBackStackEntry?.savedStateHandle?.get<String>("booking_notes") ?: ""
+                val mentorName = nav.previousBackStackEntry
+                    ?.savedStateHandle
+                    ?.get<String>("booking_mentor_name")
+                    ?.trim()
 
-    // ---------- BOOKING ----------
-    composable("booking/{mentorId}") { backStackEntry ->
-        val mentorId = backStackEntry.arguments?.getString("mentorId") ?: return@composable
-        val mentor = MockData.mockMentors.find { it.id == mentorId } ?: com.mentorme.app.data.model.Mentor(
-            id = mentorId,
-            email = "",
-            fullName = "Mentor",
-            avatar = null,
-            role = com.mentorme.app.data.model.UserRole.MENTOR,
-            createdAt = "",
-            bio = "",
-            skills = emptyList(),
-            hourlyRate = 0.0,
-            rating = 0.0,
-            totalReviews = 0,
-            availability = emptyList(),
-            verified = false,
-            experience = "",
-            education = "",
-            languages = emptyList()
-        )
-
-        val vm = hiltViewModel<com.mentorme.app.ui.booking.BookingFlowViewModel>()
-        LaunchedEffect(mentorId) { vm.load(mentorId) }
-        val uiState by vm.state.collectAsState()
-        val slots = (uiState as? com.mentorme.app.ui.booking.BookingFlowViewModel.UiState.Success<
-                List<com.mentorme.app.ui.booking.BookingFlowViewModel.TimeSlotUi>
-                >)?.data ?: emptyList()
-        val loading = uiState is com.mentorme.app.ui.booking.BookingFlowViewModel.UiState.Loading
-        val error = (uiState as? com.mentorme.app.ui.booking.BookingFlowViewModel.UiState.Error)?.message
-
-        BookingChooseTimeScreen(
-            mentor = mentor,
-            slots = slots,
-            loading = loading,
-            errorMessage = error,
-            onNext = { d: BookingDraft ->
-                nav.currentBackStackEntry?.savedStateHandle?.set("booking_notes", d.notes)
-                nav.navigate("bookingSummary/${mentor.id}/${d.date}/${d.startTime}/${d.endTime}/${d.priceVnd}/${d.occurrenceId}")
-            },
-            onClose = { nav.popBackStack() }
-        )
-    }
-
-    composable("bookingSummary/{mentorId}/{date}/{start}/{end}/{price}/{occurrenceId}") { backStackEntry ->
-        val mentorId = backStackEntry.arguments?.getString("mentorId") ?: return@composable
-        val date = backStackEntry.arguments?.getString("date") ?: ""
-        val startTime = backStackEntry.arguments?.getString("start") ?: ""
-        val endTime = backStackEntry.arguments?.getString("end") ?: ""
-        val priceVnd = backStackEntry.arguments?.getString("price")?.toLongOrNull() ?: 0L
-        val occurrenceIdRaw = backStackEntry.arguments?.getString("occurrenceId")
-        val occurrenceId = if (occurrenceIdRaw.isNullOrBlank()) {
-            "${date}_${startTime}"
-        } else {
-            occurrenceIdRaw
-        }
-        val notes = nav.previousBackStackEntry?.savedStateHandle?.get<String>("booking_notes") ?: ""
-        val mentorName = nav.previousBackStackEntry
-            ?.savedStateHandle
-            ?.get<String>("booking_mentor_name")
-            ?.trim()
-
-        val vm = hiltViewModel<com.mentorme.app.ui.booking.BookingFlowViewModel>()
-        val mentorFromMock = MockData.mockMentors.find { it.id == mentorId }
-        val mentor = if (mentorFromMock != null) {
-            if (!mentorName.isNullOrBlank() && mentorName != mentorFromMock.fullName) {
-                mentorFromMock.copy(fullName = mentorName)
-            } else {
-                mentorFromMock
-            }
-        } else {
-            com.mentorme.app.data.model.Mentor(
-                id = mentorId,
-                email = "",
-                fullName = mentorName ?: "Mentor",
-                avatar = null,
-                role = com.mentorme.app.data.model.UserRole.MENTOR,
-                createdAt = "",
-                bio = "",
-                skills = emptyList(),
-                hourlyRate = 0.0,
-                rating = 0.0,
-                totalReviews = 0,
-                availability = emptyList(),
-                verified = false,
-                experience = "",
-                education = "",
-                languages = emptyList()
-            )
-        }
-
-        BookingSummaryScreen(
-            mentor = mentor,
-            draft = BookingDraft(
-                mentorId = mentorId,
-                occurrenceId = occurrenceId,
-                date = date,
-                startTime = startTime,
-                endTime = endTime,
-                priceVnd = priceVnd,
-                notes = notes
-            ),
-            currentUserId = "current-user-id",
-            onConfirmed = {
-                when (val res = vm.createBooking(
-                    mentorId = mentorId,
-                    occurrenceId = occurrenceId,
-                    topic = "Mentor Session",
-                    notes = it.notes
-                )) {
-                    is com.mentorme.app.core.utils.AppResult.Success -> {
-                        nav.navigate(Routes.calendar("pending")) {
-                            popUpTo(nav.graph.findStartDestination().id) { inclusive = false }
-                            launchSingleTop = true
-                        }
+                val vm = hiltViewModel<com.mentorme.app.ui.booking.BookingFlowViewModel>()
+                val mentorFromMock = MockData.mockMentors.find { it.id == mentorId }
+                val mentor = if (mentorFromMock != null) {
+                    if (!mentorName.isNullOrBlank() && mentorName != mentorFromMock.fullName) {
+                        mentorFromMock.copy(fullName = mentorName)
+                    } else {
+                        mentorFromMock
                     }
-                    is com.mentorme.app.core.utils.AppResult.Error -> {
-                        val msg = res.throwable
-                        val code = msg.substringAfter("HTTP ", "").substringBefore(":").toIntOrNull()
-                        when (code) {
-                            401 -> {
-                                authVm.signOut {
-                                    nav.navigate(Routes.Auth) {
-                                        popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
-                                        launchSingleTop = true
+                } else {
+                    com.mentorme.app.data.model.Mentor(
+                        id = mentorId,
+                        email = "",
+                        fullName = mentorName ?: "Mentor",
+                        avatar = null,
+                        role = com.mentorme.app.data.model.UserRole.MENTOR,
+                        createdAt = "",
+                        bio = "",
+                        skills = emptyList(),
+                        hourlyRate = 0.0,
+                        rating = 0.0,
+                        totalReviews = 0,
+                        availability = emptyList(),
+                        verified = false,
+                        experience = "",
+                        education = "",
+                        languages = emptyList()
+                    )
+                }
+
+                BookingSummaryScreen(
+                    mentor = mentor,
+                    draft = BookingDraft(
+                        mentorId = mentorId,
+                        occurrenceId = occurrenceId,
+                        date = date,
+                        startTime = startTime,
+                        endTime = endTime,
+                        priceVnd = priceVnd,
+                        notes = notes
+                    ),
+                    currentUserId = "current-user-id",
+                    onConfirmed = {
+                        when (val res = vm.createBooking(
+                            mentorId = mentorId,
+                            occurrenceId = occurrenceId,
+                            topic = "Mentor Session",
+                            notes = it.notes
+                        )) {
+                            is com.mentorme.app.core.utils.AppResult.Success -> {
+                                nav.navigate(Routes.calendar("pending")) {
+                                    popUpTo(nav.graph.findStartDestination().id) {
+                                        inclusive = false
+                                    }
+                                    launchSingleTop = true
+                                }
+                            }
+
+                            is com.mentorme.app.core.utils.AppResult.Error -> {
+                                val msg = res.throwable
+                                val code = msg.substringAfter("HTTP ", "").substringBefore(":")
+                                    .toIntOrNull()
+                                when (code) {
+                                    401 -> {
+                                        authVm.signOut {
+                                            nav.navigate(Routes.Auth) {
+                                                popUpTo(nav.graph.findStartDestination().id) {
+                                                    inclusive = true
+                                                }
+                                                launchSingleTop = true
+                                            }
+                                        }
+                                    }
+
+                                    409, 422 -> {
+                                        Toast.makeText(
+                                            context,
+                                            "Khung giờ đã được đặt. Vui lòng chọn thời gian khác.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+
+                                    else -> {
+                                        val errorMsg =
+                                            if (msg.isBlank()) "Có lỗi xảy ra, vui lòng thử lại." else msg
+                                        Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
                                     }
                                 }
                             }
-                            409, 422 -> {
-                                Toast.makeText(context, "Khung giờ đã được đặt. Vui lòng chọn thời gian khác.", Toast.LENGTH_LONG).show()
-                            }
-                            else -> {
-                                val errorMsg = if (msg.isBlank()) "Có lỗi xảy ra, vui lòng thử lại." else msg
-                                Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
-                            }
+
+                            com.mentorme.app.core.utils.AppResult.Loading -> Unit
                         }
+                    },
+                    onBack = { nav.popBackStack() }
+                )
+            }
+
+            // ---------- WALLET ----------
+            composable(Routes.TopUp) { backStackEntry ->
+                val parentEntry = remember { nav.getBackStackEntry(Routes.Profile) }
+                val walletVm: WalletViewModel = hiltViewModel(parentEntry)
+
+                TopUpScreen(
+                    onBack = { nav.popBackStack() },
+                    walletViewModel = walletVm
+                )
+            }
+
+            composable(Routes.Withdraw) {
+                val parentEntry = remember { nav.getBackStackEntry(Routes.Profile) }
+                val walletVm: WalletViewModel = hiltViewModel(parentEntry)
+
+                WithdrawScreen(
+                    navController = nav,
+                    walletViewModel = walletVm,
+                    onBack = { nav.popBackStack() }
+                )
+            }
+
+
+            composable(Routes.PaymentMethods) { backStackEntry ->
+                val parentEntry = remember {
+                    nav.getBackStackEntry(Routes.Profile)
+                }
+                val walletViewModel: WalletViewModel = hiltViewModel(parentEntry)
+
+                val methods by walletViewModel.paymentMethods.collectAsState()
+
+                PaymentMethodScreen(
+                    walletViewModel = walletViewModel,
+                    methods = methods,
+                    onBack = { nav.popBackStack() },
+                    onChosen = { nav.popBackStack() },
+                    onAddNew = { nav.navigate(Routes.AddPaymentMethod) },
+                    onEditSelected = { method ->
+                        nav.currentBackStackEntry
+                            ?.savedStateHandle
+                            ?.set("method", method)
+
+                        nav.navigate(Routes.EditPaymentMethod)
                     }
-                    com.mentorme.app.core.utils.AppResult.Loading -> Unit
-                }
-            },
-            onBack = { nav.popBackStack() }
-        )
-    }
-
-    // ---------- WALLET ----------
-    composable(Routes.TopUp) { backStackEntry ->
-        val parentEntry = remember { nav.getBackStackEntry(Routes.Profile) }
-        val walletVm: WalletViewModel = hiltViewModel(parentEntry)
-
-        TopUpScreen(
-             onBack = { nav.popBackStack() },
-             walletViewModel = walletVm
-         )
-    }
-
-    composable(Routes.Withdraw) {
-        WithdrawScreen(
-            balance = 8_500_000L,
-            bankInfo = BankInfo(
-                bankName = "Vietcombank",
-                accountNumber = "0123456789",
-                accountName = "NGUYEN VAN A"
-            ),
-            onBack = { nav.popBackStack() },
-            onSubmit = { _, _ -> nav.popBackStack() }
-        )
-    }
-
-    composable(Routes.PaymentMethods) {
-        PaymentMethodScreen(
-            methods = payMethods,
-            onBack = { nav.popBackStack() },
-            onChosen = { chosen ->
-                nav.previousBackStackEntry?.savedStateHandle?.set("payment_method_id", chosen.id)
-                nav.popBackStack()
-            },
-            onAddNew = { nav.navigate(Routes.AddPaymentMethod) },
-            onEditSelected = { toEdit ->
-                nav.currentBackStackEntry?.savedStateHandle?.set("editing_method", toEdit)
-                nav.navigate(Routes.EditPaymentMethod)
+                )
             }
-        )
-    }
 
-    composable(Routes.AddPaymentMethod) {
-        AddPaymentMethodScreen(
-            onBack = { nav.popBackStack() },
-            onSaved = { method ->
-                nav.previousBackStackEntry?.savedStateHandle?.set("new_payment_method", method)
-                nav.popBackStack()
+            composable(Routes.AddPaymentMethod) {
+                val parent = remember { nav.getBackStackEntry(Routes.Profile) }
+                val walletVm: WalletViewModel = hiltViewModel(parent)
+
+                AddPaymentMethodScreen(
+                    onBack = { nav.popBackStack() },
+                    onSaved = { req ->
+                        walletVm.addPaymentMethod(req)
+                        nav.popBackStack()
+                    }
+                )
             }
-        )
-    }
 
-    composable(Routes.EditPaymentMethod) {
-        val toEdit = nav.previousBackStackEntry
-            ?.savedStateHandle?.get<PaymentMethod>("editing_method")
-
-        if (toEdit == null) {
-            LaunchedEffect(Unit) { nav.popBackStack() }
-        } else {
-            EditPaymentMethodScreen(
-                method = toEdit,
-                onBack = { nav.popBackStack() },
-                onSaved = { updated ->
-                    nav.previousBackStackEntry?.savedStateHandle?.set("edited_payment_method", updated)
-                    nav.popBackStack()
+            composable(Routes.EditPaymentMethod) {
+                val parent = remember {
+                    nav.getBackStackEntry(Routes.Profile)
                 }
-            )
+                val walletVm: WalletViewModel = hiltViewModel(parent)
+
+                val method =
+                    nav.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.get<PaymentMethod>("method")
+                        ?: return@composable
+
+                EditPaymentMethodScreen(
+                    method = method,
+                    onBack = { nav.popBackStack() },
+                    onSaved = { updated ->
+                        walletVm.updatePaymentMethod(method.id, updated)
+                        nav.popBackStack()
+                    }
+                )
+            }
         }
     }
         } // End NavHost

@@ -121,7 +121,7 @@ fun ProfileScreen(
                         title = {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
-                                    "Thông tin cá nhân",
+                                    "Hồ sơ cá nhân",
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -186,7 +186,7 @@ fun ProfileScreen(
                         .fillMaxSize()
                         .padding(padding)
                         .padding(horizontal = 16.dp)
-                        .padding(top = 12.dp, bottom = 24.dp)
+                        .padding(top = 12.dp, bottom = 92.dp)
                 ) {
                     // Tabs
                     com.mentorme.app.ui.theme.LiquidGlassCard(
@@ -221,7 +221,7 @@ fun ProfileScreen(
                             },
                             divider = {}
                         ) {
-                            listOf("Profile", "Ví", "Thống kê", "Cài đặt").forEachIndexed { i, label ->
+                            listOf("Hồ sơ", "Ví", "Thống kê", "Cài đặt").forEachIndexed { i, label ->
                                 Tab(
                                     selected = selectedTab == i,
                                     onClick = { selectedTab = i },
@@ -266,7 +266,6 @@ fun ProfileScreen(
                             onWithdraw = onOpenWithdraw,
                             onChangeMethod = onOpenChangeMethod,
                             onAddMethod = onAddMethod,
-                            methods = methods
                         )
                         // ✅ FIX 6: Dùng userRole từ ViewModel state thay vì user.role
                         2 -> StatsTab(userRole = userRole, profile = profile)
@@ -281,9 +280,6 @@ fun ProfileScreen(
                             onLogout = onLogout
                         )
                     }
-
-                    // Spacer để nội dung không bị bottom bar đè khi scroll xuống
-                    Spacer(Modifier.height(80.dp))
                 }
             }
         }

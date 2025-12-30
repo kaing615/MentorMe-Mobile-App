@@ -62,6 +62,11 @@ fun VideoCallScreen(
     val viewModel = hiltViewModel<VideoCallViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    
+    // Debug logging
+    LaunchedEffect(state.phase, state.peerJoined, state.admitted, state.role) {
+        android.util.Log.d("VideoCallScreen", "State updated - phase: ${state.phase}, role: ${state.role}, peerJoined: ${state.peerJoined}, admitted: ${state.admitted}")
+    }
 
     val permissions = remember {
         arrayOf(
@@ -112,18 +117,45 @@ fun VideoCallScreen(
             .fillMaxSize()
             .background(Color.Black)
     ) {
+        // Remote video - full screen (rendered first, behind local video)
         AndroidView(
             factory = { ctx ->
-                SurfaceViewRenderer(ctx).also { viewModel.bindRemoteRenderer(it) }
+                SurfaceViewRenderer(ctx).apply {
+                    setZOrderMediaOverlay(false)
+                    setZOrderOnTop(false)
+                    // Initialize renderer on creation
+                    post {
+                        viewModel.bindRemoteRenderer(this)
+                    }
+                }
+            },
+            update = { view ->
+                // Ensure renderer is ready when recomposed
+                view.holder?.surface?.let { surface ->
+                    if (!surface.isValid) {
+                        view.requestLayout()
+                    }
+                }
             },
             modifier = Modifier.fillMaxSize()
         )
 
+        // Local video - small preview in corner (rendered on top)
         AndroidView(
             factory = { ctx ->
                 SurfaceViewRenderer(ctx).apply {
                     setZOrderMediaOverlay(true)
-                }.also { viewModel.bindLocalRenderer(it) }
+                    setZOrderOnTop(true)
+                    // Initialize renderer on creation
+                    post {
+                        viewModel.bindLocalRenderer(this)
+                    }
+                }
+            },
+            update = { view ->
+                // Ensure local preview stays on top
+                view.setZOrderMediaOverlay(true)
+                view.setZOrderOnTop(true)
             },
             modifier = Modifier
                 .padding(12.dp)
@@ -146,13 +178,21 @@ fun VideoCallScreen(
             )
         }
 
-        val statusLabel = remember(state.phase, state.role) {
+        val statusLabel = remember(state.phase, state.role, state.peerJoined) {
             when (state.phase) {
                 CallPhase.InCall -> "In call"
                 CallPhase.Reconnecting -> "Reconnecting"
                 CallPhase.Joining -> "Joining room"
                 CallPhase.WaitingForPeer -> "Waiting for participant"
-                CallPhase.WaitingForAdmit -> if (state.role == "mentor") "Participant waiting" else "Waiting for mentor approval"
+                CallPhase.WaitingForAdmit -> {
+                    if (state.role == "mentor" && state.peerJoined) {
+                        "Mentee is ready"
+                    } else if (state.role == "mentor") {
+                        "Waiting for mentee"
+                    } else {
+                        "Waiting for admission"
+                    }
+                }
                 CallPhase.Connecting -> "Connecting"
                 CallPhase.Ended -> "Call ended"
                 CallPhase.Error -> "Connection error"
@@ -182,11 +222,17 @@ fun VideoCallScreen(
         } else {
             val statusText = when (state.phase) {
                 CallPhase.Joining -> "Joining session"
-                CallPhase.WaitingForPeer -> "Waiting for participant"
+                CallPhase.WaitingForPeer -> "Waiting for mentee to join"
                 CallPhase.WaitingForAdmit -> {
-                    if (state.role == "mentor") "Participant is waiting" else "Waiting for mentor"
+                    if (state.role == "mentor" && state.peerJoined) {
+                        "Mentee is ready to start"
+                    } else if (state.role == "mentor") {
+                        "Waiting for mentee to join"
+                    } else {
+                        "Mentor will start the session soon"
+                    }
                 }
-                CallPhase.Connecting -> "Connecting"
+                CallPhase.Connecting -> "Starting session..."
                 CallPhase.Reconnecting -> "Reconnecting"
                 CallPhase.Ended -> "Call ended"
                 CallPhase.Error -> state.errorMessage ?: "Call error"
@@ -205,7 +251,11 @@ fun VideoCallScreen(
                 )
             }
 
-            if (state.role == "mentor" && state.peerJoined && !state.admitted) {
+            if (state.role == "mentor" && 
+                state.peerJoined && 
+                !state.admitted && 
+                state.phase == CallPhase.WaitingForAdmit) {
+                android.util.Log.d("VideoCallScreen", "Showing admit popup")
                 Box(
                     modifier = Modifier
                         .align(Alignment.Center)
@@ -215,10 +265,20 @@ fun VideoCallScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Admit mentee to start call", color = Color.White)
+                        Text(
+                            "Mentee is ready and waiting",
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Click to start the session",
+                            color = Color.White.copy(alpha = 0.8f),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                         Spacer(Modifier.height(12.dp))
                         MMButton(
-                            text = "Admit",
+                            text = "Start Session",
                             onClick = { viewModel.admit() },
                             useGlass = false
                         )

@@ -17,6 +17,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.mentorme.app.ui.theme.liquidGlassStrong
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -41,6 +44,7 @@ fun ChatScreen(
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
     val conversation = remember(conversations, conversationId) {
         conversations.find { it.id == conversationId }
     }
@@ -280,8 +284,23 @@ fun ChatScreen(
                     listState.animateScrollToItem(messages.lastIndex)
                 }
             }
+            
             LaunchedEffect(conversationId) {
                 viewModel.openConversation(conversationId)
+            }
+            
+            // Refresh messages when screen becomes visible to catch any missed realtime events
+            LaunchedEffect(conversationId, lifecycleOwner) {
+                lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                    // Initial load
+                    viewModel.loadMessages(conversationId)
+                    
+                    // Then poll periodically while screen is visible
+                    while (true) {
+                        kotlinx.coroutines.delay(5000) // Poll every 5 seconds
+                        viewModel.loadMessages(conversationId)
+                    }
+                }
             }
         }
     }

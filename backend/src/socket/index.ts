@@ -5,16 +5,15 @@ import jwt from "jsonwebtoken";
 import { createClient } from "redis";
 import { Socket, Server as SocketIOServer } from "socket.io";
 import Booking from "../models/booking.model";
-import SessionLog from "../models/sessionLog.model";
 import User from "../models/user.model";
 import {
-    getSessionStateTtlSeconds,
-    isWithinSessionWindow,
-    recordSessionAdmit,
-    recordSessionDisconnect,
-    recordSessionEnd,
-    recordSessionJoin,
-    recordSessionQoS,
+  getSessionStateTtlSeconds,
+  isWithinSessionWindow,
+  recordSessionAdmit,
+  recordSessionDisconnect,
+  recordSessionEnd,
+  recordSessionJoin,
+  recordSessionQoS,
 } from "../services/session.service";
 import redis from "../utils/redis";
 
@@ -292,20 +291,28 @@ export async function initSocket(server: HttpServer) {
     };
 
     socket.on("session:join", async (payload: { token?: string }, callback?: SocketAck) => {
+      console.log(`[Session] Received session:join event, payload:`, payload);
+      
       try {
         if (!payload?.token || typeof payload.token !== "string") {
+          console.log(`[Session] JOIN_TOKEN_REQUIRED - invalid payload`);
           return respond(callback, { ok: false, message: "JOIN_TOKEN_REQUIRED" });
         }
 
+        console.log(`[Session] Verifying join token...`);
         const joinPayload = verifySessionJoinToken(payload.token);
+        console.log(`[Session] Token verified - userId: ${joinPayload.userId}, bookingId: ${joinPayload.bookingId}, role: ${joinPayload.role}`);
+        
         const socketUser = socket.data.user as SocketUser | undefined;
 
         if (!socketUser || String(socketUser.id) !== String(joinPayload.userId)) {
+          console.log(`[Session] UNAUTHORIZED - socketUser: ${socketUser?.id}, tokenUser: ${joinPayload.userId}`);
           return respond(callback, { ok: false, message: "UNAUTHORIZED" });
         }
 
         const booking = await Booking.findById(joinPayload.bookingId).lean();
         if (!booking) {
+          console.log(`[Session] BOOKING_NOT_FOUND - bookingId: ${joinPayload.bookingId}`);
           return respond(callback, { ok: false, message: "BOOKING_NOT_FOUND" });
         }
 
@@ -338,18 +345,17 @@ export async function initSocket(server: HttpServer) {
 
         const bookingId = String(booking._id);
         const rooms = getSessionRooms(bookingId);
-        const admitKey = getSessionAdmitKey(bookingId);
+        
+        // Mentee always needs fresh admission for each session
+        // Don't use cached admit status from Redis/DB
         let admitted = false;
-        try {
-          admitted = Boolean(await redis.get(admitKey));
-        } catch {
-          admitted = false;
-        }
-        if (!admitted) {
-          const log = await SessionLog.findOne({ booking: bookingId })
-            .select("mentorAdmitAt")
-            .lean();
-          admitted = Boolean(log?.mentorAdmitAt);
+        
+        // Only check if mentor is already in the session (meaning mentee should auto-admit)
+        if (joinPayload.role === "mentee") {
+          const liveRoomSockets = await io.in(rooms.liveRoom).fetchSockets();
+          // Auto-admit mentee only if mentor is already in liveRoom
+          admitted = liveRoomSockets.some((s: any) => s.data?.session?.role === "mentor");
+          console.log(`[Session] Mentee joining - mentor already present: ${admitted}`);
         }
 
         if (joinPayload.role === "mentor") {
@@ -367,16 +373,46 @@ export async function initSocket(server: HttpServer) {
 
         respond(callback, { ok: true, data: { bookingId, role: joinPayload.role, admitted } });
         socket.emit("session:joined", { bookingId, role: joinPayload.role, admitted });
+        
+        console.log(`[Session] ${joinPayload.role} joined booking ${bookingId}, admitted: ${admitted}`);
 
         if (joinPayload.role === "mentee" && !admitted) {
           socket.emit("session:waiting", { bookingId });
+          console.log(`[Session] Sent waiting event to mentee for booking ${bookingId}`);
         }
 
-        socket.to(rooms.liveRoom).emit("session:participant-joined", {
+        // If mentor just joined, check if there's a mentee waiting and notify mentor
+        if (joinPayload.role === "mentor") {
+          const waitingRoom = rooms.waitingRoom;
+          const waitingSockets = await io.in(waitingRoom).fetchSockets();
+          console.log(`[Session] Mentor joined, checking waiting room. Found ${waitingSockets.length} waiting sockets`);
+          
+          if (waitingSockets.length > 0) {
+            // There's a mentee waiting, notify the mentor who just joined
+            waitingSockets.forEach((waitingSocket: any) => {
+              const waitingUser = waitingSocket.data?.user;
+              if (waitingUser) {
+                console.log(`[Session] Notifying mentor about waiting mentee: ${waitingUser.id}`);
+                socket.emit("session:participant-joined", {
+                  bookingId,
+                  userId: waitingUser.id,
+                  role: "mentee",
+                });
+              }
+            });
+          }
+        }
+
+        // Notify other participants in BOTH rooms (waiting and live)
+        const participantEvent = {
           bookingId,
           userId: socketUser.id,
           role: joinPayload.role,
-        });
+        };
+        
+        console.log(`[Session] Emitting participant-joined to liveRoom and waitingRoom:`, participantEvent);
+        socket.to(rooms.liveRoom).emit("session:participant-joined", participantEvent);
+        socket.to(rooms.waitingRoom).emit("session:participant-joined", participantEvent);
       } catch (err) {
         return respond(callback, { ok: false, message: "SESSION_JOIN_FAILED" });
       }

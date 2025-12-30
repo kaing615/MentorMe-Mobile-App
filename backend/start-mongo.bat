@@ -1,0 +1,1 @@
+start cmd /k mongod --replSet rs0 --port 27017 --dbpath C:\mongo-rs\rs1 --bind_ip localhost

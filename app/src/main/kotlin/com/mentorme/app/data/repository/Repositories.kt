@@ -73,6 +73,7 @@ interface BookingRepository {
     suspend fun cancelBooking(bookingId: String, reason: String? = null): AppResult<Booking>
     suspend fun resendIcs(bookingId: String): AppResult<String>
     suspend fun rateBooking(bookingId: String, rating: Int, feedback: String? = null): AppResult<Booking>
+    suspend fun payBooking(bookingId: String): AppResult<Unit>
 }
 
 interface ProfileRepository {

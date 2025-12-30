@@ -3,7 +3,20 @@ package com.mentorme.app.ui.wallet
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
 @Parcelize
-enum class PayProvider : Parcelable { MOMO, ZALOPAY, BANK }
+enum class PayProvider : Parcelable { MOMO,
+    ZALOPAY,
+    BANK;
+
+    companion object {
+        fun fromApi(value: String): PayProvider {
+            return when (value.uppercase()) {
+                "MOMO" -> MOMO
+                "ZALOPAY" -> ZALOPAY
+                "ACB", "VCB", "TPBANK", "MB", "BIDV" -> BANK
+                else -> BANK
+            }
+        }
+    } }
 
 @Parcelize
 data class PaymentMethod(

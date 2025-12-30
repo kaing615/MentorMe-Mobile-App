@@ -266,7 +266,6 @@ fun ProfileScreen(
                             onWithdraw = onOpenWithdraw,
                             onChangeMethod = onOpenChangeMethod,
                             onAddMethod = onAddMethod,
-                            methods = methods
                         )
                         // ✅ FIX 6: Dùng userRole từ ViewModel state thay vì user.role
                         2 -> StatsTab(userRole = userRole, profile = profile)

@@ -17,7 +17,7 @@ import homeRouter from "./home.route";
 import presenceRouter from "./presence.route";
 import reviewRouter from "./review.route";
 import notificationRouter from "./notification.route";
-
+import paymentMethodRouter from "./paymentMethod.route";
 
 const router = Router();
 
@@ -35,6 +35,7 @@ router.use("/mentors", mentorRouter);
 // Wallet & payments
 router.use("/wallet", walletRouter);
 router.use("/payments", paymentRouter);
+router.use("/payment-methods", paymentMethodRouter);
 
 // Payout mentor & webhooks
 router.use("/payouts", payoutRouter);

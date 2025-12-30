@@ -8,6 +8,7 @@ import com.mentorme.app.data.network.api.auth.AuthApiService
 import com.mentorme.app.data.network.api.profile.ProfileApiService
 import com.mentorme.app.data.network.api.home.HomeApiService
 import com.mentorme.app.data.network.api.review.ReviewApiService
+import com.mentorme.app.data.remote.PaymentMethodApi
 import com.mentorme.app.data.remote.WalletApi
 import com.mentorme.app.data.repository.wallet.WalletRepository
 import dagger.Module
@@ -97,7 +98,21 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideWalletRepository(api: WalletApi): WalletRepository {
-        return WalletRepository(api)
+    fun provideWalletRepository(
+        api: WalletApi,
+        paymentMethodApi: PaymentMethodApi
+    ): WalletRepository {
+        return WalletRepository(
+            api = api,
+            paymentMethodApi = paymentMethodApi
+        )
+    }
+
+    @Provides
+    @Singleton
+    fun providePaymentMethodApi(
+        retrofit: Retrofit
+    ): PaymentMethodApi {
+        return retrofit.create(PaymentMethodApi::class.java)
     }
 }

@@ -11,9 +11,11 @@ import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.remote.MentorMeApi
 import com.mentorme.app.data.repository.BookingRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -27,10 +29,14 @@ class MenteeBookingsViewModel @Inject constructor(
     private val _bookings = MutableStateFlow<List<Booking>>(emptyList())
     val bookings: StateFlow<List<Booking>> = _bookings.asStateFlow()
 
+    private val _paymentEvents = MutableSharedFlow<PaymentEvent>()
+    val paymentEvents = _paymentEvents.asSharedFlow()
+
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
     init {
+        refresh()
         observeRealtimeEvents()
     }
 
@@ -108,6 +114,35 @@ class MenteeBookingsViewModel @Inject constructor(
                 onResult(false, t.message)
             }
         }
+    }
+
+    fun payBooking(bookingId: String) {
+        viewModelScope.launch {
+            _paymentEvents.emit(PaymentEvent.Loading)
+
+            when (val res = bookingRepository.payBooking(bookingId)) {
+                is AppResult.Success -> {
+                    refresh()
+                    _paymentEvents.emit(PaymentEvent.Success)
+                }
+                is AppResult.Error -> {
+                    val raw = res.throwable ?: "Thanh toán thất bại"
+                    if (raw.contains("INSUFFICIENT_BALANCE", true)) {
+                        _paymentEvents.emit(PaymentEvent.InsufficientBalance)
+                    } else {
+                        _paymentEvents.emit(PaymentEvent.Failed(raw))
+                    }
+                }
+                AppResult.Loading -> Unit
+            }
+        }
+    }
+
+    sealed class PaymentEvent {
+        object Success : PaymentEvent()
+        object InsufficientBalance : PaymentEvent()
+        object Loading : PaymentEvent()
+        data class Failed(val message: String) : PaymentEvent()
     }
 
     private companion object {

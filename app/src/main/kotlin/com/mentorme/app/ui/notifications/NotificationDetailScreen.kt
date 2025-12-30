@@ -47,6 +47,7 @@ import com.mentorme.app.data.model.NotificationItem
 import com.mentorme.app.ui.components.ui.MMGhostButton
 import com.mentorme.app.ui.theme.LiquidBackground
 import com.mentorme.app.ui.theme.LiquidGlassCard
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,6 +62,8 @@ fun NotificationDetailScreen(
     val item = remember(notifications, notificationId) {
         notifications.firstOrNull { it.id == notificationId }
     }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     LaunchedEffect(notificationId) {
         viewModel.ensureNotificationAvailable(notificationId)
@@ -141,7 +144,7 @@ fun NotificationDetailScreen(
                     ) {
                         NotificationDetailHero(item = item)
                         NotificationDetailBody(item = item)
-                        NotificationDetailActions(item = item, onJoinSession = onJoinSession)
+                        NotificationDetailActions(item = item, onJoinSession = onJoinSession, viewModel = viewModel)
                         NotificationDetailMeta(item = item)
                     }
                 }
@@ -266,8 +269,12 @@ private fun NotificationDetailMeta(
 @Composable
 private fun NotificationDetailActions(
     item: NotificationItem,
-    onJoinSession: (String) -> Unit
+    onJoinSession: (String) -> Unit,
+    viewModel: NotificationsViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    
     // Extract booking ID from deepLink if it's a session-related notification
     val bookingId = item.deepLink?.let { link ->
         when {
@@ -299,7 +306,20 @@ private fun NotificationDetailActions(
                     color = Color.White.copy(alpha = 0.7f) // ✅ Label: 70% opacity
                 )
                 MMGhostButton(
-                    onClick = { onJoinSession(bookingId) },
+                    onClick = {
+                        scope.launch {
+                            val errorMsg = viewModel.validateBookingTime(bookingId)
+                            if (errorMsg != null) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    errorMsg,
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                onJoinSession(bookingId)
+                            }
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(

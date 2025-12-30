@@ -62,6 +62,7 @@ import com.mentorme.app.ui.navigation.Routes
 import com.mentorme.app.ui.theme.LiquidBackground
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.theme.liquidGlass
+import kotlinx.coroutines.launch
 
 private enum class NotificationFilter(@StringRes val labelRes: Int) {
     ALL(R.string.notification_filter_all),
@@ -187,7 +188,8 @@ fun NotificationsScreen(
                                         }
                                     },
                                     onJoinSession = onJoinSession,
-                                    onMarkRead = { viewModel.markRead(it) }
+                                    onMarkRead = { viewModel.markRead(it) },
+                                    viewModel = viewModel
                                 )
                             }
                         }
@@ -320,9 +322,12 @@ private fun NotificationRow(
     item: NotificationItem,
     onOpenDetail: () -> Unit,
     onJoinSession: (String) -> Unit = {},
-    onMarkRead: (String) -> Unit
+    onMarkRead: (String) -> Unit,
+    viewModel: NotificationsViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
     val typeStyle = notificationTypeStyle(item.type)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     // Extract booking ID from deepLink
     val bookingId = item.deepLink?.let { link ->
@@ -441,7 +446,20 @@ private fun NotificationRow(
                     .padding(start = 14.dp, end = 14.dp, bottom = 14.dp)
             ) {
                 MMGhostButton(
-                    onClick = { onJoinSession(bookingId) },
+                    onClick = {
+                        scope.launch {
+                            val errorMsg = viewModel.validateBookingTime(bookingId)
+                            if (errorMsg != null) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    errorMsg,
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                onJoinSession(bookingId)
+                            }
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(

@@ -228,6 +228,7 @@ private fun toConversation(booking: Booking, currentUserId: String?, allBookings
     val startIso = sessionBooking?.startTimeIso ?: booking.startTimeIso ?: booking.createdAt
     val endIso = sessionBooking?.endTimeIso
     val hasActive = activeBooking != null
+    val activeBookingId = activeBooking?.id
     val hasUpcoming = upcomingBooking != null && !hasActive
     val nextSessionIso = if (hasUpcoming) upcomingBooking?.startTimeIso else null
 
@@ -246,6 +247,7 @@ private fun toConversation(booking: Booking, currentUserId: String?, allBookings
         lastMessageTimeIso = startIso,
         unreadCount = 0,
         hasActiveSession = hasActive,
+        activeSessionBookingId = activeBookingId,
         nextSessionDateTimeIso = nextSessionIso,
         nextSessionStartIso = if (hasUpcoming) upcomingBooking?.startTimeIso else null,
         nextSessionEndIso = if (hasUpcoming) upcomingBooking?.endTimeIso else null,

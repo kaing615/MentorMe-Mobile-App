@@ -3,6 +3,7 @@ package com.mentorme.app.ui.navigation
 import android.annotation.SuppressLint
 import android.os.Build
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +24,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -36,6 +38,7 @@ import com.mentorme.app.core.realtime.RealtimeEvent
 import com.mentorme.app.core.realtime.RealtimeEventBus
 import com.mentorme.app.data.model.NotificationType
 import com.mentorme.app.data.model.BookingStatus
+import com.mentorme.app.ui.booking.PendingBookingPromptDialog
 import com.mentorme.app.ui.calendar.MenteeBookingsViewModel
 import com.mentorme.app.ui.calendar.MentorBookingsViewModel
 import com.mentorme.app.ui.layout.GlassBottomBar
@@ -55,6 +58,7 @@ fun AppNav(
     initialRoute: String? = null,
     onRouteConsumed: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     val sessionVm = hiltViewModel<SessionViewModel>()
     val sessionState by sessionVm.session.collectAsStateWithLifecycle()
     val authVm = hiltViewModel<com.mentorme.app.ui.auth.AuthViewModel>()
@@ -65,6 +69,7 @@ fun AppNav(
     val mentorBookingsVm: MentorBookingsViewModel = hiltViewModel()
     val menteeBookings by menteeBookingsVm.bookings.collectAsStateWithLifecycle()
     val mentorBookings by mentorBookingsVm.bookings.collectAsStateWithLifecycle()
+    val pendingConfirmations by mentorBookingsVm.pendingConfirmations.collectAsStateWithLifecycle()
     val isMentorRole = sessionState.role.equals("mentor", ignoreCase = true)
     val activeBookings = if (isMentorRole) mentorBookings else menteeBookings
     val pendingBookingCount = remember(activeBookings) {
@@ -78,6 +83,7 @@ fun AppNav(
     val hazeBackgroundState = remember { HazeState() }
 
     var overlayVisible by remember { mutableStateOf(false) }
+    var pendingActionBusy by remember { mutableStateOf(false) }
     var pendingRoleHint by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingRoute by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -93,6 +99,11 @@ fun AppNav(
 
     val isLoggedInState by rememberUpdatedState(sessionState.isLoggedIn)
     val isForegroundState by rememberUpdatedState(isForeground)
+    val pendingPrompt = pendingConfirmations.firstOrNull()
+
+    LaunchedEffect(pendingPrompt?.id) {
+        pendingActionBusy = false
+    }
 
     LaunchedEffect(initialRoute) {
         if (!initialRoute.isNullOrBlank()) {
@@ -227,6 +238,7 @@ fun AppNav(
     val backstack by nav.currentBackStackEntryAsState()
     val currentRoute = backstack?.destination?.route
     val currentBaseRoute = currentRoute?.substringBefore("?")
+    val isVideoCallRoute = currentRoute?.startsWith("${Routes.VideoCall}/") == true
 
     LaunchedEffect(phase, pendingRoute, currentBaseRoute) {
         val targetRoute = pendingRoute ?: return@LaunchedEffect
@@ -295,6 +307,43 @@ fun AppNav(
                         onOverlayVisibleChange = { overlayVisible = it },
                         hazeState = hazeContentState,
                         blurEnabled = blurEnabled
+                    )
+                }
+
+                if (sessionState.isLoggedIn && isMentorRole && pendingPrompt != null && !isVideoCallRoute) {
+                    val bookingId = pendingPrompt.id
+                    PendingBookingPromptDialog(
+                        booking = pendingPrompt,
+                        actionBusy = pendingActionBusy,
+                        onAccept = {
+                            if (pendingActionBusy) return@PendingBookingPromptDialog
+                            pendingActionBusy = true
+                            mentorBookingsVm.accept(bookingId) { ok ->
+                                pendingActionBusy = false
+                                if (ok) {
+                                    mentorBookingsVm.dismissPendingPrompt(bookingId)
+                                    mentorBookingsVm.refresh()
+                                    Toast.makeText(context, "Da chap nhan booking", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Khong the chap nhan booking", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        onDecline = {
+                            if (pendingActionBusy) return@PendingBookingPromptDialog
+                            pendingActionBusy = true
+                            mentorBookingsVm.decline(bookingId, "Mentor declined") { ok ->
+                                pendingActionBusy = false
+                                if (ok) {
+                                    mentorBookingsVm.dismissPendingPrompt(bookingId)
+                                    mentorBookingsVm.refresh()
+                                    Toast.makeText(context, "Da tu choi booking", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Khong the tu choi booking", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        onDismiss = { mentorBookingsVm.dismissPendingPrompt(bookingId) }
                     )
                 }
             }

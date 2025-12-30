@@ -157,6 +157,9 @@ class SocketManager @Inject constructor(
         newSocket.on(EVENT_SIGNAL_ICE) { args ->
             handleSignalIceEvent(args)
         }
+        newSocket.on(EVENT_SESSION_STATUS) { args ->
+            handleSessionStatusEvent(args)
+        }
         newSocket.on(EVENT_USER_ONLINE) { args ->
             handleUserOnlineEvent(args)
         }
@@ -291,6 +294,13 @@ class SocketManager @Inject constructor(
             RealtimeEventBus.emit(RealtimeEvent.UserOnlineStatusChanged(userId, false))
         }
     }
+    
+    private fun handleSessionStatusEvent(args: Array<Any>) {
+        val raw = args.firstOrNull() ?: return
+        val payload = parsePayload(raw, com.mentorme.app.data.mapper.SessionStatusPayload::class.java) ?: return
+        Log.d(TAG, "handleSessionStatusEvent - bookingId: ${payload.bookingId}, userId: ${payload.userId}, status: ${payload.status}")
+        RealtimeEventBus.emit(RealtimeEvent.SessionStatusChanged(payload))
+    }
 
     private fun <T> parsePayload(raw: Any, clazz: Class<T>): T? {
         return try {
@@ -327,5 +337,6 @@ class SocketManager @Inject constructor(
         private const val EVENT_SIGNAL_ICE = "signal:ice"
         private const val EVENT_USER_ONLINE = "user:online"
         private const val EVENT_USER_OFFLINE = "user:offline"
+        private const val EVENT_SESSION_STATUS = "session:status"
     }
 }

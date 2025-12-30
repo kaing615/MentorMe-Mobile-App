@@ -36,3 +36,9 @@ data class SessionSignalPayload(
     val fromRole: String? = null,
     val data: Map<String, Any?>? = null
 )
+
+data class SessionStatusPayload(
+    val bookingId: String? = null,
+    val userId: String? = null,
+    val status: String? = null // "connected", "reconnecting", "disconnected"
+)

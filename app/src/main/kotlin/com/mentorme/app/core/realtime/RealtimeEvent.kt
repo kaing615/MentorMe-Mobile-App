@@ -8,6 +8,7 @@ import com.mentorme.app.data.mapper.SessionJoinedPayload
 import com.mentorme.app.data.mapper.SessionParticipantPayload
 import com.mentorme.app.data.mapper.SessionReadyPayload
 import com.mentorme.app.data.mapper.SessionSignalPayload
+import com.mentorme.app.data.mapper.SessionStatusPayload
 import com.mentorme.app.data.mapper.SessionWaitingPayload
 import com.mentorme.app.data.model.NotificationItem
 
@@ -61,6 +62,10 @@ sealed class RealtimeEvent {
 
     data class SignalIceReceived(
         val payload: SessionSignalPayload
+    ) : RealtimeEvent()
+    
+    data class SessionStatusChanged(
+        val payload: SessionStatusPayload
     ) : RealtimeEvent()
     
     data class UserOnlineStatusChanged(

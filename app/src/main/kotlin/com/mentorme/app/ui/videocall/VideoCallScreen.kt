@@ -1,6 +1,8 @@
 package com.mentorme.app.ui.videocall
 
 import android.Manifest
+import android.app.Activity
+import android.content.pm.ActivityInfo
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -21,9 +23,14 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.PhoneInTalk
+import androidx.compose.material.icons.filled.SignalCellularAlt
+import androidx.compose.material.icons.filled.SignalCellularAlt1Bar
+import androidx.compose.material.icons.filled.SignalCellularAlt2Bar
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material.icons.filled.VolumeOff
@@ -31,8 +38,11 @@ import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -46,10 +56,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mentorme.app.ui.chat.components.GlassIconButton
 import com.mentorme.app.ui.components.ui.MMButton
@@ -64,6 +77,42 @@ fun VideoCallScreen(
     val viewModel = hiltViewModel<VideoCallViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    
+    // Lock orientation to portrait during call
+    DisposableEffect(Unit) {
+        val activity = context as? Activity
+        val originalOrientation = activity?.requestedOrientation
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        
+        onDispose {
+            activity?.requestedOrientation = originalOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
+    
+    // Handle lifecycle events for background/foreground
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> viewModel.onAppGoesToBackground()
+                Lifecycle.Event.ON_RESUME -> viewModel.onAppComesToForeground()
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+    
+    // Show toast messages
+    LaunchedEffect(state.toastMessage) {
+        state.toastMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearToast()
+        }
+    }
     
     // Debug logging
     LaunchedEffect(state.phase, state.peerJoined, state.admitted, state.role) {
@@ -119,6 +168,26 @@ fun VideoCallScreen(
             .fillMaxSize()
             .background(Color.Black)
     ) {
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+        
+        // Preview mode overlay
+        if (state.isPreviewMode && permissionsGranted) {
+            PreviewModeOverlay(
+                isAudioEnabled = state.isAudioEnabled,
+                isVideoEnabled = state.isVideoEnabled,
+                isSpeakerEnabled = state.isSpeakerEnabled,
+                onToggleAudio = { viewModel.toggleAudio() },
+                onToggleVideo = { viewModel.toggleVideo() },
+                onToggleSpeaker = { viewModel.toggleSpeaker() },
+                onSwitchCamera = { viewModel.switchCamera() },
+                onStartCall = { viewModel.exitPreviewMode() },
+                onBack = onBack
+            )
+        }
+        
         // Remote video - full screen (rendered first, behind local video)
         AndroidView(
             factory = { ctx ->
@@ -171,19 +240,34 @@ fun VideoCallScreen(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             GlassIconButton(
                 icon = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
                 onClick = onBack
             )
+            
+            // Network quality indicator
+            if (state.phase == CallPhase.InCall) {
+                NetworkQualityIndicator(
+                    quality = state.networkQuality,
+                    rttMs = state.rttMs
+                )
+            }
         }
 
-        val statusLabel = remember(state.phase, state.role, state.peerJoined) {
+        val statusLabel = remember(state.phase, state.role, state.peerJoined, state.reconnectAttempt) {
             when (state.phase) {
                 CallPhase.InCall -> "In call"
-                CallPhase.Reconnecting -> "Reconnecting"
+                CallPhase.Reconnecting -> {
+                    if (state.reconnectAttempt > 0) {
+                        "Reconnecting (${state.reconnectAttempt}/${state.maxReconnectAttempts})"
+                    } else {
+                        "Reconnecting"
+                    }
+                }
                 CallPhase.Joining -> "Joining room"
                 CallPhase.WaitingForPeer -> "Waiting for participant"
                 CallPhase.WaitingForAdmit -> {
@@ -213,6 +297,24 @@ fun VideoCallScreen(
                     .align(Alignment.TopCenter)
                     .padding(top = 12.dp)
             )
+        }
+        
+        // Peer connection status banner
+        if (state.phase == CallPhase.InCall && state.peerConnectionStatus != null) {
+            when (state.peerConnectionStatus) {
+                "reconnecting" -> PeerStatusBanner(
+                    message = "Participant is reconnecting...",
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = if (statusLabel.isNotBlank()) 52.dp else 12.dp)
+                )
+                "disconnected" -> PeerStatusBanner(
+                    message = "Participant disconnected",
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = if (statusLabel.isNotBlank()) 52.dp else 12.dp)
+                )
+            }
         }
 
         if (!permissionsGranted) {
@@ -285,6 +387,17 @@ fun VideoCallScreen(
                             useGlass = false
                         )
                     }
+                }
+            }
+            
+            // Time warning dialog
+            state.timeWarningMessage?.let { message ->
+                if (state.showTimeWarning) {
+                    TimeWarningDialog(
+                        message = message,
+                        remainingMinutes = state.remainingMinutes,
+                        onDismiss = { viewModel.dismissTimeWarning() }
+                    )
                 }
             }
 
@@ -430,6 +543,36 @@ private fun CallStatusPill(
     }
 }
 
+@Composable
+private fun PeerStatusBanner(
+    message: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .liquidGlassStrong(radius = 18.dp, alpha = 0.3f)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        color = Color.Transparent
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.CloudOff,
+                contentDescription = null,
+                tint = Color(0xFFFFCC00),
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = message,
+                color = Color.White,
+                style = MaterialTheme.typography.labelMedium
+            )
+        }
+    }
+}
+
 private fun formatDuration(totalSeconds: Long): String {
     val hours = totalSeconds / 3600
     val minutes = (totalSeconds % 3600) / 60
@@ -438,5 +581,209 @@ private fun formatDuration(totalSeconds: Long): String {
         "%d:%02d:%02d".format(hours, minutes, seconds)
     } else {
         "%02d:%02d".format(minutes, seconds)
+    }
+}
+
+@Composable
+private fun NetworkQualityIndicator(
+    quality: NetworkQuality,
+    rttMs: Double?
+) {
+    val icon = when (quality) {
+        NetworkQuality.Excellent, NetworkQuality.Good -> Icons.Default.SignalCellularAlt
+        NetworkQuality.Fair -> Icons.Default.SignalCellularAlt2Bar
+        NetworkQuality.Poor, NetworkQuality.VeryPoor -> Icons.Default.SignalCellularAlt1Bar
+        NetworkQuality.Unknown -> null
+    }
+    
+    val color = when (quality) {
+        NetworkQuality.Excellent -> Color.Green
+        NetworkQuality.Good -> Color(0xFF90EE90)
+        NetworkQuality.Fair -> Color.Yellow
+        NetworkQuality.Poor -> Color(0xFFFF8C00)
+        NetworkQuality.VeryPoor -> Color.Red
+        NetworkQuality.Unknown -> Color.Gray
+    }
+    
+    icon?.let {
+        Surface(
+            modifier = Modifier.liquidGlassStrong(radius = 8.dp, alpha = 0.3f),
+            color = Color.Transparent
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Icon(
+                    imageVector = it,
+                    contentDescription = "Network quality",
+                    tint = color,
+                    modifier = Modifier.size(16.dp)
+                )
+                rttMs?.let { rtt ->
+                    Text(
+                        text = "${rtt.toInt()}ms",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.9f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PreviewModeOverlay(
+    isAudioEnabled: Boolean,
+    isVideoEnabled: Boolean,
+    isSpeakerEnabled: Boolean,
+    onToggleAudio: () -> Unit,
+    onToggleVideo: () -> Unit,
+    onToggleSpeaker: () -> Unit,
+    onSwitchCamera: () -> Unit,
+    onStartCall: () -> Unit,
+    onBack: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f))
+    ) {
+        // Back button
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(12.dp)
+        ) {
+            GlassIconButton(
+                icon = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                onClick = onBack
+            )
+        }
+        
+        // Preview controls and start button
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            // Title
+            Surface(
+                modifier = Modifier.liquidGlassStrong(radius = 12.dp, alpha = 0.3f),
+                color = Color.Transparent
+            ) {
+                Text(
+                    text = "Camera & Microphone Preview",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+            
+            // Preview controls
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ControlButton(
+                    icon = if (isAudioEnabled) Icons.Default.Mic else Icons.Default.MicOff,
+                    contentDescription = "Toggle mic",
+                    onClick = onToggleAudio
+                )
+                ControlButton(
+                    icon = if (isVideoEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
+                    contentDescription = "Toggle camera",
+                    onClick = onToggleVideo
+                )
+                ControlButton(
+                    icon = Icons.Default.Cameraswitch,
+                    contentDescription = "Switch camera",
+                    onClick = onSwitchCamera
+                )
+                ControlButton(
+                    icon = if (isSpeakerEnabled) Icons.AutoMirrored.Filled.VolumeUp else Icons.Default.PhoneInTalk,
+                    contentDescription = if (isSpeakerEnabled) "Speaker" else "Earpiece",
+                    onClick = onToggleSpeaker
+                )
+            }
+            
+            // Start call button
+            MMButton(
+                text = "Join Call",
+                onClick = onStartCall,
+                modifier = Modifier.width(200.dp),
+                useGlass = false
+            )
+        }
+    }
+}
+
+@Composable
+private fun TimeWarningDialog(
+    message: String,
+    remainingMinutes: Int?,
+    onDismiss: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.6f))
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier
+                .liquidGlassStrong(radius = 20.dp, alpha = 0.3f)
+                .padding(24.dp),
+            color = Color.Transparent
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Timer,
+                    contentDescription = "Time warning",
+                    tint = Color.Yellow,
+                    modifier = Modifier.size(48.dp)
+                )
+                
+                Text(
+                    text = "Time Notice",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.White
+                )
+                
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.White,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                
+                remainingMinutes?.let { minutes ->
+                    if (minutes > 0) {
+                        Text(
+                            text = "$minutes minute${if (minutes > 1) "s" else ""} remaining",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                MMButton(
+                    text = "OK",
+                    onClick = onDismiss,
+                    useGlass = false,
+                    modifier = Modifier.width(120.dp)
+                )
+            }
+        }
     }
 }

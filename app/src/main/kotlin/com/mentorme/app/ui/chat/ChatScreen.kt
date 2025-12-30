@@ -37,7 +37,7 @@ import com.mentorme.app.ui.chat.components.ProfileSheet
 fun ChatScreen(
     conversationId: String,
     onBack: () -> Unit,
-    onJoinSession: () -> Unit,
+    onJoinSession: (String) -> Unit,
     onOpenBookingDetail: (String) -> Unit = {}
 ) {
     val viewModel = hiltViewModel<ChatViewModel>()
@@ -48,6 +48,9 @@ fun ChatScreen(
     val conversation = remember(conversations, conversationId) {
         conversations.find { it.id == conversationId }
     }
+    val joinBookingId = conversation?.activeSessionBookingId
+        ?: conversation?.primaryBookingId
+        ?: conversation?.nextSessionBookingId
     var showProfile by remember { mutableStateOf(false) }
 
     // Chat restriction logic
@@ -163,18 +166,20 @@ fun ChatScreen(
                         }
                         MMButton(
                             text = "Tham gia",
-                            onClick = onJoinSession,
+                            onClick = { joinBookingId?.let(onJoinSession) },
                             useGlass = false,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color(0xFF16A34A), // deep green
                                 contentColor = Color.White
-                            )
+                            ),
+                            enabled = joinBookingId != null
                         )
                     }
                 }
             }
             
-            // Banner phiên học sắp tới
+            // Banner phiên học sắp tới - chỉ hiển thị khi không có phiên active
+            // Ưu tiên hiển thị active session nếu có, vì nút join cần active session
             if (conversation?.nextSessionStartIso != null && conversation.hasActiveSession == false) {
                 Surface(
                     modifier = Modifier
@@ -198,7 +203,10 @@ fun ChatScreen(
                         MMButton(
                             text = "Xem chi tiết",
                             onClick = { 
-                                conversation.nextSessionBookingId?.let { bookingId ->
+                                // Ưu tiên activeSessionBookingId nếu có, vì có thể session đã bắt đầu
+                                val bookingIdToOpen = conversation.activeSessionBookingId 
+                                    ?: conversation.nextSessionBookingId
+                                bookingIdToOpen?.let { bookingId ->
                                     onOpenBookingDetail(bookingId)
                                 }
                             },

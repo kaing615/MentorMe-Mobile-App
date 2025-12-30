@@ -17,6 +17,7 @@ import com.mentorme.app.data.mapper.SessionJoinedPayload
 import com.mentorme.app.data.mapper.SessionParticipantPayload
 import com.mentorme.app.data.mapper.SessionReadyPayload
 import com.mentorme.app.data.mapper.SessionSignalPayload
+import com.mentorme.app.data.mapper.SessionStatusPayload
 import com.mentorme.app.data.mapper.SessionWaitingPayload
 import com.mentorme.app.data.network.api.session.SessionApiService
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -45,6 +46,10 @@ enum class CallPhase {
     Error
 }
 
+enum class NetworkQuality {
+    Excellent, Good, Fair, Poor, VeryPoor, Unknown
+}
+
 data class VideoCallUiState(
     val bookingId: String = "",
     val role: String? = null,
@@ -56,7 +61,26 @@ data class VideoCallUiState(
     val isVideoEnabled: Boolean = true,
     val isSpeakerEnabled: Boolean = true,
     val callDurationSec: Long = 0,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    // Network quality
+    val networkQuality: NetworkQuality = NetworkQuality.Unknown,
+    val rttMs: Double? = null,
+    // Peer status
+    val peerAudioEnabled: Boolean = true,
+    val peerVideoEnabled: Boolean = true,
+    val peerConnectionStatus: String? = null, // "connected", "reconnecting", "disconnected"
+    // Reconnection
+    val reconnectAttempt: Int = 0,
+    val maxReconnectAttempts: Int = 5,
+    // Preview mode
+    val isPreviewMode: Boolean = true,
+    // Toast messages
+    val toastMessage: String? = null,
+    // Booking time management
+    val bookingEndTime: Long? = null, // timestamp in millis
+    val remainingMinutes: Int? = null,
+    val showTimeWarning: Boolean = false,
+    val timeWarningMessage: String? = null
 )
 
 @HiltViewModel
@@ -81,6 +105,8 @@ class VideoCallViewModel @Inject constructor(
     private var reconnectJob: Job? = null
     private var reconnectAttempts = 0
     private var renderersAttached = false
+    private var timeCheckJob: Job? = null
+    private var participantLeftJob: Job? = null
 
     private val webRtcClient = WebRtcClient(
         context = appContext,
@@ -134,6 +160,16 @@ class VideoCallViewModel @Inject constructor(
                 val token = data?.token
                 if (envelope?.success == true && !token.isNullOrBlank()) {
                     currentRole = data.role
+                    
+                    // Parse booking end time from expiresAt (if available)
+                    // Assuming expiresAt is ISO timestamp, parse and add grace period
+                    val bookingEnd = data.expiresAt?.let { parseIsoTimestamp(it) }
+                    bookingEnd?.let {
+                        val endWithGrace = it + (10 * 60 * 1000) // +10 minutes grace period
+                        _state.update { state -> state.copy(bookingEndTime = endWithGrace) }
+                        startTimeCheckJob()
+                    }
+                    
                     _state.update { it.copy(role = data.role) }
                     Log.d("VideoCallVM", "Got join token for role: ${data.role}, emitting session:join")
                     socketManager.emit("session:join", mapOf("token" to token))
@@ -149,8 +185,28 @@ class VideoCallViewModel @Inject constructor(
 
     fun retry() {
         val bookingId = currentBookingId ?: return
-        resetReconnectState()
-        start(bookingId)
+        val role = currentRole ?: return
+        
+        Log.d("VideoCallVM", "Retrying connection - bookingId: $bookingId, role: $role, reconnectAttempt: $reconnectAttempts")
+        
+        // Don't restart the entire session - just recreate peer connection
+        webRtcClient.release()
+        webRtcClient.ensurePeerConnection()
+        webRtcClient.setSpeakerEnabled(_state.value.isSpeakerEnabled)
+        webRtcClient.startLocalMedia()
+        
+        _state.update { it.copy(phase = CallPhase.Connecting) }
+        
+        // Re-initiate WebRTC handshake based on role
+        if (role == "mentor") {
+            Log.d("VideoCallVM", "Mentor recreating offer for retry")
+            webRtcClient.createOffer { offer ->
+                Log.d("VideoCallVM", "Retry offer created, emitting to peer")
+                emitSdp("signal:offer", offer)
+            }
+        } else {
+            Log.d("VideoCallVM", "Mentee waiting for new offer after retry")
+        }
     }
 
     fun setPermissionsGranted(granted: Boolean) {
@@ -183,33 +239,61 @@ class VideoCallViewModel @Inject constructor(
             // Start local preview if permissions are already granted
             if (permissionsGranted) {
                 startLocalPreview()
-                if (sessionReady) {
-                    startCallIfReady()
-                }
+                // Don't auto-start call - wait for user to exit preview mode
             }
         }
     }
 
     fun toggleAudio() {
         val next = !_state.value.isAudioEnabled
-        _state.update { it.copy(isAudioEnabled = next) }
+        _state.update { it.copy(isAudioEnabled = next, toastMessage = if (next) "Microphone on" else "Microphone muted") }
         webRtcClient.setAudioEnabled(next)
     }
 
     fun toggleVideo() {
         val next = !_state.value.isVideoEnabled
-        _state.update { it.copy(isVideoEnabled = next) }
+        _state.update { it.copy(isVideoEnabled = next, toastMessage = if (next) "Camera on" else "Camera off") }
         webRtcClient.setVideoEnabled(next)
     }
 
     fun toggleSpeaker() {
         val next = !_state.value.isSpeakerEnabled
-        _state.update { it.copy(isSpeakerEnabled = next) }
+        _state.update { it.copy(isSpeakerEnabled = next, toastMessage = if (next) "Speaker on" else "Earpiece on") }
         webRtcClient.setSpeakerEnabled(next)
     }
 
     fun switchCamera() {
         webRtcClient.switchCamera()
+    }
+    
+    fun clearToast() {
+        _state.update { it.copy(toastMessage = null) }
+    }
+    
+    fun dismissTimeWarning() {
+        _state.update { it.copy(showTimeWarning = false) }
+    }
+    
+    fun exitPreviewMode() {
+        _state.update { it.copy(isPreviewMode = false) }
+        // Now start the actual call
+        if (sessionReady) {
+            startCallIfReady()
+        }
+    }
+    
+    fun onAppGoesToBackground() {
+        // Pause video when app goes to background to save battery
+        if (_state.value.phase == CallPhase.InCall) {
+            webRtcClient.setVideoEnabled(false)
+        }
+    }
+    
+    fun onAppComesToForeground() {
+        // Resume video if it was enabled before
+        if (_state.value.phase == CallPhase.InCall && _state.value.isVideoEnabled) {
+            webRtcClient.setVideoEnabled(true)
+        }
     }
 
     fun admit() {
@@ -244,6 +328,7 @@ class VideoCallViewModel @Inject constructor(
                     is RealtimeEvent.SignalOfferReceived -> handleSignalOffer(event.payload)
                     is RealtimeEvent.SignalAnswerReceived -> handleSignalAnswer(event.payload)
                     is RealtimeEvent.SignalIceReceived -> handleSignalIce(event.payload)
+                    is RealtimeEvent.SessionStatusChanged -> handleSessionStatus(event.payload)
                     else -> Unit
                 }
             }
@@ -310,6 +395,14 @@ class VideoCallViewModel @Inject constructor(
         val bookingId = payload.bookingId ?: return
         if (bookingId != currentBookingId) return
         
+        // Cancel delayed end call if peer rejoins
+        participantLeftJob?.cancel()
+        participantLeftJob = null
+        
+        // Reset reconnection state when peer successfully rejoins
+        // This prevents accumulated reconnect attempts from ending the call
+        resetReconnectState()
+        
         val peerRole = payload.role
         Log.d("VideoCallVM", "Participant joined - peerRole: $peerRole, myRole: $currentRole, currentAdmitted: ${_state.value.admitted}")
         
@@ -328,8 +421,20 @@ class VideoCallViewModel @Inject constructor(
     private fun handleParticipantLeft(payload: SessionParticipantPayload) {
         val bookingId = payload.bookingId ?: return
         if (bookingId != currentBookingId) return
-        _state.update { it.copy(peerJoined = false, peerRole = null, phase = CallPhase.Ended) }
-        cleanupCall()
+        
+        // Update UI to show peer left
+        _state.update { it.copy(peerJoined = false, peerRole = null) }
+        
+        // Don't end call immediately - give peer time to reconnect
+        // Cancel any existing delayed end call
+        participantLeftJob?.cancel()
+        participantLeftJob = viewModelScope.launch {
+            Log.d("VideoCallVM", "Peer left, waiting ${PARTICIPANT_LEFT_TIMEOUT_MS}ms before ending call")
+            delay(PARTICIPANT_LEFT_TIMEOUT_MS)
+            Log.d("VideoCallVM", "Peer did not rejoin, ending call")
+            _state.update { it.copy(phase = CallPhase.Ended) }
+            cleanupCall()
+        }
     }
 
     private fun handleSessionEnded(payload: SessionEndedPayload) {
@@ -414,6 +519,39 @@ class VideoCallViewModel @Inject constructor(
         webRtcClient.ensurePeerConnection()
         webRtcClient.addIceCandidate(candidate)
     }
+    
+    private fun handleSessionStatus(payload: SessionStatusPayload) {
+        val bookingId = payload.bookingId ?: return
+        if (bookingId != currentBookingId) return
+        
+        Log.d("VideoCallVM", "Peer status changed: ${payload.status} (userId: ${payload.userId})")
+        
+        // Cancel delayed end call if peer is reconnecting or connected
+        // This means peer is still in the session and trying to recover
+        if (payload.status == "reconnecting" || payload.status == "connected") {
+            participantLeftJob?.cancel()
+            participantLeftJob = null
+            Log.d("VideoCallVM", "Cancelled participantLeftJob - peer status: ${payload.status}")
+        }
+        
+        // If peer reconnected successfully, reset our reconnection attempts
+        // This prevents us from ending the call when peer recovers
+        if (payload.status == "connected") {
+            resetReconnectState()
+            // If we were in reconnecting state and we're the mentee, the mentor will send a new offer
+            // If we're the mentor, we should create a new offer
+            if (_state.value.phase == CallPhase.Reconnecting) {
+                if (currentRole == "mentor") {
+                    retry()
+                } else {
+                    // Mentee just waits for new offer from mentor
+                    _state.update { it.copy(phase = CallPhase.Connecting) }
+                }
+            }
+        }
+        
+        _state.update { it.copy(peerConnectionStatus = payload.status) }
+    }
 
     private fun startCallIfReady() {
         Log.d("VideoCallVM", "startCallIfReady - callStarted: $callStarted, permissionsGranted: $permissionsGranted, role: $currentRole")
@@ -483,6 +621,7 @@ class VideoCallViewModel @Inject constructor(
     }
 
     private fun handleConnectionState(state: PeerConnection.PeerConnectionState) {
+        Log.d("VideoCallVM", "PeerConnection state changed: $state, current phase: ${_state.value.phase}")
         when (state) {
             PeerConnection.PeerConnectionState.CONNECTED -> {
                 resetReconnectState()
@@ -493,8 +632,15 @@ class VideoCallViewModel @Inject constructor(
                 handleReconnect("Connection lost")
             }
             PeerConnection.PeerConnectionState.CLOSED -> {
-                _state.update { it.copy(phase = CallPhase.Ended) }
-                cleanupCall()
+                // Don't end call if we're reconnecting - CLOSED is expected when recreating peer connection
+                val currentPhase = _state.value.phase
+                if (currentPhase != CallPhase.Reconnecting && currentPhase != CallPhase.Connecting) {
+                    Log.d("VideoCallVM", "PeerConnection closed, ending call")
+                    _state.update { it.copy(phase = CallPhase.Ended) }
+                    cleanupCall()
+                } else {
+                    Log.d("VideoCallVM", "PeerConnection closed during reconnect/connect, ignoring")
+                }
             }
             else -> Unit
         }
@@ -504,7 +650,22 @@ class VideoCallViewModel @Inject constructor(
         if (callStartedAtMs == null) {
             callStartedAtMs = System.currentTimeMillis()
         }
-        _state.update { it.copy(phase = CallPhase.InCall, errorMessage = null) }
+        reconnectAttempts = 0
+        _state.update { it.copy(
+            phase = CallPhase.InCall, 
+            errorMessage = null,
+            reconnectAttempt = 0,
+            peerConnectionStatus = null // Clear peer status when we're connected
+        ) }
+        
+        // Notify peer that we're connected
+        currentBookingId?.let { bookingId ->
+            socketManager.emit("session:status", mapOf(
+                "bookingId" to bookingId,
+                "status" to "connected"
+            ))
+        }
+        
         startCallTimer()
     }
 
@@ -522,13 +683,43 @@ class VideoCallViewModel @Inject constructor(
 
     private fun handleReconnect(reason: String) {
         if (_state.value.phase == CallPhase.Ended || _state.value.phase == CallPhase.Error) return
-        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            setError("Reconnect failed")
+        
+        // Don't start another reconnect if we're already reconnecting or connecting
+        // This prevents multiple reconnect attempts from the same network issue
+        val currentPhase = _state.value.phase
+        if (currentPhase == CallPhase.Reconnecting || currentPhase == CallPhase.Connecting) {
+            Log.d("VideoCallVM", "Already reconnecting/connecting (phase=$currentPhase), ignoring reconnect request: $reason")
             return
         }
-        _state.update { it.copy(phase = CallPhase.Reconnecting, errorMessage = reason) }
+        
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            setError("Reconnect failed after ${MAX_RECONNECT_ATTEMPTS} attempts")
+            // Notify peer about disconnection
+            currentBookingId?.let { bookingId ->
+                socketManager.emit("session:status", mapOf(
+                    "bookingId" to bookingId,
+                    "status" to "disconnected"
+                ))
+            }
+            return
+        }
+        reconnectAttempts += 1
+        Log.d("VideoCallVM", "Starting reconnect attempt $reconnectAttempts/$MAX_RECONNECT_ATTEMPTS")
+        _state.update { it.copy(
+            phase = CallPhase.Reconnecting, 
+            errorMessage = reason,
+            reconnectAttempt = reconnectAttempts
+        ) }
+        
+        // Notify peer about reconnecting
+        currentBookingId?.let { bookingId ->
+            socketManager.emit("session:status", mapOf(
+                "bookingId" to bookingId,
+                "status" to "reconnecting"
+            ))
+        }
+        
         if (reconnectJob == null) {
-            reconnectAttempts += 1
             reconnectJob = viewModelScope.launch {
                 delay(RECONNECT_DELAY_MS)
                 reconnectJob = null
@@ -559,6 +750,79 @@ class VideoCallViewModel @Inject constructor(
         }
         return IceCandidate(sdpMid, sdpMLineIndex, candidate)
     }
+    
+    private fun calculateNetworkQuality(rttMs: Double): NetworkQuality {
+        return when {
+            rttMs < 100 -> NetworkQuality.Excellent
+            rttMs < 200 -> NetworkQuality.Good
+            rttMs < 400 -> NetworkQuality.Fair
+            rttMs < 800 -> NetworkQuality.Poor
+            else -> NetworkQuality.VeryPoor
+        }
+    }
+    
+    private fun startTimeCheckJob() {
+        if (timeCheckJob != null) return
+        val endTime = _state.value.bookingEndTime ?: return
+        
+        timeCheckJob = viewModelScope.launch {
+            while (true) {
+                val now = System.currentTimeMillis()
+                val remainingMs = endTime - now
+                val remainingMinutes = (remainingMs / 60000).toInt()
+                
+                _state.update { it.copy(remainingMinutes = remainingMinutes) }
+                
+                when {
+                    remainingMs <= 0 -> {
+                        // Time's up, end the call
+                        _state.update { it.copy(
+                            showTimeWarning = true,
+                            timeWarningMessage = "Booking time has ended. The call will now disconnect."
+                        ) }
+                        delay(3000) // Show message for 3 seconds
+                        endCall()
+                        break
+                    }
+                    remainingMinutes == 5 && !_state.value.showTimeWarning -> {
+                        // 5 minutes warning
+                        _state.update { it.copy(
+                            showTimeWarning = true,
+                            timeWarningMessage = "Your booking will end in 5 minutes."
+                        ) }
+                    }
+                    remainingMinutes == 2 && _state.value.timeWarningMessage != "Your booking will end in 2 minutes." -> {
+                        // 2 minutes warning
+                        _state.update { it.copy(
+                            showTimeWarning = true,
+                            timeWarningMessage = "Your booking will end in 2 minutes."
+                        ) }
+                    }
+                    remainingMinutes == 1 && _state.value.timeWarningMessage != "Your booking will end in 1 minute!" -> {
+                        // 1 minute final warning
+                        _state.update { it.copy(
+                            showTimeWarning = true,
+                            timeWarningMessage = "Your booking will end in 1 minute!"
+                        ) }
+                    }
+                }
+                
+                delay(30_000) // Check every 30 seconds
+            }
+        }
+    }
+    
+    private fun parseIsoTimestamp(iso: String): Long? {
+        return try {
+            // Assuming ISO 8601 format like "2025-12-31T10:30:00.000Z"
+            val formatter = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+            formatter.timeZone = java.util.TimeZone.getTimeZone("UTC")
+            formatter.parse(iso)?.time
+        } catch (e: Exception) {
+            android.util.Log.e("VideoCallVM", "Failed to parse timestamp: $iso", e)
+            null
+        }
+    }
 
     private fun startQosReporting() {
         if (qosJob != null) return
@@ -567,6 +831,13 @@ class VideoCallViewModel @Inject constructor(
             while (true) {
                 webRtcClient.getStats { stats ->
                     if (stats != null) {
+                        val rtt = stats.rttMs
+                        val quality = calculateNetworkQuality(rtt)
+                        _state.update { it.copy(
+                            networkQuality = quality,
+                            rttMs = rtt
+                        ) }
+                        
                         socketManager.emit(
                             "session:qos",
                             mapOf(
@@ -591,6 +862,10 @@ class VideoCallViewModel @Inject constructor(
         timerJob = null
         reconnectJob?.cancel()
         reconnectJob = null
+        timeCheckJob?.cancel()
+        timeCheckJob = null
+        participantLeftJob?.cancel()
+        participantLeftJob = null
         webRtcClient.release()
         callStarted = false
         sessionReady = false
@@ -622,7 +897,8 @@ class VideoCallViewModel @Inject constructor(
     }
 
     private companion object {
-        const val RECONNECT_DELAY_MS = 3_000L
-        const val MAX_RECONNECT_ATTEMPTS = 3
+        const val RECONNECT_DELAY_MS = 5_000L // 5 seconds - give more time for network recovery
+        const val MAX_RECONNECT_ATTEMPTS = 5 // Match UI state
+        const val PARTICIPANT_LEFT_TIMEOUT_MS = 30_000L // 30 seconds - wait for peer to reconnect before ending call
     }
 }

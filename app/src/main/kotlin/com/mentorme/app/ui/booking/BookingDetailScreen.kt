@@ -171,6 +171,7 @@ private fun BookingDetailContent(
     onAccept: () -> Unit,
     onDecline: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val mentorName = mentorDisplayName(booking)
     val timeRange = "${booking.startTime} - ${booking.endTime}"
     val priceLabel = "$${"%.2f".format(booking.price)}"
@@ -243,7 +244,19 @@ private fun BookingDetailContent(
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Session Actions", color = Color.White, fontWeight = FontWeight.SemiBold)
                         MMPrimaryButton(
-                            onClick = { onJoinSession(booking.id) },
+                            onClick = { 
+                                // Validate booking time window before joining
+                                val errorMsg = validateBookingTimeWindow(booking)
+                                if (errorMsg != null) {
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        errorMsg,
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                } else {
+                                    onJoinSession(booking.id)
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth()
                         ) { 
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -344,4 +357,53 @@ private fun mentorDisplayName(booking: Booking): String {
     ).firstOrNull { !it.isNullOrBlank() }?.trim()
 
     return displayName ?: "Mentor ${booking.mentorId.takeLast(6)}"
+}
+
+/**
+ * Validate if booking is within the session join window
+ * Based on backend logic: SESSION_JOIN_EARLY_MINUTES (20-30 min before) and SESSION_JOIN_LATE_MINUTES (15 min after)
+ * Returns: null if can join, error message otherwise
+ */
+private fun validateBookingTimeWindow(booking: Booking): String? {
+    try {
+        // Parse start and end time
+        val startTimeStr = booking.startTimeIso ?: "${booking.date}T${booking.startTime}:00"
+        val endTimeStr = booking.endTimeIso ?: "${booking.date}T${booking.endTime}:00"
+        
+        val startTime = try {
+            java.time.ZonedDateTime.parse(startTimeStr)
+        } catch (e: Exception) {
+            java.time.LocalDateTime.parse(startTimeStr.replace("Z", ""))
+                .atZone(java.time.ZoneId.systemDefault())
+        }
+        
+        val endTime = try {
+            java.time.ZonedDateTime.parse(endTimeStr)
+        } catch (e: Exception) {
+            java.time.LocalDateTime.parse(endTimeStr.replace("Z", ""))
+                .atZone(java.time.ZoneId.systemDefault())
+        }
+        
+        val now = java.time.ZonedDateTime.now()
+        
+        // Session window: 30 minutes before start, 15 minutes after end (matching backend defaults)
+        val earlyMinutes = 30L
+        val lateMinutes = 15L
+        val windowOpen = startTime.minusMinutes(earlyMinutes)
+        val windowClose = endTime.plusMinutes(lateMinutes)
+        
+        return when {
+            now.isBefore(windowOpen) -> {
+                val minutesUntilOpen = java.time.Duration.between(now, windowOpen).toMinutes()
+                "Phiên học chưa mở. Bạn có thể tham gia sau ${minutesUntilOpen} phút nữa."
+            }
+            now.isAfter(windowClose) -> {
+                "Phiên học đã kết thúc. Bạn không thể tham gia nữa."
+            }
+            else -> null // Can join
+        }
+    } catch (e: Exception) {
+        // On error, allow join to avoid blocking users
+        return null
+    }
 }

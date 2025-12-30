@@ -545,8 +545,8 @@ internal fun AppNavGraph(
         ChatScreen(
             conversationId = convId,
             onBack = { nav.popBackStack() },
-            onJoinSession = {
-                nav.navigate(Routes.videoCall(convId)) {
+            onJoinSession = { bookingId ->
+                nav.navigate(Routes.videoCall(bookingId)) {
                     launchSingleTop = true
                 }
             },

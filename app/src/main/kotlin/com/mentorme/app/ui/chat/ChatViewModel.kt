@@ -308,11 +308,27 @@ class ChatViewModel @Inject constructor(
         if (targetId.isBlank()) return
         _conversations.update { list ->
             list.map { convo ->
-                if (convo.id == targetId) {
-                    convo.copy(hasActiveSession = active)
-                } else {
-                    convo
+                val matches = targetId == convo.activeSessionBookingId ||
+                    targetId == convo.primaryBookingId ||
+                    targetId == convo.nextSessionBookingId
+                if (!matches) return@map convo
+
+                val nextActiveId = when {
+                    active -> targetId
+                    targetId == convo.activeSessionBookingId -> null
+                    else -> convo.activeSessionBookingId
                 }
+                val nextHasActive = if (active) {
+                    true
+                } else if (targetId == convo.activeSessionBookingId) {
+                    false
+                } else {
+                    convo.hasActiveSession
+                }
+                convo.copy(
+                    hasActiveSession = nextHasActive,
+                    activeSessionBookingId = nextActiveId
+                )
             }
         }
     }

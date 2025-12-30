@@ -14,6 +14,7 @@ data class Conversation(
     val lastMessageTimeIso: String = "",
     val unreadCount: Int = 0,
     val hasActiveSession: Boolean = false,
+    val activeSessionBookingId: String? = null,
     val nextSessionDateTimeIso: String? = null,
     val nextSessionStartIso: String? = null,
     val nextSessionEndIso: String? = null,

@@ -588,19 +588,28 @@ export async function initSocket(server: HttpServer) {
 
     socket.on("disconnect", async () => {
       const session = socket.data.session as SessionState | undefined;
-      if (!session) return;
+      if (session) {
+        await recordSessionDisconnect(session.bookingId, session.role);
 
-      await recordSessionDisconnect(session.bookingId, session.role);
-
-      const rooms = getSessionRooms(session.bookingId);
-      socket.to(rooms.liveRoom).emit("session:participant-left", {
-        bookingId: session.bookingId,
-        userId: user?.id,
-        role: session.role,
-      });
+        const rooms = getSessionRooms(session.bookingId);
+        socket.to(rooms.liveRoom).emit("session:participant-left", {
+          bookingId: session.bookingId,
+          userId: user?.id,
+          role: session.role,
+        });
+      }
       
       // Handle user going offline
       if (user?.id) {
+        let hasOtherSockets = false;
+        try {
+          const sockets = await io?.in(`user:${user.id}`).fetchSockets();
+          hasOtherSockets = (sockets?.length || 0) > 0;
+        } catch (err) {
+          console.error("Failed to check user socket count:", err);
+        }
+        if (hasOtherSockets) return;
+
         const presenceKey = `presence:user:${user.id}`;
         // Delete presence key to mark user as offline
         redis.del(presenceKey).catch((err) => {

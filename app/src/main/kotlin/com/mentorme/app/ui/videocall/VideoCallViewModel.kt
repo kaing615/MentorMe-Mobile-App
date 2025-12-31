@@ -1195,6 +1195,34 @@ class VideoCallViewModel @Inject constructor(
                     if (stats != null) {
                         val rtt = stats.rttMs
                         val quality = calculateNetworkQuality(rtt)
+                        
+                        // Extract detailed stats for monitoring
+                        var packetsLost = 0L
+                        var packetsSent = 0L
+                        var bytesReceived = 0L
+                        var bytesSent = 0L
+                        var jitter = 0.0
+                        
+                        stats.statsMap.values.forEach { report ->
+                            when (report.type) {
+                                "inbound-rtp" -> {
+                                    report.members["packetsLost"]?.let { packetsLost += (it as? Number)?.toLong() ?: 0L }
+                                    report.members["bytesReceived"]?.let { bytesReceived += (it as? Number)?.toLong() ?: 0L }
+                                    report.members["jitter"]?.let { jitter = (it as? Number)?.toDouble() ?: 0.0 }
+                                }
+                                "outbound-rtp" -> {
+                                    report.members["packetsSent"]?.let { packetsSent += (it as? Number)?.toLong() ?: 0L }
+                                    report.members["bytesSent"]?.let { bytesSent += (it as? Number)?.toLong() ?: 0L }
+                                }
+                            }
+                        }
+                        
+                        val packetLossRate = if (packetsSent > 0) {
+                            (packetsLost.toDouble() / (packetsSent + packetsLost) * 100)
+                        } else 0.0
+                        
+                        Log.d("VideoCallVM", "QoS - RTT: ${rtt}ms, Loss: ${"%.2f".format(packetLossRate)}%, Jitter: ${"%.2f".format(jitter)}ms")
+                        
                         _state.update { it.copy(
                             networkQuality = quality,
                             rttMs = rtt
@@ -1205,7 +1233,11 @@ class VideoCallViewModel @Inject constructor(
                             mapOf(
                                 "bookingId" to bookingId,
                                 "stats" to mapOf(
-                                    "rttMs" to stats.rttMs,
+                                    "rttMs" to rtt,
+                                    "packetLoss" to packetLossRate,
+                                    "jitter" to jitter,
+                                    "bytesReceived" to bytesReceived,
+                                    "bytesSent" to bytesSent,
                                     "timestamp" to System.currentTimeMillis()
                                 )
                             )

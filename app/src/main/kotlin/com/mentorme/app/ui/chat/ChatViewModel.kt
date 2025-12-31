@@ -40,6 +40,7 @@ class ChatViewModel @Inject constructor(
 
     private var currentConversationId: String? = null
     private var currentUserId: String? = null
+    private val presenceOverrides = mutableMapOf<String, Boolean>()
 
     init {
         observeUser()
@@ -52,7 +53,8 @@ class ChatViewModel @Inject constructor(
             _loading.value = true
             when (val res = chatRepository.getConversations()) {
                 is AppResult.Success -> {
-                    _conversations.value = res.data
+                    _conversations.value = applyPresenceOverrides(res.data)
+                    launch { syncPresence(res.data) }
                     
                     // Load last message preview for each conversation
                     res.data.forEach { conversation ->
@@ -342,14 +344,54 @@ class ChatViewModel @Inject constructor(
     }
     
     private fun updateUserOnlineStatus(userId: String, isOnline: Boolean) {
+        val normalizedId = userId.trim()
+        if (normalizedId.isEmpty()) return
+        presenceOverrides[normalizedId] = isOnline
         _conversations.update { list ->
             list.map { convo ->
-                if (convo.peerId == userId) {
-                    convo.copy(isOnline = isOnline)
-                } else {
-                    convo
+                if (convo.peerId == normalizedId) convo.copy(isOnline = isOnline) else convo
+            }
+        }
+    }
+
+    private fun applyPresenceOverrides(conversations: List<Conversation>): List<Conversation> {
+        if (conversations.isEmpty() || presenceOverrides.isEmpty()) return conversations
+        return conversations.map { convo ->
+            if (!presenceOverrides.containsKey(convo.peerId)) {
+                convo
+            } else {
+                val isOnline = presenceOverrides[convo.peerId] ?: false
+                if (convo.isOnline == isOnline) convo else convo.copy(isOnline = isOnline)
+            }
+        }
+    }
+
+    private suspend fun syncPresence(conversations: List<Conversation>) {
+        val peerIds = conversations
+            .map { it.peerId.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+        if (peerIds.isEmpty()) return
+
+        when (val res = chatRepository.getOnlinePeerIds(peerIds)) {
+            is AppResult.Success -> {
+                val onlineIds = res.data
+                peerIds.forEach { id ->
+                    presenceOverrides[id] = onlineIds.contains(id)
+                }
+                _conversations.update { list ->
+                    list.map { convo ->
+                        val id = convo.peerId.trim()
+                        if (id.isEmpty()) {
+                            convo
+                        } else {
+                            val isOnline = onlineIds.contains(id)
+                            if (convo.isOnline == isOnline) convo else convo.copy(isOnline = isOnline)
+                        }
+                    }
                 }
             }
+            else -> Unit
         }
     }
 }

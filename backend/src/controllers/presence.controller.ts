@@ -41,3 +41,57 @@ export async function pingPresence(req: AuthRequest, res: Response) {
   }
 }
 
+/**
+ * POST /api/v1/presence/lookup
+ * Auth required - Lookup online status for a list of user IDs
+ */
+export async function lookupPresence(req: AuthRequest, res: Response) {
+  try {
+    const requesterId = req.user?.id;
+    if (!requesterId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const rawIds = Array.isArray((req.body as any)?.userIds)
+      ? (req.body as any).userIds
+      : [];
+    const normalized = Array.from(
+      new Set(
+        rawIds
+          .map((value: unknown) => String(value).trim())
+          .filter((value: string) => value.length > 0)
+      )
+    ).slice(0, 200);
+
+    if (normalized.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          onlineUserIds: [],
+        },
+      });
+    }
+
+    const keys = normalized.map((id) => `presence:user:${id}`);
+    const values = await redis.mGet(keys);
+    const onlineUserIds = normalized.filter((id, index) => values[index] != null);
+
+    res.json({
+      success: true,
+      data: {
+        onlineUserIds,
+      },
+    });
+  } catch (error: any) {
+    console.error("Error looking up presence:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to lookup presence",
+      error: error.message,
+    });
+  }
+}
+

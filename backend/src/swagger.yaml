@@ -983,6 +983,131 @@ components:
         id: { type: string }
         status: { type: string, example: "pending" }
 
+    # ===== PAYMENT METHOD SCHEMAS =====
+    PaymentMethodType:
+      type: string
+      enum: [bank_account, e_wallet, credit_card]
+
+    PaymentMethod:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        type: { $ref: "#/components/schemas/PaymentMethodType" }
+        provider: { type: string, example: "Vietcombank" }
+        accountName: { type: string, example: "Nguyen Van A" }
+        accountNumberMasked: { type: string, example: "******7890" }
+        isDefault: { type: boolean, example: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreatePaymentMethodRequest:
+      type: object
+      required: [type, provider, accountName, accountNumber]
+      properties:
+        type: { $ref: "#/components/schemas/PaymentMethodType" }
+        provider: { type: string }
+        accountName: { type: string }
+        accountNumber: { type: string }
+        isDefault: { type: boolean, default: false }
+
+    UpdatePaymentMethodRequest:
+      type: object
+      properties:
+        provider: { type: string }
+        accountName: { type: string }
+        accountNumber: { type: string }
+        isDefault: { type: boolean }
+
+    # ===== MENTOR STATS SCHEMAS =====
+    MentorStats:
+      type: object
+      properties:
+        earnings: { type: integer, description: "VND earning in minor units", example: 5000000 }
+        menteeCount: { type: integer, description: "Unique mentees this month", example: 12 }
+        averageRating: { type: number, format: float, example: 4.7 }
+        totalHours: { type: number, format: float, example: 24.5 }
+
+    # ===== SESSION/WEBRTC SCHEMAS =====
+    JoinTokenResponse:
+      type: object
+      properties:
+        token: { type: string, description: "Short-lived JWT for WebRTC session" }
+        expiresAt: { type: string, format: date-time }
+        role: { type: string, enum: [mentor, mentee] }
+
+    SessionLog:
+      type: object
+      properties:
+        id: { type: string }
+        bookingId: { type: string }
+        mentorId: { type: string }
+        menteeId: { type: string }
+        scheduledStart: { type: string, format: date-time, nullable: true }
+        scheduledEnd: { type: string, format: date-time, nullable: true }
+        actualStart: { type: string, format: date-time, nullable: true }
+        actualEnd: { type: string, format: date-time, nullable: true }
+        durationSec: { type: integer, nullable: true }
+        status: { type: string, enum: [waiting, in_progress, ended] }
+        endReason: { type: string, nullable: true }
+        waitingRoomMs: { type: integer, nullable: true }
+        mentorJoinAt: { type: string, format: date-time, nullable: true }
+        menteeJoinAt: { type: string, format: date-time, nullable: true }
+        mentorAdmitAt: { type: string, format: date-time, nullable: true }
+        mentorDisconnects: { type: integer, example: 0 }
+        menteeDisconnects: { type: integer, example: 0 }
+        qos: { type: object, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    # ===== MESSAGE/CHAT SCHEMAS =====
+    Message:
+      type: object
+      properties:
+        id: { type: string }
+        bookingId: { type: string }
+        senderId: { type: string }
+        recipientId: { type: string }
+        content: { type: string }
+        type: { type: string, enum: [text, image, file], example: "text" }
+        status: { type: string, enum: [sent, delivered, read], example: "sent" }
+        metadata: { type: object, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    SendMessageRequest:
+      type: object
+      required: [bookingId, content]
+      properties:
+        bookingId: { type: string }
+        content: { type: string }
+        type: { type: string, enum: [text, image, file], default: "text" }
+        metadata: { type: object }
+
+    ChatRestrictionInfo:
+      type: object
+      properties:
+        canChat: { type: boolean }
+        reason: { type: string, nullable: true }
+        windowStart: { type: string, format: date-time, nullable: true }
+        windowEnd: { type: string, format: date-time, nullable: true }
+
+    MessageListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Message" }
+        hasMore: { type: boolean }
+
+    # ===== WALLET SCHEMAS =====
+    WithdrawRequest:
+      type: object
+      required: [amountMinor]
+      properties:
+        amountMinor: { type: integer, description: "Amount in VND minor units", example: 100000 }
+        reason: { type: string }
+
 paths:
   /auth/signup:
     post:
@@ -4607,6 +4732,366 @@ paths:
           description: Forbidden
         "404":
           description: Booking not found
+
+  # ===== PAYMENT METHODS ENDPOINTS =====
+  /payment-methods:
+    post:
+      tags: [Payments]
+      summary: Create payment method
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePaymentMethodRequest" }
+      responses:
+        "201":
+          description: Payment method created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/PaymentMethod" }
+        "400":
+          description: Missing/invalid fields
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /payment-methods/me:
+    get:
+      tags: [Payments]
+      summary: List my payment methods
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Payment methods list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: "#/components/schemas/PaymentMethod" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /payment-methods/{id}:
+    put:
+      tags: [Payments]
+      summary: Update payment method
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePaymentMethodRequest" }
+      responses:
+        "200":
+          description: Payment method updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/PaymentMethod" }
+        "400":
+          description: Invalid ID
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Payment method not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+    delete:
+      tags: [Payments]
+      summary: Delete payment method
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Payment method deleted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          deleted: { type: boolean, example: true }
+        "400":
+          description: Cannot delete last payment method
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Payment method not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  # ===== MENTOR STATS ENDPOINTS =====
+  /mentors/me/stats:
+    get:
+      tags: [Mentors]
+      summary: Get mentor dashboard statistics (current month)
+      description: Returns mentor earnings, mentee count, average rating, and total consultation hours for the current month
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Mentor statistics
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/MentorStats" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Forbidden (not a mentor)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  # ===== SESSIONS (WEBRTC) ENDPOINTS =====
+  /sessions/{bookingId}/join-token:
+    post:
+      tags: [Sessions]
+      summary: Create short-lived join token for WebRTC session
+      description: Generates a JWT token to join a WebRTC session, valid only within the session window
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Join token created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/JoinTokenResponse" }
+        "400":
+          description: Session not ready or join window closed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+              examples:
+                not_confirmed:
+                  value: { message: "Session is not ready for join", code: "INVALID_STATUS" }
+                window_closed:
+                  value:
+                    message: "Session join window closed"
+                    code: "WINDOW_CLOSED"
+                    data:
+                      openAt: "2025-11-03T07:15:00Z"
+                      closeAt: "2025-11-03T08:30:00Z"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Access denied (not participant)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /sessions/{bookingId}/log:
+    get:
+      tags: [Sessions]
+      summary: Get session log for a booking
+      description: Returns detailed session analytics including join times, disconnects, and QoS metrics
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Session log retrieved (null if no log exists)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        oneOf:
+                          - $ref: "#/components/schemas/SessionLog"
+                          - type: "null"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Access denied (not participant or admin)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  # ===== WALLET ENDPOINTS =====
+  /wallet/debits:
+    post:
+      tags: [Wallet]
+      summary: Withdraw funds from wallet (mentee)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WithdrawRequest" }
+      responses:
+        "201":
+          description: Withdrawal successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          transactionId: { type: string }
+                          newBalance: { type: integer }
+        "400":
+          description: Insufficient balance
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Forbidden (not mentee)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  # ===== BOOKING ENDPOINTS =====
+  /bookings/{id}/capture:
+    post:
+      tags: [Bookings]
+      summary: Capture payment for a booking (wallet payment)
+      description: Deducts funds from mentee wallet after booking is created
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Payment captured
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          status: { type: string, example: "PendingMentor" }
+                          paymentCaptured: { type: boolean, example: true }
+        "400":
+          description: Invalid booking status or insufficient funds
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "403":
+          description: Access denied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
 
 security:
   - BearerAuth: []

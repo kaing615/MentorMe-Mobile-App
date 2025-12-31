@@ -63,11 +63,19 @@ class MentorProfileViewModel @Inject constructor(
     fun save(onDone: (Boolean, String?) -> Unit = { _, _ -> }) = viewModelScope.launch {
         val ed = _state.value.edited ?: return@launch
         val params = UpdateProfileParams(
+            fullName = ed.fullName.takeIf { it != _state.value.profile?.fullName },
             phone = ed.phone,
             location = ed.location,
             bio = ed.bio,
             languages = ed.preferredLanguages.distinctTrimmedOrNull(),
-            skills = ed.interests.distinctTrimmedOrNull()
+            skills = ed.interests.distinctTrimmedOrNull(),
+
+            //  NEW: Mentor-specific fields
+            jobTitle = ed.jobTitle,
+            category = ed.category,
+            hourlyRateVnd = ed.hourlyRate,
+            experience = ed.experience,
+            education = ed.education
         )
         doUpdate(params, onDone)
     }

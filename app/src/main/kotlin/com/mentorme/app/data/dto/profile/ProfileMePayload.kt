@@ -49,6 +49,9 @@ data class ProfileMeDto(
     @SerializedName("jobTitle")
     val jobTitle: String?,
 
+    @SerializedName("hourlyRateVnd")
+    val hourlyRateVnd: Int?,  // ✅ NEW: Giá mỗi giờ
+
     @SerializedName("experience")
     val experience: String?,
 

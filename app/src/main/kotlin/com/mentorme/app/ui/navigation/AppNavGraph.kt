@@ -14,8 +14,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.mentorme.app.data.mock.MockData
 import com.mentorme.app.ui.auth.AuthScreen
 import com.mentorme.app.ui.auth.AuthViewModel
@@ -223,6 +225,12 @@ internal fun AppNavGraph(
                 HomeScreen(
                     onNavigateToMentors = { goToSearch(nav) },
                     onSearch = { _ -> goToSearch(nav) },
+                    onNavigateToCategory = { categoryName ->
+                        // ✅ Navigate to search with expertise filter
+                        nav.navigate(Routes.searchWithExpertise(categoryName)) {
+                            launchSingleTop = true
+                        }
+                    },
                     onJoinSession = { bookingId ->
                         nav.navigate(Routes.videoCall(bookingId)) {
                             launchSingleTop = true
@@ -433,8 +441,17 @@ internal fun AppNavGraph(
                 )
             }
 
-            composable(Routes.search) {
+            composable(
+                route = Routes.searchWithExpertise,
+                arguments = listOf(navArgument("expertise") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                })
+            ) { backStackEntry ->
+                val expertise = backStackEntry.arguments?.getString("expertise")
                 SearchMentorScreen(
+                    initialExpertise = expertise, // ✅ Pass expertise to filter
                     onOpenProfile = { /* handled by sheet inside SearchMentorScreen */ },
                     onBook = { id ->
                         val targetId = if (id.startsWith("m") && id.drop(1).all { it.isDigit() }) id.drop(1) else id

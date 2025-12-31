@@ -72,6 +72,7 @@ interface SearchDeps {
 @Composable
 fun SearchMentorScreen(
     mentors: List<HomeMentor> = SearchMockData.mentors,
+    initialExpertise: String? = null, // ✅ NEW: Pre-filter by expertise from category
     onOpenProfile: (String) -> Unit = {},
     onBook: (String) -> Unit = {},
     onMessage: (String) -> Unit = {}, //  NEW: Callback to open chat with mentorId
@@ -98,7 +99,7 @@ fun SearchMentorScreen(
         var error by remember { mutableStateOf<String?>(null) }
 
         // ===== State (saveable) =====
-        var query by rememberSaveable { mutableStateOf("") }
+        var query by rememberSaveable { mutableStateOf(initialExpertise ?: "") }
         var selectedSkills by rememberSaveable { mutableStateOf(listOf<String>()) }
         var minRating by rememberSaveable { mutableFloatStateOf(0f) }
 

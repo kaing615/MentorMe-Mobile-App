@@ -390,13 +390,64 @@ private fun MentorInfoTab(
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    MentorLabeledField("Họ và tên", profile.fullName, isEditing, edited.fullName) { onChange(edited.copy(fullName = it)) }
+                    // ✅ Thông tin cơ bản
+                    MentorLabeledField("Họ và tên", profile.fullName, isEditing, edited.fullName) {
+                        onChange(edited.copy(fullName = it))
+                    }
+
+                    MentorLabeledField("Email", profile.email, isEditing, edited.email) {
+                        onChange(edited.copy(email = it))
+                    }
+
+                    MentorLabeledField("Số điện thoại", profile.phone ?: "Chưa cập nhật", isEditing, edited.phone ?: "") {
+                        onChange(edited.copy(phone = it.takeIf { it.isNotBlank() }))
+                    }
+
+                    MentorLabeledField("Địa điểm", profile.location ?: "Chưa cập nhật", isEditing, edited.location ?: "") {
+                        onChange(edited.copy(location = it.takeIf { it.isNotBlank() }))
+                    }
+
+                    // ✅ Thông tin nghề nghiệp
+                    MentorLabeledField("Chức danh", profile.jobTitle ?: "Chưa cập nhật", isEditing, edited.jobTitle ?: "") {
+                        onChange(edited.copy(jobTitle = it.takeIf { it.isNotBlank() }))
+                    }
+
+                    MentorLabeledField("Chuyên mục", profile.category ?: "Chưa cập nhật", isEditing, edited.category ?: "") {
+                        onChange(edited.copy(category = it.takeIf { it.isNotBlank() }))
+                    }
+
+                    // ✅ Giá mỗi giờ
+                    val hourlyRateText = if (profile.hourlyRate != null && profile.hourlyRate > 0) {
+                        "${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(profile.hourlyRate)} VNĐ/giờ"
+                    } else {
+                        "Chưa đặt giá"
+                    }
+                    val editedHourlyRateText = edited.hourlyRate?.toString() ?: ""
+
+                    MentorLabeledField("Giá mỗi giờ", hourlyRateText, isEditing, editedHourlyRateText) { raw ->
+                        val rate = raw.filter { it.isDigit() }.toIntOrNull()
+                        onChange(edited.copy(hourlyRate = rate))
+                    }
+
+                    // ✅ Kinh nghiệm & Học vấn
+                    MentorMultilineField("Kinh nghiệm", profile.experience ?: "Chưa cập nhật", isEditing, edited.experience ?: "") {
+                        onChange(edited.copy(experience = it.takeIf { it.isNotBlank() }))
+                    }
+
+                    MentorMultilineField("Học vấn", profile.education ?: "Chưa cập nhật", isEditing, edited.education ?: "") {
+                        onChange(edited.copy(education = it.takeIf { it.isNotBlank() }))
+                    }
+
+                    // ✅ Chuyên môn (Skills)
                     MentorLabeledField("Chuyên môn", skillsText.ifBlank { "Chưa cập nhật" }, isEditing, editedSkillsText) { raw ->
                         val skills = raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
                         onChange(edited.copy(interests = skills))
                     }
-                    MentorLabeledField("Email", profile.email, isEditing, edited.email) { onChange(edited.copy(email = it)) }
-                    MentorMultilineField("Giới thiệu", profile.bio ?: "", isEditing, edited.bio ?: "") { onChange(edited.copy(bio = it)) }
+
+                    // ✅ Giới thiệu
+                    MentorMultilineField("Giới thiệu", profile.bio ?: "Chưa cập nhật", isEditing, edited.bio ?: "") {
+                        onChange(edited.copy(bio = it.takeIf { it.isNotBlank() }))
+                    }
                 }
 
                 if (isEditing) {

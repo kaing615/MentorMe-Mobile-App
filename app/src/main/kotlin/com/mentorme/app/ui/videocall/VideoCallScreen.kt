@@ -544,8 +544,21 @@ fun VideoCallScreen(
             }
 
             // Auto-hide controls during InCall - tap screen to toggle visibility (hide in PiP)
+            // Hide controls when:
+            // 1. PiP mode
+            // 2. Preview mode (user hasn't clicked Start Call yet, PreviewModeOverlay may be showing)
+            // 3. WaitingForAdmit for mentee (has waiting overlay)
+            val shouldShowControls = !isInPipMode && !state.isPreviewMode && (
+                when (state.phase) {
+                    CallPhase.InCall -> controlsVisible
+                    CallPhase.WaitingForAdmit -> state.role == "mentor"
+                    CallPhase.Idle -> false
+                    else -> true // Joining, Connecting, WaitingForPeer, Reconnecting, Ended, Error
+                }
+            )
+            
             AnimatedVisibility(
-                visible = !isInPipMode && (controlsVisible || state.phase != CallPhase.InCall),
+                visible = shouldShowControls,
                 enter = fadeIn(),
                 exit = fadeOut(),
                 modifier = Modifier.align(Alignment.BottomCenter)

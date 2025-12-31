@@ -535,8 +535,16 @@ class VideoCallViewModel @Inject constructor(
 
     fun endCall() {
         val bookingId = currentBookingId ?: return
+        // Emit session:end and cleanup locally
+        // Don't call leaveCall() here - let the server handle cleanup
+        // The other party will receive session:ended event
         socketManager.emit("session:end", mapOf("bookingId" to bookingId))
-        leaveCall()
+        // Cleanup locally after a short delay to ensure server processes the end event
+        viewModelScope.launch {
+            delay(100) // Small delay to ensure server processes session:end first
+            cleanupCall()
+            _state.update { it.copy(phase = CallPhase.Ended) }
+        }
     }
 
     fun leaveCall() {
@@ -634,7 +642,8 @@ class VideoCallViewModel @Inject constructor(
             it.copy(
                 role = payload.role,
                 admitted = admitted,
-                phase = phase
+                phase = phase,
+                isPreviewMode = false  // Exit preview mode when session is joined
             )
         }
         
@@ -676,7 +685,7 @@ class VideoCallViewModel @Inject constructor(
             }
         }
         
-        _state.update { it.copy(admitted = true, phase = CallPhase.Connecting) }
+        _state.update { it.copy(admitted = true, phase = CallPhase.Connecting, isPreviewMode = false) }
         sessionReady = true
         startCallIfReady()
     }

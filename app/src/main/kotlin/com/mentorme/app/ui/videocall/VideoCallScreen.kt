@@ -5,7 +5,12 @@ import android.app.Activity
 import android.content.pm.ActivityInfo
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -162,11 +167,33 @@ fun VideoCallScreen(
             viewModel.leaveCall()
         }
     }
+    
+    // Auto-hide controls after 5 seconds during call
+    var controlsVisible by remember { mutableStateOf(true) }
+    var lastTapTime by remember { mutableStateOf(0L) }
+    
+    // Auto-hide controls when in call
+    LaunchedEffect(state.phase, controlsVisible) {
+        if (state.phase == CallPhase.InCall && controlsVisible) {
+            kotlinx.coroutines.delay(5000) // Hide after 5 seconds
+            controlsVisible = false
+        }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                // Toggle controls visibility on tap during call
+                if (state.phase == CallPhase.InCall) {
+                    controlsVisible = !controlsVisible
+                    lastTapTime = System.currentTimeMillis()
+                }
+            }
     ) {
         SnackbarHost(
             hostState = snackbarHostState,
@@ -236,25 +263,34 @@ fun VideoCallScreen(
                 .background(Color.Black)
         )
 
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        // Top bar with back button and network indicator - hide during InCall when controls are hidden
+        AnimatedVisibility(
+            visible = state.phase != CallPhase.InCall || controlsVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.TopStart)
         ) {
-            GlassIconButton(
-                icon = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
-                onClick = onBack
-            )
-            
-            // Network quality indicator
-            if (state.phase == CallPhase.InCall) {
-                NetworkQualityIndicator(
-                    quality = state.networkQuality,
-                    rttMs = state.rttMs
-                )
+            Row(
+                modifier = Modifier.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Hide back button completely during InCall to prevent accidental exit
+                if (state.phase != CallPhase.InCall) {
+                    GlassIconButton(
+                        icon = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        onClick = onBack
+                    )
+                }
+                
+                // Network quality indicator
+                if (state.phase == CallPhase.InCall) {
+                    NetworkQualityIndicator(
+                        quality = state.networkQuality,
+                        rttMs = state.rttMs
+                    )
+                }
             }
         }
 
@@ -401,15 +437,23 @@ fun VideoCallScreen(
                 }
             }
 
-            CallControls(
-                state = state,
-                modifier = Modifier.align(Alignment.BottomCenter),
-                onToggleAudio = { viewModel.toggleAudio() },
-                onToggleVideo = { viewModel.toggleVideo() },
-                onToggleSpeaker = { viewModel.toggleSpeaker() },
-                onSwitchCamera = { viewModel.switchCamera() },
-                onEndCall = { viewModel.endCall(); onBack() }
-            )
+            // Auto-hide controls during InCall - tap screen to toggle visibility
+            AnimatedVisibility(
+                visible = controlsVisible || state.phase != CallPhase.InCall,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                CallControls(
+                    state = state,
+                    modifier = Modifier,
+                    onToggleAudio = { viewModel.toggleAudio() },
+                    onToggleVideo = { viewModel.toggleVideo() },
+                    onToggleSpeaker = { viewModel.toggleSpeaker() },
+                    onSwitchCamera = { viewModel.switchCamera() },
+                    onEndCall = { viewModel.endCall(); onBack() }
+                )
+            }
         }
     }
 }

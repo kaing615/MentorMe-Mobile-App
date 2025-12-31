@@ -160,6 +160,9 @@ class SocketManager @Inject constructor(
         newSocket.on(EVENT_SESSION_STATUS) { args ->
             handleSessionStatusEvent(args)
         }
+        newSocket.on(EVENT_SESSION_MEDIA_STATE) { args ->
+            handleSessionMediaStateEvent(args)
+        }
         newSocket.on(EVENT_USER_ONLINE) { args ->
             handleUserOnlineEvent(args)
         }
@@ -301,6 +304,13 @@ class SocketManager @Inject constructor(
         Log.d(TAG, "handleSessionStatusEvent - bookingId: ${payload.bookingId}, userId: ${payload.userId}, status: ${payload.status}")
         RealtimeEventBus.emit(RealtimeEvent.SessionStatusChanged(payload))
     }
+    
+    private fun handleSessionMediaStateEvent(args: Array<Any>) {
+        val raw = args.firstOrNull() ?: return
+        val payload = parsePayload(raw, com.mentorme.app.data.mapper.SessionMediaStatePayload::class.java) ?: return
+        Log.d(TAG, "handleSessionMediaStateEvent - bookingId: ${payload.bookingId}, audioEnabled: ${payload.audioEnabled}, videoEnabled: ${payload.videoEnabled}")
+        RealtimeEventBus.emit(RealtimeEvent.SessionMediaStateChanged(payload))
+    }
 
     private fun <T> parsePayload(raw: Any, clazz: Class<T>): T? {
         return try {
@@ -338,5 +348,6 @@ class SocketManager @Inject constructor(
         private const val EVENT_USER_ONLINE = "user:online"
         private const val EVENT_USER_OFFLINE = "user:offline"
         private const val EVENT_SESSION_STATUS = "session:status"
+        private const val EVENT_SESSION_MEDIA_STATE = "session:media-state"
     }
 }

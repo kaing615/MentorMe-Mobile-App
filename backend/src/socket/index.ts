@@ -7,6 +7,7 @@ import { Socket, Server as SocketIOServer } from "socket.io";
 import Booking from "../models/booking.model";
 import User from "../models/user.model";
 import {
+  getSessionActualStart,
   getSessionStateTtlSeconds,
   isWithinSessionWindow,
   recordSessionAdmit,
@@ -371,10 +372,14 @@ export async function initSocket(server: HttpServer) {
 
         await recordSessionJoin(booking as any, joinPayload.role);
 
-        respond(callback, { ok: true, data: { bookingId, role: joinPayload.role, admitted } });
-        socket.emit("session:joined", { bookingId, role: joinPayload.role, admitted });
+        // Get actual session start time if session is already active (for reconnecting users)
+        const actualStart = await getSessionActualStart(bookingId);
+        const sessionStartedAt = actualStart ? actualStart.toISOString() : null;
+
+        respond(callback, { ok: true, data: { bookingId, role: joinPayload.role, admitted, sessionStartedAt } });
+        socket.emit("session:joined", { bookingId, role: joinPayload.role, admitted, sessionStartedAt });
         
-        console.log(`[Session] ${joinPayload.role} joined booking ${bookingId}, admitted: ${admitted}`);
+        console.log(`[Session] ${joinPayload.role} joined booking ${bookingId}, admitted: ${admitted}, sessionStartedAt: ${sessionStartedAt}`);
 
         if (joinPayload.role === "mentee" && !admitted) {
           socket.emit("session:waiting", { bookingId });
@@ -452,6 +457,10 @@ export async function initSocket(server: HttpServer) {
         } catch {}
 
         await recordSessionAdmit(booking as any, admittedAt);
+        
+        // Get actual session start time after admission (for the timer)
+        const actualStart = await getSessionActualStart(bookingId);
+        const sessionStartedAt = actualStart ? actualStart.toISOString() : admittedAt.toISOString();
 
         const rooms = getSessionRooms(bookingId);
         const waitingSockets = await io?.in(rooms.waitingRoom).fetchSockets();
@@ -465,12 +474,13 @@ export async function initSocket(server: HttpServer) {
             waitingSocket.emit("session:admitted", {
               bookingId,
               admittedAt: admittedAt.toISOString(),
+              sessionStartedAt,
             });
           }
         }
 
         io?.to(rooms.liveRoom).emit("session:ready", { bookingId });
-        respond(callback, { ok: true, data: { bookingId } });
+        respond(callback, { ok: true, data: { bookingId, sessionStartedAt } });
       } catch (err) {
         return respond(callback, { ok: false, message: "SESSION_ADMIT_FAILED" });
       }

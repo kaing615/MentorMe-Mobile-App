@@ -252,12 +252,24 @@ class WebRtcClient(
 
     fun setVideoEnabled(enabled: Boolean) {
         isVideoEnabled = enabled
-        localVideoTrack?.setEnabled(enabled)
+        val track = localVideoTrack
+        if (track != null && track.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
+            track.setEnabled(enabled)
+            Log.d(TAG, "Video track enabled: $enabled, state: ${track.state()}")
+        } else {
+            Log.w(TAG, "Cannot set video enabled - track is null or ended")
+        }
     }
 
     fun setAudioEnabled(enabled: Boolean) {
         isAudioEnabled = enabled
-        localAudioTrack?.setEnabled(enabled)
+        val track = localAudioTrack
+        if (track != null && track.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
+            track.setEnabled(enabled)
+            Log.d(TAG, "Audio track enabled: $enabled, state: ${track.state()}")
+        } else {
+            Log.w(TAG, "Cannot set audio enabled - track is null or ended")
+        }
     }
 
     fun switchCamera() {

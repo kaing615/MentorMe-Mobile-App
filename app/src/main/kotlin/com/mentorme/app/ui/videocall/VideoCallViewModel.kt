@@ -14,6 +14,7 @@ import com.mentorme.app.data.dto.session.SessionJoinResponse
 import com.mentorme.app.data.mapper.SessionAdmittedPayload
 import com.mentorme.app.data.mapper.SessionEndedPayload
 import com.mentorme.app.data.mapper.SessionJoinedPayload
+import com.mentorme.app.data.mapper.SessionMediaStatePayload
 import com.mentorme.app.data.mapper.SessionParticipantPayload
 import com.mentorme.app.data.mapper.SessionReadyPayload
 import com.mentorme.app.data.mapper.SessionSignalPayload
@@ -250,18 +251,39 @@ class VideoCallViewModel @Inject constructor(
         val next = !_state.value.isAudioEnabled
         _state.update { it.copy(isAudioEnabled = next, toastMessage = if (next) "Microphone on" else "Microphone muted") }
         webRtcClient.setAudioEnabled(next)
+        
+        // Notify peer about audio state change
+        currentBookingId?.let { bookingId ->
+            socketManager.emit("session:media-state", mapOf(
+                "bookingId" to bookingId,
+                "audioEnabled" to next,
+                "videoEnabled" to _state.value.isVideoEnabled
+            ))
+        }
+        Log.d("VideoCallVM", "Audio toggled: $next")
     }
 
     fun toggleVideo() {
         val next = !_state.value.isVideoEnabled
         _state.update { it.copy(isVideoEnabled = next, toastMessage = if (next) "Camera on" else "Camera off") }
         webRtcClient.setVideoEnabled(next)
+        
+        // Notify peer about video state change
+        currentBookingId?.let { bookingId ->
+            socketManager.emit("session:media-state", mapOf(
+                "bookingId" to bookingId,
+                "audioEnabled" to _state.value.isAudioEnabled,
+                "videoEnabled" to next
+            ))
+        }
+        Log.d("VideoCallVM", "Video toggled: $next")
     }
 
     fun toggleSpeaker() {
         val next = !_state.value.isSpeakerEnabled
         _state.update { it.copy(isSpeakerEnabled = next, toastMessage = if (next) "Speaker on" else "Earpiece on") }
         webRtcClient.setSpeakerEnabled(next)
+        Log.d("VideoCallVM", "Speaker toggled: $next")
     }
 
     fun switchCamera() {
@@ -331,9 +353,24 @@ class VideoCallViewModel @Inject constructor(
                     is RealtimeEvent.SignalAnswerReceived -> handleSignalAnswer(event.payload)
                     is RealtimeEvent.SignalIceReceived -> handleSignalIce(event.payload)
                     is RealtimeEvent.SessionStatusChanged -> handleSessionStatus(event.payload)
+                    is RealtimeEvent.SessionMediaStateChanged -> handleMediaStateChanged(event.payload)
                     else -> Unit
                 }
             }
+        }
+    }
+    
+    private fun handleMediaStateChanged(payload: SessionMediaStatePayload) {
+        val bookingId = payload.bookingId ?: return
+        if (bookingId != currentBookingId) return
+        
+        Log.d("VideoCallVM", "Peer media state changed - audio: ${payload.audioEnabled}, video: ${payload.videoEnabled}")
+        
+        _state.update { 
+            it.copy(
+                peerAudioEnabled = payload.audioEnabled ?: it.peerAudioEnabled,
+                peerVideoEnabled = payload.videoEnabled ?: it.peerVideoEnabled
+            ) 
         }
     }
 
@@ -343,7 +380,25 @@ class VideoCallViewModel @Inject constructor(
         currentRole = payload.role
         val admitted = payload.admitted == true
         
-        Log.d("VideoCallVM", "Session joined - role: ${payload.role}, admitted: $admitted")
+        Log.d("VideoCallVM", "Session joined - role: ${payload.role}, admitted: $admitted, sessionStartedAt: ${payload.sessionStartedAt}")
+        
+        // If server provides session start time (session already active), use it
+        // This preserves the timer when reconnecting
+        payload.sessionStartedAt?.let { startedAtStr ->
+            try {
+                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+                sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                val parsedDate = sdf.parse(startedAtStr)
+                parsedDate?.let { date ->
+                    if (callStartedAtMs == null || date.time < (callStartedAtMs ?: Long.MAX_VALUE)) {
+                        callStartedAtMs = date.time
+                        Log.d("VideoCallVM", "Session start time set from server: $callStartedAtMs (${date})")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("VideoCallVM", "Failed to parse sessionStartedAt: $startedAtStr", e)
+            }
+        }
         
         val phase = when {
             payload.role == "mentee" && !admitted -> CallPhase.WaitingForAdmit
@@ -378,7 +433,24 @@ class VideoCallViewModel @Inject constructor(
         val bookingId = payload.bookingId ?: return
         if (bookingId != currentBookingId) return
         
-        Log.d("VideoCallVM", "Session admitted for booking: $bookingId")
+        Log.d("VideoCallVM", "Session admitted for booking: $bookingId, sessionStartedAt: ${payload.sessionStartedAt}")
+        
+        // Set session start time from server (this is when the call officially starts)
+        payload.sessionStartedAt?.let { startedAtStr ->
+            try {
+                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+                sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                val parsedDate = sdf.parse(startedAtStr)
+                parsedDate?.let { date ->
+                    if (callStartedAtMs == null) {
+                        callStartedAtMs = date.time
+                        Log.d("VideoCallVM", "Session start time set from admission: $callStartedAtMs (${date})")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("VideoCallVM", "Failed to parse sessionStartedAt: $startedAtStr", e)
+            }
+        }
         
         _state.update { it.copy(admitted = true, phase = CallPhase.Connecting) }
         sessionReady = true

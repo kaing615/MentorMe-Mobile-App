@@ -41,6 +41,12 @@ export const updateMyProfile = asyncHandler(
       return responseHandler.unauthorized(res, null, "Unauthorized");
     }
 
+    // ✅ DEBUG: Log incoming request
+    console.log("📝 UPDATE PROFILE REQUEST:");
+    console.log("  User ID:", userId);
+    console.log("  Body:", JSON.stringify(req.body, null, 2));
+    console.log("  File:", req.file ? "Present" : "None");
+
     const {
       fullName,
       phone,
@@ -54,6 +60,8 @@ export const updateMyProfile = asyncHandler(
       description,
       goal,
       education,
+      category,
+      hourlyRateVnd,
       website,
       twitter,
       linkedin,
@@ -82,6 +90,15 @@ export const updateMyProfile = asyncHandler(
     if (description !== undefined) profile.description = description;
     if (goal !== undefined) profile.goal = goal;
     if (education !== undefined) profile.education = education;
+
+    // ✅ NEW: Mentor-specific fields
+    if (category !== undefined) profile.category = category;
+    if (hourlyRateVnd !== undefined) {
+      const parsedRate = Number(hourlyRateVnd);
+      if (Number.isFinite(parsedRate) && parsedRate >= 0) {
+        profile.hourlyRateVnd = parsedRate;
+      }
+    }
 
     if (website !== undefined) profile.links.website = website;
     if (twitter !== undefined) profile.links.twitter = twitter;
@@ -142,6 +159,14 @@ export const updateMyProfile = asyncHandler(
     }
 
     await profile.save();
+
+    // ✅ DEBUG: Log what was saved
+    console.log("✅ PROFILE UPDATED:");
+    console.log("  fullName:", profile.fullName);
+    console.log("  jobTitle:", profile.jobTitle);
+    console.log("  category:", profile.category);
+    console.log("  hourlyRateVnd:", profile.hourlyRateVnd);
+    console.log("  skills:", profile.skills);
 
     return responseHandler.ok(res, { profile }, "Profile updated successfully");
   }

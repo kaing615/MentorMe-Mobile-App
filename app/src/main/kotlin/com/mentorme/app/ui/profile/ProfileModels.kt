@@ -53,11 +53,20 @@ data class UserProfile(
     val phone: String? = null,
     val location: String? = null,
     val bio: String? = null,
-    val avatar: String? = null, // if you add Coil later
+    val avatar: String? = null,
+
+    // ✅ NEW: Mentor-specific fields
+    val jobTitle: String? = null,       // Chức danh công việc
+    val headline: String? = null,       // Tiêu đề ngắn
+    val category: String? = null,       // Chuyên mục
+    val hourlyRate: Int? = null,        // Giá mỗi giờ (VND)
+    val experience: String? = null,     // Kinh nghiệm
+    val education: String? = null,      // Học vấn
+
     val joinDate: Date,
     val totalSessions: Int,
     val totalSpent: Long,
-    val interests: List<String>,
+    val interests: List<String>,        // Skills
     val preferredLanguages: List<String>
 )
 

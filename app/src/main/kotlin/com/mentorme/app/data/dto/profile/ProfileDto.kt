@@ -28,26 +28,34 @@ data class ProfileDto(
     @SerializedName("_id") val id: String?,
     @SerializedName("user") val user: String?,
 
-    // ✅ Thêm 2 fields mới
+    // ✅ Basic info
     @SerializedName("fullName") val fullName: String?,
     @SerializedName("phone") val phone: String?,
-
     @SerializedName("location") val location: String?,
     @SerializedName("category") val category: String?,
     @SerializedName("avatarUrl") val avatarUrl: String?,
-    @SerializedName("languages") val languages: List<String>?,
-    @SerializedName("links") val links: LinksDto?,
+
+    // ✅ Mentor-specific
     @SerializedName("jobTitle") val jobTitle: String?,
-    @SerializedName("experience") val experience: String?,
     @SerializedName("headline") val headline: String?,
+    @SerializedName("hourlyRateVnd") val hourlyRateVnd: Int?, // ✅ NEW: Giá mỗi giờ
+    @SerializedName("experience") val experience: String?,
+    @SerializedName("education") val education: String?,
+
+    // ✅ Content
+    @SerializedName("bio") val bio: String?,
+    @SerializedName("description") val description: String?,
     @SerializedName("mentorReason") val mentorReason: String?,
     @SerializedName("greatestAchievement") val greatestAchievement: String?,
-    @SerializedName("bio") val bio: String?,
     @SerializedName("introVideo") val introVideo: String?,
-    @SerializedName("description") val description: String?,
     @SerializedName("goal") val goal: String?,
-    @SerializedName("education") val education: String?,
+
+    // ✅ Skills & Languages
     @SerializedName("skills") val skills: List<String>?,
+    @SerializedName("languages") val languages: List<String>?,
+
+    // ✅ Links & Status
+    @SerializedName("links") val links: LinksDto?,
     @SerializedName("profileCompleted") val profileCompleted: Boolean?
 )
 

@@ -75,6 +75,7 @@ fun MenteeCalendarScreen(
         bookings = bookings.value,
         onJoinSession = onJoinSession,
         onRate = { booking ->
+            android.util.Log.d("MenteeCalendar", "Opening review for booking: id=${booking.id}, status=${booking.status}, date=${booking.date}, endTime=${booking.endTime}, reviewId=${booking.reviewId}")
             bookingToReview = booking
             reviewError = null
             showReviewDialog = true

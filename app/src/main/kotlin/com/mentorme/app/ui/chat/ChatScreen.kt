@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.mentorme.app.core.utils.DateTimeUtils
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.chat.components.ChatComposer
 import com.mentorme.app.ui.chat.components.GlassIconButton
@@ -138,7 +139,23 @@ fun ChatScreen(
                 Spacer(Modifier.width(4.dp))
                 Column(Modifier.weight(1f)) {
                     Text(conversation?.peerName ?: "Chat", fontWeight = FontWeight.SemiBold)
-                    Text(if (conversation?.isOnline == true) "Online" else "Offline", style = MaterialTheme.typography.labelSmall)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Online/Offline indicator dot
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(
+                                    if (conversation?.isOnline == true) Color(0xFF22C55E) else Color(0xFF6B7280),
+                                    shape = androidx.compose.foundation.shape.CircleShape
+                                )
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            if (conversation?.isOnline == true) "Đang hoạt động" else "Không hoạt động",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (conversation?.isOnline == true) Color(0xFF22C55E) else Color.White.copy(alpha = 0.6f)
+                        )
+                    }
                 }
                 GlassIconButton(icon = Icons.Filled.MoreVert, contentDescription = null, onClick = { showProfile = true })
             }
@@ -176,6 +193,12 @@ fun ChatScreen(
             
             // Banner phiên học sắp tới
             if (conversation?.nextSessionStartIso != null && conversation.hasActiveSession == false) {
+                val formattedDateTime = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    DateTimeUtils.formatIsoToReadable(conversation.nextSessionStartIso)
+                } else {
+                    conversation.nextSessionStartIso ?: ""
+                }
+
                 Surface(
                     modifier = Modifier
                         .padding(horizontal = 16.dp, vertical = 6.dp)
@@ -191,8 +214,9 @@ fun ChatScreen(
                         Column(Modifier.weight(1f)) {
                             Text("Phiên học sắp tới", fontWeight = FontWeight.SemiBold)
                             Text(
-                                "Với ${conversation.peerName} - ${conversation.nextSessionDateTimeIso.orEmpty()}",
-                                style = MaterialTheme.typography.bodySmall
+                                "Với ${conversation.peerName} - $formattedDateTime",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.9f)
                             )
                         }
                         MMButton(

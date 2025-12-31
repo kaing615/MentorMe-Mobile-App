@@ -110,6 +110,10 @@ class ProfileRepositoryImpl @Inject constructor(
         try {
             val parts = mutableMapOf<String, okhttp3.RequestBody>()
 
+            //  Basic info
+            params.fullName?.let {
+                parts["fullName"] = it.toRequestBody("text/plain".toMediaTypeOrNull())
+            }
             params.phone?.let {
                 parts["phone"] = it.toRequestBody("text/plain".toMediaTypeOrNull())
             }
@@ -120,17 +124,34 @@ class ProfileRepositoryImpl @Inject constructor(
                 parts["bio"] = it.toRequestBody("text/plain".toMediaTypeOrNull())
             }
 
+            //  Skills & Languages
             params.languages?.let {
                 parts["languages"] = it.joinToString(",")
                     .toRequestBody("text/plain".toMediaTypeOrNull())
             }
-
             params.skills?.let {
                 parts["skills"] = it.joinToString(",")
                     .toRequestBody("text/plain".toMediaTypeOrNull())
             }
 
-            // ✅ Dùng JavaFile (alias)
+            //  NEW: Mentor-specific fields
+            params.jobTitle?.let {
+                parts["jobTitle"] = it.toRequestBody("text/plain".toMediaTypeOrNull())
+            }
+            params.category?.let {
+                parts["category"] = it.toRequestBody("text/plain".toMediaTypeOrNull())
+            }
+            params.hourlyRateVnd?.let {
+                parts["hourlyRateVnd"] = it.toString().toRequestBody("text/plain".toMediaTypeOrNull())
+            }
+            params.experience?.let {
+                parts["experience"] = it.toRequestBody("text/plain".toMediaTypeOrNull())
+            }
+            params.education?.let {
+                parts["education"] = it.toRequestBody("text/plain".toMediaTypeOrNull())
+            }
+
+            //  Dùng JavaFile (alias)
             val avatarPart: MultipartBody.Part? = params.avatarPath?.let { path ->
                 val file = JavaFile(path)
                 if (file.exists()) {
@@ -207,7 +228,7 @@ class ProfileRepositoryImpl @Inject constructor(
                 parts["introVideo"] = it.toRequestBody("text/plain".toMediaTypeOrNull())
             }
 
-            // ✅ Dùng JavaFile (alias) - QUAN TRỌNG:  đổi từ File thành JavaFile
+            //  Dùng JavaFile (alias) - QUAN TRỌNG:  đổi từ File thành JavaFile
             val avatarPart: MultipartBody.Part? = params.avatarPath?.let { path ->
                 val file = JavaFile(path)  // ⬅️ Đổi từ File thành JavaFile
                 if (file.exists()) {

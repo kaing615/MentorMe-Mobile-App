@@ -33,16 +33,19 @@ class ReviewRepositoryImpl @Inject constructor(
                 }
             } else {
                 val errorBody = response.errorBody()?.string()
+                android.util.Log.e("ReviewRepository", "Create review failed: code=${response.code()}, error=$errorBody")
 
                 // Parse specific error codes
                 when (response.code()) {
                     400 -> {
                         val message = when {
                             errorBody?.contains("BOOKING_NOT_COMPLETED") == true ->
-                                "Chỉ có thể đánh giá booking đã hoàn thành"
+                                "Booking chưa hoàn thành. Vui lòng chờ kết thúc buổi tư vấn."
                             errorBody?.contains("INVALID_RATING") == true ->
                                 "Đánh giá phải từ 1-5 sao"
-                            else -> "Yêu cầu không hợp lệ"
+                            errorBody?.contains("REVIEW_ALREADY_EXISTS") == true ->
+                                "Bạn đã đánh giá booking này rồi"
+                            else -> "Yêu cầu không hợp lệ: ${errorBody ?: "Unknown"}"
                         }
                         AppResult.failure(message)
                     }

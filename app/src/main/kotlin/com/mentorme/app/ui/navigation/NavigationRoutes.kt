@@ -31,6 +31,8 @@ object Routes {
     fun bookingDetail(bookingId: String) = "booking_detail/$bookingId"
 
     const val search = "search"
+    const val searchWithExpertise = "search?expertise={expertise}"
+    fun searchWithExpertise(expertise: String?) = if (expertise.isNullOrBlank()) search else "search?expertise=$expertise"
 
     const val TopUp = "wallet/topup"
     const val Withdraw = "wallet/withdraw"

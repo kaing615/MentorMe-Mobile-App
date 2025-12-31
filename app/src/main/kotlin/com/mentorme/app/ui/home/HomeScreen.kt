@@ -1,6 +1,8 @@
 package com.mentorme.app.ui.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -27,6 +29,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -36,8 +39,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
@@ -106,6 +107,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     onSearch: (String) -> Unit = {},
     onNavigateToMentors: () -> Unit = {},
+    onNavigateToCategory: (String) -> Unit = {}, // ✅ NEW: Navigate with category filter
     onJoinSession: (String) -> Unit = {},
     onMessage: (String) -> Unit = {}, //  NEW: Callback to open chat with mentorId
     onBookSlot: (
@@ -296,7 +298,11 @@ fun HomeScreen(
                     LiquidGlassCard(
                         modifier = Modifier
                             .weight(1f)
-                            .height(90.dp),
+                            .height(90.dp)
+                            .noIndicationClickable {
+                                // ✅ Navigate to search with this category as filter
+                                onNavigateToCategory(cat.name)
+                            },
                         radius = 22.dp
                     ) {
                         Row(
@@ -741,5 +747,13 @@ private fun HomeMentorCard(
             }
         }
     }
+}
+
+// ===== Helper function for clickable without ripple effect =====
+private fun Modifier.noIndicationClickable(onClick: () -> Unit) = composed {
+    clickable(
+        indication = null,
+        interactionSource = remember { MutableInteractionSource() }
+    ) { onClick() }
 }
 

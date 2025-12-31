@@ -27,15 +27,20 @@ class ScreenCaptureService : Service() {
         const val ACTION_START = "com.mentorme.app.action.START_SCREEN_CAPTURE"
         const val ACTION_STOP = "com.mentorme.app.action.STOP_SCREEN_CAPTURE"
         
+        @Volatile
         private var isRunning = false
         
-        fun isServiceRunning(): Boolean = isRunning
+        @Volatile
+        private var isForegroundStarted = false
+        
+        fun isServiceRunning(): Boolean = isRunning && isForegroundStarted
         
         fun start(context: Context) {
-            if (isRunning) {
+            if (isRunning && isForegroundStarted) {
                 Log.d(TAG, "Service already running")
                 return
             }
+            isForegroundStarted = false  // Reset before starting
             val intent = Intent(context, ScreenCaptureService::class.java).apply {
                 action = ACTION_START
             }
@@ -72,9 +77,12 @@ class ScreenCaptureService : Service() {
                 Log.d(TAG, "Starting foreground service for screen capture")
                 startForeground(NOTIFICATION_ID, createNotification())
                 isRunning = true
+                isForegroundStarted = true  // Set AFTER startForeground succeeds
+                Log.d(TAG, "Foreground service started successfully")
             }
             ACTION_STOP -> {
                 Log.d(TAG, "Stopping foreground service")
+                isForegroundStarted = false
                 isRunning = false
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -85,6 +93,7 @@ class ScreenCaptureService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        isForegroundStarted = false
         isRunning = false
         Log.d(TAG, "Service destroyed")
     }

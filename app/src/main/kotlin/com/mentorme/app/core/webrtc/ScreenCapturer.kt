@@ -79,6 +79,10 @@ class ScreenCapturer(
             val screenDensity = metrics.densityDpi
 
             surfaceTextureHelper?.let { helper ->
+                // IMPORTANT: Set texture size BEFORE creating virtual display
+                helper.setTextureSize(width, height)
+                Log.d(TAG, "Texture size set to ${width}x${height}")
+                
                 // Start listening before creating virtual display
                 var frameCount = 0
                 helper.startListening { videoFrame ->

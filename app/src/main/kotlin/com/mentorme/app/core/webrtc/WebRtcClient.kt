@@ -55,7 +55,7 @@ class WebRtcClient(
     private var audioSource: AudioSource? = null
     private var localVideoTrack: VideoTrack? = null
     private var screenVideoTrack: VideoTrack? = null
-    private var screenSender: RtpSender? = null
+    private var videoSender: RtpSender? = null  // Original video sender, saved for track replacement
     private var localAudioTrack: AudioTrack? = null
     private var localTracksAttached = false
     private var isScreenSharing = false
@@ -351,9 +351,21 @@ class WebRtcClient(
             // Start foreground service for Android 10+ BEFORE creating MediaProjection
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 ScreenCaptureService.start(context)
-                // Small delay to ensure service is started
-                Thread.sleep(200)
-                Log.d(TAG, "Foreground service started for screen capture")
+                
+                // Wait for service to actually be running (max 2 seconds)
+                var waitTime = 0
+                val maxWait = 2000
+                val checkInterval = 50
+                while (!ScreenCaptureService.isServiceRunning() && waitTime < maxWait) {
+                    Thread.sleep(checkInterval.toLong())
+                    waitTime += checkInterval
+                }
+                
+                if (!ScreenCaptureService.isServiceRunning()) {
+                    Log.e(TAG, "Foreground service failed to start within $maxWait ms")
+                    return false
+                }
+                Log.d(TAG, "Foreground service started for screen capture (waited ${waitTime}ms)")
             }
             
             // Create MediaProjection from the intent - this can only be done ONCE per intent
@@ -393,39 +405,30 @@ class WebRtcClient(
             screenTrack.setEnabled(true)
             Log.d(TAG, "Screen track created: $screenTrack, enabled: ${screenTrack.enabled()}")
             
-            // Replace video track - remove old sender and add new
-            val pc = peerConnection
-            if (pc != null) {
-                Log.d(TAG, "PeerConnection state: ${pc.connectionState()}, senders: ${pc.senders.size}")
-                
-                // Find and remove existing video sender
-                val existingVideoSender = pc.senders.firstOrNull { sender ->
-                    try {
-                        sender.track()?.kind() == "video"
-                    } catch (e: Exception) {
-                        false
-                    }
-                }
-                
-                if (existingVideoSender != null) {
-                    try {
-                        Log.d(TAG, "Removing existing video sender: $existingVideoSender")
-                        pc.removeTrack(existingVideoSender)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Failed to remove existing video sender: ${e.message}")
-                    }
-                }
-                
-                // Add screen track as new track
+            // Replace video track on existing sender (MUST use same sender to keep same m= line)
+            val sender = videoSender
+            if (sender != null) {
                 try {
-                    val sender = pc.addTrack(screenTrack, listOf("stream"))
-                    this.screenSender = sender
-                    Log.d(TAG, "Added screen track with new sender: $sender")
+                    Log.d(TAG, "Replacing camera track with screen track on sender: $sender")
+                    val result = sender.setTrack(screenTrack, false)
+                    Log.d(TAG, "setTrack result: $result")
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to add screen track: ${e.message}")
+                    Log.e(TAG, "Failed to setTrack on videoSender: ${e.message}", e)
+                    // Fallback: try to find sender from transceivers
+                    peerConnection?.transceivers?.find { 
+                        it.mediaType == org.webrtc.MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO 
+                    }?.sender?.let { transceiverSender ->
+                        try {
+                            Log.d(TAG, "Trying transceiver sender: $transceiverSender")
+                            transceiverSender.setTrack(screenTrack, false)
+                            Log.d(TAG, "setTrack via transceiver succeeded")
+                        } catch (e2: Exception) {
+                            Log.e(TAG, "Failed to setTrack via transceiver: ${e2.message}")
+                        }
+                    }
                 }
             } else {
-                Log.e(TAG, "PeerConnection is null, cannot add screen track")
+                Log.e(TAG, "videoSender is null, cannot replace track")
             }
             
             // Update local preview
@@ -477,29 +480,19 @@ class WebRtcClient(
         try {
             Log.d(TAG, "Stopping screen sharing")
             
-            // Replace video track - remove screen sender and add camera track back
-            val pc = peerConnection
-            if (pc != null) {
-                // Remove screen sender if we have it
-                screenSender?.let { sender ->
+            // Replace screen track with camera track on existing sender
+            val sender = videoSender
+            localVideoTrack?.let { cameraTrack ->
+                if (sender != null && cameraTrack.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
                     try {
-                        Log.d(TAG, "Removing screen sender: $sender")
-                        pc.removeTrack(sender)
+                        Log.d(TAG, "Replacing screen track with camera track on sender: $sender")
+                        sender.setTrack(cameraTrack, false)
+                        Log.d(TAG, "Camera track restored on sender")
                     } catch (e: Exception) {
-                        Log.w(TAG, "Failed to remove screen sender: ${e.message}")
+                        Log.e(TAG, "Failed to restore camera track: ${e.message}")
                     }
-                }
-                
-                // Add camera track back
-                localVideoTrack?.let { cameraTrack ->
-                    if (cameraTrack.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
-                        try {
-                            pc.addTrack(cameraTrack, listOf("stream"))
-                            Log.d(TAG, "Added camera track back to peer connection")
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Failed to add camera track back: ${e.message}")
-                        }
-                    }
+                } else {
+                    Log.w(TAG, "Cannot restore camera - sender: $sender, track state: ${cameraTrack.state()}")
                 }
             }
             
@@ -541,7 +534,6 @@ class WebRtcClient(
             screenCapturer = null
             screenVideoSource = null
             screenVideoTrack = null
-            screenSender = null
             mediaProjection = null
             isScreenSharing = false
             
@@ -792,8 +784,8 @@ class WebRtcClient(
         if (videoTrack == null && audioTrack == null) return
         
         videoTrack?.let { 
-            pc.addTrack(it)
-            Log.d(TAG, "Local video track attached to peer connection")
+            videoSender = pc.addTrack(it)
+            Log.d(TAG, "Local video track attached to peer connection, sender: $videoSender")
         }
         audioTrack?.let { 
             pc.addTrack(it)

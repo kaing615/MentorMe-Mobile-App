@@ -16,6 +16,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -74,14 +75,20 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -105,6 +112,7 @@ import org.webrtc.SurfaceViewRenderer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 @Composable
 fun VideoCallScreen(
@@ -238,19 +246,36 @@ fun VideoCallScreen(
     var controlsVisible by remember { mutableStateOf(true) }
     var lastTapTime by remember { mutableStateOf(0L) }
     
-    // Local preview draggable position
-    var localPreviewOffsetX by remember { mutableStateOf(0f) }
-    var localPreviewOffsetY by remember { mutableStateOf(0f) }
+    // Local preview draggable position with animation
+    val coroutineScope = rememberCoroutineScope()
+    val displayMetrics = context.resources.displayMetrics
+    val screenWidth = displayMetrics.widthPixels.toFloat()
+    val screenHeight = displayMetrics.heightPixels.toFloat()
+    val previewSizePx = 120.dp.value * displayMetrics.density
+    val marginPx = 12.dp.value * displayMetrics.density
     
-    // Initialize position at top-right corner
-    LaunchedEffect(Unit) {
-        val resources = context.resources
-        val displayMetrics = resources.displayMetrics
-        val screenWidth = displayMetrics.widthPixels.toFloat()
-        // Position at top-right with 12dp margin
-        val marginPx = 12.dp.value * displayMetrics.density
-        localPreviewOffsetX = screenWidth - 120.dp.value * displayMetrics.density - marginPx
-        localPreviewOffsetY = marginPx
+    // Initial position at top-right corner
+    val initialX = screenWidth - previewSizePx - marginPx
+    val initialY = marginPx
+    
+    val localPreviewOffset = remember { 
+        Animatable(Offset(initialX, initialY), Offset.VectorConverter) 
+    }
+    
+    // Helper function to find nearest corner
+    fun findNearestCorner(currentX: Float, currentY: Float): Offset {
+        val corners = listOf(
+            Offset(marginPx, marginPx), // Top-left
+            Offset(screenWidth - previewSizePx - marginPx, marginPx), // Top-right
+            Offset(marginPx, screenHeight - previewSizePx - marginPx), // Bottom-left
+            Offset(screenWidth - previewSizePx - marginPx, screenHeight - previewSizePx - marginPx) // Bottom-right
+        )
+        
+        return corners.minByOrNull { corner ->
+            val dx = corner.x - currentX
+            val dy = corner.y - currentY
+            dx * dx + dy * dy // Distance squared (no need for sqrt)
+        } ?: corners[1] // Default to top-right
     }
     
     // Auto-hide controls when in call
@@ -265,14 +290,13 @@ fun VideoCallScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                // Toggle controls visibility on tap during call
-                if (state.phase == CallPhase.InCall) {
-                    controlsVisible = !controlsVisible
-                    lastTapTime = System.currentTimeMillis()
+            .pointerInput(state.phase) {
+                detectTapGestures {
+                    // Toggle controls visibility on tap during call
+                    if (state.phase == CallPhase.InCall) {
+                        controlsVisible = !controlsVisible
+                        lastTapTime = System.currentTimeMillis()
+                    }
                 }
             }
     ) {
@@ -318,44 +342,6 @@ fun VideoCallScreen(
                 }
             },
             modifier = Modifier.fillMaxSize()
-        )
-
-        // Local video - small draggable preview (rendered on top)
-        AndroidView(
-            factory = { ctx ->
-                SurfaceViewRenderer(ctx).apply {
-                    setZOrderMediaOverlay(true)
-                    setZOrderOnTop(true)
-                    // Initialize renderer on creation - use postDelayed to ensure surface is ready
-                    postDelayed({
-                        android.util.Log.d("VideoCallScreen", "Binding local renderer")
-                        viewModel.bindLocalRenderer(this)
-                    }, 100)
-                }
-            },
-            update = { view ->
-                // Ensure local preview stays on top
-                view.setZOrderMediaOverlay(true)
-                view.setZOrderOnTop(true)
-            },
-            modifier = Modifier
-                .size(if (isInPipMode) 0.dp else 120.dp) // Hide in PiP mode
-                .offset { IntOffset(localPreviewOffsetX.toInt(), localPreviewOffsetY.toInt()) }
-                .pointerInput(Unit) {
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        localPreviewOffsetX += dragAmount.x
-                        localPreviewOffsetY += dragAmount.y
-                        
-                        // Constrain to screen bounds
-                        val maxX = size.width.toFloat() - 120.dp.toPx()
-                        val maxY = size.height.toFloat() - 120.dp.toPx()
-                        localPreviewOffsetX = localPreviewOffsetX.coerceIn(0f, maxX)
-                        localPreviewOffsetY = localPreviewOffsetY.coerceIn(0f, maxY)
-                    }
-                }
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.Black)
         )
 
         // Top bar with back button and network indicator - hide during InCall when controls are hidden or in PiP
@@ -597,6 +583,65 @@ fun VideoCallScreen(
                     textAlign = TextAlign.Center
                 )
             }
+        }
+        
+        // Local video - small draggable preview (rendered LAST to be on top for gesture detection)
+        Box(
+            modifier = Modifier
+                .zIndex(100f) // Ensure it's above all other elements for gesture detection
+                .size(if (isInPipMode) 0.dp else 120.dp)
+                .offset { IntOffset(localPreviewOffset.value.x.toInt(), localPreviewOffset.value.y.toInt()) }
+                .pointerInput(Unit) {
+                    detectDragGestures(
+                        onDragEnd = {
+                            // Snap to nearest corner with spring animation
+                            val nearestCorner = findNearestCorner(
+                                localPreviewOffset.value.x,
+                                localPreviewOffset.value.y
+                            )
+                            coroutineScope.launch {
+                                localPreviewOffset.animateTo(
+                                    nearestCorner,
+                                    animationSpec = spring(
+                                        dampingRatio = 0.6f,
+                                        stiffness = 400f
+                                    )
+                                )
+                            }
+                        },
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            val newX = (localPreviewOffset.value.x + dragAmount.x)
+                                .coerceIn(0f, screenWidth - previewSizePx)
+                            val newY = (localPreviewOffset.value.y + dragAmount.y)
+                                .coerceIn(0f, screenHeight - previewSizePx)
+                            
+                            coroutineScope.launch {
+                                localPreviewOffset.snapTo(Offset(newX, newY))
+                            }
+                        }
+                    )
+                }
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.Black)
+        ) {
+            AndroidView(
+                factory = { ctx ->
+                    SurfaceViewRenderer(ctx).apply {
+                        setZOrderMediaOverlay(true)
+                        setZOrderOnTop(true)
+                        postDelayed({
+                            android.util.Log.d("VideoCallScreen", "Binding local renderer")
+                            viewModel.bindLocalRenderer(this)
+                        }, 100)
+                    }
+                },
+                update = { view ->
+                    view.setZOrderMediaOverlay(true)
+                    view.setZOrderOnTop(true)
+                },
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }

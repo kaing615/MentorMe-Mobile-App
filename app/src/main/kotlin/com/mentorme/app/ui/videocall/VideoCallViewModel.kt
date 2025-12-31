@@ -662,6 +662,14 @@ class VideoCallViewModel @Inject constructor(
         Log.d("VideoCallVM", "PeerConnection state changed: $state, current phase: ${_state.value.phase}")
         when (state) {
             PeerConnection.PeerConnectionState.CONNECTED -> {
+                // WebRTC is connected - peer is definitely still there!
+                // Cancel any pending participantLeftJob since we have direct proof peer is active
+                if (participantLeftJob?.isActive == true) {
+                    Log.d("VideoCallVM", "WebRTC CONNECTED - cancelling participantLeftJob (peer is active)")
+                    participantLeftJob?.cancel()
+                    participantLeftJob = null
+                }
+                
                 markInCall()
                 reconnectAttempts = 0
                 reconnectJob?.cancel()

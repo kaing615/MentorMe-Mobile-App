@@ -8,14 +8,12 @@ import com.mentorme.app.core.realtime.RealtimeEventBus
 import com.mentorme.app.domain.usecase.SearchMentorsUseCase
 import com.mentorme.app.domain.usecase.profile.GetMeUseCase
 import com.mentorme.app.domain.usecase.home.GetHomeStatsUseCase
-import com.mentorme.app.domain.usecase.home.PingPresenceUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
 import javax.inject.Inject
 
 data class WaitingSession(
@@ -45,8 +43,7 @@ data class HomeUiState(
 class HomeViewModel @Inject constructor(
     private val searchMentorsUseCase: SearchMentorsUseCase,
     private val getMeUseCase: GetMeUseCase,
-    private val getHomeStatsUseCase: GetHomeStatsUseCase,
-    private val pingPresenceUseCase: PingPresenceUseCase
+    private val getHomeStatsUseCase: GetHomeStatsUseCase
 ) : ViewModel() {
 
     private val TAG = "HomeViewModel"
@@ -56,7 +53,6 @@ class HomeViewModel @Inject constructor(
 
     init {
         loadData()
-        startPresencePing()
         observeRealtimeEvents()
     }
 
@@ -209,17 +205,5 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun startPresencePing() {
-        viewModelScope.launch {
-            // Initial ping
-            pingPresenceUseCase()
-
-            // Ping every 90 seconds to keep presence alive (TTL is 120s)
-            while (true) {
-                delay(90_000) // 90 seconds
-                pingPresenceUseCase()
-            }
-        }
-    }
 }
 

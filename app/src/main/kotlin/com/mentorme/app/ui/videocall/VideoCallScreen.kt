@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -72,6 +73,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -84,9 +86,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -234,6 +238,21 @@ fun VideoCallScreen(
     var controlsVisible by remember { mutableStateOf(true) }
     var lastTapTime by remember { mutableStateOf(0L) }
     
+    // Local preview draggable position
+    var localPreviewOffsetX by remember { mutableStateOf(0f) }
+    var localPreviewOffsetY by remember { mutableStateOf(0f) }
+    
+    // Initialize position at top-right corner
+    LaunchedEffect(Unit) {
+        val resources = context.resources
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels.toFloat()
+        // Position at top-right with 12dp margin
+        val marginPx = 12.dp.value * displayMetrics.density
+        localPreviewOffsetX = screenWidth - 120.dp.value * displayMetrics.density - marginPx
+        localPreviewOffsetY = marginPx
+    }
+    
     // Auto-hide controls when in call
     LaunchedEffect(state.phase, controlsVisible) {
         if (state.phase == CallPhase.InCall && controlsVisible) {
@@ -301,7 +320,7 @@ fun VideoCallScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Local video - small preview in corner (rendered on top)
+        // Local video - small draggable preview (rendered on top)
         AndroidView(
             factory = { ctx ->
                 SurfaceViewRenderer(ctx).apply {
@@ -320,9 +339,21 @@ fun VideoCallScreen(
                 view.setZOrderOnTop(true)
             },
             modifier = Modifier
-                .padding(12.dp)
                 .size(if (isInPipMode) 0.dp else 120.dp) // Hide in PiP mode
-                .align(Alignment.TopEnd)
+                .offset { IntOffset(localPreviewOffsetX.toInt(), localPreviewOffsetY.toInt()) }
+                .pointerInput(Unit) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        localPreviewOffsetX += dragAmount.x
+                        localPreviewOffsetY += dragAmount.y
+                        
+                        // Constrain to screen bounds
+                        val maxX = size.width.toFloat() - 120.dp.toPx()
+                        val maxY = size.height.toFloat() - 120.dp.toPx()
+                        localPreviewOffsetX = localPreviewOffsetX.coerceIn(0f, maxX)
+                        localPreviewOffsetY = localPreviewOffsetY.coerceIn(0f, maxY)
+                    }
+                }
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color.Black)
         )

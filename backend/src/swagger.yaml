@@ -3975,6 +3975,62 @@ paths:
                   message: { type: string, example: "Failed to update presence" }
                   error: { type: string }
 
+  /presence/lookup:
+    post:
+      summary: Lookup online status for users
+      description: Auth required - Tra v? danh sách userId đang online trong Redis
+      tags: [Presence]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Presence lookup successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      onlineUserIds:
+                        type: array
+                        items:
+                          type: string
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Unauthorized" }
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Failed to lookup presence" }
+                  error: { type: string }
+
   /bookings/{id}/review:
     post:
       tags:

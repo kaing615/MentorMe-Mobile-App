@@ -266,12 +266,6 @@ class WebRtcClient(
     /**
      * Get detailed connection statistics for quality monitoring
      */
-    fun getStats(callback: (RTCStatsReport) -> Unit) {
-        peerConnection?.getStats { report ->
-            callback(report)
-        }
-    }
-    
     /**
      * Trigger ICE restart when connection is failing
      */

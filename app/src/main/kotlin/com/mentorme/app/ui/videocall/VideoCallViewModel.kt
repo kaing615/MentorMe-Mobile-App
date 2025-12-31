@@ -160,10 +160,10 @@ class VideoCallViewModel @Inject constructor(
         Log.d("VideoCallVM", "Renegotiation needed (role: $currentRole) - creating new offer")
         // Either party can trigger renegotiation when they change tracks (e.g., screen share)
         viewModelScope.launch {
-            webRtcClient.createOffer { offer: SessionDescription ->
+            webRtcClient.createOffer(onSdpReady = { offer: SessionDescription ->
                 Log.d("VideoCallVM", "Renegotiation offer created, emitting to peer")
                 emitSdp("signal:offer", offer)
-            }
+            })
         }
     }
 
@@ -249,10 +249,10 @@ class VideoCallViewModel @Inject constructor(
         // Re-initiate WebRTC handshake based on role
         if (role == "mentor") {
             Log.d("VideoCallVM", "Mentor recreating offer for retry")
-            webRtcClient.createOffer { offer ->
+            webRtcClient.createOffer(onSdpReady = { offer ->
                 Log.d("VideoCallVM", "Retry offer created, emitting to peer")
                 emitSdp("signal:offer", offer)
-            }
+            })
         } else {
             Log.d("VideoCallVM", "Mentee waiting for new offer after retry")
         }
@@ -877,10 +877,10 @@ class VideoCallViewModel @Inject constructor(
             val currentPhase = _state.value.phase
             if (currentRole == "mentor" && (currentPhase == CallPhase.InCall || currentPhase == CallPhase.Reconnecting)) {
                 Log.d("VideoCallVM", "Peer reconnected, mentor creating new offer")
-                webRtcClient.createOffer { offer ->
+                webRtcClient.createOffer(onSdpReady = { offer ->
                     Log.d("VideoCallVM", "New offer created for reconnected peer, emitting")
                     emitSdp("signal:offer", offer)
-                }
+                })
             }
             
             // If we were in reconnecting state and we're the mentee, the mentor will send a new offer
@@ -922,10 +922,10 @@ class VideoCallViewModel @Inject constructor(
         
         if (role == "mentor") {
             Log.d("VideoCallVM", "Mentor creating offer")
-            webRtcClient.createOffer { offer ->
+            webRtcClient.createOffer(onSdpReady = { offer ->
                 Log.d("VideoCallVM", "Offer created, emitting to peer")
                 emitSdp("signal:offer", offer)
-            }
+            })
         } else {
             Log.d("VideoCallVM", "Mentee waiting for offer")
         }
@@ -1196,30 +1196,9 @@ class VideoCallViewModel @Inject constructor(
                         val rtt = stats.rttMs
                         val quality = calculateNetworkQuality(rtt)
                         
-                        // Extract detailed stats for monitoring
-                        var packetsLost = 0L
-                        var packetsSent = 0L
-                        var bytesReceived = 0L
-                        var bytesSent = 0L
-                        var jitter = 0.0
-                        
-                        stats.statsMap.values.forEach { report ->
-                            when (report.type) {
-                                "inbound-rtp" -> {
-                                    report.members["packetsLost"]?.let { packetsLost += (it as? Number)?.toLong() ?: 0L }
-                                    report.members["bytesReceived"]?.let { bytesReceived += (it as? Number)?.toLong() ?: 0L }
-                                    report.members["jitter"]?.let { jitter = (it as? Number)?.toDouble() ?: 0.0 }
-                                }
-                                "outbound-rtp" -> {
-                                    report.members["packetsSent"]?.let { packetsSent += (it as? Number)?.toLong() ?: 0L }
-                                    report.members["bytesSent"]?.let { bytesSent += (it as? Number)?.toLong() ?: 0L }
-                                }
-                            }
-                        }
-                        
-                        val packetLossRate = if (packetsSent > 0) {
-                            (packetsLost.toDouble() / (packetsSent + packetsLost) * 100)
-                        } else 0.0
+                        // For now just track RTT, can add more stats later if needed
+                        val packetLossRate = 0.0
+                        val jitter = 0.0
                         
                         Log.d("VideoCallVM", "QoS - RTT: ${rtt}ms, Loss: ${"%.2f".format(packetLossRate)}%, Jitter: ${"%.2f".format(jitter)}ms")
                         
@@ -1236,8 +1215,8 @@ class VideoCallViewModel @Inject constructor(
                                     "rttMs" to rtt,
                                     "packetLoss" to packetLossRate,
                                     "jitter" to jitter,
-                                    "bytesReceived" to bytesReceived,
-                                    "bytesSent" to bytesSent,
+                                    "bytesReceived" to 0L,
+                                    "bytesSent" to 0L,
                                     "timestamp" to System.currentTimeMillis()
                                 )
                             )

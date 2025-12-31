@@ -246,13 +246,18 @@ fun WalletTabWithVm(
     LaunchedEffect(walletViewModel) {
         walletViewModel.topUpEvents.collect { ev ->
             when (ev) {
-                is WalletViewModel.TopUpEvent.Success -> {
+                is WalletViewModel.TopUpEvent.Approved -> {
                     // đảm bảo reload (nếu ViewModel chưa cập nhật đầy đủ)
                     walletViewModel.loadWallet()
                     snackbarHostState.showSnackbar("Nạp tiền thành công")
                 }
                 is WalletViewModel.TopUpEvent.Error -> {
                     snackbarHostState.showSnackbar(ev.message ?: "Lỗi khi nạp tiền")
+                }
+
+                WalletViewModel.TopUpEvent.Submitted -> {
+                    walletViewModel.loadWallet()
+                    snackbarHostState.showSnackbar("Đã gửi yêu cầu nạp tiền, chờ xử lý")
                 }
             }
         }

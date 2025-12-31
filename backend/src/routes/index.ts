@@ -6,6 +6,7 @@ import availabilityRouter from "./availability.route";
 import mentorRouter from "./mentor.route";
 import mentorStatsRouter from "./mentor.stats.route";
 import walletRouter from "./wallet.route";
+import walletTopupRouter from "./walletTopup.route";
 
 import payoutRouter from "./payout.route";
 import adminPayoutRouter from "./adminPayout.route";
@@ -38,6 +39,7 @@ router.use("/mentors", mentorRouter);
 
 // Wallet & payments
 router.use("/wallet", walletRouter);
+router.use("/wallet", walletTopupRouter);
 router.use("/payments", paymentRouter);
 router.use("/payment-methods", paymentMethodRouter);
 

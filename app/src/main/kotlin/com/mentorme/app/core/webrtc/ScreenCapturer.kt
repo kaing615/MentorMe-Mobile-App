@@ -17,11 +17,11 @@ import org.webrtc.VideoCapturer
 
 /**
  * Screen capturer for WebRTC screen sharing
+ * Now accepts MediaProjection directly instead of Intent to avoid token reuse issues
  */
 class ScreenCapturer(
     private val context: Context,
-    private val mediaProjectionPermissionResultData: Intent,
-    private val mediaProjectionCallback: MediaProjection.Callback? = null
+    private val mediaProjection: MediaProjection
 ) : VideoCapturer {
 
     companion object {
@@ -34,7 +34,6 @@ class ScreenCapturer(
         }
     }
 
-    private var mediaProjection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var surfaceTextureHelper: SurfaceTextureHelper? = null
     private var capturerObserver: CapturerObserver? = null
@@ -67,77 +66,56 @@ class ScreenCapturer(
         this.fps = framerate
 
         try {
-            val mediaProjectionManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            
-            // Clone intent to avoid "MediaProjection: setCallback called with null callback" issue
-            val clonedIntent = Intent(mediaProjectionPermissionResultData)
-            
-            mediaProjection = mediaProjectionManager.getMediaProjection(
-                Activity.RESULT_OK,
-                clonedIntent
-            )
-
-            if (mediaProjection == null) {
-                Log.e(TAG, "Failed to create MediaProjection - null returned")
-                return
+            // Register callback for MediaProjection
+            val callback = object : MediaProjection.Callback() {
+                override fun onStop() {
+                    Log.d(TAG, "MediaProjection stopped")
+                    isCapturing = false
+                }
             }
+            mediaProjection.registerCallback(callback, handler)
 
-            mediaProjection?.let { projection ->
-                // Register callback
-                val callback = object : MediaProjection.Callback() {
-                    override fun onStop() {
-                        Log.d(TAG, "MediaProjection stopped")
-                        isCapturing = false
-                    }
-                }
-                projection.registerCallback(callback, handler)
-                
-                mediaProjectionCallback?.let { 
-                    projection.registerCallback(it, handler)
-                }
+            val metrics = context.resources.displayMetrics
+            val screenDensity = metrics.densityDpi
 
-                val metrics = context.resources.displayMetrics
-                val screenDensity = metrics.densityDpi
-
-                surfaceTextureHelper?.let { helper ->
-                    // Start listening before creating virtual display
-                    var frameCount = 0
-                    helper.startListening { videoFrame ->
-                        if (isCapturing) {
-                            frameCount++
-                            if (frameCount <= 5 || frameCount % 100 == 0) {
-                                Log.d(TAG, "Frame captured #$frameCount: ${videoFrame.buffer.width}x${videoFrame.buffer.height}")
-                            }
-                            capturerObserver?.onFrameCaptured(videoFrame)
+            surfaceTextureHelper?.let { helper ->
+                // Start listening before creating virtual display
+                var frameCount = 0
+                helper.startListening { videoFrame ->
+                    if (isCapturing) {
+                        frameCount++
+                        if (frameCount <= 5 || frameCount % 100 == 0) {
+                            Log.d(TAG, "Frame captured #$frameCount: ${videoFrame.buffer.width}x${videoFrame.buffer.height}")
                         }
+                        capturerObserver?.onFrameCaptured(videoFrame)
                     }
-                    
-                    virtualDisplay = projection.createVirtualDisplay(
-                        "ScreenCapture",
-                        width,
-                        height,
-                        screenDensity,
-                        DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                        Surface(helper.surfaceTexture),
-                        object : VirtualDisplay.Callback() {
-                            override fun onPaused() {
-                                Log.d(TAG, "VirtualDisplay paused")
-                            }
-                            override fun onResumed() {
-                                Log.d(TAG, "VirtualDisplay resumed")
-                            }
-                            override fun onStopped() {
-                                Log.d(TAG, "VirtualDisplay stopped")
-                            }
-                        },
-                        handler
-                    )
-                    
-                    isCapturing = true
-                    Log.d(TAG, "Screen capture started successfully - display: $virtualDisplay")
-                } ?: run {
-                    Log.e(TAG, "SurfaceTextureHelper is null")
                 }
+                
+                virtualDisplay = mediaProjection.createVirtualDisplay(
+                    "ScreenCapture",
+                    width,
+                    height,
+                    screenDensity,
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                    Surface(helper.surfaceTexture),
+                    object : VirtualDisplay.Callback() {
+                        override fun onPaused() {
+                            Log.d(TAG, "VirtualDisplay paused")
+                        }
+                        override fun onResumed() {
+                            Log.d(TAG, "VirtualDisplay resumed")
+                        }
+                        override fun onStopped() {
+                            Log.d(TAG, "VirtualDisplay stopped")
+                        }
+                    },
+                    handler
+                )
+                
+                isCapturing = true
+                Log.d(TAG, "Screen capture started successfully - display: $virtualDisplay")
+            } ?: run {
+                Log.e(TAG, "SurfaceTextureHelper is null")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start screen capture: ${e.message}", e)
@@ -152,8 +130,7 @@ class ScreenCapturer(
             surfaceTextureHelper?.stopListening()
             virtualDisplay?.release()
             virtualDisplay = null
-            mediaProjection?.stop()
-            mediaProjection = null
+            // Don't stop mediaProjection here - it's managed by WebRtcClient
         } catch (e: Exception) {
             Log.e(TAG, "Error stopping capture: ${e.message}", e)
         }

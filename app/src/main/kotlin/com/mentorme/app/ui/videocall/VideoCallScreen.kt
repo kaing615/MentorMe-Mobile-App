@@ -226,6 +226,7 @@ fun VideoCallScreen(
     DisposableEffect(bookingId) {
         onDispose {
             viewModel.leaveCall()
+            viewModel.releaseRenderers()
         }
     }
     
@@ -282,10 +283,11 @@ fun VideoCallScreen(
                 SurfaceViewRenderer(ctx).apply {
                     setZOrderMediaOverlay(false)
                     setZOrderOnTop(false)
-                    // Initialize renderer on creation
-                    post {
+                    // Initialize renderer on creation - use postDelayed to ensure surface is ready
+                    postDelayed({
+                        android.util.Log.d("VideoCallScreen", "Binding remote renderer")
                         viewModel.bindRemoteRenderer(this)
-                    }
+                    }, 100)
                 }
             },
             update = { view ->
@@ -305,10 +307,11 @@ fun VideoCallScreen(
                 SurfaceViewRenderer(ctx).apply {
                     setZOrderMediaOverlay(true)
                     setZOrderOnTop(true)
-                    // Initialize renderer on creation
-                    post {
+                    // Initialize renderer on creation - use postDelayed to ensure surface is ready
+                    postDelayed({
+                        android.util.Log.d("VideoCallScreen", "Binding local renderer")
                         viewModel.bindLocalRenderer(this)
-                    }
+                    }, 100)
                 }
             },
             update = { view ->

@@ -132,23 +132,40 @@ class VideoCallViewModel @Inject constructor(
     private var statusEmitJob: Job? = null
     private var stopEmissionJob: Job? = null
 
-    private val webRtcClient = WebRtcClient(
-        context = appContext,
-        iceServers = IceServerProvider.defaultIceServers(),
-        events = object : WebRtcClient.WebRtcEvents {
-            override fun onIceCandidate(candidate: IceCandidate) {
-                emitIceCandidate(candidate)
-            }
+    private val webRtcClient: WebRtcClient by lazy {
+        WebRtcClient(
+            context = appContext,
+            iceServers = IceServerProvider.defaultIceServers(),
+            events = object : WebRtcClient.WebRtcEvents {
+                override fun onIceCandidate(candidate: IceCandidate) {
+                    emitIceCandidate(candidate)
+                }
 
-            override fun onConnectionStateChanged(state: PeerConnection.PeerConnectionState) {
-                handleConnectionState(state)
-            }
+                override fun onConnectionStateChanged(state: PeerConnection.PeerConnectionState) {
+                    handleConnectionState(state)
+                }
 
-            override fun onRemoteTrack(track: org.webrtc.VideoTrack) {
-                markInCall()
+                override fun onRemoteTrack(track: org.webrtc.VideoTrack) {
+                    markInCall()
+                }
+                
+                override fun onRenegotiationNeeded() {
+                    handleRenegotiationNeeded()
+                }
+            }
+        )
+    }
+    
+    private fun handleRenegotiationNeeded() {
+        Log.d("VideoCallVM", "Renegotiation needed (role: $currentRole) - creating new offer")
+        // Either party can trigger renegotiation when they change tracks (e.g., screen share)
+        viewModelScope.launch {
+            webRtcClient.createOffer { offer: SessionDescription ->
+                Log.d("VideoCallVM", "Renegotiation offer created, emitting to peer")
+                emitSdp("signal:offer", offer)
             }
         }
-    )
+    }
 
     init {
         observeRealtime()
@@ -242,8 +259,10 @@ class VideoCallViewModel @Inject constructor(
     }
 
     fun setPermissionsGranted(granted: Boolean) {
+        Log.d("VideoCallVM", "setPermissionsGranted: $granted, renderersAttached: $renderersAttached")
         permissionsGranted = granted
         if (granted && renderersAttached) {
+            Log.d("VideoCallVM", "Permissions granted and renderers attached - starting preview")
             startLocalPreview()
             pendingOffer?.let { offer ->
                 pendingOffer = null
@@ -256,22 +275,28 @@ class VideoCallViewModel @Inject constructor(
     }
 
     fun bindLocalRenderer(renderer: org.webrtc.SurfaceViewRenderer) {
+        Log.d("VideoCallVM", "bindLocalRenderer called - permissionsGranted: $permissionsGranted, renderersAttached: $renderersAttached")
         webRtcClient.attachLocalRenderer(renderer)
         checkRenderersReady()
     }
 
     fun bindRemoteRenderer(renderer: org.webrtc.SurfaceViewRenderer) {
+        Log.d("VideoCallVM", "bindRemoteRenderer called - permissionsGranted: $permissionsGranted, renderersAttached: $renderersAttached")
         webRtcClient.attachRemoteRenderer(renderer)
         checkRenderersReady()
     }
     
     private fun checkRenderersReady() {
         if (!renderersAttached) {
+            Log.d("VideoCallVM", "checkRenderersReady - setting renderersAttached = true")
             renderersAttached = true
             // Start local preview if permissions are already granted
             if (permissionsGranted) {
+                Log.d("VideoCallVM", "Permissions already granted, starting local preview")
                 startLocalPreview()
                 // Don't auto-start call - wait for user to exit preview mode
+            } else {
+                Log.d("VideoCallVM", "Waiting for permissions before starting preview")
             }
         }
     }
@@ -747,24 +772,32 @@ class VideoCallViewModel @Inject constructor(
     }
 
     private fun acceptOffer(sdp: SessionDescription) {
-        Log.d("VideoCallVM", "Accepting offer and creating answer")
+        val isRenegotiation = callStarted
+        Log.d("VideoCallVM", "Accepting offer (isRenegotiation: $isRenegotiation)")
         
         if (!permissionsGranted) {
             Log.w("VideoCallVM", "Cannot accept offer - permissions not granted")
             return
         }
         
-        callStarted = true
         webRtcClient.ensurePeerConnection()
-        webRtcClient.startLocalMedia()
+        
+        // Only start local media on first offer, not during renegotiation
+        if (!callStarted) {
+            callStarted = true
+            webRtcClient.startLocalMedia()
+        }
+        
         webRtcClient.setRemoteDescription(sdp)
         
         webRtcClient.createAnswer { answer ->
-            Log.d("VideoCallVM", "Answer created, emitting to peer")
+            Log.d("VideoCallVM", "Answer created (renegotiation: $isRenegotiation), emitting to peer")
             emitSdp("signal:answer", answer)
         }
         
-        startQosReporting()
+        if (!isRenegotiation) {
+            startQosReporting()
+        }
     }
 
     private fun handleSignalAnswer(payload: SessionSignalPayload) {
@@ -901,6 +934,7 @@ class VideoCallViewModel @Inject constructor(
     }
 
     private fun startLocalPreview() {
+        Log.d("VideoCallVM", "startLocalPreview called")
         webRtcClient.startLocalMedia()
     }
 
@@ -1238,6 +1272,13 @@ class VideoCallViewModel @Inject constructor(
         sessionReady = false
         pendingOffer = null
         callStartedAtMs = null
+    }
+    
+    /**
+     * Release renderers - call this when VideoCallScreen is disposed
+     */
+    fun releaseRenderers() {
+        webRtcClient.releaseRenderers()
     }
 
     private fun resetCallState() {

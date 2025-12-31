@@ -318,11 +318,13 @@ internal fun AppNavGraph(
 
             composable(Routes.MentorCalendar) {
                 MentorCalendarScreen(
-                    onViewSession = { sessionId ->
-                        Log.d(
-                            "AppNav",
-                            "View session $sessionId - TODO"
-                        )
+                    onViewSession = { bookingId ->
+                        nav.navigate("booking_detail/$bookingId")
+                    },
+                    onJoinSession = { bookingId ->
+                        nav.navigate(Routes.videoCall(bookingId)) {
+                            launchSingleTop = true
+                        }
                     },
                     onCreateSession = { Log.d("AppNav", "Create session - TODO") },
                     onUpdateAvailability = { Log.d("AppNav", "Update availability - TODO") },

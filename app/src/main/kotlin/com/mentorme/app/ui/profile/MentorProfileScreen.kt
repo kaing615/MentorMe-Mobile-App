@@ -123,7 +123,7 @@ fun MentorProfileScreen(
     val isEditing = state.editing
     val edited = state.edited
 
-    // ✅ IMPORTANT:
+    //  IMPORTANT:
     // - rememberSaveable giữ tab khi rotate/process restore
     // - LaunchedEffect(startTarget) chỉ set khi target thay đổi (vd: từ dashboard sang settings)
     var selectedTab by rememberSaveable { mutableIntStateOf(tabIndexFor(startTarget)) }
@@ -349,7 +349,7 @@ private fun MentorInfoTab(
         Modifier
             .verticalScroll(rememberScrollState())
             .navigationBarsPadding()
-            .padding(bottom = 100.dp), // ✅ Extra space: system nav bar + GlassBottomBar (64dp + spacing)
+            .padding(bottom = 100.dp), //  Extra space: system nav bar + GlassBottomBar (64dp + spacing)
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         LiquidGlassCard(radius = 22.dp) {
@@ -390,33 +390,63 @@ private fun MentorInfoTab(
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    // ✅ Thông tin cơ bản
-                    MentorLabeledField("Họ và tên", profile.fullName, isEditing, edited.fullName) {
-                        onChange(edited.copy(fullName = it))
-                    }
+                    //  Thông tin cơ bản
+                    MentorLabeledField(
+                        "Họ và tên",
+                        profile.fullName,
+                        isEditing,
+                        edited.fullName,
+                        onValueChange = { onChange(edited.copy(fullName = it)) },
+                        leading = { Icon(Icons.Outlined.Person, null) }
+                    )
 
-                    MentorLabeledField("Email", profile.email, isEditing, edited.email) {
-                        onChange(edited.copy(email = it))
-                    }
+                    MentorLabeledField(
+                        "Email",
+                        profile.email,
+                        isEditing,
+                        edited.email,
+                        onValueChange = { onChange(edited.copy(email = it)) },
+                        leading = { Icon(Icons.Outlined.Email, null) }
+                    )
 
-                    MentorLabeledField("Số điện thoại", profile.phone ?: "Chưa cập nhật", isEditing, edited.phone ?: "") {
-                        onChange(edited.copy(phone = it.takeIf { it.isNotBlank() }))
-                    }
+                    MentorLabeledField(
+                        "Số điện thoại",
+                        profile.phone ?: "Chưa cập nhật",
+                        isEditing,
+                        edited.phone ?: "",
+                        onValueChange = { onChange(edited.copy(phone = it.takeIf { it.isNotBlank() })) },
+                        leading = { Icon(Icons.Outlined.Phone, null) }
+                    )
 
-                    MentorLabeledField("Địa điểm", profile.location ?: "Chưa cập nhật", isEditing, edited.location ?: "") {
-                        onChange(edited.copy(location = it.takeIf { it.isNotBlank() }))
-                    }
+                    MentorLabeledField(
+                        "Địa điểm",
+                        profile.location ?: "Chưa cập nhật",
+                        isEditing,
+                        edited.location ?: "",
+                        onValueChange = { onChange(edited.copy(location = it.takeIf { it.isNotBlank() })) },
+                        leading = { Icon(Icons.Outlined.Place, null) }
+                    )
 
-                    // ✅ Thông tin nghề nghiệp
-                    MentorLabeledField("Chức danh", profile.jobTitle ?: "Chưa cập nhật", isEditing, edited.jobTitle ?: "") {
-                        onChange(edited.copy(jobTitle = it.takeIf { it.isNotBlank() }))
-                    }
+                    //  Thông tin nghề nghiệp
+                    MentorLabeledField(
+                        "Chức danh",
+                        profile.jobTitle ?: "Chưa cập nhật",
+                        isEditing,
+                        edited.jobTitle ?: "",
+                        onValueChange = { onChange(edited.copy(jobTitle = it.takeIf { it.isNotBlank() })) },
+                        leading = { Icon(Icons.Outlined.Work, null) }
+                    )
 
-                    MentorLabeledField("Chuyên mục", profile.category ?: "Chưa cập nhật", isEditing, edited.category ?: "") {
-                        onChange(edited.copy(category = it.takeIf { it.isNotBlank() }))
-                    }
+                    MentorLabeledField(
+                        "Chuyên mục",
+                        profile.category ?: "Chưa cập nhật",
+                        isEditing,
+                        edited.category ?: "",
+                        onValueChange = { onChange(edited.copy(category = it.takeIf { it.isNotBlank() })) },
+                        leading = { Icon(Icons.Outlined.Category, null) }
+                    )
 
-                    // ✅ Giá mỗi giờ
+                    //  Giá mỗi giờ
                     val hourlyRateText = if (profile.hourlyRate != null && profile.hourlyRate > 0) {
                         "${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(profile.hourlyRate)} VNĐ/giờ"
                     } else {
@@ -424,30 +454,56 @@ private fun MentorInfoTab(
                     }
                     val editedHourlyRateText = edited.hourlyRate?.toString() ?: ""
 
-                    MentorLabeledField("Giá mỗi giờ", hourlyRateText, isEditing, editedHourlyRateText) { raw ->
-                        val rate = raw.filter { it.isDigit() }.toIntOrNull()
-                        onChange(edited.copy(hourlyRate = rate))
-                    }
+                    MentorLabeledField(
+                        "Giá mỗi giờ",
+                        hourlyRateText,
+                        isEditing,
+                        editedHourlyRateText,
+                        onValueChange = { raw ->
+                            val rate = raw.filter { it.isDigit() }.toIntOrNull()
+                            onChange(edited.copy(hourlyRate = rate))
+                        },
+                        leading = { Icon(Icons.Outlined.AttachMoney, null) }
+                    )
 
                     // ✅ Kinh nghiệm & Học vấn
-                    MentorMultilineField("Kinh nghiệm", profile.experience ?: "Chưa cập nhật", isEditing, edited.experience ?: "") {
-                        onChange(edited.copy(experience = it.takeIf { it.isNotBlank() }))
-                    }
+                    MentorMultilineField(
+                        "Kinh nghiệm",
+                        profile.experience ?: "Chưa cập nhật",
+                        isEditing,
+                        edited.experience ?: "",
+                        onValueChange = { onChange(edited.copy(experience = it.takeIf { it.isNotBlank() })) }
+                    )
 
-                    MentorMultilineField("Học vấn", profile.education ?: "Chưa cập nhật", isEditing, edited.education ?: "") {
-                        onChange(edited.copy(education = it.takeIf { it.isNotBlank() }))
-                    }
+                    MentorMultilineField(
+                        "Học vấn",
+                        profile.education ?: "Chưa cập nhật",
+                        isEditing,
+                        edited.education ?: "",
+                        onValueChange = { onChange(edited.copy(education = it.takeIf { it.isNotBlank() })) }
+                    )
 
                     // ✅ Chuyên môn (Skills)
-                    MentorLabeledField("Chuyên môn", skillsText.ifBlank { "Chưa cập nhật" }, isEditing, editedSkillsText) { raw ->
-                        val skills = raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-                        onChange(edited.copy(interests = skills))
-                    }
+                    MentorLabeledField(
+                        "Chuyên môn",
+                        skillsText.ifBlank { "Chưa cập nhật" },
+                        isEditing,
+                        editedSkillsText,
+                        onValueChange = { raw ->
+                            val skills = raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                            onChange(edited.copy(interests = skills))
+                        },
+                        leading = { Icon(Icons.Outlined.Star, null) }
+                    )
 
                     // ✅ Giới thiệu
-                    MentorMultilineField("Giới thiệu", profile.bio ?: "Chưa cập nhật", isEditing, edited.bio ?: "") {
-                        onChange(edited.copy(bio = it.takeIf { it.isNotBlank() }))
-                    }
+                    MentorMultilineField(
+                        "Giới thiệu",
+                        profile.bio ?: "Chưa cập nhật",
+                        isEditing,
+                        edited.bio ?: "",
+                        onValueChange = { onChange(edited.copy(bio = it.takeIf { it.isNotBlank() })) }
+                    )
                 }
 
                 if (isEditing) {
@@ -752,29 +808,85 @@ private fun MentorAvatarPicker(avatarUrl: String?, initial: Char, size: Dp, enab
 }
 
 @Composable
-private fun MentorLabeledField(label: String, value: String, editing: Boolean, editedValue: String, onValueChange: (String) -> Unit) {
+private fun MentorLabeledField(
+    label: String,
+    value: String,
+    editing: Boolean,
+    editedValue: String,
+    onValueChange: (String) -> Unit,
+    leading: (@Composable () -> Unit)? = null
+) {
     Column {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = Color.White.copy(0.7f))
-        Spacer(Modifier.height(4.dp))
+        Text(label, style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = .9f))
+        Spacer(Modifier.height(6.dp))
+
         if (editing) {
-            MMTextField(value = editedValue, onValueChange = onValueChange, modifier = Modifier.fillMaxWidth())
+            MMTextField(
+                value = editedValue,
+                onValueChange = onValueChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp),
+                singleLine = true,
+                leading = {
+                    if (leading != null) {
+                        CompositionLocalProvider(LocalContentColor provides Color.White) {
+                            leading()
+                        }
+                    }
+                },
+                placeholder = value
+            )
         } else {
-            Text(value, style = MaterialTheme.typography.bodyLarge)
-            Spacer(Modifier.height(8.dp))
-            HorizontalDivider(color = Color.White.copy(0.1f))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .liquidGlass(radius = 16.dp, alpha = 0.18f, borderAlpha = 0.25f)
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CompositionLocalProvider(LocalContentColor provides Color.White) {
+                    leading?.invoke()
+                }
+                if (leading != null) Spacer(Modifier.size(8.dp))
+                Text(
+                    value,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.White,
+                    maxLines = 1
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun MentorMultilineField(label: String, value: String, editing: Boolean, editedValue: String, onValueChange: (String) -> Unit) {
+private fun MentorMultilineField(
+    label: String,
+    value: String,
+    editing: Boolean,
+    editedValue: String,
+    onValueChange: (String) -> Unit
+) {
     Column {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = Color.White.copy(0.7f))
-        Spacer(Modifier.height(4.dp))
+        Text(label, style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = .9f))
+        Spacer(Modifier.height(6.dp))
         if (editing) {
-            MMTextField(value = editedValue, onValueChange = onValueChange, modifier = Modifier.fillMaxWidth(), singleLine = false)
+            MMTextField(
+                value = editedValue,
+                onValueChange = onValueChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = false,
+                placeholder = value
+            )
         } else {
-            Text(value, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(0.9f))
+            Text(
+                value,
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White
+            )
         }
     }
 }

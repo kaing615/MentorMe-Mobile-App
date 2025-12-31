@@ -122,19 +122,96 @@ fun MentorCalendarScreen(
     val bookings = mentorBookings.value
     val availabilityOpen =
         remember(slotsState.value) { slotsState.value.count { it.isActive && !it.isBooked } }
-    val confirmedCount =
-        remember(bookings) { bookings.count { it.status == BookingStatus.CONFIRMED } }
 
+    // ✅ FIX: confirmedCount - chỉ đếm CONFIRMED sessions chưa kết thúc
+    val confirmedCount = remember(bookings) {
+        val now = java.time.Instant.now()
+        val zoneId = java.time.ZoneId.systemDefault()
+
+        bookings.count { booking ->
+            if (booking.status != BookingStatus.CONFIRMED) return@count false
+
+            try {
+                val bookingDate = java.time.LocalDate.parse(booking.date)
+                val endTime = try {
+                    java.time.LocalTime.parse(booking.endTime, java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                } catch (e: Exception) {
+                    java.time.LocalTime.parse(booking.endTime, java.time.format.DateTimeFormatter.ofPattern("H:mm"))
+                }
+                val startTime = try {
+                    java.time.LocalTime.parse(booking.startTime, java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                } catch (e: Exception) {
+                    java.time.LocalTime.parse(booking.startTime, java.time.format.DateTimeFormatter.ofPattern("H:mm"))
+                }
+
+                // Handle midnight crossover
+                val endDate = if (endTime.isBefore(startTime) || endTime == startTime) {
+                    bookingDate.plusDays(1)
+                } else {
+                    bookingDate
+                }
+
+                val bookingEndDateTime = endDate.atTime(endTime).atZone(zoneId).toInstant()
+
+                // ✅ Chỉ đếm nếu chưa kết thúc
+                bookingEndDateTime.isAfter(now)
+            } catch (e: Exception) {
+                // Nếu parse lỗi, coi như chưa kết thúc (an toàn)
+                true
+            }
+        }
+    }
+
+    // ✅ FIX: totalPaid - chỉ tính sessions đã hoàn thành THỰC SỰ (đã kết thúc) hoặc có status COMPLETED/NO_SHOW
     val totalPaid = remember(bookings) {
+        val now = java.time.Instant.now()
+        val zoneId = java.time.ZoneId.systemDefault()
+
         bookings
-            .filter {
-                it.status == BookingStatus.COMPLETED ||
-                    it.status == BookingStatus.NO_SHOW_MENTOR ||
-                    it.status == BookingStatus.NO_SHOW_MENTEE ||
-                    it.status == BookingStatus.NO_SHOW_BOTH
+            .filter { booking ->
+                // Case 1: Status là COMPLETED hoặc NO_SHOW -> chắc chắn đã hoàn thành
+                if (booking.status == BookingStatus.COMPLETED ||
+                    booking.status == BookingStatus.NO_SHOW_MENTOR ||
+                    booking.status == BookingStatus.NO_SHOW_MENTEE ||
+                    booking.status == BookingStatus.NO_SHOW_BOTH) {
+                    return@filter true
+                }
+
+                // Case 2: Status CONFIRMED nhưng đã qua giờ kết thúc -> coi như hoàn thành
+                if (booking.status == BookingStatus.CONFIRMED) {
+                    try {
+                        val bookingDate = java.time.LocalDate.parse(booking.date)
+                        val endTime = try {
+                            java.time.LocalTime.parse(booking.endTime, java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                        } catch (e: Exception) {
+                            java.time.LocalTime.parse(booking.endTime, java.time.format.DateTimeFormatter.ofPattern("H:mm"))
+                        }
+                        val startTime = try {
+                            java.time.LocalTime.parse(booking.startTime, java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                        } catch (e: Exception) {
+                            java.time.LocalTime.parse(booking.startTime, java.time.format.DateTimeFormatter.ofPattern("H:mm"))
+                        }
+
+                        val endDate = if (endTime.isBefore(startTime) || endTime == startTime) {
+                            bookingDate.plusDays(1)
+                        } else {
+                            bookingDate
+                        }
+
+                        val bookingEndDateTime = endDate.atTime(endTime).atZone(zoneId).toInstant()
+
+                        // ✅ Đã kết thúc -> tính vào đã thu
+                        return@filter now.isAfter(bookingEndDateTime)
+                    } catch (e: Exception) {
+                        return@filter false
+                    }
+                }
+
+                false
             }
             .sumOf { it.price.toInt() }
     }
+
     val totalPending = remember(bookings) {
         bookings
             .filter { it.status == BookingStatus.PAYMENT_PENDING }
@@ -520,7 +597,15 @@ fun MentorCalendarScreen(
                         }
                     )
 
-                    2 -> SessionsTab(bookings = bookings)
+                    2 -> SessionsTab(
+                        bookings = bookings,
+                        onJoinSession = { bookingId ->
+                            onJoinSession(bookingId)
+                        },
+                        onViewDetail = { bookingId ->
+                            onViewSession(bookingId)
+                        }
+                    )
                 }
 
                 // chừa chỗ đáy để né dashboard

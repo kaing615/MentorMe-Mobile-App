@@ -9,6 +9,7 @@ import { BookingEdit, BookingList } from "./resources/bookings";
 import { ReportEdit, ReportList } from "./resources/reports";
 import { UserCreate, UserEdit, UserList } from "./resources/users";
 import { PayoutList } from "./resources/payouts";
+import { TopUpList } from "./resources/topups";
 
 export default function App() {
   return (
@@ -32,6 +33,8 @@ export default function App() {
         options={{ label: "Mentor Payouts" }}
         list={PayoutList}
       />
+
+      <Resource name="admin/topup-intents" options={{ label: "TopUp Intents" }} list={TopUpList} />
 
       <CustomRoutes>
         <Route path="/my-profile" element={<MyProfile />} />

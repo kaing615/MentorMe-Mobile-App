@@ -12,6 +12,8 @@ enum class NotificationType {
     PAYMENT_SUCCESS,
     PAYMENT_FAILED,
     MESSAGE,
+    TOPUP_SUCCESS,
+    TOPUP_REJECTED,
     SYSTEM;
 
     companion object {
@@ -26,6 +28,7 @@ enum class NotificationType {
                 "payment_success" -> PAYMENT_SUCCESS
                 "payment_failed" -> PAYMENT_FAILED
                 "message" -> MESSAGE
+                "topup_success" -> TOPUP_SUCCESS
                 else -> SYSTEM
             }
         }
@@ -59,6 +62,8 @@ data class NotificationPreferences(
             NotificationType.PAYMENT_SUCCESS,
             NotificationType.PAYMENT_FAILED -> pushPayment
             NotificationType.MESSAGE -> pushMessage
+            NotificationType.TOPUP_SUCCESS,
+            NotificationType.TOPUP_REJECTED,
             NotificationType.SYSTEM -> pushSystem
         }
     }

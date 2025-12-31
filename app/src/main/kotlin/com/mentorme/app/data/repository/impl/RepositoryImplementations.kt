@@ -6,13 +6,18 @@ import com.mentorme.app.data.dto.CreateBookingRequest
 import com.mentorme.app.data.dto.MentorListResponse
 import com.mentorme.app.data.dto.RatingRequest
 import com.mentorme.app.data.dto.UpdateBookingRequest
+import com.mentorme.app.data.dto.wallet.CreateTopUpIntentRequest
+import com.mentorme.app.data.dto.wallet.TopUpIntentDto
 import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.model.BookingUserSummary
 import com.mentorme.app.data.model.Mentor
 import com.mentorme.app.data.model.UserRole
 import com.mentorme.app.data.remote.MentorMeApi
+import com.mentorme.app.data.remote.WalletApi
 import com.mentorme.app.data.repository.BookingRepository
 import com.mentorme.app.data.repository.MentorRepository
+import com.mentorme.app.data.repository.wallet.WalletRepository
+import com.mentorme.app.data.repository.wallet.WalletRepositoryInterface
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -318,5 +323,34 @@ class BookingRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             AppResult.failure(e)
         }
+    }
+}
+
+class WalletRepositoryImpl @Inject constructor(
+    private val api: WalletApi
+) : WalletRepositoryInterface {
+    override suspend fun createTopUpIntent(
+        amount: Long,
+        currency: String
+    ): TopUpIntentDto {
+        val res = api.createTopUpIntent(
+            CreateTopUpIntentRequest(
+                amount = amount,
+                currency = currency
+            )
+        )
+        if (!res.success) throw Exception(res.message)
+        return res.data!!
+    }
+
+
+    override suspend fun confirmTopUpTransfer(intentId: String) {
+        val resp = api.confirmTopUpTransferred(intentId)
+        if (resp.success == false) throw Exception("confirm failed")
+    }
+
+    override suspend fun getMyPendingTopUps(): List<TopUpIntentDto> {
+        val resp = api.getMyPendingTopUps()
+        return resp.data?.items ?: emptyList()
     }
 }

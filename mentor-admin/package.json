@@ -14,6 +14,8 @@
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^7.0.1",
     "@mui/material": "^7.0.1",
+    "bcryptjs": "^3.0.3",
+    "mongoose": "^9.1.1",
     "ra-data-simple-rest": "^5.13.4",
     "react": "^19.0.0",
     "react-admin": "^5.13.0",

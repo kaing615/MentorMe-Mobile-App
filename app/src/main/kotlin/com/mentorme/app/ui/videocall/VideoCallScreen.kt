@@ -18,10 +18,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.PhoneInTalk
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material.icons.filled.VolumeOff
@@ -331,8 +333,8 @@ private fun CallControls(
             onClick = onSwitchCamera
         )
         ControlButton(
-            icon = if (state.isSpeakerEnabled) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
-            contentDescription = "Toggle speaker",
+            icon = if (state.isSpeakerEnabled) Icons.AutoMirrored.Filled.VolumeUp else Icons.Default.PhoneInTalk,
+            contentDescription = if (state.isSpeakerEnabled) "Speaker" else "Earpiece",
             onClick = onToggleSpeaker
         )
         ControlButton(

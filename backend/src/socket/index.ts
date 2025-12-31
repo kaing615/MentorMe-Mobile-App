@@ -534,6 +534,42 @@ export async function initSocket(server: HttpServer) {
     socket.on("signal:answer", (payload: SignalPayload) => relaySignal("signal:answer", payload));
     socket.on("signal:ice", (payload: SignalPayload) => relaySignal("signal:ice", payload));
 
+    // In-call chat handler
+    socket.on("session:chat", (payload: { 
+      bookingId?: string; 
+      message?: string; 
+      senderId?: string;
+      senderName?: string;
+      timestamp?: number;
+    }) => {
+      const session = socket.data.session as SessionState | undefined;
+      const bookingId = payload?.bookingId || session?.bookingId;
+      
+      if (!bookingId || !session || session.bookingId !== bookingId) {
+        console.log("[Session:Chat] No valid session for chat message");
+        return;
+      }
+      
+      if (!payload?.message?.trim()) {
+        console.log("[Session:Chat] Empty message, ignoring");
+        return;
+      }
+      
+      const chatPayload = {
+        bookingId,
+        senderId: payload.senderId || user?.id || "unknown",
+        senderName: payload.senderName || session.role || "User",
+        message: payload.message.trim(),
+        timestamp: payload.timestamp || Date.now()
+      };
+      
+      console.log(`[Session:Chat] Relaying chat message in ${bookingId}:`, chatPayload);
+      
+      // Relay to other participants in the live room
+      const rooms = getSessionRooms(bookingId);
+      socket.to(rooms.liveRoom).emit("session:chat", chatPayload);
+    });
+
     socket.on("session:qos", async (payload: QosPayload) => {
       const session = socket.data.session as SessionState | undefined;
       if (!session || !session.live || session.bookingId !== payload?.bookingId) return;

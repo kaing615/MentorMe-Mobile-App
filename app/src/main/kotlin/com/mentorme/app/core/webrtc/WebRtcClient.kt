@@ -43,11 +43,15 @@ class WebRtcClient(
     private var localRenderer: SurfaceViewRenderer? = null
     private var remoteRenderer: SurfaceViewRenderer? = null
     private var videoCapturer: CameraVideoCapturer? = null
+    private var screenCapturer: ScreenCapturer? = null
     private var videoSource: VideoSource? = null
+    private var screenVideoSource: VideoSource? = null
     private var audioSource: AudioSource? = null
     private var localVideoTrack: VideoTrack? = null
+    private var screenVideoTrack: VideoTrack? = null
     private var localAudioTrack: AudioTrack? = null
     private var localTracksAttached = false
+    private var isScreenSharing = false
 
     private var isVideoEnabled = true
     private var isAudioEnabled = true
@@ -271,6 +275,30 @@ class WebRtcClient(
             Log.w(TAG, "Cannot set audio enabled - track is null or ended")
         }
     }
+    
+    private var backgroundBlurProcessor: BackgroundBlurProcessor? = null
+    private var isBackgroundBlurEnabled = false
+    
+    /**
+     * Enable/disable background blur effect
+     * Note: This is a beta feature and may impact performance
+     */
+    fun setBackgroundBlurEnabled(enabled: Boolean) {
+        isBackgroundBlurEnabled = enabled
+        
+        if (enabled) {
+            if (backgroundBlurProcessor == null) {
+                backgroundBlurProcessor = BackgroundBlurProcessor(context)
+            }
+            backgroundBlurProcessor?.setEnabled(true)
+            Log.d(TAG, "Background blur enabled")
+        } else {
+            backgroundBlurProcessor?.setEnabled(false)
+            Log.d(TAG, "Background blur disabled")
+        }
+    }
+    
+    fun isBackgroundBlurEnabled(): Boolean = isBackgroundBlurEnabled
 
     fun switchCamera() {
         val capturer = videoCapturer ?: return
@@ -301,6 +329,170 @@ class WebRtcClient(
             Log.e(TAG, "Error setting speaker mode: ${e.message}", e)
         }
     }
+    
+    /**
+     * Start screen sharing - replaces camera video with screen capture
+     * @param mediaProjectionData Intent data from MediaProjection permission result
+     */
+    fun startScreenSharing(mediaProjectionData: android.content.Intent): Boolean {
+        if (isScreenSharing) {
+            Log.w(TAG, "Already screen sharing")
+            return false
+        }
+        
+        try {
+            Log.d(TAG, "Starting screen sharing")
+            
+            // Start foreground service for Android 10+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ScreenCaptureService.start(context)
+                // Small delay to ensure service is started
+                Thread.sleep(100)
+            }
+            
+            // Stop camera capture but keep the track
+            videoCapturer?.stopCapture()
+            Log.d(TAG, "Camera capture stopped")
+            
+            // Create screen capturer with cloned intent
+            val clonedIntent = mediaProjectionData.clone() as android.content.Intent
+            Log.d(TAG, "Intent cloned: $clonedIntent")
+            
+            val screenCapturer = ScreenCapturer(context, clonedIntent)
+            val surfaceHelper = SurfaceTextureHelper.create("ScreenCapture", eglBase.eglBaseContext)
+            Log.d(TAG, "SurfaceTextureHelper created: $surfaceHelper")
+            
+            val screenSource = peerConnectionFactory.createVideoSource(true) // isScreencast = true
+            Log.d(TAG, "Screen video source created: $screenSource")
+            
+            screenCapturer.initialize(surfaceHelper, context, screenSource.capturerObserver)
+            Log.d(TAG, "ScreenCapturer initialized")
+            
+            screenCapturer.startCapture(1280, 720, 15) // Landscape for screen share
+            Log.d(TAG, "Screen capture started at 1280x720@15fps")
+            
+            val screenTrack = peerConnectionFactory.createVideoTrack("SCREEN_${System.currentTimeMillis()}", screenSource)
+            screenTrack.setEnabled(true)
+            Log.d(TAG, "Screen track created: $screenTrack, enabled: ${screenTrack.enabled()}")
+            
+            // Find existing video sender and replace track
+            val videoSender = peerConnection?.senders?.find { 
+                it.track()?.kind() == "video" 
+            }
+            Log.d(TAG, "Found video sender: $videoSender")
+            
+            if (videoSender != null) {
+                // Replace track instead of add/remove
+                val result = videoSender.setTrack(screenTrack, false)
+                Log.d(TAG, "Replaced video track with screen track, result: $result")
+            } else {
+                // No existing sender, add new track
+                val sender = peerConnection?.addTrack(screenTrack, listOf("stream"))
+                Log.d(TAG, "Added new screen track, sender: $sender")
+            }
+            
+            // Update local preview
+            localRenderer?.let { renderer ->
+                // Remove camera track from renderer
+                localVideoTrack?.let { track ->
+                    try { track.removeSink(renderer) } catch (e: Exception) {}
+                }
+                // Add screen track to renderer
+                renderer.post {
+                    try {
+                        screenTrack.addSink(renderer)
+                        renderer.setMirror(false) // Don't mirror screen share
+                        Log.d(TAG, "Screen track added to local renderer")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to add screen track to renderer: ${e.message}")
+                    }
+                }
+            }
+            
+            this.screenCapturer = screenCapturer
+            this.screenVideoSource = screenSource
+            this.screenVideoTrack = screenTrack
+            this.isScreenSharing = true
+            
+            Log.d(TAG, "Screen sharing started successfully")
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start screen sharing: ${e.message}", e)
+            return false
+        }
+    }
+    
+    /**
+     * Stop screen sharing and return to camera
+     */
+    fun stopScreenSharing() {
+        if (!isScreenSharing) {
+            Log.w(TAG, "Not screen sharing")
+            return
+        }
+        
+        try {
+            Log.d(TAG, "Stopping screen sharing")
+            
+            // Find video sender and replace with camera track
+            val videoSender = peerConnection?.senders?.find { 
+                it.track()?.kind() == "video" 
+            }
+            
+            localVideoTrack?.let { cameraTrack ->
+                if (videoSender != null && cameraTrack.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
+                    videoSender.setTrack(cameraTrack, false)
+                    Log.d(TAG, "Replaced screen track with camera track")
+                }
+            }
+            
+            // Update local preview
+            localRenderer?.let { renderer ->
+                // Remove screen track from renderer
+                screenVideoTrack?.let { track ->
+                    try { track.removeSink(renderer) } catch (e: Exception) {}
+                }
+                // Add camera track back to renderer
+                localVideoTrack?.let { track ->
+                    if (track.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
+                        renderer.post {
+                            try {
+                                track.addSink(renderer)
+                                renderer.setMirror(true) // Mirror camera
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to add camera track to renderer: ${e.message}")
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Stop and dispose screen capturer
+            screenCapturer?.stopCapture()
+            screenCapturer?.dispose()
+            screenVideoSource?.dispose()
+            screenVideoTrack?.dispose()
+            
+            screenCapturer = null
+            screenVideoSource = null
+            screenVideoTrack = null
+            isScreenSharing = false
+            
+            // Stop foreground service
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ScreenCaptureService.stop(context)
+            }
+            
+            // Restart camera capture
+            videoCapturer?.startCapture(720, 1280, 30)
+            
+            Log.d(TAG, "Screen sharing stopped, returned to camera")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to stop screen sharing: ${e.message}", e)
+        }
+    }
+    
+    fun isScreenSharing(): Boolean = isScreenSharing
     
     private fun setupAudioForCall() {
         try {

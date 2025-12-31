@@ -386,8 +386,8 @@ private fun validateBookingTimeWindow(booking: Booking): String? {
         
         val now = java.time.ZonedDateTime.now()
         
-        // Session window: 30 minutes before start, 15 minutes after end (matching backend defaults)
-        val earlyMinutes = 30L
+        // Session window: 20 minutes before start, 15 minutes after end (matching backend)
+        val earlyMinutes = 20L
         val lateMinutes = 15L
         val windowOpen = startTime.minusMinutes(earlyMinutes)
         val windowClose = endTime.plusMinutes(lateMinutes)

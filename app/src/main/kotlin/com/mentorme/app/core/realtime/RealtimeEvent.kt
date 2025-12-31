@@ -77,4 +77,15 @@ sealed class RealtimeEvent {
         val userId: String,
         val isOnline: Boolean
     ) : RealtimeEvent()
+    
+    /**
+     * In-call chat message received during video call session
+     */
+    data class SessionChatReceived(
+        val bookingId: String,
+        val senderId: String,
+        val senderName: String,
+        val message: String,
+        val timestamp: Long
+    ) : RealtimeEvent()
 }

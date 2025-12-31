@@ -3,6 +3,8 @@ package com.mentorme.app.ui.videocall
 import android.Manifest
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import android.media.projection.MediaProjectionManager
+import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -21,25 +23,34 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.BlurOff
+import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.PhoneInTalk
+import androidx.compose.material.icons.filled.ScreenShare
 import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.SignalCellularAlt1Bar
 import androidx.compose.material.icons.filled.SignalCellularAlt2Bar
+import androidx.compose.material.icons.filled.StopScreenShare
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,7 +58,20 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.ui.text.style.TextAlign
+import android.app.PictureInPictureParams
+import android.os.Build
+import android.util.Rational
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -62,6 +86,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -73,6 +98,9 @@ import com.mentorme.app.ui.chat.components.GlassIconButton
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.theme.liquidGlassStrong
 import org.webrtc.SurfaceViewRenderer
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun VideoCallScreen(
@@ -84,10 +112,13 @@ fun VideoCallScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val activity = context as? Activity
+    
+    // PiP state
+    var isInPipMode by remember { mutableStateOf(false) }
     
     // Lock orientation to portrait during call
     DisposableEffect(Unit) {
-        val activity = context as? Activity
         val originalOrientation = activity?.requestedOrientation
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         
@@ -96,12 +127,33 @@ fun VideoCallScreen(
         }
     }
     
-    // Handle lifecycle events for background/foreground
-    DisposableEffect(lifecycleOwner) {
+    // Enter PiP when app goes to background during active call
+    DisposableEffect(lifecycleOwner, state.phase) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_PAUSE -> viewModel.onAppGoesToBackground()
-                Lifecycle.Event.ON_RESUME -> viewModel.onAppComesToForeground()
+                Lifecycle.Event.ON_PAUSE -> {
+                    viewModel.onAppGoesToBackground()
+                    // Enter PiP mode when going to background during call
+                    if (state.phase == CallPhase.InCall && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        activity?.let { act ->
+                            if (act.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+                                try {
+                                    val params = PictureInPictureParams.Builder()
+                                        .setAspectRatio(Rational(9, 16)) // Portrait aspect ratio
+                                        .build()
+                                    act.enterPictureInPictureMode(params)
+                                    isInPipMode = true
+                                } catch (e: Exception) {
+                                    // PiP not supported or failed
+                                }
+                            }
+                        }
+                    }
+                }
+                Lifecycle.Event.ON_RESUME -> {
+                    viewModel.onAppComesToForeground()
+                    isInPipMode = false
+                }
                 else -> {}
             }
         }
@@ -145,6 +197,15 @@ fun VideoCallScreen(
     ) { result ->
         permissionsGranted = result.values.all { it }
         viewModel.setPermissionsGranted(permissionsGranted)
+    }
+    
+    // Screen capture permission launcher
+    val screenCaptureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            viewModel.startScreenSharing(result.data!!)
+        }
     }
 
     LaunchedEffect(bookingId) {
@@ -257,15 +318,15 @@ fun VideoCallScreen(
             },
             modifier = Modifier
                 .padding(12.dp)
-                .size(120.dp)
+                .size(if (isInPipMode) 0.dp else 120.dp) // Hide in PiP mode
                 .align(Alignment.TopEnd)
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color.Black)
         )
 
-        // Top bar with back button and network indicator - hide during InCall when controls are hidden
+        // Top bar with back button and network indicator - hide during InCall when controls are hidden or in PiP
         AnimatedVisibility(
-            visible = state.phase != CallPhase.InCall || controlsVisible,
+            visible = !isInPipMode && (state.phase != CallPhase.InCall || controlsVisible),
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.TopStart)
@@ -325,7 +386,8 @@ fun VideoCallScreen(
             formatDuration(state.callDurationSec)
         }
 
-        if (statusLabel.isNotBlank()) {
+        // Hide status pills in PiP mode
+        if (!isInPipMode && statusLabel.isNotBlank()) {
             CallStatusPill(
                 label = statusLabel,
                 timerText = if (state.phase == CallPhase.InCall) timerText else null,
@@ -335,8 +397,8 @@ fun VideoCallScreen(
             )
         }
         
-        // Peer connection status banner
-        if (state.phase == CallPhase.InCall && state.peerConnectionStatus != null) {
+        // Peer connection status banner - hide in PiP mode
+        if (!isInPipMode && state.phase == CallPhase.InCall && state.peerConnectionStatus != null) {
             when (state.peerConnectionStatus) {
                 "reconnecting" -> PeerStatusBanner(
                     message = "Participant is reconnecting...",
@@ -426,20 +488,22 @@ fun VideoCallScreen(
                 }
             }
             
-            // Time warning dialog
-            state.timeWarningMessage?.let { message ->
-                if (state.showTimeWarning) {
-                    TimeWarningDialog(
-                        message = message,
-                        remainingMinutes = state.remainingMinutes,
-                        onDismiss = { viewModel.dismissTimeWarning() }
-                    )
+            // Time warning dialog - hide in PiP mode
+            if (!isInPipMode) {
+                state.timeWarningMessage?.let { message ->
+                    if (state.showTimeWarning) {
+                        TimeWarningDialog(
+                            message = message,
+                            remainingMinutes = state.remainingMinutes,
+                            onDismiss = { viewModel.dismissTimeWarning() }
+                        )
+                    }
                 }
             }
 
-            // Auto-hide controls during InCall - tap screen to toggle visibility
+            // Auto-hide controls during InCall - tap screen to toggle visibility (hide in PiP)
             AnimatedVisibility(
-                visible = controlsVisible || state.phase != CallPhase.InCall,
+                visible = !isInPipMode && (controlsVisible || state.phase != CallPhase.InCall),
                 enter = fadeIn(),
                 exit = fadeOut(),
                 modifier = Modifier.align(Alignment.BottomCenter)
@@ -451,7 +515,52 @@ fun VideoCallScreen(
                     onToggleVideo = { viewModel.toggleVideo() },
                     onToggleSpeaker = { viewModel.toggleSpeaker() },
                     onSwitchCamera = { viewModel.switchCamera() },
+                    onToggleScreenShare = {
+                        if (state.isScreenSharing) {
+                            viewModel.stopScreenSharing()
+                        } else {
+                            // Request screen capture permission
+                            val mediaProjectionManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                            screenCaptureLauncher.launch(mediaProjectionManager.createScreenCaptureIntent())
+                        }
+                    },
+                    onToggleBackgroundBlur = { viewModel.toggleBackgroundBlur() },
+                    onToggleChat = { viewModel.toggleChatPanel() },
                     onEndCall = { viewModel.endCall(); onBack() }
+                )
+            }
+            
+            // In-call chat panel (slide from right)
+            AnimatedVisibility(
+                visible = !isInPipMode && state.isChatPanelOpen && state.phase == CallPhase.InCall,
+                enter = slideInHorizontally(initialOffsetX = { it }),
+                exit = slideOutHorizontally(targetOffsetX = { it }),
+                modifier = Modifier.align(Alignment.CenterEnd)
+            ) {
+                InCallChatPanel(
+                    messages = state.chatMessages,
+                    onSendMessage = { viewModel.sendChatMessage(it) },
+                    onClose = { viewModel.toggleChatPanel() },
+                    modifier = Modifier
+                        .fillMaxWidth(0.85f)
+                        .padding(end = 8.dp, top = 60.dp, bottom = 100.dp)
+                )
+            }
+            
+            // Hint to show controls when hidden (hide in PiP)
+            AnimatedVisibility(
+                visible = !isInPipMode && !controlsVisible && state.phase == CallPhase.InCall,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 48.dp)
+            ) {
+                Text(
+                    text = "Tap to show controls",
+                    color = Color.White.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center
                 )
             }
         }
@@ -466,41 +575,78 @@ private fun CallControls(
     onToggleVideo: () -> Unit,
     onToggleSpeaker: () -> Unit,
     onSwitchCamera: () -> Unit,
+    onToggleScreenShare: () -> Unit,
+    onToggleBackgroundBlur: () -> Unit,
+    onToggleChat: () -> Unit,
     onEndCall: () -> Unit
 ) {
-    Row(
-        modifier = modifier
-            .padding(bottom = 32.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        modifier = modifier.padding(bottom = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        ControlButton(
-            icon = if (state.isAudioEnabled) Icons.Default.Mic else Icons.Default.MicOff,
-            contentDescription = "Toggle mic",
-            onClick = onToggleAudio
-        )
-        ControlButton(
-            icon = if (state.isVideoEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
-            contentDescription = "Toggle camera",
-            onClick = onToggleVideo
-        )
-        ControlButton(
-            icon = Icons.Default.Cameraswitch,
-            contentDescription = "Switch camera",
-            onClick = onSwitchCamera
-        )
-        ControlButton(
-            icon = if (state.isSpeakerEnabled) Icons.AutoMirrored.Filled.VolumeUp else Icons.Default.PhoneInTalk,
-            contentDescription = if (state.isSpeakerEnabled) "Speaker" else "Earpiece",
-            onClick = onToggleSpeaker
-        )
-        ControlButton(
-            icon = Icons.Default.CallEnd,
-            contentDescription = "End call",
-            onClick = onEndCall,
-            background = Color(0xFFDC2626),
-            useGlass = false
-        )
+        // Top row - Video effects and chat
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ControlButton(
+                icon = Icons.Default.Cameraswitch,
+                contentDescription = "Switch camera",
+                onClick = onSwitchCamera,
+                size = 44.dp
+            )
+            ControlButton(
+                icon = if (state.isScreenSharing) Icons.Default.StopScreenShare else Icons.Default.ScreenShare,
+                contentDescription = if (state.isScreenSharing) "Stop screen share" else "Share screen",
+                onClick = onToggleScreenShare,
+                background = if (state.isScreenSharing) Color(0xFF2563EB) else null,
+                size = 44.dp
+            )
+            ControlButton(
+                icon = if (state.isBackgroundBlurEnabled) Icons.Default.BlurOn else Icons.Default.BlurOff,
+                contentDescription = if (state.isBackgroundBlurEnabled) "Blur on" else "Blur off",
+                onClick = onToggleBackgroundBlur,
+                background = if (state.isBackgroundBlurEnabled) Color(0xFF7C3AED) else null,
+                size = 44.dp
+            )
+            // Chat button with badge
+            ChatControlButton(
+                unreadCount = state.unreadChatCount,
+                isChatOpen = state.isChatPanelOpen,
+                onClick = onToggleChat,
+                size = 44.dp
+            )
+        }
+        
+        // Bottom row - Main controls
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ControlButton(
+                icon = if (state.isAudioEnabled) Icons.Default.Mic else Icons.Default.MicOff,
+                contentDescription = "Toggle mic",
+                onClick = onToggleAudio
+            )
+            ControlButton(
+                icon = if (state.isVideoEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
+                contentDescription = "Toggle camera",
+                onClick = onToggleVideo
+            )
+            ControlButton(
+                icon = if (state.isSpeakerEnabled) Icons.AutoMirrored.Filled.VolumeUp else Icons.Default.PhoneInTalk,
+                contentDescription = if (state.isSpeakerEnabled) "Speaker" else "Earpiece",
+                onClick = onToggleSpeaker
+            )
+            ControlButton(
+                icon = Icons.Default.CallEnd,
+                contentDescription = "End call",
+                onClick = onEndCall,
+                background = Color(0xFFDC2626),
+                useGlass = false
+            )
+        }
     }
 }
 
@@ -542,25 +688,32 @@ private fun ControlButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
-    background: Color = Color.Transparent,
-    useGlass: Boolean = true
+    background: Color? = null,
+    useGlass: Boolean = true,
+    size: androidx.compose.ui.unit.Dp = 52.dp
 ) {
+    val hasBackground = background != null
     val modifier = Modifier
-        .size(52.dp)
+        .size(size)
         .clip(CircleShape)
         .then(
-            if (useGlass) {
-                Modifier.liquidGlassStrong(radius = 26.dp, alpha = 0.25f)
-            } else {
-                Modifier.background(background)
+            when {
+                hasBackground -> Modifier.background(background!!)
+                useGlass -> Modifier.liquidGlassStrong(radius = size / 2, alpha = 0.25f)
+                else -> Modifier
             }
         )
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
-        IconButton(onClick = onClick, modifier = Modifier.size(52.dp)) {
-            Icon(icon, contentDescription = contentDescription, tint = Color.White)
+        IconButton(onClick = onClick, modifier = Modifier.size(size)) {
+            Icon(
+                icon, 
+                contentDescription = contentDescription, 
+                tint = Color.White,
+                modifier = Modifier.size(size * 0.46f)
+            )
         }
     }
 }
@@ -826,6 +979,216 @@ private fun TimeWarningDialog(
                     onClick = onDismiss,
                     useGlass = false,
                     modifier = Modifier.width(120.dp)
+                )
+            }
+        }
+    }
+}
+
+// ============== IN-CALL CHAT COMPONENTS ==============
+
+@Composable
+private fun ChatControlButton(
+    unreadCount: Int,
+    isChatOpen: Boolean,
+    onClick: () -> Unit,
+    size: androidx.compose.ui.unit.Dp = 52.dp
+) {
+    Box {
+        ControlButton(
+            icon = Icons.Default.Chat,
+            contentDescription = "Toggle chat",
+            onClick = onClick,
+            background = if (isChatOpen) Color(0xFF059669) else null,
+            size = size
+        )
+        
+        // Badge for unread messages
+        if (unreadCount > 0 && !isChatOpen) {
+            Badge(
+                containerColor = Color(0xFFDC2626),
+                contentColor = Color.White,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+            ) {
+                Text(
+                    text = if (unreadCount > 99) "99+" else unreadCount.toString(),
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun InCallChatPanel(
+    messages: List<InCallChatMessage>,
+    onSendMessage: (String) -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var inputText by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
+    
+    // Auto-scroll to bottom when new message arrives
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size - 1)
+        }
+    }
+    
+    Surface(
+        modifier = modifier
+            .liquidGlassStrong(radius = 16.dp, alpha = 0.85f),
+        color = Color.Black.copy(alpha = 0.7f),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Chat",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White
+                )
+                IconButton(onClick = onClose) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Close chat",
+                        tint = Color.White
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Messages list
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (messages.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No messages yet",
+                                color = Color.White.copy(alpha = 0.5f),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                } else {
+                    items(messages) { message ->
+                        ChatMessageBubble(message = message)
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Input field
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TextField(
+                    value = inputText,
+                    onValueChange = { inputText = it },
+                    placeholder = { 
+                        Text("Type a message...", color = Color.White.copy(alpha = 0.5f))
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.White.copy(alpha = 0.1f),
+                        unfocusedContainerColor = Color.White.copy(alpha = 0.1f),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        cursorColor = Color.White,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    ),
+                    shape = RoundedCornerShape(24.dp),
+                    singleLine = true
+                )
+                
+                IconButton(
+                    onClick = {
+                        if (inputText.isNotBlank()) {
+                            onSendMessage(inputText)
+                            inputText = ""
+                        }
+                    },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(if (inputText.isNotBlank()) Color(0xFF2563EB) else Color.White.copy(alpha = 0.2f))
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Send,
+                        contentDescription = "Send",
+                        tint = Color.White
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatMessageBubble(message: InCallChatMessage) {
+    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = if (message.isFromMe) Alignment.End else Alignment.Start
+    ) {
+        Surface(
+            color = if (message.isFromMe) Color(0xFF2563EB) else Color.White.copy(alpha = 0.2f),
+            shape = RoundedCornerShape(
+                topStart = 16.dp,
+                topEnd = 16.dp,
+                bottomStart = if (message.isFromMe) 16.dp else 4.dp,
+                bottomEnd = if (message.isFromMe) 4.dp else 16.dp
+            ),
+            modifier = Modifier
+                .padding(horizontal = 4.dp)
+                .widthIn(max = 250.dp)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                if (!message.isFromMe) {
+                    Text(
+                        text = message.senderName,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                }
+                
+                Text(
+                    text = message.message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White
+                )
+                
+                Text(
+                    text = timeFormat.format(Date(message.timestamp)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier.align(Alignment.End)
                 )
             }
         }

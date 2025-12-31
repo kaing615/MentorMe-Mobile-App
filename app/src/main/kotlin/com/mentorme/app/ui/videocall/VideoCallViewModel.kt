@@ -29,6 +29,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.webrtc.IceCandidate
@@ -51,6 +52,18 @@ enum class NetworkQuality {
     Excellent, Good, Fair, Poor, VeryPoor, Unknown
 }
 
+/**
+ * Represents a chat message in the video call
+ */
+data class InCallChatMessage(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val senderId: String,
+    val senderName: String,
+    val message: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val isFromMe: Boolean = false
+)
+
 data class VideoCallUiState(
     val bookingId: String = "",
     val role: String? = null,
@@ -61,6 +74,8 @@ data class VideoCallUiState(
     val isAudioEnabled: Boolean = true,
     val isVideoEnabled: Boolean = true,
     val isSpeakerEnabled: Boolean = true,
+    val isScreenSharing: Boolean = false,
+    val isBackgroundBlurEnabled: Boolean = false,
     val callDurationSec: Long = 0,
     val errorMessage: String? = null,
     // Network quality
@@ -81,14 +96,19 @@ data class VideoCallUiState(
     val bookingEndTime: Long? = null, // timestamp in millis
     val remainingMinutes: Int? = null,
     val showTimeWarning: Boolean = false,
-    val timeWarningMessage: String? = null
+    val timeWarningMessage: String? = null,
+    // In-call chat
+    val isChatPanelOpen: Boolean = false,
+    val chatMessages: List<InCallChatMessage> = emptyList(),
+    val unreadChatCount: Int = 0
 )
 
 @HiltViewModel
 class VideoCallViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val sessionApiService: SessionApiService,
-    private val socketManager: SocketManager
+    private val socketManager: SocketManager,
+    private val dataStoreManager: com.mentorme.app.core.datastore.DataStoreManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(VideoCallUiState())
@@ -96,6 +116,7 @@ class VideoCallViewModel @Inject constructor(
 
     private var currentBookingId: String? = null
     private var currentRole: String? = null
+    private var currentUserId: String? = null
     private var sessionReady = false
     private var callStarted = false
     private var permissionsGranted = false
@@ -131,6 +152,14 @@ class VideoCallViewModel @Inject constructor(
 
     init {
         observeRealtime()
+        loadCurrentUserId()
+    }
+    
+    private fun loadCurrentUserId() {
+        viewModelScope.launch {
+            currentUserId = dataStoreManager.getUserId().firstOrNull()
+            Log.d("VideoCallVM", "Current userId loaded: $currentUserId")
+        }
     }
 
     fun start(bookingId: String) {
@@ -287,8 +316,162 @@ class VideoCallViewModel @Inject constructor(
     }
 
     fun switchCamera() {
+        // Can't switch camera while screen sharing
+        if (_state.value.isScreenSharing) {
+            _state.update { it.copy(toastMessage = "Stop screen share first") }
+            return
+        }
         webRtcClient.switchCamera()
     }
+    
+    /**
+     * Start screen sharing with the given MediaProjection permission data
+     */
+    fun startScreenSharing(mediaProjectionData: android.content.Intent) {
+        if (_state.value.isScreenSharing) {
+            Log.w("VideoCallVM", "Already screen sharing")
+            return
+        }
+        
+        val success = webRtcClient.startScreenSharing(mediaProjectionData)
+        if (success) {
+            _state.update { it.copy(isScreenSharing = true, toastMessage = "Screen sharing started") }
+            Log.d("VideoCallVM", "Screen sharing started")
+        } else {
+            _state.update { it.copy(toastMessage = "Failed to start screen sharing") }
+            Log.e("VideoCallVM", "Failed to start screen sharing")
+        }
+    }
+    
+    /**
+     * Stop screen sharing and return to camera
+     */
+    fun stopScreenSharing() {
+        if (!_state.value.isScreenSharing) {
+            Log.w("VideoCallVM", "Not screen sharing")
+            return
+        }
+        
+        webRtcClient.stopScreenSharing()
+        _state.update { it.copy(isScreenSharing = false, toastMessage = "Screen sharing stopped") }
+        Log.d("VideoCallVM", "Screen sharing stopped")
+    }
+    
+    /**
+     * Toggle screen sharing state
+     * Note: Starting screen share requires MediaProjection permission, 
+     * so this only handles stopping. Use startScreenSharing() to start.
+     */
+    fun toggleScreenSharing() {
+        if (_state.value.isScreenSharing) {
+            stopScreenSharing()
+        }
+        // Starting requires permission - handled by UI
+    }
+    
+    /**
+     * Toggle background blur effect
+     * Note: This feature requires ML Kit and may impact performance
+     */
+    fun toggleBackgroundBlur() {
+        val next = !_state.value.isBackgroundBlurEnabled
+        _state.update { 
+            it.copy(
+                isBackgroundBlurEnabled = next, 
+                toastMessage = if (next) "Background blur on (Beta)" else "Background blur off"
+            ) 
+        }
+        webRtcClient.setBackgroundBlurEnabled(next)
+        Log.d("VideoCallVM", "Background blur toggled: $next")
+    }
+    
+    // ============== IN-CALL CHAT ==============
+    
+    /**
+     * Toggle chat panel visibility
+     */
+    fun toggleChatPanel() {
+        _state.update { 
+            it.copy(
+                isChatPanelOpen = !it.isChatPanelOpen,
+                // Clear unread count when opening chat
+                unreadChatCount = if (!it.isChatPanelOpen) 0 else it.unreadChatCount
+            ) 
+        }
+    }
+    
+    /**
+     * Send a chat message to the peer
+     */
+    fun sendChatMessage(message: String) {
+        val trimmedMessage = message.trim()
+        if (trimmedMessage.isEmpty()) return
+        
+        val bookingId = currentBookingId ?: return
+        val userId = currentUserId ?: "unknown"
+        val userName = _state.value.role ?: "User"
+        
+        // Create local message
+        val chatMessage = InCallChatMessage(
+            senderId = userId,
+            senderName = userName,
+            message = trimmedMessage,
+            isFromMe = true
+        )
+        
+        // Add to local state immediately
+        _state.update { it.copy(chatMessages = it.chatMessages + chatMessage) }
+        
+        // Emit to socket
+        socketManager.emit("session:chat", mapOf(
+            "bookingId" to bookingId,
+            "message" to trimmedMessage,
+            "senderId" to userId,
+            "senderName" to userName,
+            "timestamp" to chatMessage.timestamp
+        ))
+        
+        Log.d("VideoCallVM", "Chat message sent: $trimmedMessage")
+    }
+    
+    /**
+     * Handle incoming chat message from peer
+     */
+    private fun handleIncomingChatMessage(senderId: String, senderName: String, message: String, timestamp: Long) {
+        val userId = currentUserId ?: "unknown"
+        
+        Log.d("VideoCallVM", "handleIncomingChatMessage - senderId: $senderId, userId: $userId, message: $message")
+        
+        // Don't add our own messages (they're already added when sent)
+        if (senderId == userId) {
+            Log.d("VideoCallVM", "handleIncomingChatMessage - ignoring own message")
+            return
+        }
+        
+        val chatMessage = InCallChatMessage(
+            senderId = senderId,
+            senderName = senderName,
+            message = message,
+            timestamp = timestamp,
+            isFromMe = false
+        )
+        
+        val currentState = _state.value
+        val newUnreadCount = if (!currentState.isChatPanelOpen) currentState.unreadChatCount + 1 else currentState.unreadChatCount
+        
+        Log.d("VideoCallVM", "handleIncomingChatMessage - isChatPanelOpen: ${currentState.isChatPanelOpen}, newUnreadCount: $newUnreadCount")
+        
+        _state.update { 
+            it.copy(
+                chatMessages = it.chatMessages + chatMessage,
+                unreadChatCount = newUnreadCount
+            ) 
+        }
+        
+        Log.d("VideoCallVM", "Chat message added. Total messages: ${_state.value.chatMessages.size}, unread: ${_state.value.unreadChatCount}")
+    }
+    
+    // ============== END IN-CALL CHAT ==============
     
     fun clearToast() {
         _state.update { it.copy(toastMessage = null) }
@@ -354,10 +537,26 @@ class VideoCallViewModel @Inject constructor(
                     is RealtimeEvent.SignalIceReceived -> handleSignalIce(event.payload)
                     is RealtimeEvent.SessionStatusChanged -> handleSessionStatus(event.payload)
                     is RealtimeEvent.SessionMediaStateChanged -> handleMediaStateChanged(event.payload)
+                    is RealtimeEvent.SessionChatReceived -> handleSessionChat(event)
                     else -> Unit
                 }
             }
         }
+    }
+    
+    private fun handleSessionChat(event: RealtimeEvent.SessionChatReceived) {
+        Log.d("VideoCallVM", "handleSessionChat - event bookingId: ${event.bookingId}, currentBookingId: $currentBookingId")
+        if (event.bookingId != currentBookingId) {
+            Log.w("VideoCallVM", "handleSessionChat - bookingId mismatch, ignoring")
+            return
+        }
+        Log.d("VideoCallVM", "handleSessionChat - processing message from ${event.senderName}: ${event.message}")
+        handleIncomingChatMessage(
+            senderId = event.senderId,
+            senderName = event.senderName,
+            message = event.message,
+            timestamp = event.timestamp
+        )
     }
     
     private fun handleMediaStateChanged(payload: SessionMediaStatePayload) {

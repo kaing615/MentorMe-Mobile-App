@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccessTime
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.EventBusy
 import androidx.compose.material.icons.outlined.Message
@@ -81,6 +82,16 @@ internal fun notificationTypeStyle(type: NotificationType): NotificationTypeStyl
             Color(0xFF60A5FA),
             R.string.notification_type_message
         )
+        NotificationType.TOPUP_SUCCESS -> NotificationTypeStyle(
+            Icons.Outlined.AccountBalanceWallet,
+            Color(0xFF22C55E),
+            R.string.notification_type_topup_success
+        )
+        NotificationType.TOPUP_REJECTED -> NotificationTypeStyle(
+            Icons.Outlined.EventBusy,
+            Color(0xFFF87171),
+            R.string.notification_type_topup_rejected
+        )
         NotificationType.SYSTEM -> NotificationTypeStyle(
             Icons.Outlined.Notifications,
             Color(0xFFA78BFA),
@@ -119,6 +130,8 @@ internal fun isBookingNotification(type: NotificationType): Boolean {
         NotificationType.PAYMENT_SUCCESS,
         NotificationType.PAYMENT_FAILED,
         NotificationType.MESSAGE,
+        NotificationType.TOPUP_SUCCESS,
+        NotificationType.TOPUP_REJECTED,
         NotificationType.SYSTEM -> false
     }
 }

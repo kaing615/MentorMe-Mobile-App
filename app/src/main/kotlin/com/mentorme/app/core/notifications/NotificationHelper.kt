@@ -1,5 +1,6 @@
 package com.mentorme.app.core.notifications
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -7,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -52,6 +54,7 @@ object NotificationHelper {
         channels.forEach { manager.createNotificationChannel(it) }
     }
 
+    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
     fun showNotification(
         context: Context,
         title: String,
@@ -98,6 +101,8 @@ object NotificationHelper {
             NotificationType.BOOKING_FAILED,
             NotificationType.PAYMENT_SUCCESS,
             NotificationType.PAYMENT_FAILED -> CHANNEL_BOOKING
+            NotificationType.TOPUP_SUCCESS,
+            NotificationType.TOPUP_REJECTED,
             NotificationType.SYSTEM -> CHANNEL_GENERAL
         }
     }

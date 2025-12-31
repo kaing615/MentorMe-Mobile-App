@@ -32,6 +32,28 @@ data class WalletTransactionDto(
     @SerializedName("updatedAt") val updatedAt: String
 )
 
+data class TopUpIntentDto(
+    val id: String,
+    val amount: Long,
+    val currency: String,
+    val note: String?,
+    val qrImageUrl: String?,
+    val referenceCode: String?,
+    val status: String?,
+    val createdAt: String?
+)
+
+data class ConfirmResultDto(val id: String?, val status: String?)
+
+data class TopUpIntentListDto(
+    val items: List<TopUpIntentDto>
+)
+
+data class CreateTopUpIntentRequest(
+    val amount: Long,
+    val currency: String
+)
+
 // Request / Response for topup
 data class TopupRequest(
     val amount: Long,

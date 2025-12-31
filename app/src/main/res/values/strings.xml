@@ -145,5 +145,7 @@
     <string name="notification_status_unread">Chưa đọc</string>
     <string name="notification_just_now">Vừa xong</string>
     <string name="action_back">Quay lại</string>
+    <string name="notification_type_topup_success">Nạp tiền</string>
+    <string name="notification_type_topup_rejected">Nạp tiền không thành công</string>
 </resources>
 

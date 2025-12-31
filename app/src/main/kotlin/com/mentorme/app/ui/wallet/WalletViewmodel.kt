@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.android.identity.util.UUID
 import com.mentorme.app.data.dto.paymentMethods.AddPaymentMethodRequest
 import com.mentorme.app.data.dto.paymentMethods.UpdatePaymentMethodRequest
+import com.mentorme.app.data.dto.wallet.TopUpIntentDto
 import com.mentorme.app.data.dto.wallet.WalletDto
 import com.mentorme.app.data.repository.wallet.WalletRepository
+import com.mentorme.app.data.repository.wallet.WalletRepositoryInterface
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +18,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlinx.coroutines.flow.update
+import com.mentorme.app.core.realtime.RealtimeEvent
+import com.mentorme.app.core.realtime.RealtimeEventBus
+import com.mentorme.app.data.model.NotificationType
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 
 sealed class WalletUiState {
     object Loading : WalletUiState()
@@ -25,8 +34,20 @@ sealed class WalletUiState {
 
 @HiltViewModel
 class WalletViewModel @Inject constructor(
-    private val repo: WalletRepository
+    private val repo: WalletRepository,
+    private val repoInterface: WalletRepositoryInterface
 ) : ViewModel() {
+
+    init {
+        RealtimeEventBus.events
+            .filterIsInstance<RealtimeEvent.NotificationReceived>()
+            .filter { it.notification.type == NotificationType.TOPUP_SUCCESS }
+            .onEach {
+                loadWallet()
+                _topUpEvents.emit(TopUpEvent.Approved)
+            }
+            .launchIn(viewModelScope)
+    }
 
     private val _uiState = MutableStateFlow<WalletUiState>(WalletUiState.Loading)
     val uiState: StateFlow<WalletUiState> = _uiState
@@ -34,11 +55,15 @@ class WalletViewModel @Inject constructor(
     private val _topUpEvents = MutableSharedFlow<TopUpEvent>(replay = 1)
     val topUpEvents = _topUpEvents
 
+    private val _topUpMethod = MutableStateFlow(TopUpMethod.MoMo)
+    val topUpMethod = _topUpMethod.asStateFlow()
+
     private val _withdrawEvents = MutableSharedFlow<WithdrawEvent>(replay = 1)
     val withdrawEvents = _withdrawEvents
 
     sealed class TopUpEvent {
-        object Success : TopUpEvent()
+        object Submitted : TopUpEvent()
+        object Approved : TopUpEvent()
         data class Error(val message: String?) : TopUpEvent()
     }
 
@@ -49,6 +74,10 @@ class WalletViewModel @Inject constructor(
 
     private val _paymentMethods = MutableStateFlow<List<PaymentMethod>>(emptyList())
     val paymentMethods = _paymentMethods.asStateFlow()
+
+    fun setTopUpMethod(method: TopUpMethod) {
+        _topUpMethod.value = method
+    }
 
     fun ensureLoaded() {
         if (_uiState.value is WalletUiState.Loading) {
@@ -70,25 +99,43 @@ class WalletViewModel @Inject constructor(
         }
     }
 
-    fun topUp(amountMinor: Long) {
+    private val _topUpIntent = MutableStateFlow<TopUpIntentDto?>(null)
+    val topUpIntent = _topUpIntent.asStateFlow()
+
+    fun startTopUp(amountMinor: Long) {
         viewModelScope.launch {
             try {
-                // 1) Gọi API nạp
-                repo.mockTopup(
+                val intent = repoInterface.createTopUpIntent(
                     amount = amountMinor,
-                    currency = "VND",
-                    clientRequestId = UUID.randomUUID().toString()
+                    currency = "VND"
                 )
-
-                val (wallet, txs) = repo.getMyWalletWithTransactions()
-                _uiState.value = WalletUiState.Success(wallet.copy(transactions = txs))
-
-                // 4) Emit event để UI show snackbar / navigation
-                _topUpEvents.emit(TopUpEvent.Success)
+                _topUpIntent.value = intent
             } catch (e: Exception) {
                 _topUpEvents.emit(TopUpEvent.Error(e.message))
             }
         }
+    }
+
+    fun confirmTransferred() {
+        viewModelScope.launch {
+            try {
+                repoInterface.confirmTopUpTransfer(requireNotNull(_topUpIntent.value).id)
+                _topUpEvents.emit(TopUpEvent.Submitted)
+                _topUpIntent.value = null
+            } catch (e: Exception) {
+                _topUpEvents.emit(TopUpEvent.Error(e.message))
+            }
+        }
+    }
+
+    fun clearTopUpIntent() {
+        _topUpIntent.value = null
+    }
+
+    fun loadMyTopUpIntents() = viewModelScope.launch {
+        try {
+            val list = repoInterface.getMyPendingTopUps()
+        } catch (e: Exception) { null }
     }
 
     fun withdraw(amountMinor: Long, paymentMethodId: String?) {

@@ -11,6 +11,7 @@ import com.mentorme.app.data.dto.wallet.WalletDto
 import com.mentorme.app.data.dto.wallet.WalletTransactionDto
 import com.mentorme.app.data.mapper.toDomain
 import com.mentorme.app.data.remote.WalletApi
+import com.mentorme.app.data.dto.wallet.TopUpIntentDto
 import com.mentorme.app.ui.profile.WalletTx
 import com.mentorme.app.data.mapper.toUi
 import com.mentorme.app.data.remote.PaymentMethodApi

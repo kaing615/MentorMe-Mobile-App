@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.mentorme.app.core.realtime.RealtimeEvent
 import com.mentorme.app.core.realtime.RealtimeEventBus
 import com.mentorme.app.core.realtime.SocketManager
+import com.mentorme.app.core.utils.AppResult
 import com.mentorme.app.core.webrtc.IceServerProvider
 import com.mentorme.app.core.webrtc.WebRtcClient
 import com.mentorme.app.data.dto.availability.ApiEnvelope
@@ -20,10 +21,16 @@ import com.mentorme.app.data.mapper.SessionReadyPayload
 import com.mentorme.app.data.mapper.SessionSignalPayload
 import com.mentorme.app.data.mapper.SessionStatusPayload
 import com.mentorme.app.data.mapper.SessionWaitingPayload
+import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.network.api.session.SessionApiService
+import com.mentorme.app.data.repository.BookingRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -107,6 +114,7 @@ data class VideoCallUiState(
 class VideoCallViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val sessionApiService: SessionApiService,
+    private val bookingRepository: BookingRepository,
     private val socketManager: SocketManager,
     private val dataStoreManager: com.mentorme.app.core.datastore.DataStoreManager
 ) : ViewModel() {
@@ -195,6 +203,7 @@ class VideoCallViewModel @Inject constructor(
         resetReconnectState()
         currentBookingId = bookingId
         _state.update { it.copy(bookingId = bookingId, phase = CallPhase.Joining, errorMessage = null) }
+        loadBookingEndTime(bookingId)
 
         viewModelScope.launch {
             try {
@@ -209,15 +218,6 @@ class VideoCallViewModel @Inject constructor(
                 val token = data?.token
                 if (envelope?.success == true && !token.isNullOrBlank()) {
                     currentRole = data.role
-                    
-                    // Parse booking end time from expiresAt (if available)
-                    // Assuming expiresAt is ISO timestamp, parse and add grace period
-                    val bookingEnd = data.expiresAt?.let { parseIsoTimestamp(it) }
-                    bookingEnd?.let {
-                        val endWithGrace = it + (10 * 60 * 1000) // +10 minutes grace period
-                        _state.update { state -> state.copy(bookingEndTime = endWithGrace) }
-                        startTimeCheckJob()
-                    }
                     
                     _state.update { it.copy(role = data.role) }
                     Log.d("VideoCallVM", "Got join token for role: ${data.role}, emitting session:join")
@@ -1034,6 +1034,7 @@ class VideoCallViewModel @Inject constructor(
         }
         
         startCallTimer()
+        maybeStartTimeCheckJob()
     }
 
     private fun startCallTimer() {
@@ -1174,16 +1175,50 @@ class VideoCallViewModel @Inject constructor(
         }
     }
     
-    private fun parseIsoTimestamp(iso: String): Long? {
-        return try {
-            // Assuming ISO 8601 format like "2025-12-31T10:30:00.000Z"
-            val formatter = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
-            formatter.timeZone = java.util.TimeZone.getTimeZone("UTC")
-            formatter.parse(iso)?.time
-        } catch (e: Exception) {
-            android.util.Log.e("VideoCallVM", "Failed to parse timestamp: $iso", e)
-            null
+    private fun maybeStartTimeCheckJob() {
+        if (timeCheckJob != null) return
+        if (_state.value.phase != CallPhase.InCall) return
+        if (_state.value.bookingEndTime == null) return
+        startTimeCheckJob()
+    }
+
+    private fun loadBookingEndTime(bookingId: String) {
+        if (_state.value.bookingEndTime != null) return
+        viewModelScope.launch {
+            when (val result = bookingRepository.getBookingById(bookingId)) {
+                is AppResult.Success -> {
+                    if (bookingId != currentBookingId) return@launch
+                    val endTimeMs = parseBookingEndTimeMs(result.data)
+                    if (endTimeMs != null) {
+                        _state.update { it.copy(bookingEndTime = endTimeMs) }
+                        maybeStartTimeCheckJob()
+                    } else {
+                        Log.w("VideoCallVM", "Unable to parse booking end time for bookingId=$bookingId")
+                    }
+                }
+                is AppResult.Error -> {
+                    Log.w("VideoCallVM", "Failed to load booking end time: ${result.throwable}")
+                }
+                AppResult.Loading -> Unit
+            }
         }
+    }
+
+    private fun parseBookingEndTimeMs(booking: Booking): Long? {
+        val endIso = booking.endTimeIso?.trim().orEmpty()
+        if (endIso.isNotEmpty()) {
+            val instant = runCatching { Instant.parse(endIso) }.getOrNull()
+            if (instant != null) return instant.toEpochMilli()
+            val offsetInstant = runCatching { OffsetDateTime.parse(endIso).toInstant() }.getOrNull()
+            if (offsetInstant != null) return offsetInstant.toEpochMilli()
+        }
+        val localEnd = "${booking.date}T${booking.endTime}:00"
+        return runCatching {
+            LocalDateTime.parse(localEnd)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+        }.getOrNull()
     }
 
     private fun startQosReporting() {

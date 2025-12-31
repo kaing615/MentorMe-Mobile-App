@@ -83,6 +83,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.animation.core.Animatable
@@ -114,6 +115,12 @@ import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.launch
 
+// Companion object for synchronous state that lifecycle observer can read immediately
+private object VideoCallPipState {
+    @Volatile
+    var isEndingCall: Boolean = false
+}
+
 @Composable
 fun VideoCallScreen(
     bookingId: String,
@@ -129,6 +136,11 @@ fun VideoCallScreen(
     // PiP state
     var isInPipMode by remember { mutableStateOf(false) }
     
+    // Reset static PiP flag when screen starts
+    LaunchedEffect(Unit) {
+        VideoCallPipState.isEndingCall = false
+    }
+    
     // Lock orientation to portrait during call
     DisposableEffect(Unit) {
         val originalOrientation = activity?.requestedOrientation
@@ -140,18 +152,28 @@ fun VideoCallScreen(
     }
     
     // Enter PiP when app goes to background during active call
-    DisposableEffect(lifecycleOwner, state.phase) {
+    val currentPhase by rememberUpdatedState(state.phase)
+    
+    DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_PAUSE -> {
                     viewModel.onAppGoesToBackground()
                     // Enter PiP mode when going to background during call
-                    if (state.phase == CallPhase.InCall && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    // Use static flag to ensure synchronous read
+                    val shouldEnterPip = currentPhase == CallPhase.InCall && 
+                        !VideoCallPipState.isEndingCall && 
+                        activity?.isFinishing != true &&
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                    
+                    android.util.Log.d("VideoCallScreen", "ON_PAUSE: isEndingCall=${VideoCallPipState.isEndingCall}, phase=$currentPhase, shouldEnterPip=$shouldEnterPip")
+                    
+                    if (shouldEnterPip) {
                         activity?.let { act ->
                             if (act.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
                                 try {
                                     val params = PictureInPictureParams.Builder()
-                                        .setAspectRatio(Rational(9, 16)) // Portrait aspect ratio
+                                        .setAspectRatio(Rational(9, 16))
                                         .build()
                                     act.enterPictureInPictureMode(params)
                                     isInPipMode = true
@@ -546,7 +568,13 @@ fun VideoCallScreen(
                     },
                     onToggleBackgroundBlur = { viewModel.toggleBackgroundBlur() },
                     onToggleChat = { viewModel.toggleChatPanel() },
-                    onEndCall = { viewModel.endCall(); onBack() }
+                    onEndCall = { 
+                        // Set static flag BEFORE navigation to ensure lifecycle observer sees it
+                        VideoCallPipState.isEndingCall = true
+                        android.util.Log.d("VideoCallScreen", "End call clicked, VideoCallPipState.isEndingCall = true")
+                        viewModel.endCall()
+                        onBack() 
+                    }
                 )
             }
             

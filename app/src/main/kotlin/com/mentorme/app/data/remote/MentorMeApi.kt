@@ -73,6 +73,15 @@ interface MentorMeApi {
     @GET("mentors/me/stats")
     suspend fun getMentorStats(): Response<ApiEnvelope<com.mentorme.app.data.dto.mentor.MentorStatsDto>>
 
+    @GET("mentors/me/stats/weekly")
+    suspend fun getMentorWeeklyEarnings(): Response<ApiEnvelope<com.mentorme.app.data.dto.mentor.MentorWeeklyEarningsDto>>
+
+    @GET("mentors/me/stats/yearly")
+    suspend fun getMentorYearlyEarnings(): Response<ApiEnvelope<com.mentorme.app.data.dto.mentor.MentorYearlyEarningsDto>>
+
+    @GET("mentors/me/stats/overall")
+    suspend fun getMentorOverallStats(): Response<ApiEnvelope<com.mentorme.app.data.dto.mentor.MentorOverallStatsDto>>
+
 
     // Booking endpoints
     @POST("bookings")

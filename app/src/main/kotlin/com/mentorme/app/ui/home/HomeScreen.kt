@@ -18,7 +18,10 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Timelapse
 import androidx.compose.material.icons.filled.VideoCall
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -181,12 +184,30 @@ fun HomeScreen(
             bottom = 110.dp
         )
     ) {
+        // Welcome Section - "Xin chào, [Tên]"
         item {
-            HeroSection(
-                onSearch = onSearch,
-                onlineCount = uiState.onlineCount,
-                avgRating = uiState.avgRating
-            )
+            MenteeWelcomeSection(menteeName = uiState.userName)
+        }
+
+        // Show upcoming sessions OR HeroSection (not both)
+        if (uiState.upcomingSessions.isNotEmpty()) {
+            // Show upcoming sessions cards
+            item {
+                MenteeUpcomingSessionsSection(
+                    sessions = uiState.upcomingSessions,
+                    onJoinSession = onJoinSession,
+                    onViewCalendar = { /* Navigate to calendar */ }
+                )
+            }
+        } else {
+            // Show HeroSection when no upcoming sessions
+            item {
+                HeroSection(
+                    onSearch = onSearch,
+                    onlineCount = uiState.onlineCount,
+                    avgRating = uiState.avgRating
+                )
+            }
         }
 
         // Show loading state
@@ -523,6 +544,202 @@ private fun SectionTitle(text: String) {
         fontWeight = FontWeight.Bold,
         color = Color.White
     )
+}
+
+@Composable
+private fun MenteeWelcomeSection(menteeName: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Xin chào,",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White.copy(alpha = 0.7f)
+            )
+            Text(
+                text = menteeName,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+/**
+ * Swipeable upcoming sessions for mentee
+ */
+@Composable
+private fun MenteeUpcomingSessionsSection(
+    sessions: List<MenteeUpcomingSessionUi>,
+    onJoinSession: (String) -> Unit,
+    onViewCalendar: () -> Unit
+) {
+    if (sessions.isEmpty()) return
+
+    val pagerState = rememberPagerState(pageCount = { sessions.size })
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SectionTitle("Lịch hẹn sắp tới")
+            if (sessions.size > 1) {
+                Text(
+                    "${sessions.size} phiên",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(0.6f)
+                )
+            }
+        }
+
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxWidth(),
+            pageSpacing = 16.dp,
+            contentPadding = PaddingValues(horizontal = 0.dp)
+        ) { page ->
+            val session = sessions[page]
+            MenteeSessionCard(
+                session = session,
+                onJoin = { onJoinSession(session.id) },
+                onViewCalendar = onViewCalendar
+            )
+        }
+
+        // Page indicator dots
+        if (sessions.size > 1) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                sessions.forEachIndexed { index, _ ->
+                    val isSelected = pagerState.currentPage == index
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp)
+                            .size(if (isSelected) 10.dp else 8.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isSelected) Color(0xFF60A5FA)
+                                else Color.White.copy(0.3f)
+                            )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MenteeSessionCard(
+    session: MenteeUpcomingSessionUi,
+    onJoin: () -> Unit,
+    onViewCalendar: () -> Unit
+) {
+    LiquidGlassCard(modifier = Modifier.fillMaxWidth(), radius = 24.dp) {
+        Column(Modifier.padding(16.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF60A5FA).copy(0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Videocam, null, tint = Color(0xFF60A5FA), modifier = Modifier.size(16.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = if (session.isStartingSoon) "Đang diễn ra" else "Sắp tới",
+                        color = if (session.isStartingSoon) Color(0xFF60A5FA) else Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Text(session.time, color = Color.White.copy(0.8f), style = MaterialTheme.typography.bodyMedium)
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Avatar
+                Box(
+                    Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!session.avatarUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = session.avatarUrl,
+                            contentDescription = "Avatar of ${session.mentorName}",
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Text(
+                            session.avatarInitial,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+                Spacer(Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        session.mentorName,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        session.topic,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(0.7f),
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                MMButton(
+                    text = "Vào cuộc",
+                    onClick = onJoin,
+                    enabled = session.canJoin,
+                    modifier = Modifier.weight(1f),
+                    leadingIcon = { Icon(Icons.Default.VideoCall, null, Modifier.size(20.dp)) }
+                )
+                com.mentorme.app.ui.components.ui.MMGhostButton(
+                    onClick = onViewCalendar,
+                    modifier = Modifier.weight(1f),
+                    content = { Text("Xem lịch") }
+                )
+            }
+        }
+    }
 }
 
 @Composable

@@ -95,7 +95,7 @@ data class PaymentWebhookRequest(
 )
 
 data class BookingListResponse(
-    @SerializedName("items")  // API returns "items" not "bookings"
+    @SerializedName("bookings")
     val bookings: List<Booking>,
     @SerializedName("total")
     val total: Int = 0,

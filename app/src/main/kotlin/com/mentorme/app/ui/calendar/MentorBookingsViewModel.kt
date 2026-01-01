@@ -63,7 +63,14 @@ class MentorBookingsViewModel @Inject constructor(
             try {
                 val resp = api.getBookings(role = role, page = 1, limit = 50)
                 if (resp.isSuccessful) {
-                    val list = resp.body()?.data?.bookings.orEmpty()
+                    val envelope = resp.body()
+                    Logx.d(TAG) { "🔍 DEBUG: envelope=${envelope != null}" }
+                    val data = envelope?.data
+                    Logx.d(TAG) { "🔍 DEBUG: data=${data != null}" }
+                    val bookingsList = data?.bookings
+                    Logx.d(TAG) { "🔍 DEBUG: bookingsList size=${bookingsList?.size ?: "null"}" }
+                    
+                    val list = bookingsList.orEmpty()
                     _bookings.value = list.map(::normalizeBookingLocalTime)
                     syncPendingPrompts(_bookings.value)
                     Logx.d(TAG) { "refresh success count=${_bookings.value.size}" }

@@ -5,12 +5,14 @@ import com.mentorme.app.core.utils.AppResult
 import com.mentorme.app.data.dto.Message as ApiMessage
 import com.mentorme.app.data.dto.SendMessageRequest
 import com.mentorme.app.data.dto.availability.ApiEnvelope
+import com.mentorme.app.data.dto.home.PresenceLookupRequest
 import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.model.BookingStatus
 import com.mentorme.app.data.model.chat.Conversation
 import com.mentorme.app.data.model.chat.Message
 import com.mentorme.app.data.model.chat.ChatRestrictionInfo
 import com.mentorme.app.data.network.api.chat.ChatApiService
+import com.mentorme.app.data.network.api.home.HomeApiService
 import com.mentorme.app.data.repository.BookingRepository
 import com.mentorme.app.data.repository.chat.ChatRepository
 import java.time.Instant
@@ -24,6 +26,7 @@ import javax.inject.Singleton
 class ChatRepositoryImpl @Inject constructor(
     private val chatApiService: ChatApiService,
     private val bookingRepository: BookingRepository,
+    private val homeApiService: HomeApiService,
     private val dataStoreManager: DataStoreManager
 ) : ChatRepository {
 
@@ -190,6 +193,40 @@ class ChatRepositoryImpl @Inject constructor(
                 AppResult.failure(e.message ?: "Failed to get restriction info")
             }
         }
+
+    override suspend fun getOnlinePeerIds(peerIds: List<String>): AppResult<Set<String>> =
+        withContext(Dispatchers.IO) {
+            try {
+                val normalized = peerIds
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .take(200)
+
+                if (normalized.isEmpty()) {
+                    return@withContext AppResult.success(emptySet())
+                }
+
+                val response = homeApiService.lookupPresence(PresenceLookupRequest(userIds = normalized))
+                if (response.isSuccessful) {
+                    val body = response.body()
+                    if (body?.success == true) {
+                        val online = body.data?.onlineUserIds
+                            ?.map { it.trim() }
+                            ?.filter { it.isNotBlank() }
+                            ?.toSet()
+                            ?: emptySet()
+                        AppResult.success(online)
+                    } else {
+                        AppResult.failure("Invalid presence response")
+                    }
+                } else {
+                    AppResult.failure("HTTP ${response.code()}: ${response.message()}")
+                }
+            } catch (e: Exception) {
+                AppResult.failure(e.message ?: "Failed to lookup presence")
+            }
+        }
 }
 
 private fun ApiMessage.toChatMessage(currentUserId: String?): Message? {
@@ -228,6 +265,7 @@ private fun toConversation(booking: Booking, currentUserId: String?, allBookings
     val startIso = sessionBooking?.startTimeIso ?: booking.startTimeIso ?: booking.createdAt
     val endIso = sessionBooking?.endTimeIso
     val hasActive = activeBooking != null
+    val activeBookingId = activeBooking?.id
     val hasUpcoming = upcomingBooking != null && !hasActive
     val nextSessionIso = if (hasUpcoming) upcomingBooking?.startTimeIso else null
 
@@ -246,6 +284,7 @@ private fun toConversation(booking: Booking, currentUserId: String?, allBookings
         lastMessageTimeIso = startIso,
         unreadCount = 0,
         hasActiveSession = hasActive,
+        activeSessionBookingId = activeBookingId,
         nextSessionDateTimeIso = nextSessionIso,
         nextSessionStartIso = if (hasUpcoming) upcomingBooking?.startTimeIso else null,
         nextSessionEndIso = if (hasUpcoming) upcomingBooking?.endTimeIso else null,

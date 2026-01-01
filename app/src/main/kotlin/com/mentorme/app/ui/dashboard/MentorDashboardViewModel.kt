@@ -28,7 +28,7 @@ import javax.inject.Inject
 sealed class DashboardUiState {
     object Loading : DashboardUiState()
     data class Success(
-        val upcomingSession: UpcomingSessionUi?,
+        val upcomingSessions: List<UpcomingSessionUi>,  // Changed to list for swipeable cards
         val stats: MentorStatsDto,
         val recentReviews: List<ReviewDto>
     ) : DashboardUiState()
@@ -41,6 +41,7 @@ data class UpcomingSessionUi(
     val topic: String,
     val time: String,
     val avatarInitial: String,
+    val avatarUrl: String?,  // Avatar URL for profile image
     val isStartingSoon: Boolean,
     val canJoin: Boolean
 )
@@ -71,12 +72,12 @@ class MentorDashboardViewModel @Inject constructor(
             try {
                 _uiState.value = DashboardUiState.Loading
 
-                // 1. Load upcoming bookings - sử dụng Repository như mentee
-                Logx.d(TAG) { "🔄 Refreshing bookings (mentor role)" }
+                // 1. Load upcoming bookings - lấy TẤT CẢ bookings rồi filter trên client
+                Logx.d(TAG) { "🔄 Refreshing bookings (mentor role) - fetching ALL bookings" }
 
                 val bookingsResult = bookingRepository.getBookings(
                     role = "mentor",
-                    status = "Confirmed",
+                    status = null, // Get ALL bookings, filter on client side
                     page = 1,
                     limit = 50
                 )
@@ -102,13 +103,13 @@ class MentorDashboardViewModel @Inject constructor(
                             }
                         }
 
-                        findNextUpcomingSession(bookings)
+                        findUpcomingSessions(bookings)
                     }
                     is AppResult.Error -> {
                         Logx.e(tag = TAG, message = { "❌ Repository Error: ${bookingsResult.throwable}" })
-                        null
+                        emptyList()
                     }
-                    AppResult.Loading -> null
+                    AppResult.Loading -> emptyList()
                 }
 
                 // 2. Load stats
@@ -146,7 +147,7 @@ class MentorDashboardViewModel @Inject constructor(
                 }
 
                 _uiState.value = DashboardUiState.Success(
-                    upcomingSession = upcomingBooking,
+                    upcomingSessions = upcomingBooking,
                     stats = stats,
                     recentReviews = reviews
                 )
@@ -158,7 +159,10 @@ class MentorDashboardViewModel @Inject constructor(
         }
     }
 
-    private fun findNextUpcomingSession(bookings: List<Booking>): UpcomingSessionUi? {
+    /**
+     * Find all upcoming sessions (max 5) for the swipeable cards
+     */
+    private fun findUpcomingSessions(bookings: List<Booking>): List<UpcomingSessionUi> {
         val now = Instant.now()
         val zoneId = ZoneId.systemDefault()
         val today = LocalDate.now(zoneId)
@@ -190,64 +194,65 @@ class MentorDashboardViewModel @Inject constructor(
                 }
             }
             .sortedWith(compareBy({ it.date }, { it.startTime })) // Sort by date then time
+            .take(5) // Limit to 5 upcoming sessions for swipeable cards
 
         Logx.d(TAG) { "Found ${upcomingBookings.size} upcoming confirmed bookings" }
 
-        val nextBooking = upcomingBookings.firstOrNull()
-        if (nextBooking == null) {
-            Logx.d(TAG) { "No upcoming session found" }
-            return null
+        if (upcomingBookings.isEmpty()) {
+            Logx.d(TAG) { "No upcoming sessions found" }
+            return emptyList()
         }
 
-        Logx.d(TAG) { "Next booking: ${nextBooking.id} at ${nextBooking.date} ${nextBooking.startTime}" }
+        // Map each booking to UpcomingSessionUi
+        return upcomingBookings.mapNotNull { booking ->
+            try {
+                val bookingDate = LocalDate.parse(booking.date)
+                val startTime = LocalTime.parse(booking.startTime, DateTimeFormatter.ofPattern("HH:mm"))
+                val endTime = LocalTime.parse(booking.endTime, DateTimeFormatter.ofPattern("HH:mm"))
+                val bookingDateTime = bookingDate.atTime(startTime).atZone(zoneId).toInstant()
 
-        // Parse booking time
-        val bookingDate = LocalDate.parse(nextBooking.date)
-        val startTime = LocalTime.parse(nextBooking.startTime, DateTimeFormatter.ofPattern("HH:mm"))
-        val endTime = LocalTime.parse(nextBooking.endTime, DateTimeFormatter.ofPattern("HH:mm"))
-        val bookingDateTime = bookingDate.atTime(startTime).atZone(zoneId).toInstant()
+                // Format time display
+                val timeDisplay = when {
+                    bookingDate == today -> {
+                        val formatter = DateTimeFormatter.ofPattern("HH:mm")
+                        "${startTime.format(formatter)} - ${endTime.format(formatter)} hôm nay"
+                    }
+                    bookingDate == today.plusDays(1) -> {
+                        val formatter = DateTimeFormatter.ofPattern("HH:mm")
+                        "${startTime.format(formatter)} - ${endTime.format(formatter)} ngày mai"
+                    }
+                    else -> {
+                        val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+                        val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+                        "${timeFormatter.format(startTime)} - ${timeFormatter.format(endTime)}, ${dateFormatter.format(bookingDate)}"
+                    }
+                }
 
-        // Format time display theo yêu cầu
-        val timeDisplay = when {
-            bookingDate == today -> {
-                val formatter = DateTimeFormatter.ofPattern("HH:mm")
-                "${startTime.format(formatter)} - ${endTime.format(formatter)} hôm nay"
-            }
-            bookingDate == today.plusDays(1) -> {
-                val formatter = DateTimeFormatter.ofPattern("HH:mm")
-                "${startTime.format(formatter)} - ${endTime.format(formatter)} ngày mai"
-            }
-            else -> {
-                val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
-                val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-                "${timeFormatter.format(startTime)} - ${timeFormatter.format(endTime)}, ${dateFormatter.format(bookingDate)}"
+                // Check if can join: trong khoảng 20 phút trước đến 1 giờ sau giờ bắt đầu
+                val canJoin = now.isAfter(bookingDateTime.minus(java.time.Duration.ofMinutes(20)))
+                    && now.isBefore(bookingDateTime.plus(java.time.Duration.ofHours(1)))
+
+                // Check if starting soon: trong vòng 30 phút tới
+                val isStartingSoon = now.isAfter(bookingDateTime.minus(java.time.Duration.ofMinutes(30)))
+                    && now.isBefore(bookingDateTime.plus(java.time.Duration.ofHours(1)))
+
+                // Use mapper to get correct mentee name and avatar
+                val mappedUi = booking.toMentorUpcomingUi()
+
+                UpcomingSessionUi(
+                    id = booking.id,
+                    menteeName = mappedUi.menteeName,
+                    topic = booking.topic ?: "Buổi tư vấn",
+                    time = timeDisplay,
+                    avatarInitial = mappedUi.avatarInitial,
+                    avatarUrl = mappedUi.avatarUrl,
+                    isStartingSoon = isStartingSoon,
+                    canJoin = canJoin
+                )
+            } catch (e: Exception) {
+                Logx.e(tag = TAG, message = { "Error mapping booking ${booking.id}: ${e.message}" })
+                null
             }
         }
-
-        // Check if can join: trong khoảng 15 phút trước đến 1 giờ sau giờ bắt đầu
-        val canJoin = now.isAfter(bookingDateTime.minus(java.time.Duration.ofMinutes(15)))
-            && now.isBefore(bookingDateTime.plus(java.time.Duration.ofHours(1)))
-
-        // Check if starting soon: trong vòng 30 phút tới
-        val isStartingSoon = now.isAfter(bookingDateTime.minus(java.time.Duration.ofMinutes(30)))
-            && now.isBefore(bookingDateTime.plus(java.time.Duration.ofHours(1)))
-
-        Logx.d(TAG) { "Session state: canJoin=$canJoin, isStartingSoon=$isStartingSoon" }
-
-        // Use mapper to get correct mentee name and avatar
-        val mappedUi = nextBooking.toMentorUpcomingUi()
-
-        Logx.d(TAG) { "Mapped UI: menteeName=${mappedUi.menteeName}, initial=${mappedUi.avatarInitial}" }
-
-        return UpcomingSessionUi(
-            id = nextBooking.id,
-            menteeName = mappedUi.menteeName,
-            topic = nextBooking.topic ?: "Buổi tư vấn",
-            time = timeDisplay,
-            avatarInitial = mappedUi.avatarInitial,
-            isStartingSoon = isStartingSoon,
-            canJoin = canJoin
-        )
     }
 }
-

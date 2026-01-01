@@ -5,9 +5,11 @@ import com.mentorme.app.data.mapper.NotificationSocketPayload
 import com.mentorme.app.data.mapper.SessionAdmittedPayload
 import com.mentorme.app.data.mapper.SessionEndedPayload
 import com.mentorme.app.data.mapper.SessionJoinedPayload
+import com.mentorme.app.data.mapper.SessionMediaStatePayload
 import com.mentorme.app.data.mapper.SessionParticipantPayload
 import com.mentorme.app.data.mapper.SessionReadyPayload
 import com.mentorme.app.data.mapper.SessionSignalPayload
+import com.mentorme.app.data.mapper.SessionStatusPayload
 import com.mentorme.app.data.mapper.SessionWaitingPayload
 import com.mentorme.app.data.model.NotificationItem
 
@@ -63,8 +65,35 @@ sealed class RealtimeEvent {
         val payload: SessionSignalPayload
     ) : RealtimeEvent()
     
+    data class SessionStatusChanged(
+        val payload: SessionStatusPayload
+    ) : RealtimeEvent()
+    
+    data class SessionMediaStateChanged(
+        val payload: SessionMediaStatePayload
+    ) : RealtimeEvent()
+    
     data class UserOnlineStatusChanged(
         val userId: String,
         val isOnline: Boolean
+    ) : RealtimeEvent()
+    
+    /**
+     * Typing indicator from peer in chat
+     */
+    data class ChatTypingIndicator(
+        val userId: String,
+        val isTyping: Boolean
+    ) : RealtimeEvent()
+    
+    /**
+     * In-call chat message received during video call session
+     */
+    data class SessionChatReceived(
+        val bookingId: String,
+        val senderId: String,
+        val senderName: String,
+        val message: String,
+        val timestamp: Long
     ) : RealtimeEvent()
 }

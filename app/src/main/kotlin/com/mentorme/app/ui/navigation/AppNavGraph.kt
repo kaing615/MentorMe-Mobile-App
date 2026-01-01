@@ -231,6 +231,12 @@ internal fun AppNavGraph(
                             launchSingleTop = true
                         }
                     },
+                    onNavigateToSchedule = {
+                        // ✅ Navigate to mentee calendar/schedule
+                        nav.navigate(Routes.calendar("upcoming")) {
+                            launchSingleTop = true
+                        }
+                    },
                     onJoinSession = { bookingId ->
                         nav.navigate(Routes.videoCall(bookingId)) {
                             launchSingleTop = true
@@ -569,8 +575,8 @@ internal fun AppNavGraph(
                 ChatScreen(
                     conversationId = convId,
                     onBack = { nav.popBackStack() },
-                    onJoinSession = {
-                        nav.navigate(Routes.videoCall(convId)) {
+                    onJoinSession = { bookingId ->
+                        nav.navigate(Routes.videoCall(bookingId)) {
                             launchSingleTop = true
                         }
                     },

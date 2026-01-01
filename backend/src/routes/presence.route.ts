@@ -1,6 +1,6 @@
 // filepath: backend/src/routes/presence.route.ts
 import { Router } from "express";
-import { pingPresence } from "../controllers/presence.controller";
+import { getLastSeen, lookupPresence, pingPresence } from "../controllers/presence.controller";
 import { auth } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -32,6 +32,83 @@ const router = Router();
  *                       type: number
  */
 router.post("/ping", auth, pingPresence);
+
+/**
+ * @swagger
+ * /presence/lookup:
+ *   post:
+ *     summary: Lookup online status for users
+ *     tags: [Presence]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               userIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Presence lookup successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     onlineUserIds:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ */
+router.post("/lookup", auth, lookupPresence);
+
+/**
+ * @swagger
+ * /presence/lastSeen:
+ *   post:
+ *     summary: Get last seen time for users
+ *     tags: [Presence]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               userIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Last seen data retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   additionalProperties:
+ *                     type: string
+ *                     nullable: true
+ *                   description: Map of userId to ISO timestamp or null
+ */
+router.post("/lastSeen", auth, getLastSeen);
 
 export default router;
 

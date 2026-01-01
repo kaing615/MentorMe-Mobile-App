@@ -127,6 +127,9 @@ class SocketManager @Inject constructor(
         newSocket.on(EVENT_CHAT_MESSAGE) { args ->
             handleChatMessageEvent(args)
         }
+        newSocket.on(EVENT_CHAT_TYPING) { args ->
+            handleChatTypingEvent(args)
+        }
         newSocket.on(EVENT_SESSION_JOINED) { args ->
             handleSessionJoinedEvent(args)
         }
@@ -156,6 +159,15 @@ class SocketManager @Inject constructor(
         }
         newSocket.on(EVENT_SIGNAL_ICE) { args ->
             handleSignalIceEvent(args)
+        }
+        newSocket.on(EVENT_SESSION_STATUS) { args ->
+            handleSessionStatusEvent(args)
+        }
+        newSocket.on(EVENT_SESSION_MEDIA_STATE) { args ->
+            handleSessionMediaStateEvent(args)
+        }
+        newSocket.on(EVENT_SESSION_CHAT) { args ->
+            handleSessionChatEvent(args)
         }
         newSocket.on(EVENT_USER_ONLINE) { args ->
             handleUserOnlineEvent(args)
@@ -209,6 +221,28 @@ class SocketManager @Inject constructor(
         val raw = args.firstOrNull() ?: return
         val payload = parsePayload(raw, ChatSocketPayload::class.java) ?: return
         RealtimeEventBus.emit(RealtimeEvent.ChatMessageReceived(payload))
+    }
+
+    private fun handleChatTypingEvent(args: Array<Any>) {
+        val raw = args.firstOrNull() ?: return
+        Log.d(TAG, "Received chat:typing event: $raw")
+        try {
+            val json = when (raw) {
+                is JSONObject -> raw
+                is Map<*, *> -> JSONObject(raw as Map<*, *>)
+                is String -> JSONObject(raw)
+                else -> {
+                    Log.w(TAG, "Unknown typing event type: ${raw::class.java}")
+                    return
+                }
+            }
+            val userId = json.optString("userId", null) ?: return
+            val isTyping = json.optBoolean("isTyping", false)
+            Log.d(TAG, "Parsed typing event: userId=$userId, isTyping=$isTyping")
+            RealtimeEventBus.emit(RealtimeEvent.ChatTypingIndicator(userId, isTyping))
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to parse chat typing event", e)
+        }
     }
 
     private fun handleSessionJoinedEvent(args: Array<Any>) {
@@ -291,6 +325,79 @@ class SocketManager @Inject constructor(
             RealtimeEventBus.emit(RealtimeEvent.UserOnlineStatusChanged(userId, false))
         }
     }
+    
+    private fun handleSessionStatusEvent(args: Array<Any>) {
+        val raw = args.firstOrNull() ?: return
+        val payload = parsePayload(raw, com.mentorme.app.data.mapper.SessionStatusPayload::class.java) ?: return
+        Log.d(TAG, "handleSessionStatusEvent - bookingId: ${payload.bookingId}, userId: ${payload.userId}, status: ${payload.status}")
+        RealtimeEventBus.emit(RealtimeEvent.SessionStatusChanged(payload))
+    }
+    
+    private fun handleSessionMediaStateEvent(args: Array<Any>) {
+        val raw = args.firstOrNull() ?: return
+        val payload = parsePayload(raw, com.mentorme.app.data.mapper.SessionMediaStatePayload::class.java) ?: return
+        Log.d(TAG, "handleSessionMediaStateEvent - bookingId: ${payload.bookingId}, audioEnabled: ${payload.audioEnabled}, videoEnabled: ${payload.videoEnabled}")
+        RealtimeEventBus.emit(RealtimeEvent.SessionMediaStateChanged(payload))
+    }
+    
+    private fun handleSessionChatEvent(args: Array<Any>) {
+        val raw = args.firstOrNull() ?: return
+        Log.d(TAG, "handleSessionChatEvent - raw type: ${raw::class.java.simpleName}, raw: $raw")
+        
+        try {
+            var bookingId = ""
+            var senderId = ""
+            var senderName = ""
+            var message = ""
+            var timestamp = System.currentTimeMillis()
+            
+            when (raw) {
+                is JSONObject -> {
+                    bookingId = raw.optString("bookingId", "")
+                    senderId = raw.optString("senderId", "")
+                    senderName = raw.optString("senderName", "")
+                    message = raw.optString("message", "")
+                    timestamp = raw.optLong("timestamp", System.currentTimeMillis())
+                }
+                is Map<*, *> -> {
+                    bookingId = raw["bookingId"]?.toString() ?: ""
+                    senderId = raw["senderId"]?.toString() ?: ""
+                    senderName = raw["senderName"]?.toString() ?: ""
+                    message = raw["message"]?.toString() ?: ""
+                    timestamp = (raw["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis()
+                }
+                is String -> {
+                    val json = JSONObject(raw)
+                    bookingId = json.optString("bookingId", "")
+                    senderId = json.optString("senderId", "")
+                    senderName = json.optString("senderName", "")
+                    message = json.optString("message", "")
+                    timestamp = json.optLong("timestamp", System.currentTimeMillis())
+                }
+                else -> {
+                    Log.w(TAG, "handleSessionChatEvent - unknown raw type: ${raw::class.java}")
+                    return
+                }
+            }
+            
+            Log.d(TAG, "handleSessionChatEvent - parsed: bookingId=$bookingId, senderId=$senderId, senderName=$senderName, message=$message")
+            
+            if (bookingId.isNotEmpty() && message.isNotEmpty()) {
+                Log.d(TAG, "handleSessionChatEvent - emitting RealtimeEvent.SessionChatReceived")
+                RealtimeEventBus.emit(RealtimeEvent.SessionChatReceived(
+                    bookingId = bookingId,
+                    senderId = senderId,
+                    senderName = senderName,
+                    message = message,
+                    timestamp = timestamp
+                ))
+            } else {
+                Log.w(TAG, "handleSessionChatEvent - missing required fields: bookingId=$bookingId, message=$message")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse session chat event: ${e.message}", e)
+        }
+    }
 
     private fun <T> parsePayload(raw: Any, clazz: Class<T>): T? {
         return try {
@@ -310,11 +417,24 @@ class SocketManager @Inject constructor(
         val raw = data?.get("bookingId") ?: data?.get("booking_id")
         return raw?.toString()?.trim().takeIf { !it.isNullOrBlank() }
     }
+    
+    /**
+     * Emit typing indicator to peer
+     */
+    fun emitTypingIndicator(peerId: String, isTyping: Boolean) {
+        val payload = org.json.JSONObject().apply {
+            put("peerId", peerId)
+            put("isTyping", isTyping)
+        }
+        Log.d(TAG, "Emitting chat:typing to peer $peerId, isTyping: $isTyping")
+        socket?.emit("chat:typing", payload)
+    }
 
     companion object {
         private const val TAG = "SocketManager"
         private const val EVENT_NOTIFICATION = "notifications:new"
         private const val EVENT_CHAT_MESSAGE = "chat:message"
+        private const val EVENT_CHAT_TYPING = "chat:typing"
         private const val EVENT_SESSION_JOINED = "session:joined"
         private const val EVENT_SESSION_WAITING = "session:waiting"
         private const val EVENT_SESSION_ADMITTED = "session:admitted"
@@ -327,5 +447,8 @@ class SocketManager @Inject constructor(
         private const val EVENT_SIGNAL_ICE = "signal:ice"
         private const val EVENT_USER_ONLINE = "user:online"
         private const val EVENT_USER_OFFLINE = "user:offline"
+        private const val EVENT_SESSION_STATUS = "session:status"
+        private const val EVENT_SESSION_MEDIA_STATE = "session:media-state"
+        private const val EVENT_SESSION_CHAT = "session:chat"
     }
 }

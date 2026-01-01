@@ -22,6 +22,8 @@ This document describes the realtime signaling flow used by MentorMe.
 - `signal:answer` `{ bookingId, data }`
 - `signal:ice` `{ bookingId, data }`
 - `session:qos` `{ bookingId, stats }`
+- `session:chat` `{ bookingId, message, senderId, senderName, timestamp }`
+- `chat:typing` `{ peerId, isTyping }` — Emit typing indicator to peer
 
 ## Server -> Client events
 
@@ -32,4 +34,6 @@ This document describes the realtime signaling flow used by MentorMe.
 - `session:participant-joined` `{ bookingId, userId, role }`
 - `session:participant-left` `{ bookingId, userId, role }`
 - `session:ended` `{ bookingId, endedBy }`
+- `session:chat` `{ bookingId, senderId, senderName, message, timestamp }`
+- `chat:typing` `{ userId, isTyping }` — Receive typing indicator from peer
 - `signal:*` forwarded to the other peer with `{ bookingId, fromUserId, fromRole, data }`

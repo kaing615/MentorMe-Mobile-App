@@ -1,9 +1,12 @@
 package com.mentorme.app.core.webrtc
 
+import android.app.Activity
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.util.Log
 import org.webrtc.AudioSource
@@ -18,6 +21,7 @@ import org.webrtc.MediaConstraints
 import org.webrtc.PeerConnection
 import org.webrtc.PeerConnectionFactory
 import org.webrtc.RTCStatsReport
+import org.webrtc.RtpSender
 import org.webrtc.RtpTransceiver
 import org.webrtc.SessionDescription
 import org.webrtc.SurfaceTextureHelper
@@ -34,6 +38,7 @@ class WebRtcClient(
         fun onIceCandidate(candidate: IceCandidate)
         fun onConnectionStateChanged(state: PeerConnection.PeerConnectionState)
         fun onRemoteTrack(track: VideoTrack)
+        fun onRenegotiationNeeded() {} // Optional: called when tracks change and renegotiation is needed
     }
 
     private val eglBase: EglBase = EglBase.create()
@@ -43,11 +48,17 @@ class WebRtcClient(
     private var localRenderer: SurfaceViewRenderer? = null
     private var remoteRenderer: SurfaceViewRenderer? = null
     private var videoCapturer: CameraVideoCapturer? = null
+    private var screenCapturer: ScreenCapturer? = null
+    private var mediaProjection: MediaProjection? = null
     private var videoSource: VideoSource? = null
+    private var screenVideoSource: VideoSource? = null
     private var audioSource: AudioSource? = null
     private var localVideoTrack: VideoTrack? = null
+    private var screenVideoTrack: VideoTrack? = null
+    private var videoSender: RtpSender? = null  // Original video sender, saved for track replacement
     private var localAudioTrack: AudioTrack? = null
     private var localTracksAttached = false
+    private var isScreenSharing = false
 
     private var isVideoEnabled = true
     private var isAudioEnabled = true
@@ -79,57 +90,65 @@ class WebRtcClient(
 
     fun attachLocalRenderer(renderer: SurfaceViewRenderer) {
         Log.d(TAG, "attachLocalRenderer called, localVideoTrack exists: ${localVideoTrack != null}")
+        
+        // Detach from old renderer if exists
+        localRenderer?.let { oldRenderer ->
+            if (oldRenderer != renderer) {
+                localVideoTrack?.let { track ->
+                    try { track.removeSink(oldRenderer) } catch (e: Exception) {}
+                }
+                screenVideoTrack?.let { track ->
+                    try { track.removeSink(oldRenderer) } catch (e: Exception) {}
+                }
+            }
+        }
+        
         try {
             renderer.init(eglBase.eglBaseContext, null)
             renderer.setEnableHardwareScaler(true)
             renderer.setMirror(true)
             renderer.setScalingType(org.webrtc.RendererCommon.ScalingType.SCALE_ASPECT_FILL)
+            renderer.visibility = android.view.View.VISIBLE
             Log.d(TAG, "Local renderer initialized successfully with mirror=true")
             
             localRenderer = renderer
             
             // Add existing track if already created and not disposed
-            localVideoTrack?.let { track ->
-                try {
-                    // Check if track is still valid by checking state
-                    if (track.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
-                        Log.d(TAG, "Adding local video track to renderer")
-                        // Ensure track is added on the renderer's thread
-                        renderer.post {
-                            try {
-                                track.addSink(renderer)
-                                Log.d(TAG, "Local video track sink added to renderer")
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Failed to add sink to local renderer: ${e.message}")
-                            }
-                        }
-                    } else {
-                        Log.w(TAG, "Local video track is ended, cannot add sink")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error checking local track state: ${e.message}")
-                }
-            }
+            addTrackToLocalRenderer()
         } catch (e: IllegalStateException) {
             Log.w(TAG, "Local renderer already initialized: ${e.message}")
             localRenderer = renderer
             // Still try to add the track if it exists and is valid
-            localVideoTrack?.let { track ->
-                try {
-                    if (track.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
-                        renderer.post {
-                            try {
-                                track.addSink(renderer)
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Failed to add sink in catch block: ${e.message}")
-                            }
+            addTrackToLocalRenderer()
+        }
+    }
+    
+    private fun addTrackToLocalRenderer() {
+        val renderer = localRenderer ?: return
+        
+        // Add screen track if screen sharing, otherwise camera track
+        val trackToAdd = if (isScreenSharing) screenVideoTrack else localVideoTrack
+        
+        trackToAdd?.let { track ->
+            try {
+                if (track.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
+                    Log.d(TAG, "Adding video track to local renderer (isScreenSharing: $isScreenSharing)")
+                    renderer.post {
+                        try {
+                            track.addSink(renderer)
+                            renderer.visibility = android.view.View.VISIBLE
+                            Log.d(TAG, "Video track sink added to local renderer")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to add sink to local renderer: ${e.message}")
                         }
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error in catch block: ${e.message}")
+                } else {
+                    Log.w(TAG, "Video track is ended, cannot add sink")
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error adding track to local renderer: ${e.message}")
             }
-        }
+        } ?: Log.d(TAG, "No video track available to add to renderer yet")
     }
 
     fun attachRemoteRenderer(renderer: SurfaceViewRenderer) {
@@ -189,36 +208,30 @@ class WebRtcClient(
             this.localAudioTrack = audioTrack
             localTracksAttached = false
 
-            localRenderer?.let { renderer ->
-                Log.d(TAG, "Adding newly created video track to local renderer")
-                // Ensure track is added on the renderer's thread
-                renderer.post {
-                    try {
-                        if (videoTrack.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
-                            videoTrack.addSink(renderer)
-                            renderer.visibility = android.view.View.VISIBLE
-                            Log.d(TAG, "Newly created local video track sink added to renderer")
-                        } else {
-                            Log.w(TAG, "Newly created track is already ended")
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to add newly created track to renderer: ${e.message}")
-                    }
-                }
-            } ?: Log.w(TAG, "No local renderer available to add video track")
+            // Add track to renderer using helper method
+            addTrackToLocalRenderer()
+            
             localVideoTrack?.setEnabled(isVideoEnabled)
             localAudioTrack?.setEnabled(isAudioEnabled)
             Log.d(TAG, "Local media tracks created - video enabled: $isVideoEnabled, audio enabled: $isAudioEnabled")
+        } else {
+            Log.d(TAG, "Local tracks already exist, ensuring they are added to renderer")
+            // Ensure existing tracks are connected to renderer
+            addTrackToLocalRenderer()
         }
 
         attachLocalTracksIfPossible()
     }
 
-    fun createOffer(onSdpReady: (SessionDescription) -> Unit) {
+    fun createOffer(onSdpReady: (SessionDescription) -> Unit, iceRestart: Boolean = false) {
         val pc = peerConnection ?: return
         val constraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
+            if (iceRestart) {
+                mandatory.add(MediaConstraints.KeyValuePair("IceRestart", "true"))
+                Log.d(TAG, "Creating offer with ICE restart")
+            }
         }
         pc.createOffer(object : SimpleSdpObserver() {
             override fun onCreateSuccess(sdp: SessionDescription) {
@@ -249,16 +262,63 @@ class WebRtcClient(
     fun addIceCandidate(candidate: IceCandidate) {
         peerConnection?.addIceCandidate(candidate)
     }
+    
+    /**
+     * Get detailed connection statistics for quality monitoring
+     */
+    /**
+     * Trigger ICE restart when connection is failing
+     */
+    fun restartIce(onOfferReady: (SessionDescription) -> Unit) {
+        Log.d(TAG, "Triggering ICE restart")
+        createOffer(onOfferReady, iceRestart = true)
+    }
 
     fun setVideoEnabled(enabled: Boolean) {
         isVideoEnabled = enabled
-        localVideoTrack?.setEnabled(enabled)
+        val track = localVideoTrack
+        if (track != null && track.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
+            track.setEnabled(enabled)
+            Log.d(TAG, "Video track enabled: $enabled, state: ${track.state()}")
+        } else {
+            Log.w(TAG, "Cannot set video enabled - track is null or ended")
+        }
     }
 
     fun setAudioEnabled(enabled: Boolean) {
         isAudioEnabled = enabled
-        localAudioTrack?.setEnabled(enabled)
+        val track = localAudioTrack
+        if (track != null && track.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
+            track.setEnabled(enabled)
+            Log.d(TAG, "Audio track enabled: $enabled, state: ${track.state()}")
+        } else {
+            Log.w(TAG, "Cannot set audio enabled - track is null or ended")
+        }
     }
+    
+    private var backgroundBlurProcessor: BackgroundBlurProcessor? = null
+    private var isBackgroundBlurEnabled = false
+    
+    /**
+     * Enable/disable background blur effect
+     * Note: This is a beta feature and may impact performance
+     */
+    fun setBackgroundBlurEnabled(enabled: Boolean) {
+        isBackgroundBlurEnabled = enabled
+        
+        if (enabled) {
+            if (backgroundBlurProcessor == null) {
+                backgroundBlurProcessor = BackgroundBlurProcessor(context)
+            }
+            backgroundBlurProcessor?.setEnabled(true)
+            Log.d(TAG, "Background blur enabled")
+        } else {
+            backgroundBlurProcessor?.setEnabled(false)
+            Log.d(TAG, "Background blur disabled")
+        }
+    }
+    
+    fun isBackgroundBlurEnabled(): Boolean = isBackgroundBlurEnabled
 
     fun switchCamera() {
         val capturer = videoCapturer ?: return
@@ -289,6 +349,242 @@ class WebRtcClient(
             Log.e(TAG, "Error setting speaker mode: ${e.message}", e)
         }
     }
+    
+    /**
+     * Start screen sharing - replaces camera video with screen capture
+     * @param mediaProjectionData Intent data from MediaProjection permission result
+     */
+    fun startScreenSharing(mediaProjectionData: android.content.Intent): Boolean {
+        if (isScreenSharing) {
+            Log.w(TAG, "Already screen sharing")
+            return false
+        }
+        
+        try {
+            Log.d(TAG, "Starting screen sharing")
+            
+            // Start foreground service for Android 10+ BEFORE creating MediaProjection
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ScreenCaptureService.start(context)
+                
+                // Wait for service to actually be running (max 2 seconds)
+                var waitTime = 0
+                val maxWait = 2000
+                val checkInterval = 50
+                while (!ScreenCaptureService.isServiceRunning() && waitTime < maxWait) {
+                    Thread.sleep(checkInterval.toLong())
+                    waitTime += checkInterval
+                }
+                
+                if (!ScreenCaptureService.isServiceRunning()) {
+                    Log.e(TAG, "Foreground service failed to start within $maxWait ms")
+                    return false
+                }
+                Log.d(TAG, "Foreground service started for screen capture (waited ${waitTime}ms)")
+            }
+            
+            // Create MediaProjection from the intent - this can only be done ONCE per intent
+            val mediaProjectionManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            val projection = mediaProjectionManager.getMediaProjection(Activity.RESULT_OK, mediaProjectionData)
+            
+            if (projection == null) {
+                Log.e(TAG, "Failed to create MediaProjection - null returned")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    ScreenCaptureService.stop(context)
+                }
+                return false
+            }
+            
+            this.mediaProjection = projection
+            Log.d(TAG, "MediaProjection created successfully: $projection")
+            
+            // Stop camera capture but keep the track
+            videoCapturer?.stopCapture()
+            Log.d(TAG, "Camera capture stopped")
+            
+            // Create screen capturer with MediaProjection (not Intent)
+            val screenCapturer = ScreenCapturer(context, projection)
+            val surfaceHelper = SurfaceTextureHelper.create("ScreenCapture", eglBase.eglBaseContext)
+            Log.d(TAG, "SurfaceTextureHelper created: $surfaceHelper")
+            
+            val screenSource = peerConnectionFactory.createVideoSource(true) // isScreencast = true
+            Log.d(TAG, "Screen video source created: $screenSource")
+            
+            screenCapturer.initialize(surfaceHelper, context, screenSource.capturerObserver)
+            Log.d(TAG, "ScreenCapturer initialized")
+            
+            screenCapturer.startCapture(1280, 720, 24) // Landscape for screen share with smooth fps
+            Log.d(TAG, "Screen capture started at 1280x720@15fps")
+            
+            val screenTrack = peerConnectionFactory.createVideoTrack("SCREEN_${System.currentTimeMillis()}", screenSource)
+            screenTrack.setEnabled(true)
+            Log.d(TAG, "Screen track created: $screenTrack, enabled: ${screenTrack.enabled()}")
+            
+            // Replace video track on existing sender (MUST use same sender to keep same m= line)
+            val sender = videoSender
+            if (sender != null) {
+                try {
+                    Log.d(TAG, "Replacing camera track with screen track on sender: $sender")
+                    val result = sender.setTrack(screenTrack, false)
+                    Log.d(TAG, "setTrack result: $result")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to setTrack on videoSender: ${e.message}", e)
+                    // Fallback: try to find sender from transceivers
+                    peerConnection?.transceivers?.find { 
+                        it.mediaType == org.webrtc.MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO 
+                    }?.sender?.let { transceiverSender ->
+                        try {
+                            Log.d(TAG, "Trying transceiver sender: $transceiverSender")
+                            transceiverSender.setTrack(screenTrack, false)
+                            Log.d(TAG, "setTrack via transceiver succeeded")
+                        } catch (e2: Exception) {
+                            Log.e(TAG, "Failed to setTrack via transceiver: ${e2.message}")
+                        }
+                    }
+                }
+            } else {
+                Log.e(TAG, "videoSender is null, cannot replace track")
+            }
+            
+            // Update local preview
+            localRenderer?.let { renderer ->
+                // Remove camera track from renderer
+                localVideoTrack?.let { track ->
+                    try { track.removeSink(renderer) } catch (e: Exception) {}
+                }
+                // Add screen track to renderer
+                renderer.post {
+                    try {
+                        screenTrack.addSink(renderer)
+                        renderer.setMirror(false) // Don't mirror screen share
+                        renderer.visibility = android.view.View.VISIBLE
+                        Log.d(TAG, "Screen track added to local renderer")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to add screen track to renderer: ${e.message}")
+                    }
+                }
+            }
+            
+            this.screenCapturer = screenCapturer
+            this.screenVideoSource = screenSource
+            this.screenVideoTrack = screenTrack
+            this.isScreenSharing = true
+            
+            // Trigger renegotiation to notify peer about track change
+            Log.d(TAG, "Screen sharing started successfully, triggering renegotiation")
+            events.onRenegotiationNeeded()
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start screen sharing: ${e.message}", e)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ScreenCaptureService.stop(context)
+            }
+            return false
+        }
+    }
+    
+    /**
+     * Stop screen sharing and return to camera
+     */
+    fun stopScreenSharing() {
+        if (!isScreenSharing) {
+            Log.w(TAG, "Not screen sharing")
+            return
+        }
+        
+        try {
+            Log.d(TAG, "Stopping screen sharing")
+            
+            // First, stop and dispose screen capturer
+            screenCapturer?.stopCapture()
+            screenCapturer?.dispose()
+            screenCapturer = null
+            Log.d(TAG, "Screen capturer stopped")
+            
+            // Stop MediaProjection
+            try {
+                mediaProjection?.stop()
+            } catch (e: Exception) {
+                Log.w(TAG, "Error stopping MediaProjection: ${e.message}")
+            }
+            mediaProjection = null
+            
+            // Stop foreground service
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ScreenCaptureService.stop(context)
+            }
+            
+            // Restart camera capture FIRST (before setting track)
+            Log.d(TAG, "Restarting camera capture")
+            videoCapturer?.startCapture(720, 1280, 30)
+            
+            // Small delay to let camera start producing frames
+            Thread.sleep(100)
+            
+            // Replace screen track with camera track on existing sender
+            val sender = videoSender
+            localVideoTrack?.let { cameraTrack ->
+                if (sender != null) {
+                    try {
+                        Log.d(TAG, "Replacing screen track with camera track on sender: $sender, track state: ${cameraTrack.state()}")
+                        cameraTrack.setEnabled(true)
+                        sender.setTrack(cameraTrack, false)
+                        Log.d(TAG, "Camera track restored on sender")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to restore camera track: ${e.message}", e)
+                    }
+                } else {
+                    Log.w(TAG, "Cannot restore camera - videoSender is null")
+                }
+            }
+            
+            // Update local preview
+            localRenderer?.let { renderer ->
+                try {
+                    // Remove screen track from renderer first
+                    screenVideoTrack?.let { track ->
+                        try { 
+                            track.removeSink(renderer)
+                            Log.d(TAG, "Screen track removed from local renderer")
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Error removing screen track from renderer: ${e.message}")
+                        }
+                    }
+                    
+                    // Add camera track back to renderer
+                    localVideoTrack?.let { track ->
+                        try {
+                            track.addSink(renderer)
+                            renderer.setMirror(true) // Mirror camera
+                            renderer.visibility = android.view.View.VISIBLE
+                            Log.d(TAG, "Camera track added back to local renderer")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to add camera track to renderer: ${e.message}")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error updating local renderer: ${e.message}")
+                }
+            }
+            
+            // Dispose screen resources after removing from renderer
+            screenVideoSource?.dispose()
+            screenVideoTrack?.dispose()
+            screenVideoSource = null
+            screenVideoTrack = null
+            isScreenSharing = false
+            
+            // Trigger renegotiation to notify peer about track change
+            Log.d(TAG, "Screen sharing stopped, triggering renegotiation")
+            events.onRenegotiationNeeded()
+            
+            Log.d(TAG, "Screen sharing stopped, returned to camera")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to stop screen sharing: ${e.message}", e)
+        }
+    }
+    
+    fun isScreenSharing(): Boolean = isScreenSharing
     
     private fun setupAudioForCall() {
         try {
@@ -356,6 +652,7 @@ class WebRtcClient(
     }
 
     fun release() {
+        Log.d(TAG, "release() called - cleaning up WebRTC resources")
         try {
             // Release audio focus first
             releaseAudioFocus()
@@ -364,7 +661,16 @@ class WebRtcClient(
             try {
                 localVideoTrack?.let { track ->
                     if (track.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
-                        track.removeSink(localRenderer)
+                        localRenderer?.let { renderer ->
+                            try { track.removeSink(renderer) } catch (e: Exception) {}
+                        }
+                    }
+                }
+                screenVideoTrack?.let { track ->
+                    if (track.state() != org.webrtc.MediaStreamTrack.State.ENDED) {
+                        localRenderer?.let { renderer ->
+                            try { track.removeSink(renderer) } catch (e: Exception) {}
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -372,30 +678,79 @@ class WebRtcClient(
             }
             
             videoCapturer?.stopCapture()
+            screenCapturer?.stopCapture()
         } catch (e: Exception) {
-            android.util.Log.w("WebRtcClient", "Error during cleanup: ${e.message}")
+            Log.w(TAG, "Error during cleanup: ${e.message}")
         }
         
         try {
             videoCapturer?.dispose()
+            screenCapturer?.dispose()
             videoSource?.dispose()
+            screenVideoSource?.dispose()
             audioSource?.dispose()
             localVideoTrack?.dispose()
+            screenVideoTrack?.dispose()
             localAudioTrack?.dispose()
             peerConnection?.dispose()
-            localRenderer?.release()
-            remoteRenderer?.release()
+            // Stop MediaProjection if active
+            try {
+                mediaProjection?.stop()
+            } catch (e: Exception) {
+                Log.w(TAG, "Error stopping MediaProjection: ${e.message}")
+            }
+            // Stop foreground service if running
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && isScreenSharing) {
+                ScreenCaptureService.stop(context)
+            }
+            // DON'T release renderers here - they are owned by Compose AndroidView
+            // localRenderer?.release()
+            // remoteRenderer?.release()
         } catch (e: Exception) {
-            android.util.Log.w("WebRtcClient", "Error disposing resources: ${e.message}")
+            Log.w(TAG, "Error disposing resources: ${e.message}")
         }
         
         videoCapturer = null
+        screenCapturer = null
+        mediaProjection = null
         videoSource = null
+        screenVideoSource = null
         audioSource = null
         localVideoTrack = null
         localAudioTrack = null
         peerConnection = null
         localTracksAttached = false
+        isScreenSharing = false
+        Log.d(TAG, "release() completed")
+    }
+    
+    /**
+     * Detach and release renderers - call this when VideoCallScreen is disposed
+     */
+    fun releaseRenderers() {
+        Log.d(TAG, "releaseRenderers() called")
+        try {
+            localRenderer?.let { renderer ->
+                localVideoTrack?.let { track ->
+                    try { track.removeSink(renderer) } catch (e: Exception) {}
+                }
+                screenVideoTrack?.let { track ->
+                    try { track.removeSink(renderer) } catch (e: Exception) {}
+                }
+                try { renderer.release() } catch (e: Exception) {
+                    Log.w(TAG, "Error releasing local renderer: ${e.message}")
+                }
+            }
+            remoteRenderer?.let { renderer ->
+                try { renderer.release() } catch (e: Exception) {
+                    Log.w(TAG, "Error releasing remote renderer: ${e.message}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error in releaseRenderers: ${e.message}")
+        }
+        localRenderer = null
+        remoteRenderer = null
     }
 
     private fun createPeerConnection(): PeerConnection? {
@@ -458,11 +813,42 @@ class WebRtcClient(
         if (videoTrack == null && audioTrack == null) return
         
         videoTrack?.let { 
-            pc.addTrack(it)
-            Log.d(TAG, "Local video track attached to peer connection")
+            videoSender = pc.addTrack(it)
+            
+            // Configure video encoding parameters for better quality
+            videoSender?.let { sender ->
+                val parameters = sender.parameters
+                parameters.encodings.forEach { encoding ->
+                    // Set max bitrate: 2 Mbps for good quality
+                    encoding.maxBitrateBps = 2000000
+                    // Set min bitrate: 300 Kbps to maintain quality on poor networks
+                    encoding.minBitrateBps = 300000
+                    // Prefer maintaining resolution over framerate
+                    encoding.scaleResolutionDownBy = 1.0
+                }
+                // Set degradation preference to maintain resolution
+                parameters.degradationPreference = org.webrtc.RtpParameters.DegradationPreference.MAINTAIN_RESOLUTION
+                sender.parameters = parameters
+                Log.d(TAG, "Video sender configured with bitrate range: 300kbps-2Mbps")
+            }
+            
+            Log.d(TAG, "Local video track attached to peer connection, sender: $videoSender")
         }
         audioTrack?.let { 
-            pc.addTrack(it)
+            val audioSender = pc.addTrack(it)
+            
+            // Configure audio encoding parameters
+            audioSender?.let { sender ->
+                val parameters = sender.parameters
+                parameters.encodings.forEach { encoding ->
+                    // Set audio bitrate: 128 Kbps for high quality
+                    encoding.maxBitrateBps = 128000
+                    encoding.minBitrateBps = 32000
+                }
+                sender.parameters = parameters
+                Log.d(TAG, "Audio sender configured with bitrate: 32kbps-128kbps")
+            }
+            
             Log.d(TAG, "Local audio track attached to peer connection - enabled: ${it.enabled()}, state: ${it.state()}")
         }
         
@@ -473,13 +859,49 @@ class WebRtcClient(
     private fun createPeerConnectionFactory(): PeerConnectionFactory {
         val encoderFactory = DefaultVideoEncoderFactory(
             eglBase.eglBaseContext,
-            true,
-            true
+            true,  // enableIntelVp8Encoder
+            true   // enableH264HighProfile
         )
         val decoderFactory = DefaultVideoDecoderFactory(eglBase.eglBaseContext)
+        
+        // Audio options for better quality
+        val audioOptions = org.webrtc.audio.JavaAudioDeviceModule.builder(context)
+            .setUseHardwareAcousticEchoCanceler(true)
+            .setUseHardwareNoiseSuppressor(true)
+            .setAudioRecordErrorCallback(object : org.webrtc.audio.JavaAudioDeviceModule.AudioRecordErrorCallback {
+                override fun onWebRtcAudioRecordInitError(errorMessage: String?) {
+                    Log.e(TAG, "Audio record init error: $errorMessage")
+                }
+                override fun onWebRtcAudioRecordStartError(
+                    errorCode: org.webrtc.audio.JavaAudioDeviceModule.AudioRecordStartErrorCode?,
+                    errorMessage: String?
+                ) {
+                    Log.e(TAG, "Audio record start error: $errorMessage")
+                }
+                override fun onWebRtcAudioRecordError(errorMessage: String?) {
+                    Log.e(TAG, "Audio record error: $errorMessage")
+                }
+            })
+            .setAudioTrackErrorCallback(object : org.webrtc.audio.JavaAudioDeviceModule.AudioTrackErrorCallback {
+                override fun onWebRtcAudioTrackInitError(errorMessage: String?) {
+                    Log.e(TAG, "Audio track init error: $errorMessage")
+                }
+                override fun onWebRtcAudioTrackStartError(
+                    errorCode: org.webrtc.audio.JavaAudioDeviceModule.AudioTrackStartErrorCode?,
+                    errorMessage: String?
+                ) {
+                    Log.e(TAG, "Audio track start error: $errorMessage")
+                }
+                override fun onWebRtcAudioTrackError(errorMessage: String?) {
+                    Log.e(TAG, "Audio track error: $errorMessage")
+                }
+            })
+            .createAudioDeviceModule()
+        
         return PeerConnectionFactory.builder()
             .setVideoEncoderFactory(encoderFactory)
             .setVideoDecoderFactory(decoderFactory)
+            .setAudioDeviceModule(audioOptions)
             .createPeerConnectionFactory()
     }
 

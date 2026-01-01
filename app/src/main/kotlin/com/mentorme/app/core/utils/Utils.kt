@@ -84,6 +84,48 @@ object DateTimeUtils {
             isoDateTime
         }
     }
+    
+    /**
+     * Format last seen time to Vietnamese readable format
+     * Examples:
+     * - "Vừa xong" (just now)
+     * - "5 phút trước"
+     * - "2 giờ trước"
+     * - "Hôm qua"
+     * - "31/12/2025"
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun formatLastSeen(lastSeenIso: String?): String {
+        if (lastSeenIso.isNullOrBlank()) return "Không hoạt động"
+        
+        return try {
+            val lastSeenTime = try {
+                ZonedDateTime.parse(lastSeenIso)
+            } catch (e: Exception) {
+                val localDateTime = LocalDateTime.parse(
+                    lastSeenIso.replace("Z", "").replace(" ", "T"),
+                    DateTimeFormatter.ISO_LOCAL_DATE_TIME
+                )
+                localDateTime.atZone(ZoneId.systemDefault())
+            }
+            
+            val now = ZonedDateTime.now()
+            val diffMinutes = java.time.Duration.between(lastSeenTime, now).toMinutes()
+            val diffHours = diffMinutes / 60
+            val diffDays = diffHours / 24
+            
+            when {
+                diffMinutes < 1 -> "Vừa xong"
+                diffMinutes < 60 -> "$diffMinutes phút trước"
+                diffHours < 24 -> "$diffHours giờ trước"
+                diffDays == 1L -> "Hôm qua"
+                diffDays < 7 -> "$diffDays ngày trước"
+                else -> lastSeenTime.toLocalDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+            }
+        } catch (e: Exception) {
+            "Không hoạt động"
+        }
+    }
 }
 
 sealed class Result<out T> {

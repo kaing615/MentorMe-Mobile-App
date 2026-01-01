@@ -7,13 +7,14 @@ import { Socket, Server as SocketIOServer } from "socket.io";
 import Booking from "../models/booking.model";
 import User from "../models/user.model";
 import {
-  getSessionStateTtlSeconds,
-  isWithinSessionWindow,
-  recordSessionAdmit,
-  recordSessionDisconnect,
-  recordSessionEnd,
-  recordSessionJoin,
-  recordSessionQoS,
+    getSessionActualStart,
+    getSessionStateTtlSeconds,
+    isWithinSessionWindow,
+    recordSessionAdmit,
+    recordSessionDisconnect,
+    recordSessionEnd,
+    recordSessionJoin,
+    recordSessionQoS,
 } from "../services/session.service";
 import redis from "../utils/redis";
 
@@ -371,10 +372,14 @@ export async function initSocket(server: HttpServer) {
 
         await recordSessionJoin(booking as any, joinPayload.role);
 
-        respond(callback, { ok: true, data: { bookingId, role: joinPayload.role, admitted } });
-        socket.emit("session:joined", { bookingId, role: joinPayload.role, admitted });
+        // Get actual session start time if session is already active (for reconnecting users)
+        const actualStart = await getSessionActualStart(bookingId);
+        const sessionStartedAt = actualStart ? actualStart.toISOString() : null;
+
+        respond(callback, { ok: true, data: { bookingId, role: joinPayload.role, admitted, sessionStartedAt } });
+        socket.emit("session:joined", { bookingId, role: joinPayload.role, admitted, sessionStartedAt });
         
-        console.log(`[Session] ${joinPayload.role} joined booking ${bookingId}, admitted: ${admitted}`);
+        console.log(`[Session] ${joinPayload.role} joined booking ${bookingId}, admitted: ${admitted}, sessionStartedAt: ${sessionStartedAt}`);
 
         if (joinPayload.role === "mentee" && !admitted) {
           socket.emit("session:waiting", { bookingId });
@@ -452,6 +457,10 @@ export async function initSocket(server: HttpServer) {
         } catch {}
 
         await recordSessionAdmit(booking as any, admittedAt);
+        
+        // Get actual session start time after admission (for the timer)
+        const actualStart = await getSessionActualStart(bookingId);
+        const sessionStartedAt = actualStart ? actualStart.toISOString() : admittedAt.toISOString();
 
         const rooms = getSessionRooms(bookingId);
         const waitingSockets = await io?.in(rooms.waitingRoom).fetchSockets();
@@ -465,12 +474,13 @@ export async function initSocket(server: HttpServer) {
             waitingSocket.emit("session:admitted", {
               bookingId,
               admittedAt: admittedAt.toISOString(),
+              sessionStartedAt,
             });
           }
         }
 
         io?.to(rooms.liveRoom).emit("session:ready", { bookingId });
-        respond(callback, { ok: true, data: { bookingId } });
+        respond(callback, { ok: true, data: { bookingId, sessionStartedAt } });
       } catch (err) {
         return respond(callback, { ok: false, message: "SESSION_ADMIT_FAILED" });
       }
@@ -524,6 +534,72 @@ export async function initSocket(server: HttpServer) {
     socket.on("signal:answer", (payload: SignalPayload) => relaySignal("signal:answer", payload));
     socket.on("signal:ice", (payload: SignalPayload) => relaySignal("signal:ice", payload));
 
+    // Typing indicator for chat
+    socket.on("chat:typing", (rawPayload: unknown) => {
+      // Parse payload - handle both object and JSON string
+      let payload: { peerId?: string; isTyping?: boolean } = {};
+      if (typeof rawPayload === 'string') {
+        try {
+          payload = JSON.parse(rawPayload);
+        } catch (e) {
+          console.log("[Chat:Typing] Failed to parse JSON string payload");
+          return;
+        }
+      } else if (typeof rawPayload === 'object' && rawPayload !== null) {
+        payload = rawPayload as { peerId?: string; isTyping?: boolean };
+      }
+      
+      const peerId = payload?.peerId;
+      if (!peerId || !user?.id) {
+        console.log("[Chat:Typing] Invalid peerId or userId, peerId:", peerId, "userId:", user?.id);
+        return;
+      }
+      
+      // Emit typing status to the peer
+      io?.to(`user:${peerId}`).emit("chat:typing", {
+        userId: user.id,
+        isTyping: payload.isTyping ?? false,
+      });
+      
+      console.log(`[Chat:Typing] User ${user.id} typing status: ${payload.isTyping} to peer ${peerId}`);
+    });
+
+    // In-call chat handler
+    socket.on("session:chat", (payload: { 
+      bookingId?: string; 
+      message?: string; 
+      senderId?: string;
+      senderName?: string;
+      timestamp?: number;
+    }) => {
+      const session = socket.data.session as SessionState | undefined;
+      const bookingId = payload?.bookingId || session?.bookingId;
+      
+      if (!bookingId || !session || session.bookingId !== bookingId) {
+        console.log("[Session:Chat] No valid session for chat message");
+        return;
+      }
+      
+      if (!payload?.message?.trim()) {
+        console.log("[Session:Chat] Empty message, ignoring");
+        return;
+      }
+      
+      const chatPayload = {
+        bookingId,
+        senderId: payload.senderId || user?.id || "unknown",
+        senderName: payload.senderName || session.role || "User",
+        message: payload.message.trim(),
+        timestamp: payload.timestamp || Date.now()
+      };
+      
+      console.log(`[Session:Chat] Relaying chat message in ${bookingId}:`, chatPayload);
+      
+      // Relay to other participants in the live room
+      const rooms = getSessionRooms(bookingId);
+      socket.to(rooms.liveRoom).emit("session:chat", chatPayload);
+    });
+
     socket.on("session:qos", async (payload: QosPayload) => {
       const session = socket.data.session as SessionState | undefined;
       if (!session || !session.live || session.bookingId !== payload?.bookingId) return;
@@ -542,19 +618,28 @@ export async function initSocket(server: HttpServer) {
 
     socket.on("disconnect", async () => {
       const session = socket.data.session as SessionState | undefined;
-      if (!session) return;
+      if (session) {
+        await recordSessionDisconnect(session.bookingId, session.role);
 
-      await recordSessionDisconnect(session.bookingId, session.role);
-
-      const rooms = getSessionRooms(session.bookingId);
-      socket.to(rooms.liveRoom).emit("session:participant-left", {
-        bookingId: session.bookingId,
-        userId: user?.id,
-        role: session.role,
-      });
+        const rooms = getSessionRooms(session.bookingId);
+        socket.to(rooms.liveRoom).emit("session:participant-left", {
+          bookingId: session.bookingId,
+          userId: user?.id,
+          role: session.role,
+        });
+      }
       
       // Handle user going offline
       if (user?.id) {
+        let hasOtherSockets = false;
+        try {
+          const sockets = await io?.in(`user:${user.id}`).fetchSockets();
+          hasOtherSockets = (sockets?.length || 0) > 0;
+        } catch (err) {
+          console.error("Failed to check user socket count:", err);
+        }
+        if (hasOtherSockets) return;
+
         const presenceKey = `presence:user:${user.id}`;
         // Delete presence key to mark user as offline
         redis.del(presenceKey).catch((err) => {

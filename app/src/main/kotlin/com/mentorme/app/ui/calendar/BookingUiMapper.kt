@@ -10,6 +10,7 @@ data class MentorUpcomingBookingUi(
     val id: String,
     val menteeName: String,
     val avatarInitial: String,
+    val avatarUrl: String?,  // Avatar URL from mentee profile
     val topic: String,
     val date: String,
     val startTime: String,
@@ -59,10 +60,14 @@ fun Booking.toMentorUpcomingUi(): MentorUpcomingBookingUi {
         append("initial=$avatarInitial")
     })
 
+    // Get avatar URL from mentee
+    val resolvedAvatarUrl = mentee?.avatar
+
     return MentorUpcomingBookingUi(
         id = id,
         menteeName = resolvedMenteeName,
         avatarInitial = avatarInitial,
+        avatarUrl = resolvedAvatarUrl,
         topic = topic ?: "Buổi tư vấn",
         date = date,
         startTime = startTime,

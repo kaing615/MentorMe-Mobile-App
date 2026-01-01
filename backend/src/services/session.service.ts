@@ -38,6 +38,16 @@ export function isWithinSessionWindow(now: Date, startTime: Date, endTime: Date)
   return now >= window.openAt && now <= window.closeAt;
 }
 
+/**
+ * Get the actual session start time from SessionLog if the session is active
+ * Returns null if session hasn't started yet
+ */
+export async function getSessionActualStart(bookingId: string): Promise<Date | null> {
+  const log = await SessionLog.findOne({ booking: bookingId }).lean();
+  if (!log || !log.actualStart) return null;
+  return log.actualStart;
+}
+
 export function getSessionGraceDeadline(startTime: Date) {
   return new Date(startTime.getTime() + SESSION_GRACE_MINUTES * 60 * 1000);
 }

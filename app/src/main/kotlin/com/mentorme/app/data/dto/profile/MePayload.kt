@@ -33,6 +33,15 @@ data class MeUserDto(
     @SerializedName("name")
     val name: String?,
 
+    @SerializedName("fullName")
+    val fullName: String?,
+
+    @SerializedName("avatarUrl")
+    val avatarUrl: String?,
+
+    @SerializedName("avatar")
+    val avatar: String?,
+
     @SerializedName("createdAt")
     val createdAt: String?
 )

@@ -11,4 +11,5 @@ interface ChatRepository {
     suspend fun getMessages(conversationId: String, limit: Int = 50): AppResult<List<Message>>
     suspend fun sendMessage(conversationId: String, text: String): AppResult<Message>
     suspend fun getChatRestrictionInfo(conversationId: String): AppResult<ChatRestrictionInfo>
+    suspend fun getOnlinePeerIds(peerIds: List<String>): AppResult<Set<String>>
 }

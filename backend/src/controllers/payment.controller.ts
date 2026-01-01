@@ -194,9 +194,20 @@ export const paymentWebhook = asyncHandler(async (req: Request, res: Response) =
 
     // ===== WALLET NOT ENOUGH MONEY (NON-TERMINAL) =====
 if (isSuccessEvent && errorMessage === "INSUFFICIENT_BALANCE") {
-  // Do NOT fail booking
-  // Do NOT notify payment failed
-  // Keep booking in PaymentPending so user can top-up
+  console.log(`[WEBHOOK] Insufficient balance for booking ${bookingId} - keeping PaymentPending`);
+  
+  // Notify user about insufficient balance
+  try {
+    const paymentNotificationData = await buildPaymentNotificationData(booking, {
+      paymentId,
+      status: 'insufficient_balance',
+      event,
+    });
+    await notifyPaymentFailed(paymentNotificationData);
+    console.log(`[WEBHOOK] Insufficient balance notification sent for booking ${bookingId}`);
+  } catch (notifyErr) {
+    console.error("[WEBHOOK] Failed to send insufficient balance notification:", notifyErr);
+  }
 
   return ok(res, {
     processed: true,
@@ -209,6 +220,7 @@ if (isSuccessEvent && errorMessage === "INSUFFICIENT_BALANCE") {
 
   // ===== TERMINAL WALLET / PAYMENT ERRORS =====
   if (isSuccessEvent && TERMINAL_CAPTURE_ERRORS.has(errorMessage)) {
+    console.log(`[WEBHOOK] Terminal error ${errorMessage} for booking ${bookingId} - failing booking`);
     if (bookingStatus === "PaymentPending") {
       try {
         await failBooking(bookingId);

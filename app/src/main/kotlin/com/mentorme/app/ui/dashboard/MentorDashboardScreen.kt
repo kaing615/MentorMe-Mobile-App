@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -18,6 +21,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontStyle
@@ -89,7 +94,7 @@ fun MentorDashboardScreen(
             is DashboardUiState.Success -> {
                 DashboardContent(
                     mentorName = mentorName,
-                    upcomingSession = dState.upcomingSession,
+                    upcomingSessions = dState.upcomingSessions,
                     stats = dState.stats,
                     recentReviews = dState.recentReviews,
                     onViewSchedule = onViewSchedule,
@@ -110,7 +115,7 @@ fun MentorDashboardScreen(
 @Composable
 private fun DashboardContent(
     mentorName: String,
-    upcomingSession: UpcomingSessionUi?,
+    upcomingSessions: List<UpcomingSessionUi>,
     stats: com.mentorme.app.data.dto.mentor.MentorStatsDto,
     recentReviews: List<com.mentorme.app.data.dto.review.ReviewDto>,
     onViewSchedule: () -> Unit,
@@ -170,12 +175,25 @@ private fun DashboardContent(
 
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    SectionTitle("Lịch hẹn sắp tới")
-                    if (upcomingSession != null) {
-                        NextSessionCard(
-                            session = upcomingSession,
-                            onJoin = { onJoinSession(upcomingSession.id) },
-                            onViewDetail = { onViewBookingDetail(upcomingSession.id) },
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SectionTitle("Lịch hẹn sắp tới")
+                        if (upcomingSessions.size > 1) {
+                            Text(
+                                "${upcomingSessions.size} phiên",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(0.6f)
+                            )
+                        }
+                    }
+                    if (upcomingSessions.isNotEmpty()) {
+                        SwipeableSessionCards(
+                            sessions = upcomingSessions,
+                            onJoinSession = onJoinSession,
+                            onViewDetail = onViewBookingDetail,
                             onViewCalendar = onViewSchedule
                         )
                     } else {
@@ -308,6 +326,61 @@ private fun MentorWelcomeSection(mentorName: String) {
     }
 }
 
+/**
+ * Swipeable session cards using HorizontalPager
+ */
+@Composable
+private fun SwipeableSessionCards(
+    sessions: List<UpcomingSessionUi>,
+    onJoinSession: (String) -> Unit,
+    onViewDetail: (String) -> Unit,
+    onViewCalendar: () -> Unit
+) {
+    if (sessions.isEmpty()) return
+    
+    val pagerState = rememberPagerState(pageCount = { sessions.size })
+    
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxWidth(),
+            pageSpacing = 16.dp,
+            contentPadding = PaddingValues(horizontal = 0.dp)
+        ) { page ->
+            val session = sessions[page]
+            NextSessionCard(
+                session = session,
+                onJoin = { onJoinSession(session.id) },
+                onViewDetail = { onViewDetail(session.id) },
+                onViewCalendar = onViewCalendar
+            )
+        }
+        
+        // Page indicator dots (only show if more than 1 session)
+        if (sessions.size > 1) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                sessions.forEachIndexed { index, _ ->
+                    val isSelected = pagerState.currentPage == index
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp)
+                            .size(if (isSelected) 10.dp else 8.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isSelected) Color(0xFFF472B6)
+                                else Color.White.copy(0.3f)
+                            )
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun NextSessionCard(
     session: UpcomingSessionUi,
@@ -345,6 +418,7 @@ private fun NextSessionCard(
             Spacer(Modifier.height(10.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // Avatar with image or fallback to initials
                 Box(
                     Modifier
                         .size(56.dp)
@@ -352,12 +426,23 @@ private fun NextSessionCard(
                         .background(Color.White.copy(0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        session.avatarInitial,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    if (!session.avatarUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = session.avatarUrl,
+                            contentDescription = "Avatar of ${session.menteeName}",
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Text(
+                            session.avatarInitial,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
                 Spacer(Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {

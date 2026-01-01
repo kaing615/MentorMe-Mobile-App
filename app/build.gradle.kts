@@ -202,6 +202,9 @@ dependencies {
 
     // WebRTC (Maven Central)
     implementation("org.jitsi:webrtc:124.0.0")
+    
+    // ML Kit Selfie Segmentation for background blur
+    implementation("com.google.mlkit:segmentation-selfie:16.0.0-beta6")
 
     // Testing
     testImplementation(libs.junit)

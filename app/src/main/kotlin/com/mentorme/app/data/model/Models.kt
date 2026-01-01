@@ -243,7 +243,19 @@ data class Booking(
         alternate = ["menteeUser", "menteeProfile", "menteeInfo"]
     )
     val mentee: BookingUserSummary? = null
-)
+) {
+    val mentorName: String?
+        get() = mentor?.fullName ?: mentorFullName
+    
+    val mentorAvatar: String?
+        get() = mentor?.avatar ?: mentor?.profile?.avatarUrl
+    
+    val menteeName: String?
+        get() = mentee?.fullName ?: menteeFullName
+    
+    val menteeAvatar: String?
+        get() = mentee?.avatar ?: mentee?.profile?.avatarUrl
+}
 // -------- Review
 data class Review(
     @SerializedName("id")

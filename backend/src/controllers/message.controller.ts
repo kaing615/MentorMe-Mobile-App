@@ -139,10 +139,24 @@ export const getMessagesByPeer = asyncHandler(async (req: Request, res: Response
     query.createdAt = { $lt: before };
   }
 
-  const messages = await Message.find(query)
-    .sort({ createdAt: 1 })
-    .limit(limit)
-    .lean();
+  // Check if requesting latest messages (small limit without 'before' cursor)
+  const isLatestRequest = !before && limit <= 10;
+  
+  let messages;
+  if (isLatestRequest) {
+    // For latest messages, query in descending order then reverse to get chronological order
+    const latestMessages = await Message.find(query)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+    messages = latestMessages.reverse();
+  } else {
+    // Normal pagination - ascending order
+    messages = await Message.find(query)
+      .sort({ createdAt: 1 })
+      .limit(limit)
+      .lean();
+  }
 
   const senderIds = Array.from(new Set(messages.map((m) => String(m.sender))));
   const senderMap = new Map<string, SenderPayload | null>();

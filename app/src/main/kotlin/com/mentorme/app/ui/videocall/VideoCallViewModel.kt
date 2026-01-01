@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.mentorme.app.core.realtime.RealtimeEvent
 import com.mentorme.app.core.realtime.RealtimeEventBus
 import com.mentorme.app.core.realtime.SocketManager
+import com.mentorme.app.core.utils.AppResult
 import com.mentorme.app.core.webrtc.IceServerProvider
 import com.mentorme.app.core.webrtc.WebRtcClient
 import com.mentorme.app.data.dto.availability.ApiEnvelope
@@ -14,19 +15,28 @@ import com.mentorme.app.data.dto.session.SessionJoinResponse
 import com.mentorme.app.data.mapper.SessionAdmittedPayload
 import com.mentorme.app.data.mapper.SessionEndedPayload
 import com.mentorme.app.data.mapper.SessionJoinedPayload
+import com.mentorme.app.data.mapper.SessionMediaStatePayload
 import com.mentorme.app.data.mapper.SessionParticipantPayload
 import com.mentorme.app.data.mapper.SessionReadyPayload
 import com.mentorme.app.data.mapper.SessionSignalPayload
+import com.mentorme.app.data.mapper.SessionStatusPayload
 import com.mentorme.app.data.mapper.SessionWaitingPayload
+import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.network.api.session.SessionApiService
+import com.mentorme.app.data.repository.BookingRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.webrtc.IceCandidate
@@ -45,6 +55,22 @@ enum class CallPhase {
     Error
 }
 
+enum class NetworkQuality {
+    Excellent, Good, Fair, Poor, VeryPoor, Unknown
+}
+
+/**
+ * Represents a chat message in the video call
+ */
+data class InCallChatMessage(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val senderId: String,
+    val senderName: String,
+    val message: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val isFromMe: Boolean = false
+)
+
 data class VideoCallUiState(
     val bookingId: String = "",
     val role: String? = null,
@@ -52,18 +78,47 @@ data class VideoCallUiState(
     val admitted: Boolean = false,
     val peerJoined: Boolean = false,
     val peerRole: String? = null,
+    val peerName: String? = null,
+    val peerAvatarUrl: String? = null,
     val isAudioEnabled: Boolean = true,
     val isVideoEnabled: Boolean = true,
     val isSpeakerEnabled: Boolean = true,
+    val isScreenSharing: Boolean = false,
+    val isBackgroundBlurEnabled: Boolean = false,
     val callDurationSec: Long = 0,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    // Network quality
+    val networkQuality: NetworkQuality = NetworkQuality.Unknown,
+    val rttMs: Double? = null,
+    // Peer status
+    val peerAudioEnabled: Boolean = true,
+    val peerVideoEnabled: Boolean = true,
+    val peerConnectionStatus: String? = null, // "connected", "reconnecting", "disconnected"
+    // Reconnection
+    val reconnectAttempt: Int = 0,
+    val maxReconnectAttempts: Int = 5,
+    // Preview mode
+    val isPreviewMode: Boolean = false,
+    // Toast messages
+    val toastMessage: String? = null,
+    // Booking time management
+    val bookingEndTime: Long? = null, // timestamp in millis
+    val remainingMinutes: Int? = null,
+    val showTimeWarning: Boolean = false,
+    val timeWarningMessage: String? = null,
+    // In-call chat
+    val isChatPanelOpen: Boolean = false,
+    val chatMessages: List<InCallChatMessage> = emptyList(),
+    val unreadChatCount: Int = 0
 )
 
 @HiltViewModel
 class VideoCallViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val sessionApiService: SessionApiService,
-    private val socketManager: SocketManager
+    private val bookingRepository: BookingRepository,
+    private val socketManager: SocketManager,
+    private val dataStoreManager: com.mentorme.app.core.datastore.DataStoreManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(VideoCallUiState())
@@ -71,6 +126,7 @@ class VideoCallViewModel @Inject constructor(
 
     private var currentBookingId: String? = null
     private var currentRole: String? = null
+    private var currentUserId: String? = null
     private var sessionReady = false
     private var callStarted = false
     private var permissionsGranted = false
@@ -81,27 +137,56 @@ class VideoCallViewModel @Inject constructor(
     private var reconnectJob: Job? = null
     private var reconnectAttempts = 0
     private var renderersAttached = false
+    private var timeCheckJob: Job? = null
+    private var participantLeftJob: Job? = null
+    private var statusEmitJob: Job? = null
+    private var stopEmissionJob: Job? = null
 
-    private val webRtcClient = WebRtcClient(
-        context = appContext,
-        iceServers = IceServerProvider.defaultIceServers(),
-        events = object : WebRtcClient.WebRtcEvents {
-            override fun onIceCandidate(candidate: IceCandidate) {
-                emitIceCandidate(candidate)
-            }
+    private val webRtcClient: WebRtcClient by lazy {
+        WebRtcClient(
+            context = appContext,
+            iceServers = IceServerProvider.defaultIceServers(),
+            events = object : WebRtcClient.WebRtcEvents {
+                override fun onIceCandidate(candidate: IceCandidate) {
+                    emitIceCandidate(candidate)
+                }
 
-            override fun onConnectionStateChanged(state: PeerConnection.PeerConnectionState) {
-                handleConnectionState(state)
-            }
+                override fun onConnectionStateChanged(state: PeerConnection.PeerConnectionState) {
+                    handleConnectionState(state)
+                }
 
-            override fun onRemoteTrack(track: org.webrtc.VideoTrack) {
-                markInCall()
+                override fun onRemoteTrack(track: org.webrtc.VideoTrack) {
+                    markInCall()
+                }
+                
+                override fun onRenegotiationNeeded() {
+                    handleRenegotiationNeeded()
+                }
             }
+        )
+    }
+    
+    private fun handleRenegotiationNeeded() {
+        Log.d("VideoCallVM", "Renegotiation needed (role: $currentRole) - creating new offer")
+        // Either party can trigger renegotiation when they change tracks (e.g., screen share)
+        viewModelScope.launch {
+            webRtcClient.createOffer(onSdpReady = { offer: SessionDescription ->
+                Log.d("VideoCallVM", "Renegotiation offer created, emitting to peer")
+                emitSdp("signal:offer", offer)
+            })
         }
-    )
+    }
 
     init {
         observeRealtime()
+        loadCurrentUserId()
+    }
+    
+    private fun loadCurrentUserId() {
+        viewModelScope.launch {
+            currentUserId = dataStoreManager.getUserId().firstOrNull()
+            Log.d("VideoCallVM", "Current userId loaded: $currentUserId")
+        }
     }
 
     fun start(bookingId: String) {
@@ -120,6 +205,7 @@ class VideoCallViewModel @Inject constructor(
         resetReconnectState()
         currentBookingId = bookingId
         _state.update { it.copy(bookingId = bookingId, phase = CallPhase.Joining, errorMessage = null) }
+        loadBookingEndTime(bookingId)
 
         viewModelScope.launch {
             try {
@@ -134,6 +220,7 @@ class VideoCallViewModel @Inject constructor(
                 val token = data?.token
                 if (envelope?.success == true && !token.isNullOrBlank()) {
                     currentRole = data.role
+                    
                     _state.update { it.copy(role = data.role) }
                     Log.d("VideoCallVM", "Got join token for role: ${data.role}, emitting session:join")
                     socketManager.emit("session:join", mapOf("token" to token))
@@ -149,13 +236,35 @@ class VideoCallViewModel @Inject constructor(
 
     fun retry() {
         val bookingId = currentBookingId ?: return
-        resetReconnectState()
-        start(bookingId)
+        val role = currentRole ?: return
+        
+        Log.d("VideoCallVM", "Retrying connection - bookingId: $bookingId, role: $role, reconnectAttempt: $reconnectAttempts")
+        
+        // Don't restart the entire session - just recreate peer connection
+        webRtcClient.release()
+        webRtcClient.ensurePeerConnection()
+        webRtcClient.setSpeakerEnabled(_state.value.isSpeakerEnabled)
+        webRtcClient.startLocalMedia()
+        
+        _state.update { it.copy(phase = CallPhase.Connecting) }
+        
+        // Re-initiate WebRTC handshake based on role
+        if (role == "mentor") {
+            Log.d("VideoCallVM", "Mentor recreating offer for retry")
+            webRtcClient.createOffer(onSdpReady = { offer ->
+                Log.d("VideoCallVM", "Retry offer created, emitting to peer")
+                emitSdp("signal:offer", offer)
+            })
+        } else {
+            Log.d("VideoCallVM", "Mentee waiting for new offer after retry")
+        }
     }
 
     fun setPermissionsGranted(granted: Boolean) {
+        Log.d("VideoCallVM", "setPermissionsGranted: $granted, renderersAttached: $renderersAttached")
         permissionsGranted = granted
         if (granted && renderersAttached) {
+            Log.d("VideoCallVM", "Permissions granted and renderers attached - starting preview")
             startLocalPreview()
             pendingOffer?.let { offer ->
                 pendingOffer = null
@@ -168,48 +277,257 @@ class VideoCallViewModel @Inject constructor(
     }
 
     fun bindLocalRenderer(renderer: org.webrtc.SurfaceViewRenderer) {
+        Log.d("VideoCallVM", "bindLocalRenderer called - permissionsGranted: $permissionsGranted, renderersAttached: $renderersAttached")
         webRtcClient.attachLocalRenderer(renderer)
         checkRenderersReady()
     }
 
     fun bindRemoteRenderer(renderer: org.webrtc.SurfaceViewRenderer) {
+        Log.d("VideoCallVM", "bindRemoteRenderer called - permissionsGranted: $permissionsGranted, renderersAttached: $renderersAttached")
         webRtcClient.attachRemoteRenderer(renderer)
         checkRenderersReady()
     }
     
     private fun checkRenderersReady() {
         if (!renderersAttached) {
+            Log.d("VideoCallVM", "checkRenderersReady - setting renderersAttached = true")
             renderersAttached = true
             // Start local preview if permissions are already granted
             if (permissionsGranted) {
+                Log.d("VideoCallVM", "Permissions already granted, starting local preview")
                 startLocalPreview()
-                if (sessionReady) {
-                    startCallIfReady()
-                }
+                // Don't auto-start call - wait for user to exit preview mode
+            } else {
+                Log.d("VideoCallVM", "Waiting for permissions before starting preview")
             }
         }
     }
 
     fun toggleAudio() {
         val next = !_state.value.isAudioEnabled
-        _state.update { it.copy(isAudioEnabled = next) }
+        _state.update { it.copy(isAudioEnabled = next, toastMessage = if (next) "Microphone on" else "Microphone muted") }
         webRtcClient.setAudioEnabled(next)
+        
+        // Notify peer about audio state change
+        currentBookingId?.let { bookingId ->
+            socketManager.emit("session:media-state", mapOf(
+                "bookingId" to bookingId,
+                "audioEnabled" to next,
+                "videoEnabled" to _state.value.isVideoEnabled
+            ))
+        }
+        Log.d("VideoCallVM", "Audio toggled: $next")
     }
 
     fun toggleVideo() {
         val next = !_state.value.isVideoEnabled
-        _state.update { it.copy(isVideoEnabled = next) }
+        _state.update { it.copy(isVideoEnabled = next, toastMessage = if (next) "Camera on" else "Camera off") }
         webRtcClient.setVideoEnabled(next)
+        
+        // Notify peer about video state change
+        currentBookingId?.let { bookingId ->
+            socketManager.emit("session:media-state", mapOf(
+                "bookingId" to bookingId,
+                "audioEnabled" to _state.value.isAudioEnabled,
+                "videoEnabled" to next
+            ))
+        }
+        Log.d("VideoCallVM", "Video toggled: $next")
     }
 
     fun toggleSpeaker() {
         val next = !_state.value.isSpeakerEnabled
-        _state.update { it.copy(isSpeakerEnabled = next) }
+        _state.update { it.copy(isSpeakerEnabled = next, toastMessage = if (next) "Speaker on" else "Earpiece on") }
         webRtcClient.setSpeakerEnabled(next)
+        Log.d("VideoCallVM", "Speaker toggled: $next")
     }
 
     fun switchCamera() {
+        // Can't switch camera while screen sharing
+        if (_state.value.isScreenSharing) {
+            _state.update { it.copy(toastMessage = "Stop screen share first") }
+            return
+        }
         webRtcClient.switchCamera()
+    }
+    
+    /**
+     * Start screen sharing with the given MediaProjection permission data
+     */
+    fun startScreenSharing(mediaProjectionData: android.content.Intent) {
+        if (_state.value.isScreenSharing) {
+            Log.w("VideoCallVM", "Already screen sharing")
+            return
+        }
+        
+        val success = webRtcClient.startScreenSharing(mediaProjectionData)
+        if (success) {
+            _state.update { it.copy(isScreenSharing = true, toastMessage = "Screen sharing started") }
+            Log.d("VideoCallVM", "Screen sharing started")
+        } else {
+            _state.update { it.copy(toastMessage = "Failed to start screen sharing") }
+            Log.e("VideoCallVM", "Failed to start screen sharing")
+        }
+    }
+    
+    /**
+     * Stop screen sharing and return to camera
+     */
+    fun stopScreenSharing() {
+        if (!_state.value.isScreenSharing) {
+            Log.w("VideoCallVM", "Not screen sharing")
+            return
+        }
+        
+        webRtcClient.stopScreenSharing()
+        _state.update { it.copy(isScreenSharing = false, toastMessage = "Screen sharing stopped") }
+        Log.d("VideoCallVM", "Screen sharing stopped")
+    }
+    
+    /**
+     * Toggle screen sharing state
+     * Note: Starting screen share requires MediaProjection permission, 
+     * so this only handles stopping. Use startScreenSharing() to start.
+     */
+    fun toggleScreenSharing() {
+        if (_state.value.isScreenSharing) {
+            stopScreenSharing()
+        }
+        // Starting requires permission - handled by UI
+    }
+    
+    /**
+     * Toggle background blur effect
+     * Note: This feature requires ML Kit and may impact performance
+     */
+    fun toggleBackgroundBlur() {
+        val next = !_state.value.isBackgroundBlurEnabled
+        _state.update { 
+            it.copy(
+                isBackgroundBlurEnabled = next, 
+                toastMessage = if (next) "Background blur on (Beta)" else "Background blur off"
+            ) 
+        }
+        webRtcClient.setBackgroundBlurEnabled(next)
+        Log.d("VideoCallVM", "Background blur toggled: $next")
+    }
+    
+    // ============== IN-CALL CHAT ==============
+    
+    /**
+     * Toggle chat panel visibility
+     */
+    fun toggleChatPanel() {
+        _state.update { 
+            it.copy(
+                isChatPanelOpen = !it.isChatPanelOpen,
+                // Clear unread count when opening chat
+                unreadChatCount = if (!it.isChatPanelOpen) 0 else it.unreadChatCount
+            ) 
+        }
+    }
+    
+    /**
+     * Send a chat message to the peer
+     */
+    fun sendChatMessage(message: String) {
+        val trimmedMessage = message.trim()
+        if (trimmedMessage.isEmpty()) return
+        
+        val bookingId = currentBookingId ?: return
+        val userId = currentUserId ?: "unknown"
+        val userName = _state.value.role ?: "User"
+        
+        // Create local message
+        val chatMessage = InCallChatMessage(
+            senderId = userId,
+            senderName = userName,
+            message = trimmedMessage,
+            isFromMe = true
+        )
+        
+        // Add to local state immediately
+        _state.update { it.copy(chatMessages = it.chatMessages + chatMessage) }
+        
+        // Emit to socket
+        socketManager.emit("session:chat", mapOf(
+            "bookingId" to bookingId,
+            "message" to trimmedMessage,
+            "senderId" to userId,
+            "senderName" to userName,
+            "timestamp" to chatMessage.timestamp
+        ))
+        
+        Log.d("VideoCallVM", "Chat message sent: $trimmedMessage")
+    }
+    
+    /**
+     * Handle incoming chat message from peer
+     */
+    private fun handleIncomingChatMessage(senderId: String, senderName: String, message: String, timestamp: Long) {
+        val userId = currentUserId ?: "unknown"
+        
+        Log.d("VideoCallVM", "handleIncomingChatMessage - senderId: $senderId, userId: $userId, message: $message")
+        
+        // Don't add our own messages (they're already added when sent)
+        if (senderId == userId) {
+            Log.d("VideoCallVM", "handleIncomingChatMessage - ignoring own message")
+            return
+        }
+        
+        val chatMessage = InCallChatMessage(
+            senderId = senderId,
+            senderName = senderName,
+            message = message,
+            timestamp = timestamp,
+            isFromMe = false
+        )
+        
+        val currentState = _state.value
+        val newUnreadCount = if (!currentState.isChatPanelOpen) currentState.unreadChatCount + 1 else currentState.unreadChatCount
+        
+        Log.d("VideoCallVM", "handleIncomingChatMessage - isChatPanelOpen: ${currentState.isChatPanelOpen}, newUnreadCount: $newUnreadCount")
+        
+        _state.update { 
+            it.copy(
+                chatMessages = it.chatMessages + chatMessage,
+                unreadChatCount = newUnreadCount
+            ) 
+        }
+        
+        Log.d("VideoCallVM", "Chat message added. Total messages: ${_state.value.chatMessages.size}, unread: ${_state.value.unreadChatCount}")
+    }
+    
+    // ============== END IN-CALL CHAT ==============
+    
+    fun clearToast() {
+        _state.update { it.copy(toastMessage = null) }
+    }
+    
+    fun dismissTimeWarning() {
+        _state.update { it.copy(showTimeWarning = false) }
+    }
+    
+    fun exitPreviewMode() {
+        _state.update { it.copy(isPreviewMode = false) }
+        // Now start the actual call
+        if (sessionReady) {
+            startCallIfReady()
+        }
+    }
+    
+    fun onAppGoesToBackground() {
+        // Pause video when app goes to background to save battery
+        if (_state.value.phase == CallPhase.InCall) {
+            webRtcClient.setVideoEnabled(false)
+        }
+    }
+    
+    fun onAppComesToForeground() {
+        // Resume video if it was enabled before
+        if (_state.value.phase == CallPhase.InCall && _state.value.isVideoEnabled) {
+            webRtcClient.setVideoEnabled(true)
+        }
     }
 
     fun admit() {
@@ -219,8 +537,16 @@ class VideoCallViewModel @Inject constructor(
 
     fun endCall() {
         val bookingId = currentBookingId ?: return
+        // Emit session:end and cleanup locally
+        // Don't call leaveCall() here - let the server handle cleanup
+        // The other party will receive session:ended event
         socketManager.emit("session:end", mapOf("bookingId" to bookingId))
-        leaveCall()
+        // Cleanup locally after a short delay to ensure server processes the end event
+        viewModelScope.launch {
+            delay(100) // Small delay to ensure server processes session:end first
+            cleanupCall()
+            _state.update { it.copy(phase = CallPhase.Ended) }
+        }
     }
 
     fun leaveCall() {
@@ -244,9 +570,41 @@ class VideoCallViewModel @Inject constructor(
                     is RealtimeEvent.SignalOfferReceived -> handleSignalOffer(event.payload)
                     is RealtimeEvent.SignalAnswerReceived -> handleSignalAnswer(event.payload)
                     is RealtimeEvent.SignalIceReceived -> handleSignalIce(event.payload)
+                    is RealtimeEvent.SessionStatusChanged -> handleSessionStatus(event.payload)
+                    is RealtimeEvent.SessionMediaStateChanged -> handleMediaStateChanged(event.payload)
+                    is RealtimeEvent.SessionChatReceived -> handleSessionChat(event)
                     else -> Unit
                 }
             }
+        }
+    }
+    
+    private fun handleSessionChat(event: RealtimeEvent.SessionChatReceived) {
+        Log.d("VideoCallVM", "handleSessionChat - event bookingId: ${event.bookingId}, currentBookingId: $currentBookingId")
+        if (event.bookingId != currentBookingId) {
+            Log.w("VideoCallVM", "handleSessionChat - bookingId mismatch, ignoring")
+            return
+        }
+        Log.d("VideoCallVM", "handleSessionChat - processing message from ${event.senderName}: ${event.message}")
+        handleIncomingChatMessage(
+            senderId = event.senderId,
+            senderName = event.senderName,
+            message = event.message,
+            timestamp = event.timestamp
+        )
+    }
+    
+    private fun handleMediaStateChanged(payload: SessionMediaStatePayload) {
+        val bookingId = payload.bookingId ?: return
+        if (bookingId != currentBookingId) return
+        
+        Log.d("VideoCallVM", "Peer media state changed - audio: ${payload.audioEnabled}, video: ${payload.videoEnabled}")
+        
+        _state.update { 
+            it.copy(
+                peerAudioEnabled = payload.audioEnabled ?: it.peerAudioEnabled,
+                peerVideoEnabled = payload.videoEnabled ?: it.peerVideoEnabled
+            ) 
         }
     }
 
@@ -256,7 +614,25 @@ class VideoCallViewModel @Inject constructor(
         currentRole = payload.role
         val admitted = payload.admitted == true
         
-        Log.d("VideoCallVM", "Session joined - role: ${payload.role}, admitted: $admitted")
+        Log.d("VideoCallVM", "Session joined - role: ${payload.role}, admitted: $admitted, sessionStartedAt: ${payload.sessionStartedAt}")
+        
+        // If server provides session start time (session already active), use it
+        // This preserves the timer when reconnecting
+        payload.sessionStartedAt?.let { startedAtStr ->
+            try {
+                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+                sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                val parsedDate = sdf.parse(startedAtStr)
+                parsedDate?.let { date ->
+                    if (callStartedAtMs == null || date.time < (callStartedAtMs ?: Long.MAX_VALUE)) {
+                        callStartedAtMs = date.time
+                        Log.d("VideoCallVM", "Session start time set from server: $callStartedAtMs (${date})")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("VideoCallVM", "Failed to parse sessionStartedAt: $startedAtStr", e)
+            }
+        }
         
         val phase = when {
             payload.role == "mentee" && !admitted -> CallPhase.WaitingForAdmit
@@ -268,7 +644,8 @@ class VideoCallViewModel @Inject constructor(
             it.copy(
                 role = payload.role,
                 admitted = admitted,
-                phase = phase
+                phase = phase,
+                isPreviewMode = false  // Exit preview mode when session is joined
             )
         }
         
@@ -291,9 +668,26 @@ class VideoCallViewModel @Inject constructor(
         val bookingId = payload.bookingId ?: return
         if (bookingId != currentBookingId) return
         
-        Log.d("VideoCallVM", "Session admitted for booking: $bookingId")
+        Log.d("VideoCallVM", "Session admitted for booking: $bookingId, sessionStartedAt: ${payload.sessionStartedAt}")
         
-        _state.update { it.copy(admitted = true, phase = CallPhase.Connecting) }
+        // Set session start time from server (this is when the call officially starts)
+        payload.sessionStartedAt?.let { startedAtStr ->
+            try {
+                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+                sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                val parsedDate = sdf.parse(startedAtStr)
+                parsedDate?.let { date ->
+                    if (callStartedAtMs == null) {
+                        callStartedAtMs = date.time
+                        Log.d("VideoCallVM", "Session start time set from admission: $callStartedAtMs (${date})")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("VideoCallVM", "Failed to parse sessionStartedAt: $startedAtStr", e)
+            }
+        }
+        
+        _state.update { it.copy(admitted = true, phase = CallPhase.Connecting, isPreviewMode = false) }
         sessionReady = true
         startCallIfReady()
     }
@@ -309,6 +703,14 @@ class VideoCallViewModel @Inject constructor(
     private fun handleParticipantJoined(payload: SessionParticipantPayload) {
         val bookingId = payload.bookingId ?: return
         if (bookingId != currentBookingId) return
+        
+        // Cancel delayed end call if peer rejoins
+        participantLeftJob?.cancel()
+        participantLeftJob = null
+        
+        // Reset reconnection state when peer successfully rejoins
+        // This prevents accumulated reconnect attempts from ending the call
+        resetReconnectState()
         
         val peerRole = payload.role
         Log.d("VideoCallVM", "Participant joined - peerRole: $peerRole, myRole: $currentRole, currentAdmitted: ${_state.value.admitted}")
@@ -328,8 +730,20 @@ class VideoCallViewModel @Inject constructor(
     private fun handleParticipantLeft(payload: SessionParticipantPayload) {
         val bookingId = payload.bookingId ?: return
         if (bookingId != currentBookingId) return
-        _state.update { it.copy(peerJoined = false, peerRole = null, phase = CallPhase.Ended) }
-        cleanupCall()
+        
+        // Update UI to show peer left
+        _state.update { it.copy(peerJoined = false, peerRole = null) }
+        
+        // Don't end call immediately - give peer time to reconnect
+        // Cancel any existing delayed end call
+        participantLeftJob?.cancel()
+        participantLeftJob = viewModelScope.launch {
+            Log.d("VideoCallVM", "Peer left, waiting ${PARTICIPANT_LEFT_TIMEOUT_MS / 1000}s before ending call")
+            delay(PARTICIPANT_LEFT_TIMEOUT_MS)
+            Log.d("VideoCallVM", "Peer did not rejoin after ${PARTICIPANT_LEFT_TIMEOUT_MS / 1000}s, ending call")
+            _state.update { it.copy(phase = CallPhase.Ended) }
+            cleanupCall()
+        }
     }
 
     private fun handleSessionEnded(payload: SessionEndedPayload) {
@@ -344,6 +758,13 @@ class VideoCallViewModel @Inject constructor(
         if (bookingId != currentBookingId) return
         
         Log.d("VideoCallVM", "Received offer from peer")
+        
+        // Cancel participantLeftJob - peer is sending offer, they're still active
+        if (participantLeftJob != null) {
+            Log.d("VideoCallVM", "Received offer from peer - cancelling participantLeftJob")
+            participantLeftJob?.cancel()
+            participantLeftJob = null
+        }
         
         val sdp = parseSessionDescription(payload.data) ?: run {
             Log.e("VideoCallVM", "Failed to parse offer SDP")
@@ -362,24 +783,32 @@ class VideoCallViewModel @Inject constructor(
     }
 
     private fun acceptOffer(sdp: SessionDescription) {
-        Log.d("VideoCallVM", "Accepting offer and creating answer")
+        val isRenegotiation = callStarted
+        Log.d("VideoCallVM", "Accepting offer (isRenegotiation: $isRenegotiation)")
         
         if (!permissionsGranted) {
             Log.w("VideoCallVM", "Cannot accept offer - permissions not granted")
             return
         }
         
-        callStarted = true
         webRtcClient.ensurePeerConnection()
-        webRtcClient.startLocalMedia()
+        
+        // Only start local media on first offer, not during renegotiation
+        if (!callStarted) {
+            callStarted = true
+            webRtcClient.startLocalMedia()
+        }
+        
         webRtcClient.setRemoteDescription(sdp)
         
         webRtcClient.createAnswer { answer ->
-            Log.d("VideoCallVM", "Answer created, emitting to peer")
+            Log.d("VideoCallVM", "Answer created (renegotiation: $isRenegotiation), emitting to peer")
             emitSdp("signal:answer", answer)
         }
         
-        startQosReporting()
+        if (!isRenegotiation) {
+            startQosReporting()
+        }
     }
 
     private fun handleSignalAnswer(payload: SessionSignalPayload) {
@@ -387,6 +816,13 @@ class VideoCallViewModel @Inject constructor(
         if (bookingId != currentBookingId) return
         
         Log.d("VideoCallVM", "Received answer from peer")
+        
+        // Cancel participantLeftJob - peer is sending answer, they're still active
+        if (participantLeftJob != null) {
+            Log.d("VideoCallVM", "Received answer from peer - cancelling participantLeftJob")
+            participantLeftJob?.cancel()
+            participantLeftJob = null
+        }
         
         val sdp = parseSessionDescription(payload.data) ?: run {
             Log.e("VideoCallVM", "Failed to parse answer SDP")
@@ -411,8 +847,63 @@ class VideoCallViewModel @Inject constructor(
         
         Log.d("VideoCallVM", "Received ICE candidate from peer: ${candidate.sdpMid}")
         
+        // If we receive ICE candidate from peer, they're still trying to connect
+        // Cancel any pending participantLeftJob
+        if (participantLeftJob != null) {
+            Log.d("VideoCallVM", "Received ICE from peer - cancelling participantLeftJob")
+            participantLeftJob?.cancel()
+            participantLeftJob = null
+        }
+        
         webRtcClient.ensurePeerConnection()
         webRtcClient.addIceCandidate(candidate)
+    }
+    
+    private fun handleSessionStatus(payload: SessionStatusPayload) {
+        val bookingId = payload.bookingId ?: return
+        if (bookingId != currentBookingId) return
+        
+        val jobActive = participantLeftJob?.isActive == true
+        Log.d("VideoCallVM", "Peer status changed: ${payload.status} (userId: ${payload.userId}, participantLeftJob active: $jobActive)")
+        
+        // Cancel delayed end call if peer is reconnecting or connected
+        // This means peer is still in the session and trying to recover
+        if (payload.status == "reconnecting" || payload.status == "connected") {
+            val wasCancelled = participantLeftJob?.isActive == true
+            participantLeftJob?.cancel()
+            participantLeftJob = null
+            Log.d("VideoCallVM", "Cancelled participantLeftJob (was ${if (wasCancelled) "active" else "inactive"}) - peer status: ${payload.status}")
+        }
+        
+        // If peer reconnected successfully, reset our reconnection state
+        // But keep emitting status if we're in a stable state to help peer
+        if (payload.status == "connected") {
+            reconnectAttempts = 0
+            reconnectJob?.cancel()
+            reconnectJob = null
+            // Don't stop status emission yet - keep emitting to ensure peer is stable
+            
+            // If we're in call and we're the mentor, we need to create a new offer
+            // because the mentee is waiting for us to initiate the handshake
+            val currentPhase = _state.value.phase
+            if (currentRole == "mentor" && (currentPhase == CallPhase.InCall || currentPhase == CallPhase.Reconnecting)) {
+                Log.d("VideoCallVM", "Peer reconnected, mentor creating new offer")
+                webRtcClient.createOffer(onSdpReady = { offer ->
+                    Log.d("VideoCallVM", "New offer created for reconnected peer, emitting")
+                    emitSdp("signal:offer", offer)
+                })
+            }
+            
+            // If we were in reconnecting state and we're the mentee, the mentor will send a new offer
+            if (currentPhase == CallPhase.Reconnecting) {
+                if (currentRole == "mentee") {
+                    // Mentee just waits for new offer from mentor
+                    _state.update { it.copy(phase = CallPhase.Connecting) }
+                }
+            }
+        }
+        
+        _state.update { it.copy(peerConnectionStatus = payload.status) }
     }
 
     private fun startCallIfReady() {
@@ -442,10 +933,10 @@ class VideoCallViewModel @Inject constructor(
         
         if (role == "mentor") {
             Log.d("VideoCallVM", "Mentor creating offer")
-            webRtcClient.createOffer { offer ->
+            webRtcClient.createOffer(onSdpReady = { offer ->
                 Log.d("VideoCallVM", "Offer created, emitting to peer")
                 emitSdp("signal:offer", offer)
-            }
+            })
         } else {
             Log.d("VideoCallVM", "Mentee waiting for offer")
         }
@@ -454,6 +945,7 @@ class VideoCallViewModel @Inject constructor(
     }
 
     private fun startLocalPreview() {
+        Log.d("VideoCallVM", "startLocalPreview called")
         webRtcClient.startLocalMedia()
     }
 
@@ -483,18 +975,47 @@ class VideoCallViewModel @Inject constructor(
     }
 
     private fun handleConnectionState(state: PeerConnection.PeerConnectionState) {
+        Log.d("VideoCallVM", "PeerConnection state changed: $state, current phase: ${_state.value.phase}")
         when (state) {
             PeerConnection.PeerConnectionState.CONNECTED -> {
-                resetReconnectState()
+                // WebRTC is connected - peer is definitely still there!
+                // Cancel any pending participantLeftJob since we have direct proof peer is active
+                if (participantLeftJob?.isActive == true) {
+                    Log.d("VideoCallVM", "WebRTC CONNECTED - cancelling participantLeftJob (peer is active)")
+                    participantLeftJob?.cancel()
+                    participantLeftJob = null
+                }
+                
                 markInCall()
+                reconnectAttempts = 0
+                reconnectJob?.cancel()
+                reconnectJob = null
+                // Start emitting "connected" status periodically to ensure peer receives it
+                // This will cancel peer's participantLeftJob
+                startStatusEmission("connected")
             }
             PeerConnection.PeerConnectionState.DISCONNECTED,
             PeerConnection.PeerConnectionState.FAILED -> {
+                // Immediately notify peer that we're having connection issues
+                // This helps them cancel any participant-left timer
+                currentBookingId?.let { bookingId ->
+                    socketManager.emit("session:status", mapOf(
+                        "bookingId" to bookingId,
+                        "status" to "reconnecting"
+                    ))
+                }
                 handleReconnect("Connection lost")
             }
             PeerConnection.PeerConnectionState.CLOSED -> {
-                _state.update { it.copy(phase = CallPhase.Ended) }
-                cleanupCall()
+                // Don't end call if we're reconnecting - CLOSED is expected when recreating peer connection
+                val currentPhase = _state.value.phase
+                if (currentPhase != CallPhase.Reconnecting && currentPhase != CallPhase.Connecting) {
+                    Log.d("VideoCallVM", "PeerConnection closed, ending call")
+                    _state.update { it.copy(phase = CallPhase.Ended) }
+                    cleanupCall()
+                } else {
+                    Log.d("VideoCallVM", "PeerConnection closed during reconnect/connect, ignoring")
+                }
             }
             else -> Unit
         }
@@ -504,8 +1025,27 @@ class VideoCallViewModel @Inject constructor(
         if (callStartedAtMs == null) {
             callStartedAtMs = System.currentTimeMillis()
         }
-        _state.update { it.copy(phase = CallPhase.InCall, errorMessage = null) }
+        reconnectAttempts = 0
+        _state.update { it.copy(
+            phase = CallPhase.InCall, 
+            errorMessage = null,
+            reconnectAttempt = 0,
+            peerConnectionStatus = null // Clear peer status when we're connected
+        ) }
+        
+        // Notify peer that we're connected (immediate single emit)
+        // Periodic emission will continue in handleConnectionState
+        currentBookingId?.let { bookingId ->
+            val socketConnected = socketManager.isConnected()
+            Log.d("VideoCallVM", "Marking in call, emitting connected status (socket connected: $socketConnected)")
+            socketManager.emit("session:status", mapOf(
+                "bookingId" to bookingId,
+                "status" to "connected"
+            ))
+        }
+        
         startCallTimer()
+        maybeStartTimeCheckJob()
     }
 
     private fun startCallTimer() {
@@ -522,13 +1062,38 @@ class VideoCallViewModel @Inject constructor(
 
     private fun handleReconnect(reason: String) {
         if (_state.value.phase == CallPhase.Ended || _state.value.phase == CallPhase.Error) return
-        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            setError("Reconnect failed")
+        
+        // Don't start another reconnect if we're already reconnecting or connecting
+        // This prevents multiple reconnect attempts from the same network issue
+        val currentPhase = _state.value.phase
+        if (currentPhase == CallPhase.Reconnecting || currentPhase == CallPhase.Connecting) {
+            Log.d("VideoCallVM", "Already reconnecting/connecting (phase=$currentPhase), ignoring reconnect request: $reason")
             return
         }
-        _state.update { it.copy(phase = CallPhase.Reconnecting, errorMessage = reason) }
+        
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            setError("Reconnect failed after ${MAX_RECONNECT_ATTEMPTS} attempts")
+            // Notify peer about disconnection
+            currentBookingId?.let { bookingId ->
+                socketManager.emit("session:status", mapOf(
+                    "bookingId" to bookingId,
+                    "status" to "disconnected"
+                ))
+            }
+            return
+        }
+        reconnectAttempts += 1
+        Log.d("VideoCallVM", "Starting reconnect attempt $reconnectAttempts/$MAX_RECONNECT_ATTEMPTS")
+        _state.update { it.copy(
+            phase = CallPhase.Reconnecting, 
+            errorMessage = reason,
+            reconnectAttempt = reconnectAttempts
+        ) }
+        
+        // Start periodic status emission to ensure peer receives it
+        startStatusEmission("reconnecting")
+        
         if (reconnectJob == null) {
-            reconnectAttempts += 1
             reconnectJob = viewModelScope.launch {
                 delay(RECONNECT_DELAY_MS)
                 reconnectJob = null
@@ -559,6 +1124,134 @@ class VideoCallViewModel @Inject constructor(
         }
         return IceCandidate(sdpMid, sdpMLineIndex, candidate)
     }
+    
+    private fun calculateNetworkQuality(rttMs: Double): NetworkQuality {
+        return when {
+            rttMs < 100 -> NetworkQuality.Excellent
+            rttMs < 200 -> NetworkQuality.Good
+            rttMs < 400 -> NetworkQuality.Fair
+            rttMs < 800 -> NetworkQuality.Poor
+            else -> NetworkQuality.VeryPoor
+        }
+    }
+    
+    private fun startTimeCheckJob() {
+        if (timeCheckJob != null) return
+        val endTime = _state.value.bookingEndTime ?: return
+        
+        timeCheckJob = viewModelScope.launch {
+            while (true) {
+                val now = System.currentTimeMillis()
+                val remainingMs = endTime - now
+                val remainingMinutes = (remainingMs / 60000).toInt()
+                
+                _state.update { it.copy(remainingMinutes = remainingMinutes) }
+                
+                when {
+                    remainingMs <= 0 -> {
+                        // Time's up, end the call
+                        _state.update { it.copy(
+                            showTimeWarning = true,
+                            timeWarningMessage = "Booking time has ended. The call will now disconnect."
+                        ) }
+                        delay(3000) // Show message for 3 seconds
+                        endCall()
+                        break
+                    }
+                    remainingMinutes == 5 && !_state.value.showTimeWarning -> {
+                        // 5 minutes warning
+                        _state.update { it.copy(
+                            showTimeWarning = true,
+                            timeWarningMessage = "Your booking will end in 5 minutes."
+                        ) }
+                    }
+                    remainingMinutes == 2 && _state.value.timeWarningMessage != "Your booking will end in 2 minutes." -> {
+                        // 2 minutes warning
+                        _state.update { it.copy(
+                            showTimeWarning = true,
+                            timeWarningMessage = "Your booking will end in 2 minutes."
+                        ) }
+                    }
+                    remainingMinutes == 1 && _state.value.timeWarningMessage != "Your booking will end in 1 minute!" -> {
+                        // 1 minute final warning
+                        _state.update { it.copy(
+                            showTimeWarning = true,
+                            timeWarningMessage = "Your booking will end in 1 minute!"
+                        ) }
+                    }
+                }
+                
+                delay(30_000) // Check every 30 seconds
+            }
+        }
+    }
+    
+    private fun maybeStartTimeCheckJob() {
+        if (timeCheckJob != null) return
+        if (_state.value.phase != CallPhase.InCall) return
+        if (_state.value.bookingEndTime == null) return
+        startTimeCheckJob()
+    }
+
+    private fun loadBookingEndTime(bookingId: String) {
+        if (_state.value.bookingEndTime != null) return
+        viewModelScope.launch {
+            when (val result = bookingRepository.getBookingById(bookingId)) {
+                is AppResult.Success -> {
+                    if (bookingId != currentBookingId) return@launch
+                    val booking = result.data
+                    val endTimeMs = parseBookingEndTimeMs(booking)
+                    
+                    // Determine peer info based on current role
+                    val currentRole = _state.value.role
+                    val peerName = if (currentRole == "mentor") {
+                        booking.menteeName ?: "Mentee"
+                    } else {
+                        booking.mentorName ?: "Mentor"
+                    }
+                    val peerAvatarUrl = if (currentRole == "mentor") {
+                        booking.menteeAvatar
+                    } else {
+                        booking.mentorAvatar
+                    }
+                    
+                    if (endTimeMs != null) {
+                        _state.update { 
+                            it.copy(
+                                bookingEndTime = endTimeMs,
+                                peerName = peerName,
+                                peerAvatarUrl = peerAvatarUrl
+                            ) 
+                        }
+                        maybeStartTimeCheckJob()
+                    } else {
+                        Log.w("VideoCallVM", "Unable to parse booking end time for bookingId=$bookingId")
+                    }
+                }
+                is AppResult.Error -> {
+                    Log.w("VideoCallVM", "Failed to load booking end time: ${result.throwable}")
+                }
+                AppResult.Loading -> Unit
+            }
+        }
+    }
+
+    private fun parseBookingEndTimeMs(booking: Booking): Long? {
+        val endIso = booking.endTimeIso?.trim().orEmpty()
+        if (endIso.isNotEmpty()) {
+            val instant = runCatching { Instant.parse(endIso) }.getOrNull()
+            if (instant != null) return instant.toEpochMilli()
+            val offsetInstant = runCatching { OffsetDateTime.parse(endIso).toInstant() }.getOrNull()
+            if (offsetInstant != null) return offsetInstant.toEpochMilli()
+        }
+        val localEnd = "${booking.date}T${booking.endTime}:00"
+        return runCatching {
+            LocalDateTime.parse(localEnd)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+        }.getOrNull()
+    }
 
     private fun startQosReporting() {
         if (qosJob != null) return
@@ -567,12 +1260,30 @@ class VideoCallViewModel @Inject constructor(
             while (true) {
                 webRtcClient.getStats { stats ->
                     if (stats != null) {
+                        val rtt = stats.rttMs
+                        val quality = calculateNetworkQuality(rtt)
+                        
+                        // For now just track RTT, can add more stats later if needed
+                        val packetLossRate = 0.0
+                        val jitter = 0.0
+                        
+                        Log.d("VideoCallVM", "QoS - RTT: ${rtt}ms, Loss: ${"%.2f".format(packetLossRate)}%, Jitter: ${"%.2f".format(jitter)}ms")
+                        
+                        _state.update { it.copy(
+                            networkQuality = quality,
+                            rttMs = rtt
+                        ) }
+                        
                         socketManager.emit(
                             "session:qos",
                             mapOf(
                                 "bookingId" to bookingId,
                                 "stats" to mapOf(
-                                    "rttMs" to stats.rttMs,
+                                    "rttMs" to rtt,
+                                    "packetLoss" to packetLossRate,
+                                    "jitter" to jitter,
+                                    "bytesReceived" to 0L,
+                                    "bytesSent" to 0L,
                                     "timestamp" to System.currentTimeMillis()
                                 )
                             )
@@ -583,6 +1294,41 @@ class VideoCallViewModel @Inject constructor(
             }
         }
     }
+    
+    private fun startStatusEmission(status: String) {
+        // Cancel any existing emission job
+        statusEmitJob?.cancel()
+        stopEmissionJob?.cancel()
+        
+        statusEmitJob = viewModelScope.launch {
+            var emissionCount = 0
+            while (true) {
+                currentBookingId?.let { bookingId ->
+                    emissionCount++
+                    val socketConnected = socketManager.isConnected()
+                    Log.d("VideoCallVM", "Emitting status #$emissionCount: $status for booking: $bookingId (socket connected: $socketConnected)")
+                    socketManager.emit("session:status", mapOf(
+                        "bookingId" to bookingId,
+                        "status" to status
+                    ))
+                }
+                delay(3_000) // Emit every 3 seconds
+            }
+        }
+        // Note: No auto-stop - will run until manually stopped or call ended
+        // This ensures peer always receives status even after multiple reconnects
+    }
+    
+    private fun stopStatusEmission() {
+        val wasActive = statusEmitJob?.isActive == true
+        statusEmitJob?.cancel()
+        statusEmitJob = null
+        stopEmissionJob?.cancel()
+        stopEmissionJob = null
+        if (wasActive) {
+            Log.d("VideoCallVM", "Stopped status emission")
+        }
+    }
 
     private fun cleanupCall() {
         qosJob?.cancel()
@@ -591,11 +1337,26 @@ class VideoCallViewModel @Inject constructor(
         timerJob = null
         reconnectJob?.cancel()
         reconnectJob = null
+        timeCheckJob?.cancel()
+        timeCheckJob = null
+        participantLeftJob?.cancel()
+        participantLeftJob = null
+        statusEmitJob?.cancel()
+        statusEmitJob = null
+        stopEmissionJob?.cancel()
+        stopEmissionJob = null
         webRtcClient.release()
         callStarted = false
         sessionReady = false
         pendingOffer = null
         callStartedAtMs = null
+    }
+    
+    /**
+     * Release renderers - call this when VideoCallScreen is disposed
+     */
+    fun releaseRenderers() {
+        webRtcClient.releaseRenderers()
     }
 
     private fun resetCallState() {
@@ -605,9 +1366,11 @@ class VideoCallViewModel @Inject constructor(
     }
 
     private fun resetReconnectState() {
+        Log.d("VideoCallVM", "Resetting reconnect state")
         reconnectAttempts = 0
         reconnectJob?.cancel()
         reconnectJob = null
+        stopStatusEmission()
     }
 
     private fun setError(message: String) {
@@ -622,7 +1385,8 @@ class VideoCallViewModel @Inject constructor(
     }
 
     private companion object {
-        const val RECONNECT_DELAY_MS = 3_000L
-        const val MAX_RECONNECT_ATTEMPTS = 3
+        const val RECONNECT_DELAY_MS = 5_000L // 5 seconds - give more time for network recovery
+        const val MAX_RECONNECT_ATTEMPTS = 5 // Match UI state
+        const val PARTICIPANT_LEFT_TIMEOUT_MS = 120_000L // 120 seconds - wait for socket reconnect + emit status
     }
 }

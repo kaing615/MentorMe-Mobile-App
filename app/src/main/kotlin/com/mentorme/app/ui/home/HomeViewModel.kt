@@ -5,23 +5,44 @@ import androidx.lifecycle.viewModelScope
 import com.mentorme.app.core.utils.AppResult
 import com.mentorme.app.core.realtime.RealtimeEvent
 import com.mentorme.app.core.realtime.RealtimeEventBus
+import com.mentorme.app.data.model.Booking
+import com.mentorme.app.data.model.BookingStatus
+import com.mentorme.app.data.repository.BookingRepository
+import com.mentorme.app.data.repository.ProfileRepository
 import com.mentorme.app.domain.usecase.SearchMentorsUseCase
 import com.mentorme.app.domain.usecase.profile.GetMeUseCase
 import com.mentorme.app.domain.usecase.home.GetHomeStatsUseCase
-import com.mentorme.app.domain.usecase.home.PingPresenceUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 data class WaitingSession(
     val bookingId: String,
     val menteeUserId: String?,
     val menteeName: String?
+)
+
+/**
+ * UI model for mentee's upcoming sessions
+ */
+data class MenteeUpcomingSessionUi(
+    val id: String,
+    val mentorName: String,
+    val topic: String,
+    val time: String,
+    val avatarInitial: String,
+    val avatarUrl: String?,
+    val isStartingSoon: Boolean,
+    val canJoin: Boolean
 )
 
 data class HomeUiState(
@@ -38,7 +59,9 @@ data class HomeUiState(
     val avgRating: Double = 0.0,
     val onlineCount: Int = 0,
     // Session waiting
-    val waitingSession: WaitingSession? = null
+    val waitingSession: WaitingSession? = null,
+    // Upcoming sessions for mentee
+    val upcomingSessions: List<MenteeUpcomingSessionUi> = emptyList()
 )
 
 @HiltViewModel
@@ -46,7 +69,8 @@ class HomeViewModel @Inject constructor(
     private val searchMentorsUseCase: SearchMentorsUseCase,
     private val getMeUseCase: GetMeUseCase,
     private val getHomeStatsUseCase: GetHomeStatsUseCase,
-    private val pingPresenceUseCase: PingPresenceUseCase
+    private val bookingRepository: BookingRepository,
+    private val profileRepository: ProfileRepository
 ) : ViewModel() {
 
     private val TAG = "HomeViewModel"
@@ -56,7 +80,6 @@ class HomeViewModel @Inject constructor(
 
     init {
         loadData()
-        startPresencePing()
         observeRealtimeEvents()
     }
 
@@ -139,18 +162,83 @@ class HomeViewModel @Inject constructor(
                     when (val meResult = getMeUseCase()) {
                         is AppResult.Success -> {
                             val profile = meResult.data.profile
-                            val userEmail = meResult.data.user?.email ?: "user"
-                            val name = profile?.fullName?.takeIf { it.isNotBlank() }
-                                ?: userEmail.substringBefore("@")
+                            val user = meResult.data.user
+                            val userEmail = user?.email ?: "user"
+                            
+                            // Try multiple sources for name
+                            var name = listOf(
+                                profile?.fullName,
+                                user?.fullName,
+                                user?.name,
+                                user?.userName
+                            ).firstOrNull { !it.isNullOrBlank() }
+                            
+                            // Try multiple sources for avatar
+                            var avatarUrl = listOf(
+                                profile?.avatarUrl,
+                                user?.avatarUrl,
+                                user?.avatar
+                            ).firstOrNull { !it.isNullOrBlank() }
+                            
+                            android.util.Log.d(TAG, "🔍 getMeUseCase: profile.fullName=${profile?.fullName}, user.fullName=${user?.fullName}, user.name=${user?.name}, user.userName=${user?.userName}")
+                            
+                            // If name still not found, try getProfileMe API as fallback
+                            if (name.isNullOrBlank()) {
+                                android.util.Log.d(TAG, "🔍 Name not found in /auth/me, trying /profile/me...")
+                                when (val profileMeResult = profileRepository.getProfileMe()) {
+                                    is AppResult.Success -> {
+                                        val profileMe = profileMeResult.data.profile
+                                        android.util.Log.d(TAG, "🔍 getProfileMe: fullName=${profileMe?.fullName}")
+                                        if (!profileMe?.fullName.isNullOrBlank()) {
+                                            name = profileMe?.fullName
+                                        }
+                                        if (avatarUrl.isNullOrBlank() && !profileMe?.avatarUrl.isNullOrBlank()) {
+                                            avatarUrl = profileMe?.avatarUrl
+                                        }
+                                    }
+                                    is AppResult.Error -> {
+                                        android.util.Log.w(TAG, "Failed to load profile/me: ${profileMeResult.throwable}")
+                                    }
+                                    AppResult.Loading -> Unit
+                                }
+                            }
+                            
+                            // Final fallback to email prefix
+                            if (name.isNullOrBlank()) {
+                                name = userEmail.substringBefore("@")
+                            }
+                            
+                            android.util.Log.d(TAG, "🔍 Final resolved name: $name")
+                            
                             _uiState.update {
                                 it.copy(
                                     userName = name,
-                                    userAvatar = profile?.avatarUrl
+                                    userAvatar = avatarUrl
                                 )
                             }
                         }
                         is AppResult.Error -> {
                             android.util.Log.w(TAG, "Failed to load user info: ${meResult.throwable}")
+                        }
+                        AppResult.Loading -> Unit
+                    }
+                }
+
+                // Load upcoming sessions for mentee
+                launch {
+                    when (val bookingsResult = bookingRepository.getBookings(
+                        role = "mentee",
+                        status = null,
+                        page = 1,
+                        limit = 50
+                    )) {
+                        is AppResult.Success -> {
+                            val sessions = findUpcomingSessions(bookingsResult.data.bookings)
+                            _uiState.update { it.copy(upcomingSessions = sessions) }
+                            android.util.Log.d(TAG, "Loaded ${sessions.size} upcoming sessions for mentee")
+                        }
+                        is AppResult.Error -> {
+                            android.util.Log.w(TAG, "Failed to load bookings: ${bookingsResult.throwable}")
                         }
                         AppResult.Loading -> Unit
                     }
@@ -209,17 +297,86 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun startPresencePing() {
-        viewModelScope.launch {
-            // Initial ping
-            pingPresenceUseCase()
+    /**
+     * Find all upcoming sessions (max 5) for the mentee
+     */
+    private fun findUpcomingSessions(bookings: List<Booking>): List<MenteeUpcomingSessionUi> {
+        val now = Instant.now()
+        val zoneId = ZoneId.systemDefault()
+        val today = LocalDate.now(zoneId)
 
-            // Ping every 90 seconds to keep presence alive (TTL is 120s)
-            while (true) {
-                delay(90_000) // 90 seconds
-                pingPresenceUseCase()
+        // Filter: CONFIRMED + not ended
+        val upcoming = bookings
+            .filter { booking ->
+                if (booking.status != BookingStatus.CONFIRMED) return@filter false
+
+                try {
+                    val bookingDate = LocalDate.parse(booking.date)
+                    val endTime = LocalTime.parse(booking.endTime, DateTimeFormatter.ofPattern("HH:mm"))
+                    val bookingEndDateTime = bookingDate.atTime(endTime).atZone(zoneId).toInstant()
+                    bookingEndDateTime.isAfter(now)
+                } catch (e: Exception) {
+                    false
+                }
+            }
+            .sortedWith(compareBy({ it.date }, { it.startTime }))
+            .take(5)
+
+        return upcoming.mapNotNull { booking ->
+            try {
+                val bookingDate = LocalDate.parse(booking.date)
+                val startTime = LocalTime.parse(booking.startTime, DateTimeFormatter.ofPattern("HH:mm"))
+                val endTime = LocalTime.parse(booking.endTime, DateTimeFormatter.ofPattern("HH:mm"))
+                val bookingDateTime = bookingDate.atTime(startTime).atZone(zoneId).toInstant()
+
+                // Format time display
+                val timeDisplay = when {
+                    bookingDate == today -> {
+                        val fmt = DateTimeFormatter.ofPattern("HH:mm")
+                        "${startTime.format(fmt)} - ${endTime.format(fmt)} hôm nay"
+                    }
+                    bookingDate == today.plusDays(1) -> {
+                        val fmt = DateTimeFormatter.ofPattern("HH:mm")
+                        "${startTime.format(fmt)} - ${endTime.format(fmt)} ngày mai"
+                    }
+                    else -> {
+                        val dateFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+                        val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
+                        "${timeFmt.format(startTime)} - ${timeFmt.format(endTime)}, ${dateFmt.format(bookingDate)}"
+                    }
+                }
+
+                // Check if can join
+                val canJoin = now.isAfter(bookingDateTime.minus(java.time.Duration.ofMinutes(20)))
+                    && now.isBefore(bookingDateTime.plus(java.time.Duration.ofHours(1)))
+
+                // Check if starting soon
+                val isStartingSoon = now.isAfter(bookingDateTime.minus(java.time.Duration.ofMinutes(30)))
+                    && now.isBefore(bookingDateTime.plus(java.time.Duration.ofHours(1)))
+
+                // Get mentor info
+                val mentorName = booking.mentorFullName 
+                    ?: booking.mentor?.fullName 
+                    ?: "Mentor ${booking.mentorId.takeLast(6)}"
+                val avatarInitial = if (mentorName.startsWith("Mentor ")) "M" 
+                    else mentorName.firstOrNull()?.uppercaseChar()?.toString() ?: "M"
+                val avatarUrl = booking.mentor?.avatar
+
+                MenteeUpcomingSessionUi(
+                    id = booking.id,
+                    mentorName = mentorName,
+                    topic = booking.topic ?: "Buổi tư vấn",
+                    time = timeDisplay,
+                    avatarInitial = avatarInitial,
+                    avatarUrl = avatarUrl,
+                    isStartingSoon = isStartingSoon,
+                    canJoin = canJoin
+                )
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "Error mapping booking ${booking.id}: ${e.message}")
+                null
             }
         }
     }
-}
 
+}

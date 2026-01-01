@@ -1,9 +1,17 @@
-import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
-import redis from "../utils/redis";
 import { createHash } from "crypto";
+import { NextFunction, Request, Response } from "express";
+import jwt from "jsonwebtoken";
 import responseHandler from "../handlers/response.handler";
 import User from "../models/user.model";
+import redis from "../utils/redis";
+
+export interface AuthRequest extends Request {
+  user?: {
+    id: string;
+    email: string;
+    role: string;
+  };
+}
 
 const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
 

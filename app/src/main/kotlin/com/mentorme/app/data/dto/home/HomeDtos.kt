@@ -40,3 +40,23 @@ data class PresencePingData(
     val expiresIn: Int
 )
 
+/**
+ * Request/Response for POST /presence/lookup
+ */
+data class PresenceLookupRequest(
+    @SerializedName("userIds")
+    val userIds: List<String>
+)
+
+data class PresenceLookupResponse(
+    @SerializedName("success")
+    val success: Boolean,
+    @SerializedName("data")
+    val data: PresenceLookupData?
+)
+
+data class PresenceLookupData(
+    @SerializedName("onlineUserIds")
+    val onlineUserIds: List<String>
+)
+

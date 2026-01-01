@@ -1,8 +1,11 @@
 package com.mentorme.app.data.network.api.home
 
 import com.mentorme.app.data.dto.home.HomeStatsResponse
+import com.mentorme.app.data.dto.home.PresenceLookupRequest
+import com.mentorme.app.data.dto.home.PresenceLookupResponse
 import com.mentorme.app.data.dto.home.PresencePingResponse
 import retrofit2.Response
+import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
 
@@ -21,5 +24,13 @@ interface HomeApiService {
      */
     @POST("presence/ping")
     suspend fun pingPresence(): Response<PresencePingResponse>
+
+    /**
+     * Lookup online status for a list of user IDs (auth required)
+     */
+    @POST("presence/lookup")
+    suspend fun lookupPresence(
+        @Body request: PresenceLookupRequest
+    ): Response<PresenceLookupResponse>
 }
 

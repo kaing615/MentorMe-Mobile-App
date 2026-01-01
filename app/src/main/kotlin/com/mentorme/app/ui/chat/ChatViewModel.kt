@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mentorme.app.core.datastore.DataStoreManager
 import com.mentorme.app.core.realtime.RealtimeEvent
 import com.mentorme.app.core.realtime.RealtimeEventBus
+import com.mentorme.app.core.realtime.SocketManager
 import com.mentorme.app.core.utils.AppResult
 import com.mentorme.app.data.mapper.ChatSocketPayload
 import com.mentorme.app.data.mapper.toChatMessage
@@ -23,7 +24,8 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
-    private val dataStoreManager: DataStoreManager
+    private val dataStoreManager: DataStoreManager,
+    private val socketManager: SocketManager
 ) : ViewModel() {
 
     private val _conversations = MutableStateFlow<List<Conversation>>(emptyList())
@@ -37,9 +39,13 @@ class ChatViewModel @Inject constructor(
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+    
+    private val _peerTypingStatus = MutableStateFlow<Map<String, Boolean>>(emptyMap())
+    val peerTypingStatus: StateFlow<Map<String, Boolean>> = _peerTypingStatus.asStateFlow()
 
     private var currentConversationId: String? = null
     private var currentUserId: String? = null
+    private val presenceOverrides = mutableMapOf<String, Boolean>()
 
     init {
         observeUser()
@@ -52,7 +58,8 @@ class ChatViewModel @Inject constructor(
             _loading.value = true
             when (val res = chatRepository.getConversations()) {
                 is AppResult.Success -> {
-                    _conversations.value = res.data
+                    _conversations.value = applyPresenceOverrides(res.data)
+                    launch { syncPresence(res.data) }
                     
                     // Load last message preview for each conversation
                     res.data.forEach { conversation ->
@@ -200,6 +207,7 @@ class ChatViewModel @Inject constructor(
             RealtimeEventBus.events.collect { event ->
                 when (event) {
                     is RealtimeEvent.ChatMessageReceived -> handleIncomingMessage(event.payload)
+                    is RealtimeEvent.ChatTypingIndicator -> handleTypingIndicator(event.userId, event.isTyping)
                     is RealtimeEvent.SessionReady -> updateConversationSession(event.payload.bookingId, true)
                     is RealtimeEvent.SessionAdmitted -> updateConversationSession(event.payload.bookingId, true)
                     is RealtimeEvent.SessionWaiting -> updateConversationSession(event.payload.bookingId, true)
@@ -209,6 +217,37 @@ class ChatViewModel @Inject constructor(
                     is RealtimeEvent.UserOnlineStatusChanged -> updateUserOnlineStatus(event.userId, event.isOnline)
                     else -> Unit
                 }
+            }
+        }
+    }
+    
+    private fun handleTypingIndicator(userId: String, isTyping: Boolean) {
+        android.util.Log.d("ChatViewModel", "handleTypingIndicator: userId=$userId, isTyping=$isTyping, currentConversation=$currentConversationId")
+        _peerTypingStatus.update { currentMap ->
+            val newMap = if (isTyping) {
+                currentMap + (userId to true)
+            } else {
+                currentMap - userId
+            }
+            android.util.Log.d("ChatViewModel", "peerTypingStatus updated: $newMap")
+            newMap
+        }
+        
+        // Auto-clear typing indicator after 5 seconds
+        if (isTyping) {
+            viewModelScope.launch {
+                kotlinx.coroutines.delay(5000)
+                _peerTypingStatus.update { it - userId }
+            }
+        }
+    }
+    
+    fun emitTypingStatus(peerId: String, isTyping: Boolean) {
+        viewModelScope.launch {
+            try {
+                socketManager.emitTypingIndicator(peerId, isTyping)
+            } catch (e: Exception) {
+                android.util.Log.w("ChatViewModel", "Failed to emit typing status", e)
             }
         }
     }
@@ -308,11 +347,27 @@ class ChatViewModel @Inject constructor(
         if (targetId.isBlank()) return
         _conversations.update { list ->
             list.map { convo ->
-                if (convo.id == targetId) {
-                    convo.copy(hasActiveSession = active)
-                } else {
-                    convo
+                val matches = targetId == convo.activeSessionBookingId ||
+                    targetId == convo.primaryBookingId ||
+                    targetId == convo.nextSessionBookingId
+                if (!matches) return@map convo
+
+                val nextActiveId = when {
+                    active -> targetId
+                    targetId == convo.activeSessionBookingId -> null
+                    else -> convo.activeSessionBookingId
                 }
+                val nextHasActive = if (active) {
+                    true
+                } else if (targetId == convo.activeSessionBookingId) {
+                    false
+                } else {
+                    convo.hasActiveSession
+                }
+                convo.copy(
+                    hasActiveSession = nextHasActive,
+                    activeSessionBookingId = nextActiveId
+                )
             }
         }
     }
@@ -326,14 +381,54 @@ class ChatViewModel @Inject constructor(
     }
     
     private fun updateUserOnlineStatus(userId: String, isOnline: Boolean) {
+        val normalizedId = userId.trim()
+        if (normalizedId.isEmpty()) return
+        presenceOverrides[normalizedId] = isOnline
         _conversations.update { list ->
             list.map { convo ->
-                if (convo.peerId == userId) {
-                    convo.copy(isOnline = isOnline)
-                } else {
-                    convo
+                if (convo.peerId == normalizedId) convo.copy(isOnline = isOnline) else convo
+            }
+        }
+    }
+
+    private fun applyPresenceOverrides(conversations: List<Conversation>): List<Conversation> {
+        if (conversations.isEmpty() || presenceOverrides.isEmpty()) return conversations
+        return conversations.map { convo ->
+            if (!presenceOverrides.containsKey(convo.peerId)) {
+                convo
+            } else {
+                val isOnline = presenceOverrides[convo.peerId] ?: false
+                if (convo.isOnline == isOnline) convo else convo.copy(isOnline = isOnline)
+            }
+        }
+    }
+
+    private suspend fun syncPresence(conversations: List<Conversation>) {
+        val peerIds = conversations
+            .map { it.peerId.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+        if (peerIds.isEmpty()) return
+
+        when (val res = chatRepository.getOnlinePeerIds(peerIds)) {
+            is AppResult.Success -> {
+                val onlineIds = res.data
+                peerIds.forEach { id ->
+                    presenceOverrides[id] = onlineIds.contains(id)
+                }
+                _conversations.update { list ->
+                    list.map { convo ->
+                        val id = convo.peerId.trim()
+                        if (id.isEmpty()) {
+                            convo
+                        } else {
+                            val isOnline = onlineIds.contains(id)
+                            if (convo.isOnline == isOnline) convo else convo.copy(isOnline = isOnline)
+                        }
+                    }
                 }
             }
+            else -> Unit
         }
     }
 }

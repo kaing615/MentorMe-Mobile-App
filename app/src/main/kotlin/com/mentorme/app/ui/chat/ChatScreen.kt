@@ -284,10 +284,26 @@ fun ChatScreen(
                     ) {
                         Text(
                             conversation?.peerName ?: "Chat",
-                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
+
+                        // Role badge
+                        if (conversation?.peerRole != null) {
+                            Text(
+                                text = when (conversation.peerRole.lowercase()) {
+                                    "mentor" -> "Mentor"
+                                    "mentee" -> "Mentee"
+                                    else -> conversation.peerRole
+                                },
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFFFBBF24), // Amber/Gold color for role
+                                maxLines = 1
+                            )
+                        }
 
                         // Status text with typing indicator
                         Row(verticalAlignment = Alignment.CenterVertically) {

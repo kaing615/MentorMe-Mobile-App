@@ -16,13 +16,13 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -31,12 +31,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
-<<<<<<< HEAD
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.BlurOff
 import androidx.compose.material.icons.filled.BlurOn
-=======
->>>>>>> origin
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.Chat
@@ -44,15 +41,12 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.PhoneInTalk
-<<<<<<< HEAD
 import androidx.compose.material.icons.filled.ScreenShare
 import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.SignalCellularAlt1Bar
 import androidx.compose.material.icons.filled.SignalCellularAlt2Bar
 import androidx.compose.material.icons.filled.StopScreenShare
 import androidx.compose.material.icons.filled.Timer
-=======
->>>>>>> origin
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material.icons.filled.VolumeOff
@@ -81,21 +75,22 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.border
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.VectorConverter
-import androidx.compose.animation.core.spring
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -119,13 +114,6 @@ import org.webrtc.SurfaceViewRenderer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlinx.coroutines.launch
-
-// Companion object for synchronous state that lifecycle observer can read immediately
-private object VideoCallPipState {
-    @Volatile
-    var isEndingCall: Boolean = false
-}
 
 @Composable
 fun VideoCallScreen(
@@ -138,48 +126,40 @@ fun VideoCallScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val snackbarHostState = remember { SnackbarHostState() }
     val activity = context as? Activity
-    
+
     // PiP state
     var isInPipMode by remember { mutableStateOf(false) }
-    
-    // Reset static PiP flag when screen starts
-    LaunchedEffect(Unit) {
-        VideoCallPipState.isEndingCall = false
-    }
-    
+    // Track if user intentionally ended the call (to prevent PiP on exit)
+    var userEndedCall by remember { mutableStateOf(false) }
+
     // Lock orientation to portrait during call
     DisposableEffect(Unit) {
         val originalOrientation = activity?.requestedOrientation
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        
+
         onDispose {
             activity?.requestedOrientation = originalOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
-    
+
     // Enter PiP when app goes to background during active call
-    val currentPhase by rememberUpdatedState(state.phase)
-    
-    DisposableEffect(lifecycleOwner) {
+    DisposableEffect(lifecycleOwner, state.phase) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_PAUSE -> {
                     viewModel.onAppGoesToBackground()
                     // Enter PiP mode when going to background during call
-                    // Use static flag to ensure synchronous read
-                    val shouldEnterPip = currentPhase == CallPhase.InCall && 
-                        !VideoCallPipState.isEndingCall && 
-                        activity?.isFinishing != true &&
+                    // Don't enter PiP if user intentionally ended the call or if reconnecting
+                    val shouldEnterPip = state.phase == CallPhase.InCall && 
+                        !userEndedCall && 
+                        state.peerConnectionStatus != "reconnecting" &&
                         Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                    
-                    android.util.Log.d("VideoCallScreen", "ON_PAUSE: isEndingCall=${VideoCallPipState.isEndingCall}, phase=$currentPhase, shouldEnterPip=$shouldEnterPip")
-                    
                     if (shouldEnterPip) {
                         activity?.let { act ->
                             if (act.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
                                 try {
                                     val params = PictureInPictureParams.Builder()
-                                        .setAspectRatio(Rational(9, 16))
+                                        .setAspectRatio(Rational(9, 16)) // Portrait aspect ratio
                                         .build()
                                     act.enterPictureInPictureMode(params)
                                     isInPipMode = true
@@ -202,7 +182,7 @@ fun VideoCallScreen(
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
-    
+
     // Show toast messages
     LaunchedEffect(state.toastMessage) {
         state.toastMessage?.let { message ->
@@ -210,7 +190,7 @@ fun VideoCallScreen(
             viewModel.clearToast()
         }
     }
-    
+
     // Debug logging
     LaunchedEffect(state.phase, state.peerJoined, state.admitted, state.role) {
         android.util.Log.d("VideoCallScreen", "State updated - phase: ${state.phase}, role: ${state.role}, peerJoined: ${state.peerJoined}, admitted: ${state.admitted}")
@@ -226,7 +206,7 @@ fun VideoCallScreen(
         mutableStateOf(
             permissions.all { perm ->
                 ContextCompat.checkSelfPermission(context, perm) ==
-                    android.content.pm.PackageManager.PERMISSION_GRANTED
+                        android.content.pm.PackageManager.PERMISSION_GRANTED
             }
         )
     }
@@ -238,7 +218,7 @@ fun VideoCallScreen(
         permissionsGranted = result.values.all { it }
         viewModel.setPermissionsGranted(permissionsGranted)
     }
-    
+
     // Screen capture permission launcher
     val screenCaptureLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -269,43 +249,38 @@ fun VideoCallScreen(
             viewModel.releaseRenderers()
         }
     }
-    
+
     // Auto-hide controls after 5 seconds during call
     var controlsVisible by remember { mutableStateOf(true) }
     var lastTapTime by remember { mutableStateOf(0L) }
-    
-    // Local preview draggable position with animation
+
+    // Local preview animated position using Animatable for smooth animations
     val coroutineScope = rememberCoroutineScope()
-    val displayMetrics = context.resources.displayMetrics
-    val screenWidth = displayMetrics.widthPixels.toFloat()
-    val screenHeight = displayMetrics.heightPixels.toFloat()
-    val previewSizePx = 120.dp.value * displayMetrics.density
-    val marginPx = 12.dp.value * displayMetrics.density
-    
-    // Initial position at top-right corner
-    val initialX = screenWidth - previewSizePx - marginPx
-    val initialY = marginPx
-    
-    val localPreviewOffset = remember { 
-        Animatable(Offset(initialX, initialY), Offset.VectorConverter) 
+    val localPreviewOffset = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
+    // Store screen dimensions for drag constraints
+    var screenWidthPx by remember { mutableStateOf(0f) }
+    var screenHeightPx by remember { mutableStateOf(0f) }
+    // Preview dimensions (3:4 portrait aspect ratio)
+    var previewWidthPx by remember { mutableStateOf(0f) }
+    var previewHeightPx by remember { mutableStateOf(0f) }
+    var marginPx by remember { mutableStateOf(0f) }
+
+    // Initialize position at top-right corner and store screen dimensions
+    LaunchedEffect(Unit) {
+        val resources = context.resources
+        val displayMetrics = resources.displayMetrics
+        screenWidthPx = displayMetrics.widthPixels.toFloat()
+        screenHeightPx = displayMetrics.heightPixels.toFloat()
+        // Preview size: 110dp width x 150dp height (larger, ~3:4 portrait ratio)
+        previewWidthPx = 110.dp.value * displayMetrics.density
+        previewHeightPx = 150.dp.value * displayMetrics.density
+        marginPx = 12.dp.value * displayMetrics.density
+        // Position at top-right with margin
+        val initialX = screenWidthPx - previewWidthPx - marginPx
+        val initialY = marginPx
+        localPreviewOffset.snapTo(Offset(initialX, initialY))
     }
-    
-    // Helper function to find nearest corner
-    fun findNearestCorner(currentX: Float, currentY: Float): Offset {
-        val corners = listOf(
-            Offset(marginPx, marginPx), // Top-left
-            Offset(screenWidth - previewSizePx - marginPx, marginPx), // Top-right
-            Offset(marginPx, screenHeight - previewSizePx - marginPx), // Bottom-left
-            Offset(screenWidth - previewSizePx - marginPx, screenHeight - previewSizePx - marginPx) // Bottom-right
-        )
-        
-        return corners.minByOrNull { corner ->
-            val dx = corner.x - currentX
-            val dy = corner.y - currentY
-            dx * dx + dy * dy // Distance squared (no need for sqrt)
-        } ?: corners[1] // Default to top-right
-    }
-    
+
     // Auto-hide controls when in call
     LaunchedEffect(state.phase, controlsVisible) {
         if (state.phase == CallPhase.InCall && controlsVisible) {
@@ -318,13 +293,14 @@ fun VideoCallScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .pointerInput(state.phase) {
-                detectTapGestures {
-                    // Toggle controls visibility on tap during call
-                    if (state.phase == CallPhase.InCall) {
-                        controlsVisible = !controlsVisible
-                        lastTapTime = System.currentTimeMillis()
-                    }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                // Toggle controls visibility on tap during call
+                if (state.phase == CallPhase.InCall) {
+                    controlsVisible = !controlsVisible
+                    lastTapTime = System.currentTimeMillis()
                 }
             }
     ) {
@@ -332,7 +308,7 @@ fun VideoCallScreen(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
-        
+
         // Preview mode overlay
         if (state.isPreviewMode && permissionsGranted) {
             PreviewModeOverlay(
@@ -347,7 +323,7 @@ fun VideoCallScreen(
                 onBack = onBack
             )
         }
-        
+
         // Remote video - full screen (rendered first, behind local video)
         AndroidView(
             factory = { ctx ->
@@ -372,6 +348,120 @@ fun VideoCallScreen(
             modifier = Modifier.fillMaxSize()
         )
 
+        // Local video - small draggable preview with improvements (rendered on top)
+        Box(
+            modifier = Modifier
+                .then(
+                    if (isInPipMode) Modifier.size(0.dp) 
+                    else Modifier.size(width = 110.dp, height = 150.dp) // Larger 3:4 portrait ratio
+                )
+                .offset { IntOffset(localPreviewOffset.value.x.toInt(), localPreviewOffset.value.y.toInt()) }
+                .shadow(
+                    elevation = 12.dp,
+                    shape = RoundedCornerShape(20.dp),
+                    ambientColor = Color.Black.copy(alpha = 0.5f),
+                    spotColor = Color.Black.copy(alpha = 0.5f)
+                )
+                .clip(RoundedCornerShape(20.dp))
+                .border(
+                    width = if (!state.isVideoEnabled) 2.dp else 1.dp,
+                    color = if (!state.isVideoEnabled) Color(0xFFFF6B6B) else Color.White.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(20.dp)
+                )
+                .background(Color(0xFF1A1A2E))
+                .pointerInput(screenWidthPx, screenHeightPx, previewWidthPx, previewHeightPx, marginPx) {
+                    detectDragGestures(
+                        onDragEnd = {
+                            // Snap to nearest corner with smooth spring animation
+                            val maxX = screenWidthPx - previewWidthPx - marginPx
+                            val maxY = screenHeightPx - previewHeightPx - marginPx
+                            val centerX = screenWidthPx / 2
+                            val centerY = screenHeightPx / 2
+                            
+                            val currentOffset = localPreviewOffset.value
+                            // Determine which corner is nearest (use width for X, height for Y)
+                            val snapX = if (currentOffset.x + previewWidthPx / 2 < centerX) marginPx else maxX
+                            val snapY = if (currentOffset.y + previewHeightPx / 2 < centerY) marginPx else maxY
+                            
+                            coroutineScope.launch {
+                                localPreviewOffset.animateTo(
+                                    targetValue = Offset(snapX, snapY),
+                                    animationSpec = spring(
+                                        dampingRatio = 0.7f,
+                                        stiffness = 400f
+                                    )
+                                )
+                            }
+                        },
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            val currentOffset = localPreviewOffset.value
+                            val newX = currentOffset.x + dragAmount.x
+                            val newY = currentOffset.y + dragAmount.y
+
+                            // Constrain to screen bounds using stored screen dimensions
+                            val maxX = screenWidthPx - previewWidthPx
+                            val maxY = screenHeightPx - previewHeightPx
+                            val constrainedX = newX.coerceIn(0f, maxX)
+                            val constrainedY = newY.coerceIn(0f, maxY)
+                            
+                            coroutineScope.launch {
+                                localPreviewOffset.snapTo(Offset(constrainedX, constrainedY))
+                            }
+                        }
+                    )
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            AndroidView(
+                factory = { ctx ->
+                    SurfaceViewRenderer(ctx).apply {
+                        setZOrderMediaOverlay(true)
+                        setZOrderOnTop(true)
+                        // Apply rounded corners to SurfaceViewRenderer
+                        clipToOutline = true
+                        outlineProvider = object : android.view.ViewOutlineProvider() {
+                            override fun getOutline(view: android.view.View, outline: android.graphics.Outline) {
+                                val cornerRadiusPx = (20.dp.value * resources.displayMetrics.density)
+                                outline.setRoundRect(0, 0, view.width, view.height, cornerRadiusPx)
+                            }
+                        }
+                        // Initialize renderer on creation - use postDelayed to ensure surface is ready
+                        postDelayed({
+                            android.util.Log.d("VideoCallScreen", "Binding local renderer")
+                            viewModel.bindLocalRenderer(this)
+                        }, 100)
+                    }
+                },
+                update = { view ->
+                    // Ensure local preview stays on top and corners stay rounded
+                    view.setZOrderMediaOverlay(true)
+                    view.setZOrderOnTop(true)
+                    view.clipToOutline = true
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(20.dp))
+            )
+            
+            // Camera off indicator overlay
+            if (!state.isVideoEnabled) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFF1A1A2E).copy(alpha = 0.85f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VideocamOff,
+                        contentDescription = "Camera off",
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(40.dp) // Larger icon for bigger preview
+                    )
+                }
+            }
+        }
+
         // Top bar with back button and network indicator - hide during InCall when controls are hidden or in PiP
         AnimatedVisibility(
             visible = !isInPipMode && (state.phase != CallPhase.InCall || controlsVisible),
@@ -392,7 +482,7 @@ fun VideoCallScreen(
                         onClick = onBack
                     )
                 }
-                
+
                 // Network quality indicator
                 if (state.phase == CallPhase.InCall) {
                     NetworkQualityIndicator(
@@ -444,7 +534,7 @@ fun VideoCallScreen(
                     .padding(top = 12.dp)
             )
         }
-        
+
         // Peer connection status banner - hide in PiP mode
         if (!isInPipMode && state.phase == CallPhase.InCall && state.peerConnectionStatus != null) {
             when (state.peerConnectionStatus) {
@@ -501,9 +591,9 @@ fun VideoCallScreen(
                 )
             }
 
-            if (state.role == "mentor" && 
-                state.peerJoined && 
-                !state.admitted && 
+            if (state.role == "mentor" &&
+                state.peerJoined &&
+                !state.admitted &&
                 state.phase == CallPhase.WaitingForAdmit) {
                 android.util.Log.d("VideoCallScreen", "Showing admit popup")
                 Box(
@@ -535,7 +625,7 @@ fun VideoCallScreen(
                     }
                 }
             }
-            
+
             // Time warning dialog - hide in PiP mode
             if (!isInPipMode) {
                 state.timeWarningMessage?.let { message ->
@@ -550,20 +640,8 @@ fun VideoCallScreen(
             }
 
             // Auto-hide controls during InCall - tap screen to toggle visibility (hide in PiP)
-            // Hide controls when:
-            // 1. PiP mode
-            // 2. Preview mode (user hasn't clicked Start Call yet, PreviewModeOverlay may be showing)
-            // 3. Idle or Joining (still initializing)
-            val shouldShowControls = !isInPipMode && !state.isPreviewMode && (
-                when (state.phase) {
-                    CallPhase.InCall -> controlsVisible
-                    CallPhase.Idle, CallPhase.Joining -> false  // Hide during initial phases
-                    else -> true // WaitingForAdmit, Connecting, WaitingForPeer, Reconnecting, Ended, Error
-                }
-            )
-            
             AnimatedVisibility(
-                visible = shouldShowControls,
+                visible = !isInPipMode && (controlsVisible || state.phase != CallPhase.InCall),
                 enter = fadeIn(),
                 exit = fadeOut(),
                 modifier = Modifier.align(Alignment.BottomCenter)
@@ -586,16 +664,10 @@ fun VideoCallScreen(
                     },
                     onToggleBackgroundBlur = { viewModel.toggleBackgroundBlur() },
                     onToggleChat = { viewModel.toggleChatPanel() },
-                    onEndCall = { 
-                        // Set static flag BEFORE navigation to ensure lifecycle observer sees it
-                        VideoCallPipState.isEndingCall = true
-                        android.util.Log.d("VideoCallScreen", "End call clicked, VideoCallPipState.isEndingCall = true")
-                        viewModel.endCall()
-                        onBack() 
-                    }
+                    onEndCall = { userEndedCall = true; viewModel.endCall(); onBack() }
                 )
             }
-            
+
             // In-call chat panel (slide from right)
             AnimatedVisibility(
                 visible = !isInPipMode && state.isChatPanelOpen && state.phase == CallPhase.InCall,
@@ -612,7 +684,7 @@ fun VideoCallScreen(
                         .padding(end = 8.dp, top = 60.dp, bottom = 100.dp)
                 )
             }
-            
+
             // Hint to show controls when hidden (hide in PiP)
             AnimatedVisibility(
                 visible = !isInPipMode && !controlsVisible && state.phase == CallPhase.InCall,
@@ -629,65 +701,6 @@ fun VideoCallScreen(
                     textAlign = TextAlign.Center
                 )
             }
-        }
-        
-        // Local video - small draggable preview (rendered LAST to be on top for gesture detection)
-        Box(
-            modifier = Modifier
-                .zIndex(100f) // Ensure it's above all other elements for gesture detection
-                .size(if (isInPipMode) 0.dp else 120.dp)
-                .offset { IntOffset(localPreviewOffset.value.x.toInt(), localPreviewOffset.value.y.toInt()) }
-                .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragEnd = {
-                            // Snap to nearest corner with spring animation
-                            val nearestCorner = findNearestCorner(
-                                localPreviewOffset.value.x,
-                                localPreviewOffset.value.y
-                            )
-                            coroutineScope.launch {
-                                localPreviewOffset.animateTo(
-                                    nearestCorner,
-                                    animationSpec = spring(
-                                        dampingRatio = 0.6f,
-                                        stiffness = 400f
-                                    )
-                                )
-                            }
-                        },
-                        onDrag = { change, dragAmount ->
-                            change.consume()
-                            val newX = (localPreviewOffset.value.x + dragAmount.x)
-                                .coerceIn(0f, screenWidth - previewSizePx)
-                            val newY = (localPreviewOffset.value.y + dragAmount.y)
-                                .coerceIn(0f, screenHeight - previewSizePx)
-                            
-                            coroutineScope.launch {
-                                localPreviewOffset.snapTo(Offset(newX, newY))
-                            }
-                        }
-                    )
-                }
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.Black)
-        ) {
-            AndroidView(
-                factory = { ctx ->
-                    SurfaceViewRenderer(ctx).apply {
-                        setZOrderMediaOverlay(true)
-                        setZOrderOnTop(true)
-                        postDelayed({
-                            android.util.Log.d("VideoCallScreen", "Binding local renderer")
-                            viewModel.bindLocalRenderer(this)
-                        }, 100)
-                    }
-                },
-                update = { view ->
-                    view.setZOrderMediaOverlay(true)
-                    view.setZOrderOnTop(true)
-                },
-                modifier = Modifier.fillMaxSize()
-            )
         }
     }
 }
@@ -710,7 +723,6 @@ private fun CallControls(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-<<<<<<< HEAD
         // Top row - Video effects and chat
         Row(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -744,7 +756,7 @@ private fun CallControls(
                 size = 44.dp
             )
         }
-        
+
         // Bottom row - Main controls
         Row(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -773,35 +785,6 @@ private fun CallControls(
                 useGlass = false
             )
         }
-=======
-        ControlButton(
-            icon = if (state.isAudioEnabled) Icons.Default.Mic else Icons.Default.MicOff,
-            contentDescription = "Toggle mic",
-            onClick = onToggleAudio
-        )
-        ControlButton(
-            icon = if (state.isVideoEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
-            contentDescription = "Toggle camera",
-            onClick = onToggleVideo
-        )
-        ControlButton(
-            icon = Icons.Default.Cameraswitch,
-            contentDescription = "Switch camera",
-            onClick = onSwitchCamera
-        )
-        ControlButton(
-            icon = if (state.isSpeakerEnabled) Icons.AutoMirrored.Filled.VolumeUp else Icons.Default.PhoneInTalk,
-            contentDescription = if (state.isSpeakerEnabled) "Speaker" else "Earpiece",
-            onClick = onToggleSpeaker
-        )
-        ControlButton(
-            icon = Icons.Default.CallEnd,
-            contentDescription = "End call",
-            onClick = onEndCall,
-            background = Color(0xFFDC2626),
-            useGlass = false
-        )
->>>>>>> origin
     }
 }
 
@@ -864,8 +847,8 @@ private fun ControlButton(
     ) {
         IconButton(onClick = onClick, modifier = Modifier.size(size)) {
             Icon(
-                icon, 
-                contentDescription = contentDescription, 
+                icon,
+                contentDescription = contentDescription,
                 tint = Color.White,
                 modifier = Modifier.size(size * 0.46f)
             )
@@ -947,7 +930,7 @@ private fun NetworkQualityIndicator(
         NetworkQuality.Poor, NetworkQuality.VeryPoor -> Icons.Default.SignalCellularAlt1Bar
         NetworkQuality.Unknown -> null
     }
-    
+
     val color = when (quality) {
         NetworkQuality.Excellent -> Color.Green
         NetworkQuality.Good -> Color(0xFF90EE90)
@@ -956,7 +939,7 @@ private fun NetworkQualityIndicator(
         NetworkQuality.VeryPoor -> Color.Red
         NetworkQuality.Unknown -> Color.Gray
     }
-    
+
     icon?.let {
         Surface(
             modifier = Modifier.liquidGlassStrong(radius = 8.dp, alpha = 0.3f),
@@ -1014,7 +997,7 @@ private fun PreviewModeOverlay(
                 onClick = onBack
             )
         }
-        
+
         // Preview controls and start button
         Column(
             modifier = Modifier
@@ -1035,7 +1018,7 @@ private fun PreviewModeOverlay(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
-            
+
             // Preview controls
             Row(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -1062,7 +1045,7 @@ private fun PreviewModeOverlay(
                     onClick = onToggleSpeaker
                 )
             }
-            
+
             // Start call button
             MMButton(
                 text = "Join Call",
@@ -1103,20 +1086,20 @@ private fun TimeWarningDialog(
                     tint = Color.Yellow,
                     modifier = Modifier.size(48.dp)
                 )
-                
+
                 Text(
                     text = "Time Notice",
                     style = MaterialTheme.typography.titleLarge,
                     color = Color.White
                 )
-                
+
                 Text(
                     text = message,
                     style = MaterialTheme.typography.bodyLarge,
                     color = Color.White,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
-                
+
                 remainingMinutes?.let { minutes ->
                     if (minutes > 0) {
                         Text(
@@ -1126,9 +1109,9 @@ private fun TimeWarningDialog(
                         )
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 MMButton(
                     text = "OK",
                     onClick = onDismiss,
@@ -1157,7 +1140,7 @@ private fun ChatControlButton(
             background = if (isChatOpen) Color(0xFF059669) else null,
             size = size
         )
-        
+
         // Badge for unread messages
         if (unreadCount > 0 && !isChatOpen) {
             Badge(
@@ -1185,14 +1168,14 @@ private fun InCallChatPanel(
 ) {
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
-    
+
     // Auto-scroll to bottom when new message arrives
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
         }
     }
-    
+
     Surface(
         modifier = modifier
             .liquidGlassStrong(radius = 16.dp, alpha = 0.85f),
@@ -1221,9 +1204,9 @@ private fun InCallChatPanel(
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             // Messages list
             LazyColumn(
                 state = listState,
@@ -1251,9 +1234,9 @@ private fun InCallChatPanel(
                     }
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             // Input field
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1263,7 +1246,7 @@ private fun InCallChatPanel(
                 TextField(
                     value = inputText,
                     onValueChange = { inputText = it },
-                    placeholder = { 
+                    placeholder = {
                         Text("Type a message...", color = Color.White.copy(alpha = 0.5f))
                     },
                     modifier = Modifier.weight(1f),
@@ -1279,7 +1262,7 @@ private fun InCallChatPanel(
                     shape = RoundedCornerShape(24.dp),
                     singleLine = true
                 )
-                
+
                 IconButton(
                     onClick = {
                         if (inputText.isNotBlank()) {
@@ -1306,7 +1289,7 @@ private fun InCallChatPanel(
 @Composable
 private fun ChatMessageBubble(message: InCallChatMessage) {
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-    
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (message.isFromMe) Alignment.End else Alignment.Start
@@ -1332,13 +1315,13 @@ private fun ChatMessageBubble(message: InCallChatMessage) {
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                 }
-                
+
                 Text(
                     text = message.message,
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White
                 )
-                
+
                 Text(
                     text = timeFormat.format(Date(message.timestamp)),
                     style = MaterialTheme.typography.labelSmall,

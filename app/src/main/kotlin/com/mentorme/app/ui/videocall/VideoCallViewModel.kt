@@ -78,6 +78,8 @@ data class VideoCallUiState(
     val admitted: Boolean = false,
     val peerJoined: Boolean = false,
     val peerRole: String? = null,
+    val peerName: String? = null,
+    val peerAvatarUrl: String? = null,
     val isAudioEnabled: Boolean = true,
     val isVideoEnabled: Boolean = true,
     val isSpeakerEnabled: Boolean = true,
@@ -1197,9 +1199,30 @@ class VideoCallViewModel @Inject constructor(
             when (val result = bookingRepository.getBookingById(bookingId)) {
                 is AppResult.Success -> {
                     if (bookingId != currentBookingId) return@launch
-                    val endTimeMs = parseBookingEndTimeMs(result.data)
+                    val booking = result.data
+                    val endTimeMs = parseBookingEndTimeMs(booking)
+                    
+                    // Determine peer info based on current role
+                    val currentRole = _state.value.role
+                    val peerName = if (currentRole == "mentor") {
+                        booking.menteeName ?: "Mentee"
+                    } else {
+                        booking.mentorName ?: "Mentor"
+                    }
+                    val peerAvatarUrl = if (currentRole == "mentor") {
+                        booking.menteeAvatar
+                    } else {
+                        booking.mentorAvatar
+                    }
+                    
                     if (endTimeMs != null) {
-                        _state.update { it.copy(bookingEndTime = endTimeMs) }
+                        _state.update { 
+                            it.copy(
+                                bookingEndTime = endTimeMs,
+                                peerName = peerName,
+                                peerAvatarUrl = peerAvatarUrl
+                            ) 
+                        }
                         maybeStartTimeCheckJob()
                     } else {
                         Log.w("VideoCallVM", "Unable to parse booking end time for bookingId=$bookingId")

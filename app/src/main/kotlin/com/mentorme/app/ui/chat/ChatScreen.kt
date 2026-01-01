@@ -3,19 +3,25 @@ package com.mentorme.app.ui.chat
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
@@ -25,6 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.mentorme.app.core.utils.DateTimeUtils
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.chat.components.ChatComposer
@@ -53,6 +61,12 @@ fun ChatScreen(
         ?: conversation?.primaryBookingId
         ?: conversation?.nextSessionBookingId
     var showProfile by remember { mutableStateOf(false) }
+    
+    // Typing indicator (mock - should come from real-time events)
+    var isTyping by remember { mutableStateOf(false) }
+    
+    // Scroll to bottom button
+    var showScrollToBottom by remember { mutableStateOf(false) }
 
     // Chat restriction logic
     val isMenteeChattingWithMentor = conversation?.peerRole == "mentor"
@@ -116,6 +130,7 @@ fun ChatScreen(
         val extraImePx = (imeBottomPx - navBottomPx).coerceAtLeast(0)
         val composerOverlayDp = with(density) { (composerHeightPx - extraImePx).coerceAtLeast(0).toDp() }
 
+        Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier
             .fillMaxSize()
             .windowInsetsPadding(
@@ -140,24 +155,122 @@ fun ChatScreen(
             ) {
                 GlassIconButton(icon = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, onClick = onBack)
                 Spacer(Modifier.width(4.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(conversation?.peerName ?: "Chat", fontWeight = FontWeight.SemiBold)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Online/Offline indicator dot
+                
+                // Avatar with online badge
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clickable { showProfile = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Avatar container with border and shadow
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(
+                                androidx.compose.ui.graphics.Brush.linearGradient(
+                                    colors = listOf(Color(0xFF6366F1), Color(0xFF8B5CF6))
+                                ),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (!conversation?.peerAvatar.isNullOrBlank()) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalContext.current)
+                                    .data(conversation?.peerAvatar)
+                                    .crossfade(true)
+                                    .placeholder(androidx.compose.ui.res.painterResource(android.R.drawable.ic_menu_gallery))
+                                    .error(androidx.compose.ui.res.painterResource(android.R.drawable.ic_menu_gallery))
+                                    .build(),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clip(CircleShape),
+                                onError = {
+                                    // Fallback handled by error parameter
+                                }
+                            )
+                        } else {
+                            Text(
+                                text = conversation?.peerName?.firstOrNull()?.uppercase() ?: "?",
+                                color = Color.White,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    
+                    // Online status badge
+                    if (conversation?.isOnline == true) {
                         Box(
                             modifier = Modifier
-                                .size(8.dp)
-                                .background(
-                                    if (conversation?.isOnline == true) Color(0xFF22C55E) else Color(0xFF6B7280),
-                                    shape = androidx.compose.foundation.shape.CircleShape
-                                )
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            if (conversation?.isOnline == true) "Đang hoạt động" else "Không hoạt động",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (conversation?.isOnline == true) Color(0xFF22C55E) else Color.White.copy(alpha = 0.6f)
-                        )
+                                .size(12.dp)
+                                .align(Alignment.BottomEnd)
+                                .background(Color(0xFF1F2937), CircleShape)
+                                .padding(2.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color(0xFF22C55E), CircleShape)
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(Modifier.width(8.dp))
+                
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .clickable { showProfile = true }
+                ) {
+                    Text(
+                        conversation?.peerName ?: "Chat",
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    
+                    // Status text with typing indicator
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isTyping) {
+                            // Typing indicator animation
+                            Text(
+                                "đang nhập",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF22C55E),
+                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                            )
+                            Spacer(Modifier.width(2.dp))
+                            Text(
+                                "...",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF22C55E)
+                            )
+                        } else {
+                            Text(
+                                when {
+                                    conversation?.isOnline == true -> "Đang hoạt động"
+                                    conversation?.lastSeenAt != null -> {
+                                        val lastSeen = try {
+                                            DateTimeUtils.formatLastSeen(conversation.lastSeenAt)
+                                        } catch (e: Exception) {
+                                            "Không hoạt động"
+                                        }
+                                        lastSeen
+                                    }
+                                    else -> "Không hoạt động"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (conversation?.isOnline == true) Color(0xFF22C55E) else Color.White.copy(alpha = 0.6f),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
                 GlassIconButton(icon = Icons.Filled.MoreVert, contentDescription = null, onClick = { showProfile = true })

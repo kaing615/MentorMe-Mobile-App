@@ -224,8 +224,8 @@ class MentorDashboardViewModel @Inject constructor(
             }
         }
 
-        // Check if can join: trong khoảng 15 phút trước đến 1 giờ sau giờ bắt đầu
-        val canJoin = now.isAfter(bookingDateTime.minus(java.time.Duration.ofMinutes(15)))
+        // Check if can join: trong khoảng 20 phút trước đến 1 giờ sau giờ bắt đầu (matching backend SESSION_JOIN_EARLY_MINUTES)
+        val canJoin = now.isAfter(bookingDateTime.minus(java.time.Duration.ofMinutes(20)))
             && now.isBefore(bookingDateTime.plus(java.time.Duration.ofHours(1)))
 
         // Check if starting soon: trong vòng 30 phút tới

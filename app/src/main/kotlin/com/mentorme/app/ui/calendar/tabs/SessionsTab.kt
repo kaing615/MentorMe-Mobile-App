@@ -122,9 +122,9 @@ private fun canJoinSession(booking: Booking): Boolean {
 
         // Can only join if:
         // 1. Session hasn't ended yet (now < endTime)
-        // 2. Within 15 minutes before start time
+        // 2. Within 20 minutes before start time (matching backend SESSION_JOIN_EARLY_MINUTES)
         val isNotEnded = now.isBefore(bookingEndDateTime)
-        val canJoinTime = now.isAfter(bookingStartDateTime.minus(java.time.Duration.ofMinutes(15)))
+        val canJoinTime = now.isAfter(bookingStartDateTime.minus(java.time.Duration.ofMinutes(20)))
 
         return isNotEnded && canJoinTime
     } catch (e: Exception) {

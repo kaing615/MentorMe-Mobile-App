@@ -327,7 +327,15 @@ class HomeViewModel @Inject constructor(
                 val bookingDate = LocalDate.parse(booking.date)
                 val startTime = LocalTime.parse(booking.startTime, DateTimeFormatter.ofPattern("HH:mm"))
                 val endTime = LocalTime.parse(booking.endTime, DateTimeFormatter.ofPattern("HH:mm"))
-                val bookingDateTime = bookingDate.atTime(startTime).atZone(zoneId).toInstant()
+                
+                // Prefer ISO timestamps from server for accurate timezone handling
+                val bookingStartInstant = booking.startTimeIso?.let { iso ->
+                    runCatching { Instant.parse(iso) }.getOrNull()
+                } ?: bookingDate.atTime(startTime).atZone(zoneId).toInstant()
+                
+                val bookingEndInstant = booking.endTimeIso?.let { iso ->
+                    runCatching { Instant.parse(iso) }.getOrNull()
+                } ?: bookingDate.atTime(endTime).atZone(zoneId).toInstant()
 
                 // Format time display
                 val timeDisplay = when {
@@ -346,13 +354,18 @@ class HomeViewModel @Inject constructor(
                     }
                 }
 
-                // Check if can join
-                val canJoin = now.isAfter(bookingDateTime.minus(java.time.Duration.ofMinutes(20)))
-                    && now.isBefore(bookingDateTime.plus(java.time.Duration.ofHours(1)))
+                // Calculate join window: 20 min before start to 15 min after end
+                val joinWindowStart = bookingStartInstant.minus(java.time.Duration.ofMinutes(20))
+                val joinWindowEnd = bookingEndInstant.plus(java.time.Duration.ofMinutes(15))
+                
+                // Check if can join - must be within join window
+                val canJoin = now.isAfter(joinWindowStart) && now.isBefore(joinWindowEnd)
 
-                // Check if starting soon
-                val isStartingSoon = now.isAfter(bookingDateTime.minus(java.time.Duration.ofMinutes(30)))
-                    && now.isBefore(bookingDateTime.plus(java.time.Duration.ofHours(1)))
+                // Check if starting soon (within 30 min of start time)
+                val isStartingSoon = now.isAfter(bookingStartInstant.minus(java.time.Duration.ofMinutes(30)))
+                    && now.isBefore(bookingEndInstant)
+                
+                android.util.Log.d(TAG, "Session ${booking.id}: startIso=${booking.startTimeIso}, endIso=${booking.endTimeIso}, start=$bookingStartInstant, end=$bookingEndInstant, now=$now, canJoin=$canJoin")
 
                 // Get mentor info
                 val mentorName = booking.mentorFullName 

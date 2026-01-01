@@ -160,13 +160,31 @@ class HomeViewModel @Inject constructor(
                     when (val meResult = getMeUseCase()) {
                         is AppResult.Success -> {
                             val profile = meResult.data.profile
-                            val userEmail = meResult.data.user?.email ?: "user"
-                            val name = profile?.fullName?.takeIf { it.isNotBlank() }
+                            val user = meResult.data.user
+                            val userEmail = user?.email ?: "user"
+                            
+                            // Try multiple sources for name
+                            val name = listOf(
+                                profile?.fullName,
+                                user?.fullName,
+                                user?.name,
+                                user?.userName
+                            ).firstOrNull { !it.isNullOrBlank() }
                                 ?: userEmail.substringBefore("@")
+                            
+                            // Try multiple sources for avatar
+                            val avatarUrl = listOf(
+                                profile?.avatarUrl,
+                                user?.avatarUrl,
+                                user?.avatar
+                            ).firstOrNull { !it.isNullOrBlank() }
+                            
+                            android.util.Log.d(TAG, "🔍 User info: profile.fullName=${profile?.fullName}, user.fullName=${user?.fullName}, user.name=${user?.name}, resolved=$name")
+                            
                             _uiState.update {
                                 it.copy(
                                     userName = name,
-                                    userAvatar = profile?.avatarUrl
+                                    userAvatar = avatarUrl
                                 )
                             }
                         }

@@ -111,6 +111,7 @@ fun HomeScreen(
     onSearch: (String) -> Unit = {},
     onNavigateToMentors: () -> Unit = {},
     onNavigateToCategory: (String) -> Unit = {}, // ✅ NEW: Navigate with category filter
+    onNavigateToSchedule: () -> Unit = {}, // ✅ NEW: Navigate to schedule/calendar
     onJoinSession: (String) -> Unit = {},
     onMessage: (String) -> Unit = {}, //  NEW: Callback to open chat with mentorId
     onBookSlot: (
@@ -196,7 +197,7 @@ fun HomeScreen(
                 MenteeUpcomingSessionsSection(
                     sessions = uiState.upcomingSessions,
                     onJoinSession = onJoinSession,
-                    onViewCalendar = { /* Navigate to calendar */ }
+                    onViewCalendar = onNavigateToSchedule
                 )
             }
         } else {
@@ -567,6 +568,26 @@ private fun MenteeWelcomeSection(menteeName: String) {
                 maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
+        }
+
+        // Online status box
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .liquidGlass()
+                .background(Color(0xFF22C55E).copy(0.2f))
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF22C55E))
+                )
+                Spacer(Modifier.width(6.dp))
+                Text("Online", style = MaterialTheme.typography.labelMedium, color = Color.White)
+            }
         }
     }
 }

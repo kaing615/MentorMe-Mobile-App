@@ -8,6 +8,7 @@ import com.mentorme.app.core.realtime.RealtimeEventBus
 import com.mentorme.app.data.model.Booking
 import com.mentorme.app.data.model.BookingStatus
 import com.mentorme.app.data.repository.BookingRepository
+import com.mentorme.app.data.repository.ProfileRepository
 import com.mentorme.app.domain.usecase.SearchMentorsUseCase
 import com.mentorme.app.domain.usecase.profile.GetMeUseCase
 import com.mentorme.app.domain.usecase.home.GetHomeStatsUseCase
@@ -68,7 +69,8 @@ class HomeViewModel @Inject constructor(
     private val searchMentorsUseCase: SearchMentorsUseCase,
     private val getMeUseCase: GetMeUseCase,
     private val getHomeStatsUseCase: GetHomeStatsUseCase,
-    private val bookingRepository: BookingRepository
+    private val bookingRepository: BookingRepository,
+    private val profileRepository: ProfileRepository
 ) : ViewModel() {
 
     private val TAG = "HomeViewModel"
@@ -164,22 +166,49 @@ class HomeViewModel @Inject constructor(
                             val userEmail = user?.email ?: "user"
                             
                             // Try multiple sources for name
-                            val name = listOf(
+                            var name = listOf(
                                 profile?.fullName,
                                 user?.fullName,
                                 user?.name,
                                 user?.userName
                             ).firstOrNull { !it.isNullOrBlank() }
-                                ?: userEmail.substringBefore("@")
                             
                             // Try multiple sources for avatar
-                            val avatarUrl = listOf(
+                            var avatarUrl = listOf(
                                 profile?.avatarUrl,
                                 user?.avatarUrl,
                                 user?.avatar
                             ).firstOrNull { !it.isNullOrBlank() }
                             
-                            android.util.Log.d(TAG, "🔍 User info: profile.fullName=${profile?.fullName}, user.fullName=${user?.fullName}, user.name=${user?.name}, resolved=$name")
+                            android.util.Log.d(TAG, "🔍 getMeUseCase: profile.fullName=${profile?.fullName}, user.fullName=${user?.fullName}, user.name=${user?.name}, user.userName=${user?.userName}")
+                            
+                            // If name still not found, try getProfileMe API as fallback
+                            if (name.isNullOrBlank()) {
+                                android.util.Log.d(TAG, "🔍 Name not found in /auth/me, trying /profile/me...")
+                                when (val profileMeResult = profileRepository.getProfileMe()) {
+                                    is AppResult.Success -> {
+                                        val profileMe = profileMeResult.data.profile
+                                        android.util.Log.d(TAG, "🔍 getProfileMe: fullName=${profileMe?.fullName}")
+                                        if (!profileMe?.fullName.isNullOrBlank()) {
+                                            name = profileMe?.fullName
+                                        }
+                                        if (avatarUrl.isNullOrBlank() && !profileMe?.avatarUrl.isNullOrBlank()) {
+                                            avatarUrl = profileMe?.avatarUrl
+                                        }
+                                    }
+                                    is AppResult.Error -> {
+                                        android.util.Log.w(TAG, "Failed to load profile/me: ${profileMeResult.throwable}")
+                                    }
+                                    AppResult.Loading -> Unit
+                                }
+                            }
+                            
+                            // Final fallback to email prefix
+                            if (name.isNullOrBlank()) {
+                                name = userEmail.substringBefore("@")
+                            }
+                            
+                            android.util.Log.d(TAG, "🔍 Final resolved name: $name")
                             
                             _uiState.update {
                                 it.copy(

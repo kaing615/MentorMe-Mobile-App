@@ -209,8 +209,13 @@ class VideoCallViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
+                Log.d("VideoCallVM", "🎫 Requesting join token for bookingId=$bookingId")
                 val response = sessionApiService.createJoinToken(bookingId)
+                Log.d("VideoCallVM", "🎫 Join token response: code=${response.code()}, successful=${response.isSuccessful}")
+                
                 if (!response.isSuccessful) {
+                    val errorBody = response.errorBody()?.string()
+                    Log.e("VideoCallVM", "🎫 Join token failed: HTTP ${response.code()}, body=$errorBody")
                     setError("HTTP ${response.code()}: ${response.message()}")
                     return@launch
                 }
@@ -218,6 +223,8 @@ class VideoCallViewModel @Inject constructor(
                 val envelope: ApiEnvelope<SessionJoinResponse>? = response.body()
                 val data = envelope?.data
                 val token = data?.token
+                Log.d("VideoCallVM", "🎫 Join token response - success=${envelope?.success}, hasToken=${!token.isNullOrBlank()}, message=${envelope?.message}")
+                
                 if (envelope?.success == true && !token.isNullOrBlank()) {
                     currentRole = data.role
                     
@@ -226,6 +233,7 @@ class VideoCallViewModel @Inject constructor(
                     socketManager.emit("session:join", mapOf("token" to token))
                     Log.d("VideoCallVM", "Emitted session:join event")
                 } else {
+                    Log.e("VideoCallVM", "🎫 Join token rejected: ${envelope?.message}")
                     setError(envelope?.message ?: "Failed to join session")
                 }
             } catch (e: Exception) {
@@ -748,7 +756,9 @@ class VideoCallViewModel @Inject constructor(
 
     private fun handleSessionEnded(payload: SessionEndedPayload) {
         val bookingId = payload.bookingId ?: return
+        Log.d("VideoCallVM", "📍 Session ended event received from server - bookingId=$bookingId, currentBookingId=$currentBookingId, endedBy=${payload.endedBy}, reason=${payload.reason}")
         if (bookingId != currentBookingId) return
+        Log.d("VideoCallVM", "📍 Ending call due to server session:ended event")
         _state.update { it.copy(phase = CallPhase.Ended) }
         cleanupCall()
     }
@@ -1237,20 +1247,37 @@ class VideoCallViewModel @Inject constructor(
     }
 
     private fun parseBookingEndTimeMs(booking: Booking): Long? {
+        Log.d("VideoCallVM", "🕐 Parsing end time - date=${booking.date}, endTime=${booking.endTime}, endTimeIso=${booking.endTimeIso}")
+        
         val endIso = booking.endTimeIso?.trim().orEmpty()
         if (endIso.isNotEmpty()) {
             val instant = runCatching { Instant.parse(endIso) }.getOrNull()
-            if (instant != null) return instant.toEpochMilli()
+            if (instant != null) {
+                Log.d("VideoCallVM", "🕐 Parsed from ISO instant: ${instant.toEpochMilli()}, now=${System.currentTimeMillis()}, diff=${instant.toEpochMilli() - System.currentTimeMillis()}ms")
+                return instant.toEpochMilli()
+            }
             val offsetInstant = runCatching { OffsetDateTime.parse(endIso).toInstant() }.getOrNull()
-            if (offsetInstant != null) return offsetInstant.toEpochMilli()
+            if (offsetInstant != null) {
+                Log.d("VideoCallVM", "🕐 Parsed from OffsetDateTime: ${offsetInstant.toEpochMilli()}, now=${System.currentTimeMillis()}, diff=${offsetInstant.toEpochMilli() - System.currentTimeMillis()}ms")
+                return offsetInstant.toEpochMilli()
+            }
         }
+        
+        // Fallback to parsing from date + endTime
         val localEnd = "${booking.date}T${booking.endTime}:00"
+        Log.d("VideoCallVM", "🕐 Parsing local end time: $localEnd, zone=${ZoneId.systemDefault()}")
+        
         return runCatching {
-            LocalDateTime.parse(localEnd)
+            val endMs = LocalDateTime.parse(localEnd)
                 .atZone(ZoneId.systemDefault())
                 .toInstant()
                 .toEpochMilli()
-        }.getOrNull()
+            Log.d("VideoCallVM", "🕐 Parsed end time: $endMs, now=${System.currentTimeMillis()}, diff=${endMs - System.currentTimeMillis()}ms (~${(endMs - System.currentTimeMillis()) / 60000} min)")
+            endMs
+        }.getOrElse { e ->
+            Log.e("VideoCallVM", "🕐 Failed to parse end time: ${e.message}")
+            null
+        }
     }
 
     private fun startQosReporting() {

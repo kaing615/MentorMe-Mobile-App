@@ -29,7 +29,8 @@ data class SessionParticipantPayload(
 
 data class SessionEndedPayload(
     val bookingId: String? = null,
-    val endedBy: String? = null
+    val endedBy: String? = null,
+    val reason: String? = null  // e.g. "time_expired", "user_left", etc.
 )
 
 data class SessionSignalPayload(

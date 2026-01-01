@@ -27,6 +27,7 @@ import org.webrtc.SessionDescription
 import org.webrtc.SurfaceTextureHelper
 import org.webrtc.SurfaceViewRenderer
 import org.webrtc.VideoSource
+import org.webrtc.VideoSink
 import org.webrtc.VideoTrack
 
 class WebRtcClient(
@@ -92,24 +93,12 @@ class WebRtcClient(
         Log.d(TAG, "attachLocalRenderer called, localVideoTrack exists: ${localVideoTrack != null}")
         
         // Detach from old renderer if exists
-        localRenderer?.let { oldRenderer ->
-            if (oldRenderer != renderer) {
-                localVideoTrack?.let { track ->
-                    try { track.removeSink(oldRenderer) } catch (e: Exception) {}
-                }
-                screenVideoTrack?.let { track ->
-                    try { track.removeSink(oldRenderer) } catch (e: Exception) {}
-                }
-            }
-        }
+        detachOldLocalRenderer(renderer)
         
         try {
             renderer.init(eglBase.eglBaseContext, null)
-            renderer.setEnableHardwareScaler(true)
             renderer.setMirror(true)
-            renderer.setScalingType(org.webrtc.RendererCommon.ScalingType.SCALE_ASPECT_FILL)
-            renderer.visibility = android.view.View.VISIBLE
-            Log.d(TAG, "Local renderer initialized successfully with mirror=true")
+            Log.d(TAG, "Local SurfaceViewRenderer initialized successfully with mirror=true")
             
             localRenderer = renderer
             
@@ -120,6 +109,19 @@ class WebRtcClient(
             localRenderer = renderer
             // Still try to add the track if it exists and is valid
             addTrackToLocalRenderer()
+        }
+    }
+    
+    private fun detachOldLocalRenderer(newRenderer: SurfaceViewRenderer) {
+        localRenderer?.let { oldRenderer ->
+            if (oldRenderer != newRenderer) {
+                localVideoTrack?.let { track ->
+                    try { track.removeSink(oldRenderer) } catch (e: Exception) {}
+                }
+                screenVideoTrack?.let { track ->
+                    try { track.removeSink(oldRenderer) } catch (e: Exception) {}
+                }
+            }
         }
     }
     

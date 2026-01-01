@@ -21,6 +21,10 @@ sealed class RealtimeEvent {
 
     data class BookingChanged(val bookingId: String) : RealtimeEvent()
 
+    data class BookingCreated(val bookingId: String) : RealtimeEvent()
+
+    data class BookingCancelled(val bookingId: String) : RealtimeEvent()
+
     data class ChatMessageReceived(
         val payload: ChatSocketPayload
     ) : RealtimeEvent()

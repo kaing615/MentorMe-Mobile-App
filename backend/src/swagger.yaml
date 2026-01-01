@@ -4156,6 +4156,67 @@ paths:
                   message: { type: string, example: "Failed to lookup presence" }
                   error: { type: string }
 
+  /presence/lastSeen:
+    post:
+      summary: Get last seen time for users
+      description: Auth required - Lấy thời gian last seen (timestamp) của danh sách user từ Redis
+      tags: [Presence]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userIds:
+                  type: array
+                  items:
+                    type: string
+                  description: Danh sách user IDs cần tra cứu (tối đa 200)
+                  example: ["694ab5fb480851a5e45cef13", "694ab5fb480851a5e45cef14"]
+      responses:
+        "200":
+          description: Last seen data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    additionalProperties:
+                      type: string
+                      nullable: true
+                    description: Map của userId với ISO timestamp hoặc null nếu chưa có dữ liệu
+                    example:
+                      "694ab5fb480851a5e45cef13": "2026-01-01T10:30:00.000Z"
+                      "694ab5fb480851a5e45cef14": "2026-01-01T09:15:00.000Z"
+                      "694ab5fb480851a5e45cef15": null
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Unauthorized" }
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Failed to get last seen" }
+                  error: { type: string }
+
   /bookings/{id}/review:
     post:
       tags:

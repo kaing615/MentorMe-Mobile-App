@@ -197,7 +197,15 @@ class BookingRepositoryImpl @Inject constructor(
                 val envelope = response.body()
                 val bookingList = envelope?.data
                 if (bookingList != null) {
-                    val normalized = normalizeBookingList(bookingList.bookings)
+                    var bookings = bookingList.bookings
+                    
+                    // DEV MOCK: If no bookings from API, inject mock live bookings for testing
+                    if (bookings.isEmpty() && role == "mentor" && status == "Confirmed") {
+                        android.util.Log.d("BookingRepository", "🧪 DEV MOCK: Injecting mock live bookings for testing")
+                        bookings = com.mentorme.app.data.mock.MockData.getMockLiveBookingsForMentor()
+                    }
+                    
+                    val normalized = normalizeBookingList(bookings)
                     val enriched = enrichBookingsWithMentor(normalized)
                     AppResult.success(bookingList.copy(bookings = enriched))
                 } else {

@@ -78,7 +78,12 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.border
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -95,6 +100,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -347,7 +353,52 @@ fun VideoCallScreen(
             },
             modifier = Modifier.fillMaxSize()
         )
-
+        
+        // Peer camera off overlay - show when peer has video disabled
+        AnimatedVisibility(
+            visible = state.phase == CallPhase.InCall && !state.peerVideoEnabled && !isInPipMode,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF1A1A2E)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Avatar placeholder
+                    Box(
+                        modifier = Modifier
+                            .size(100.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF2D2D44)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Peer avatar",
+                            tint = Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.size(60.dp)
+                        )
+                    }
+                    Text(
+                        text = state.peerName ?: "Participant",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Camera is off",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        }
         // Local video - small draggable preview with improvements (rendered on top)
         Box(
             modifier = Modifier
@@ -413,16 +464,17 @@ fun VideoCallScreen(
                 },
             contentAlignment = Alignment.Center
         ) {
+            val cornerRadiusDp = 20.dp
             AndroidView(
                 factory = { ctx ->
                     SurfaceViewRenderer(ctx).apply {
                         setZOrderMediaOverlay(true)
-                        setZOrderOnTop(true)
+                        // Note: Don't use setZOrderOnTop(true) as it prevents clipping
                         // Apply rounded corners to SurfaceViewRenderer
                         clipToOutline = true
                         outlineProvider = object : android.view.ViewOutlineProvider() {
                             override fun getOutline(view: android.view.View, outline: android.graphics.Outline) {
-                                val cornerRadiusPx = (20.dp.value * resources.displayMetrics.density)
+                                val cornerRadiusPx = (cornerRadiusDp.value * resources.displayMetrics.density)
                                 outline.setRoundRect(0, 0, view.width, view.height, cornerRadiusPx)
                             }
                         }
@@ -434,14 +486,23 @@ fun VideoCallScreen(
                     }
                 },
                 update = { view ->
-                    // Ensure local preview stays on top and corners stay rounded
+                    // Ensure local preview corners stay rounded
                     view.setZOrderMediaOverlay(true)
-                    view.setZOrderOnTop(true)
                     view.clipToOutline = true
+                    // Re-apply outline provider in case view size changed
+                    if (view.outlineProvider == null || view.outlineProvider == android.view.ViewOutlineProvider.BACKGROUND) {
+                        view.outlineProvider = object : android.view.ViewOutlineProvider() {
+                            override fun getOutline(v: android.view.View, outline: android.graphics.Outline) {
+                                val cornerRadiusPx = (cornerRadiusDp.value * view.resources.displayMetrics.density)
+                                outline.setRoundRect(0, 0, v.width, v.height, cornerRadiusPx)
+                            }
+                        }
+                    }
+                    view.invalidateOutline()
                 },
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(cornerRadiusDp))
             )
             
             // Camera off indicator overlay
@@ -573,21 +634,37 @@ fun VideoCallScreen(
                     }
                 }
                 CallPhase.Connecting -> "Starting session..."
-                CallPhase.Reconnecting -> "Reconnecting"
+                CallPhase.Reconnecting -> null // Handled separately with ReconnectingOverlay
                 CallPhase.Ended -> "Call ended"
                 CallPhase.Error -> state.errorMessage ?: "Call error"
                 else -> null
             }
+            
+            // Show loading for joining/waiting/connecting phases
+            val showLoading = state.phase in listOf(
+                CallPhase.Joining, 
+                CallPhase.WaitingForPeer, 
+                CallPhase.Connecting
+            ) || (state.phase == CallPhase.WaitingForAdmit && state.role != "mentor")
 
             if (statusText != null && state.phase != CallPhase.InCall) {
                 CallOverlay(
                     title = statusText,
-                    actionLabel = if (state.phase == CallPhase.Error || state.phase == CallPhase.Reconnecting) "Retry" else null,
+                    actionLabel = if (state.phase == CallPhase.Error) "Retry" else null,
                     onAction = {
-                        if (state.phase == CallPhase.Error || state.phase == CallPhase.Reconnecting) {
+                        if (state.phase == CallPhase.Error) {
                             viewModel.retry()
                         }
-                    }
+                    },
+                    showLoading = showLoading
+                )
+            }
+            
+            // Reconnecting overlay with better animation
+            if (state.phase == CallPhase.Reconnecting) {
+                ReconnectingOverlay(
+                    reconnectAttempt = state.reconnectAttempt,
+                    maxReconnectAttempts = state.maxReconnectAttempts
                 )
             }
 
@@ -792,7 +869,8 @@ private fun CallControls(
 private fun CallOverlay(
     title: String,
     actionLabel: String? = null,
-    onAction: (() -> Unit)? = null
+    onAction: (() -> Unit)? = null,
+    showLoading: Boolean = false
 ) {
     Box(
         modifier = Modifier
@@ -806,16 +884,142 @@ private fun CallOverlay(
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             color = Color.Transparent
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Loading animation (pulsing dots)
+                if (showLoading) {
+                    LoadingDots()
+                    Spacer(Modifier.height(4.dp))
+                }
+                
                 Text(title, style = MaterialTheme.typography.titleMedium, color = Color.White)
+                
                 if (!actionLabel.isNullOrBlank() && onAction != null) {
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(4.dp))
                     MMButton(
                         text = actionLabel,
                         onClick = onAction,
                         useGlass = false
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoadingDots() {
+    val infiniteTransition = rememberInfiniteTransition(label = "loadingDots")
+    
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        repeat(3) { index ->
+            val alpha by infiniteTransition.animateFloat(
+                initialValue = 0.3f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 600, delayMillis = index * 200),
+                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                ),
+                label = "dot$index"
+            )
+            
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = alpha))
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReconnectingOverlay(
+    reconnectAttempt: Int,
+    maxReconnectAttempts: Int
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.7f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Spinning circle animation
+            val infiniteTransition = rememberInfiniteTransition(label = "reconnecting")
+            val rotation by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 360f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 1000, easing = androidx.compose.animation.core.LinearEasing)
+                ),
+                label = "rotation"
+            )
+            
+            Box(
+                modifier = Modifier
+                    .size(60.dp)
+                    .clip(CircleShape)
+                    .border(
+                        width = 4.dp,
+                        color = Color.White.copy(alpha = 0.3f),
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(60.dp)
+                        .graphicsLayer { rotationZ = rotation }
+                        .clip(CircleShape)
+                        .border(
+                            width = 4.dp,
+                            brush = androidx.compose.ui.graphics.Brush.sweepGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color.Transparent,
+                                    Color.White,
+                                    Color.White
+                                )
+                            ),
+                            shape = CircleShape
+                        )
+                )
+            }
+            
+            Text(
+                text = "Reconnecting...",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White
+            )
+            
+            if (reconnectAttempt > 0) {
+                Text(
+                    text = "Attempt $reconnectAttempt of $maxReconnectAttempts",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+            }
+            
+            // Progress indicator
+            Box(
+                modifier = Modifier
+                    .width(120.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.White.copy(alpha = 0.2f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(fraction = reconnectAttempt.toFloat() / maxReconnectAttempts)
+                        .fillMaxSize()
+                        .background(Color(0xFF3B82F6))
+                )
             }
         }
     }

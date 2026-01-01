@@ -127,6 +127,9 @@ class SocketManager @Inject constructor(
         newSocket.on(EVENT_CHAT_MESSAGE) { args ->
             handleChatMessageEvent(args)
         }
+        newSocket.on(EVENT_CHAT_TYPING) { args ->
+            handleChatTypingEvent(args)
+        }
         newSocket.on(EVENT_SESSION_JOINED) { args ->
             handleSessionJoinedEvent(args)
         }
@@ -218,6 +221,28 @@ class SocketManager @Inject constructor(
         val raw = args.firstOrNull() ?: return
         val payload = parsePayload(raw, ChatSocketPayload::class.java) ?: return
         RealtimeEventBus.emit(RealtimeEvent.ChatMessageReceived(payload))
+    }
+
+    private fun handleChatTypingEvent(args: Array<Any>) {
+        val raw = args.firstOrNull() ?: return
+        Log.d(TAG, "Received chat:typing event: $raw")
+        try {
+            val json = when (raw) {
+                is JSONObject -> raw
+                is Map<*, *> -> JSONObject(raw as Map<*, *>)
+                is String -> JSONObject(raw)
+                else -> {
+                    Log.w(TAG, "Unknown typing event type: ${raw::class.java}")
+                    return
+                }
+            }
+            val userId = json.optString("userId", null) ?: return
+            val isTyping = json.optBoolean("isTyping", false)
+            Log.d(TAG, "Parsed typing event: userId=$userId, isTyping=$isTyping")
+            RealtimeEventBus.emit(RealtimeEvent.ChatTypingIndicator(userId, isTyping))
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to parse chat typing event", e)
+        }
     }
 
     private fun handleSessionJoinedEvent(args: Array<Any>) {
@@ -392,11 +417,24 @@ class SocketManager @Inject constructor(
         val raw = data?.get("bookingId") ?: data?.get("booking_id")
         return raw?.toString()?.trim().takeIf { !it.isNullOrBlank() }
     }
+    
+    /**
+     * Emit typing indicator to peer
+     */
+    fun emitTypingIndicator(peerId: String, isTyping: Boolean) {
+        val payload = org.json.JSONObject().apply {
+            put("peerId", peerId)
+            put("isTyping", isTyping)
+        }
+        Log.d(TAG, "Emitting chat:typing to peer $peerId, isTyping: $isTyping")
+        socket?.emit("chat:typing", payload)
+    }
 
     companion object {
         private const val TAG = "SocketManager"
         private const val EVENT_NOTIFICATION = "notifications:new"
         private const val EVENT_CHAT_MESSAGE = "chat:message"
+        private const val EVENT_CHAT_TYPING = "chat:typing"
         private const val EVENT_SESSION_JOINED = "session:joined"
         private const val EVENT_SESSION_WAITING = "session:waiting"
         private const val EVENT_SESSION_ADMITTED = "session:admitted"

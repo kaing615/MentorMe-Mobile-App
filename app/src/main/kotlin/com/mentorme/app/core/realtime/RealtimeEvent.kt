@@ -79,6 +79,14 @@ sealed class RealtimeEvent {
     ) : RealtimeEvent()
     
     /**
+     * Typing indicator from peer in chat
+     */
+    data class ChatTypingIndicator(
+        val userId: String,
+        val isTyping: Boolean
+    ) : RealtimeEvent()
+    
+    /**
      * In-call chat message received during video call session
      */
     data class SessionChatReceived(

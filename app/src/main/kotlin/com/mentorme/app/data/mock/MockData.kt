@@ -2,6 +2,10 @@
 package com.mentorme.app.data.mock
 
 import com.mentorme.app.data.model.*
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 object MockData {
 
@@ -10,6 +14,80 @@ object MockData {
         "%04d-%02d-%02dT00:00:00Z".format(y, m, day)
     private fun t(hoursAgo: Int): Long =
         System.currentTimeMillis() - (hoursAgo * 60L * 60L * 1000L)
+    
+    // ===== Dynamic Mock Bookings for development =====
+    
+    /**
+     * Get mock bookings with dynamic date/time for mentor dashboard
+     * Returns: 1 live session (happening now) + 1 upcoming session (later today)
+     */
+    fun getMockLiveBookingsForMentor(): List<Booking> {
+        val today = LocalDate.now()
+        val now = LocalTime.now()
+        val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+        val zone = ZoneId.systemDefault()
+        
+        // Live session: started 15 mins ago, ends in 45 mins
+        val liveStartTime = now.minusMinutes(15)
+        val liveEndTime = now.plusMinutes(45)
+        val liveStartIso = today.atTime(liveStartTime).atZone(zone).toInstant().toString()
+        val liveEndIso = today.atTime(liveEndTime).atZone(zone).toInstant().toString()
+        
+        // Upcoming session: starts in 2 hours
+        val upcomingStartTime = now.plusHours(2)
+        val upcomingEndTime = now.plusHours(3)
+        val upcomingStartIso = today.atTime(upcomingStartTime).atZone(zone).toInstant().toString()
+        val upcomingEndIso = today.atTime(upcomingEndTime).atZone(zone).toInstant().toString()
+        
+        return listOf(
+            // Live session - happening right now
+            Booking(
+                id = "mock-live-001",
+                menteeId = "mentee-user-001",
+                mentorId = "current-mentor",
+                date = today.toString(),
+                startTime = timeFormatter.format(liveStartTime),
+                endTime = timeFormatter.format(liveEndTime),
+                startTimeIso = liveStartIso,
+                endTimeIso = liveEndIso,
+                status = BookingStatus.CONFIRMED,
+                price = 75.0,
+                topic = "Frontend Development Career Path",
+                notes = "Tư vấn về career path trong Frontend Development",
+                createdAt = d(2026, 1, 1),
+                menteeFullName = "Nguyễn Văn An",
+                mentee = BookingUserSummary(
+                    id = "mentee-user-001",
+                    fullName = "Nguyễn Văn An",
+                    avatar = null,
+                    role = UserRole.MENTEE
+                )
+            ),
+            // Upcoming session - in 2 hours
+            Booking(
+                id = "mock-upcoming-002",
+                menteeId = "mentee-user-002",
+                mentorId = "current-mentor",
+                date = today.toString(),
+                startTime = timeFormatter.format(upcomingStartTime),
+                endTime = timeFormatter.format(upcomingEndTime),
+                startTimeIso = upcomingStartIso,
+                endTimeIso = upcomingEndIso,
+                status = BookingStatus.CONFIRMED,
+                price = 85.0,
+                topic = "System Design Interview Preparation",
+                notes = "Mock interview và review thiết kế hệ thống",
+                createdAt = d(2026, 1, 1),
+                menteeFullName = "Trần Thị Bình",
+                mentee = BookingUserSummary(
+                    id = "mentee-user-002",
+                    fullName = "Trần Thị Bình",
+                    avatar = null,
+                    role = UserRole.MENTEE
+                )
+            )
+        )
+    }
 
 
     // ===== Current user (mentee) — map từ mockCurrentUser (web)

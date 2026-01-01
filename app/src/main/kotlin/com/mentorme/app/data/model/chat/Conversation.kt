@@ -10,6 +10,7 @@ data class Conversation(
     val peerAvatar: String? = null,
     val peerRole: String = "mentor",
     val isOnline: Boolean = false,
+    val lastSeenAt: String? = null,
     val lastMessage: String = "",
     val lastMessageTimeIso: String = "",
     val unreadCount: Int = 0,

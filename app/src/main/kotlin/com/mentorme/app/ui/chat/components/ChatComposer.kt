@@ -18,9 +18,39 @@ fun ChatComposer(
     onSend: (String) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    placeholder: String = "Type a message…"
+    placeholder: String = "Type a message…",
+    onTypingChanged: ((Boolean) -> Unit)? = null
 ) {
     var text by remember { mutableStateOf("") }
+    var lastTypingState by remember { mutableStateOf(false) }
+    var lastTypingEmitTime by remember { mutableStateOf(0L) }
+    
+    // Emit typing indicator when user types
+    LaunchedEffect(text, onTypingChanged) {
+        if (onTypingChanged != null) {
+            val isTyping = text.isNotEmpty()
+            val now = System.currentTimeMillis()
+            
+            // Only emit if state changed or enough time passed (for throttling "still typing")
+            if (isTyping != lastTypingState || (isTyping && now - lastTypingEmitTime > 2000)) {
+                android.util.Log.d("ChatComposer", "Emitting typing: $isTyping, text: '$text'")
+                onTypingChanged(isTyping)
+                lastTypingState = isTyping
+                lastTypingEmitTime = now
+            }
+        }
+    }
+    
+    // Stop typing indicator when sending message
+    fun sendAndClear() {
+        if (text.isNotBlank() && enabled) {
+            onTypingChanged?.invoke(false)
+            lastTypingState = false
+            onSend(text.trim())
+            text = ""
+        }
+    }
+    
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -43,7 +73,7 @@ fun ChatComposer(
             Spacer(Modifier.width(8.dp))
             MMButton(
                 text = "Send",
-                onClick = { if (text.isNotBlank() && enabled) { onSend(text.trim()); text = "" } },
+                onClick = { sendAndClear() },
                 leadingIcon = { Icon(Icons.AutoMirrored.Filled.Send, null) },
                 size = MMButtonSize.Compact,
                 enabled = enabled

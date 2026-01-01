@@ -7,14 +7,14 @@ import { Socket, Server as SocketIOServer } from "socket.io";
 import Booking from "../models/booking.model";
 import User from "../models/user.model";
 import {
-  getSessionActualStart,
-  getSessionStateTtlSeconds,
-  isWithinSessionWindow,
-  recordSessionAdmit,
-  recordSessionDisconnect,
-  recordSessionEnd,
-  recordSessionJoin,
-  recordSessionQoS,
+    getSessionActualStart,
+    getSessionStateTtlSeconds,
+    isWithinSessionWindow,
+    recordSessionAdmit,
+    recordSessionDisconnect,
+    recordSessionEnd,
+    recordSessionJoin,
+    recordSessionQoS,
 } from "../services/session.service";
 import redis from "../utils/redis";
 
@@ -533,6 +533,36 @@ export async function initSocket(server: HttpServer) {
     socket.on("signal:offer", (payload: SignalPayload) => relaySignal("signal:offer", payload));
     socket.on("signal:answer", (payload: SignalPayload) => relaySignal("signal:answer", payload));
     socket.on("signal:ice", (payload: SignalPayload) => relaySignal("signal:ice", payload));
+
+    // Typing indicator for chat
+    socket.on("chat:typing", (rawPayload: unknown) => {
+      // Parse payload - handle both object and JSON string
+      let payload: { peerId?: string; isTyping?: boolean } = {};
+      if (typeof rawPayload === 'string') {
+        try {
+          payload = JSON.parse(rawPayload);
+        } catch (e) {
+          console.log("[Chat:Typing] Failed to parse JSON string payload");
+          return;
+        }
+      } else if (typeof rawPayload === 'object' && rawPayload !== null) {
+        payload = rawPayload as { peerId?: string; isTyping?: boolean };
+      }
+      
+      const peerId = payload?.peerId;
+      if (!peerId || !user?.id) {
+        console.log("[Chat:Typing] Invalid peerId or userId, peerId:", peerId, "userId:", user?.id);
+        return;
+      }
+      
+      // Emit typing status to the peer
+      io?.to(`user:${peerId}`).emit("chat:typing", {
+        userId: user.id,
+        isTyping: payload.isTyping ?? false,
+      });
+      
+      console.log(`[Chat:Typing] User ${user.id} typing status: ${payload.isTyping} to peer ${peerId}`);
+    });
 
     // In-call chat handler
     socket.on("session:chat", (payload: { 

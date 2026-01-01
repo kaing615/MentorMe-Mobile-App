@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mentorme.app.core.utils.Logx
 import com.mentorme.app.core.utils.AppResult
+import com.mentorme.app.core.realtime.RealtimeEvent
+import com.mentorme.app.core.realtime.RealtimeEventBus
 import com.mentorme.app.data.dto.mentor.MentorStatsDto
 import com.mentorme.app.data.dto.review.ReviewDto
 import com.mentorme.app.data.model.Booking
@@ -62,10 +64,41 @@ class MentorDashboardViewModel @Inject constructor(
 
     init {
         loadDashboard()
+        observeRealtimeEvents()
     }
 
     fun refresh() {
         loadDashboard()
+    }
+
+    /**
+     * Observe realtime events to auto-refresh dashboard when bookings change
+     */
+    private fun observeRealtimeEvents() {
+        viewModelScope.launch {
+            RealtimeEventBus.events.collect { event ->
+                when (event) {
+                    is RealtimeEvent.BookingCreated -> {
+                        // When a new booking is created, refresh dashboard
+                        Logx.d(TAG) { "🔄 Booking created: ${event.bookingId}, refreshing dashboard" }
+                        loadDashboard()
+                    }
+                    is RealtimeEvent.BookingCancelled -> {
+                        // When booking is cancelled, refresh dashboard
+                        Logx.d(TAG) { "🔄 Booking cancelled: ${event.bookingId}, refreshing dashboard" }
+                        loadDashboard()
+                    }
+                    is RealtimeEvent.SessionEnded -> {
+                        // When session ends, refresh to remove from upcoming
+                        Logx.d(TAG) { "🔄 Session ended: ${event.payload.bookingId}, refreshing dashboard" }
+                        loadDashboard()
+                    }
+                    else -> {
+                        // Ignore other events
+                    }
+                }
+            }
+        }
     }
 
     private fun loadDashboard() {

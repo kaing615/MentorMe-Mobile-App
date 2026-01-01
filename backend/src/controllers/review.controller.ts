@@ -116,8 +116,12 @@ export const createReview = asyncHandler(async (req: Request, res: Response) => 
             throw new Error('ONLY_MENTEE_CAN_REVIEW');
           }
 
-          // Check booking status: must be Completed
-          if (booking.status !== 'Completed') {
+          // Check booking status: must be Completed OR Confirmed with endTime in the past
+          const now = new Date();
+          const isCompleted = booking.status === 'Completed';
+          const isConfirmedAndEnded = booking.status === 'Confirmed' && new Date(booking.endTime) < now;
+
+          if (!isCompleted && !isConfirmedAndEnded) {
             throw new Error('BOOKING_NOT_COMPLETED');
           }
 
@@ -186,6 +190,15 @@ export const createReview = asyncHandler(async (req: Request, res: Response) => 
       return internalServerError(res, 'REVIEW_CREATE_FAILED');
     }
 
+    // ✅ FIX: Enrich with Profile.fullName
+    const menteeId = (populatedReview as any).mentee?._id || (populatedReview as any).mentee;
+    if (menteeId) {
+      const menteeProfile = await Profile.findOne({ user: menteeId }).select('fullName').lean();
+      if (menteeProfile?.fullName) {
+        (populatedReview as any).mentee.name = menteeProfile.fullName;
+      }
+    }
+
     // Return consistent response shape
     return created(res, { review: populatedReview }, 'Review created successfully');
     
@@ -214,6 +227,15 @@ export const createReview = asyncHandler(async (req: Request, res: Response) => 
           .lean();
         
         if (existingReview) {
+          // ✅ FIX: Enrich with Profile.fullName
+          const menteeId = (existingReview as any).mentee?._id || (existingReview as any).mentee;
+          if (menteeId) {
+            const menteeProfile = await Profile.findOne({ user: menteeId }).select('fullName').lean();
+            if (menteeProfile?.fullName) {
+              (existingReview as any).mentee.name = menteeProfile.fullName;
+            }
+          }
+
           // Return as if created successfully (idempotent behavior)
           return ok(res, { review: existingReview }, 'Review already exists');
         }
@@ -269,9 +291,23 @@ export const getMentorReviews = asyncHandler(async (req: Request, res: Response)
     .populate('mentee', 'userName name')
     .lean();
 
+  // ✅ FIX: Enrich mentee with fullName from Profile
+  const enrichedReviews = await Promise.all(
+    reviews.map(async (review: any) => {
+      const menteeId = review.mentee?._id || review.mentee;
+      if (menteeId) {
+        const profile = await Profile.findOne({ user: menteeId }).select('fullName').lean();
+        if (profile?.fullName) {
+          review.mentee.name = profile.fullName; // Override User.name with Profile.fullName
+        }
+      }
+      return review;
+    })
+  );
+
   // Pagination logic
-  const hasMore = reviews.length > limit;
-  const results = hasMore ? reviews.slice(0, limit) : reviews;
+  const hasMore = enrichedReviews.length > limit;
+  const results = hasMore ? enrichedReviews.slice(0, limit) : enrichedReviews;
   const nextCursor = hasMore ? String(results[results.length - 1]._id) : null;
 
   return ok(res, {

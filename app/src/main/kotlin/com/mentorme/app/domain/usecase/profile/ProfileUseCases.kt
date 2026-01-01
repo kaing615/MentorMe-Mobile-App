@@ -6,12 +6,20 @@ import com.mentorme.app.data.repository.ProfileRepository
 import javax.inject.Inject
 
 data class UpdateProfileParams(
+    val fullName: String? = null,
     val phone: String? = null,
     val location: String? = null,
     val bio: String? = null,
     val languages: List<String>? = null,
     val skills: List<String>? = null,
-    val avatarPath:  String? = null
+    val avatarPath: String? = null,
+
+    // ✅ NEW: Mentor-specific fields
+    val jobTitle: String? = null,
+    val category: String? = null,
+    val hourlyRateVnd: Int? = null,
+    val experience: String? = null,
+    val education: String? = null
 )
 
 class GetMeUseCase @Inject constructor(

@@ -11,7 +11,7 @@ export type WalletTransactionSource =
   | "MENTOR_PAYOUT"
   | "MENTOR_PAYOUT_REFUND";
 
-export type WalletTransactionReferenceType = "BOOKING" | "PAYOUT" | null;
+export type WalletTransactionReferenceType = "BOOKING" | "PAYOUT" | "TOPUP"| "REFUND" | null;
 
 export interface IWalletTransaction extends Document {
   walletId: Types.ObjectId;
@@ -86,7 +86,7 @@ const WalletTransactionSchema = new Schema<IWalletTransaction>(
     },
     referenceType: {
       type: String,
-      enum: ["BOOKING", "PAYOUT", null],
+      enum: ["BOOKING", "PAYOUT", "TOPUP", "REFUND", null],
       default: null,
       index: true,
     },

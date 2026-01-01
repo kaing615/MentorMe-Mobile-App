@@ -31,9 +31,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+<<<<<<< HEAD
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.BlurOff
 import androidx.compose.material.icons.filled.BlurOn
+=======
+>>>>>>> origin
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.Chat
@@ -41,12 +44,15 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.PhoneInTalk
+<<<<<<< HEAD
 import androidx.compose.material.icons.filled.ScreenShare
 import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.SignalCellularAlt1Bar
 import androidx.compose.material.icons.filled.SignalCellularAlt2Bar
 import androidx.compose.material.icons.filled.StopScreenShare
 import androidx.compose.material.icons.filled.Timer
+=======
+>>>>>>> origin
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material.icons.filled.VolumeOff
@@ -704,6 +710,7 @@ private fun CallControls(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+<<<<<<< HEAD
         // Top row - Video effects and chat
         Row(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -766,6 +773,35 @@ private fun CallControls(
                 useGlass = false
             )
         }
+=======
+        ControlButton(
+            icon = if (state.isAudioEnabled) Icons.Default.Mic else Icons.Default.MicOff,
+            contentDescription = "Toggle mic",
+            onClick = onToggleAudio
+        )
+        ControlButton(
+            icon = if (state.isVideoEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
+            contentDescription = "Toggle camera",
+            onClick = onToggleVideo
+        )
+        ControlButton(
+            icon = Icons.Default.Cameraswitch,
+            contentDescription = "Switch camera",
+            onClick = onSwitchCamera
+        )
+        ControlButton(
+            icon = if (state.isSpeakerEnabled) Icons.AutoMirrored.Filled.VolumeUp else Icons.Default.PhoneInTalk,
+            contentDescription = if (state.isSpeakerEnabled) "Speaker" else "Earpiece",
+            onClick = onToggleSpeaker
+        )
+        ControlButton(
+            icon = Icons.Default.CallEnd,
+            contentDescription = "End call",
+            onClick = onEndCall,
+            background = Color(0xFFDC2626),
+            useGlass = false
+        )
+>>>>>>> origin
     }
 }
 

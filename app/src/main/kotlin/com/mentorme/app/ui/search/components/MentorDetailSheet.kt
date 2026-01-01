@@ -2,13 +2,12 @@ package com.mentorme.app.ui.search.components
 
 import android.app.Activity
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Message
@@ -193,18 +192,27 @@ fun MentorDetailContent(
 ) {
     var activeTab by remember { mutableStateOf(0) }
 
-    CompositionLocalProvider(LocalContentColor provides Color.White) {
-        Column(Modifier.fillMaxSize()) {
-            //  Top spacer to prevent title from being too close to screen bezel/camera cutout
-            Spacer(Modifier.height(32.dp))
+    // Pre-compute display values
+    val profileName = profile?.fullName?.trim().orEmpty()
+    val displayName = if (profileName.isNotBlank()) profileName else mentor.name
+    val headline = profile?.headline?.trim().takeIf { !it.isNullOrBlank() }
+    val jobTitle = profile?.jobTitle?.trim().takeIf { !it.isNullOrBlank() }
+    val baseRole = headline ?: jobTitle ?: mentor.role.ifBlank { "Mentor" }
+    val subtitle = listOfNotNull(
+        baseRole.takeIf { it.isNotBlank() },
+        mentor.company.trim().takeIf { it.isNotBlank() },
+        profile?.location?.trim().takeIf { !it.isNullOrBlank() }
+    ).joinToString(" • ")
 
-            // Header - Clean & Minimal
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+    CompositionLocalProvider(LocalContentColor provides Color.White) {
+        Column(
+            Modifier
+                .padding(horizontal = 16.dp, vertical = 20.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Header - matching BookSessionSheet style
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "Chi tiết mentor",
                     style = MaterialTheme.typography.titleLarge,
@@ -212,125 +220,131 @@ fun MentorDetailContent(
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, null, tint = Color.White.copy(alpha = 0.9f))
+                    Icon(Icons.Default.Close, null)
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            // Mentor Summary Card - matching style of BookSessionSheet's MentorSummaryCard
+            MentorDetailSummaryCard(
+                mentor = mentor,
+                profile = profile,
+                displayName = displayName,
+                subtitle = subtitle
+            )
 
-            // Top summary - Cleaner layout
-            val profileName = profile?.fullName?.trim().orEmpty()
-            val displayName = if (profileName.isNotBlank()) profileName else mentor.name
-            val headline = profile?.headline?.trim().takeIf { !it.isNullOrBlank() }
-            val jobTitle = profile?.jobTitle?.trim().takeIf { !it.isNullOrBlank() }
-            val baseRole = headline ?: jobTitle ?: mentor.role.ifBlank { "Mentor" }
-            val subtitle = listOfNotNull(
-                baseRole.takeIf { it.isNotBlank() },
-                mentor.company.trim().takeIf { it.isNotBlank() },
-                profile?.location?.trim().takeIf { !it.isNullOrBlank() }
-            ).joinToString(" • ")
-
-            Column(Modifier.padding(horizontal = 20.dp)) {
-                Text(
-                    displayName,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    subtitle.ifBlank { baseRole },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.8f)
-                )
-                Spacer(Modifier.height(16.dp))
-
-                // Rating & Price - Cleaner chips without heavy borders
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = Color.White.copy(0.16f)
-                    ) {
-                        Text(
-                            "⭐ ${"%.1f".format(mentor.rating)}",
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = Color.White.copy(0.16f)
-                    ) {
-                        Text(
-                            "${mentor.hourlyRate} VNĐ/giờ",
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
+            // Action Buttons - Professional Blue Primary + Taller Height (56.dp)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                // PRIMARY: Book Now (Professional Blue, Solid, High contrast)
+                Button(
+                    onClick = { onBookNow(mentor.id) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 56.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2563EB),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(Icons.Default.CalendarToday, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Đặt lịch", fontWeight = FontWeight.SemiBold)
                 }
-                Spacer(Modifier.height(20.dp))
 
-                //  Action Buttons - Professional Blue Primary + Taller Height (56.dp)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    // PRIMARY: Book Now (Professional Blue, Solid, High contrast)
-                    Button(
-                        onClick = { onBookNow(mentor.id) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 56.dp), // ✅ Increased from 50.dp
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF2563EB), // ✅ Professional Blue instead of Green
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Icon(Icons.Default.CalendarToday, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Đặt lịch", fontWeight = FontWeight.SemiBold)
-                    }
-
-                    // SECONDARY: Message (Subtle)
-                    Surface(
-                        onClick = { onMessage(mentor.id) },
-                        modifier = Modifier
-                            .weight(0.38f)
-                            .heightIn(min = 56.dp), // ✅ Increased from 50.dp
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color.White.copy(alpha = 0.1f)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.Message,
-                                contentDescription = "Message",
-                                tint = Color.White.copy(alpha = 0.9f)
-                            )
-                        }
+                // SECONDARY: Message (Subtle)
+                Surface(
+                    onClick = { onMessage(mentor.id) },
+                    modifier = Modifier
+                        .weight(0.38f)
+                        .heightIn(min = 56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.White.copy(alpha = 0.1f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Message,
+                            contentDescription = "Message",
+                            tint = Color.White.copy(alpha = 0.9f)
+                        )
                     }
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
-
-            //  Cleaner segmented tabs with increased height
+            // Segmented tabs
             SegmentedTabs(
                 titles = listOf("Tổng quan", "Kinh nghiệm", "Đánh giá", "Lịch trống"),
                 selectedIndex = activeTab,
                 onSelect = { activeTab = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
+                modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(Modifier.height(20.dp))
-
-            // Content
+            // Content for each tab
             when (activeTab) {
                 0 -> OverviewTab(mentor, profile)
                 1 -> ExperienceTab(profile)
                 2 -> ReviewsTab(mentorId = mentor.id)
                 3 -> ScheduleTab(slots = slots, loading = loading, onBookNow = { onBookNow(mentor.id) })
+            }
+        }
+    }
+}
+
+// New component to match BookSessionSheet's MentorSummaryCard style
+@Composable
+private fun MentorDetailSummaryCard(
+    mentor: HomeMentor,
+    profile: ProfileDto?,
+    displayName: String,
+    subtitle: String
+) {
+    com.mentorme.app.ui.theme.LiquidGlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        radius = 24.dp,
+        alpha = 0.18f,
+        borderAlpha = 0.35f
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Name and subtitle
+            Text(
+                displayName,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.8f)
+            )
+
+            // Rating & Price chips
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color.White.copy(0.16f)
+                ) {
+                    Text(
+                        "⭐ ${"%.1f".format(mentor.rating)}",
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color.White.copy(0.16f)
+                ) {
+                    Text(
+                        "${mentor.hourlyRate} VNĐ/giờ",
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
     }
@@ -395,39 +409,40 @@ private fun OverviewTab(mentor: HomeMentor, profile: ProfileDto?) {
     val languages = profile?.languages?.filter { it.isNotBlank() } ?: listOf("Tiếng Việt", "English")
     val location = profile?.location?.trim()?.takeIf { it.isNotBlank() } ?: "Online"
 
-    LazyColumn(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+    Column(
+        Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Bio/Description - Keep one subtle card for long text
-        item {
-            Surface(
-                color = Color.White.copy(alpha = 0.08f),
-                shape = RoundedCornerShape(18.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    summaryText,
-                    modifier = Modifier.padding(20.dp),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        lineHeight = 24.sp,
-                        color = Color.White.copy(alpha = 0.95f)
-                    )
+        // Bio/Description - Use LiquidGlassCard to match ReviewItem style
+        com.mentorme.app.ui.theme.LiquidGlassCard(
+            modifier = Modifier.fillMaxWidth(),
+            radius = 16.dp
+        ) {
+            Text(
+                summaryText,
+                modifier = Modifier.padding(16.dp),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    lineHeight = 24.sp,
+                    color = Color.White.copy(alpha = 0.95f)
                 )
-            }
+            )
         }
 
-        // Skills - Keep chips but cleaner
+        // Skills - Use LiquidGlassCard
         if (skills.isNotEmpty()) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            com.mentorme.app.ui.theme.LiquidGlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                radius = 16.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     Text(
                         "Chuyên môn",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White.copy(alpha = 0.9f)
+                        color = Color.White
                     )
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -436,12 +451,13 @@ private fun OverviewTab(mentor: HomeMentor, profile: ProfileDto?) {
                         skills.forEach { skill ->
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
-                                color = Color.White.copy(alpha = 0.12f)
+                                color = Color.White.copy(alpha = 0.15f)
                             ) {
                                 Text(
                                     skill,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                    style = MaterialTheme.typography.bodyMedium
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White.copy(alpha = 0.95f)
                                 )
                             }
                         }
@@ -450,9 +466,15 @@ private fun OverviewTab(mentor: HomeMentor, profile: ProfileDto?) {
             }
         }
 
-        // Info rows - NO MORE SURFACE WRAPPERS!
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        // Info rows - Use LiquidGlassCard
+        com.mentorme.app.ui.theme.LiquidGlassCard(
+            modifier = Modifier.fillMaxWidth(),
+            radius = 16.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
                 // Languages
                 InfoRow(
                     icon = Icons.Default.Language,
@@ -543,40 +565,46 @@ private fun ExperienceTab(profile: ProfileDto?) {
         )
     }
 
-    LazyColumn(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+    Column(
+        Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(entries) { entry ->
-            Row(
+        entries.forEach { entry ->
+            // Use LiquidGlassCard to match ReviewItem style
+            com.mentorme.app.ui.theme.LiquidGlassCard(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.Top
+                radius = 16.dp
             ) {
-                // Icon based on type
-                Icon(
-                    imageVector = if (entry.type == "education")
-                        Icons.Default.School
-                    else
-                        Icons.Default.Work,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.7f),
+                Row(
                     modifier = Modifier
-                        .size(22.dp)
-                        .padding(top = 2.dp)
-                )
-
-                // Content
-                Text(
-                    entry.content,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        lineHeight = 24.sp,
-                        color = Color.White.copy(alpha = 0.95f)
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    // Icon based on type
+                    Icon(
+                        imageVector = if (entry.type == "education")
+                            Icons.Default.School
+                        else
+                            Icons.Default.Work,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier
+                            .size(22.dp)
+                            .padding(top = 2.dp)
                     )
-                )
+
+                    // Content
+                    Text(
+                        entry.content,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            lineHeight = 24.sp,
+                            color = Color.White.copy(alpha = 0.95f)
+                        )
+                    )
+                }
             }
         }
     }
@@ -634,15 +662,60 @@ private fun ReviewsTab(mentorId: String) {
         }
     }
 
-    com.mentorme.app.ui.review.ReviewList(
-        reviews = reviews,
-        isLoading = isLoading,
-        hasMore = hasMore,
-        onLoadMore = loadMore,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 16.dp)
-    )
+    // Use Column instead of LazyColumn to avoid nested scroll
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (reviews.isEmpty() && !isLoading) {
+            // Empty state
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Chưa có đánh giá nào",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.White.copy(alpha = 0.6f)
+                )
+            }
+        } else {
+            // Display reviews
+            reviews.forEach { review ->
+                com.mentorme.app.ui.review.ReviewItem(review = review)
+            }
+
+            // Load more button
+            if (hasMore && !isLoading) {
+                TextButton(
+                    onClick = loadMore,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Xem thêm đánh giá",
+                        color = Color.White.copy(alpha = 0.8f)
+                    )
+                }
+            }
+
+            // Loading indicator
+            if (isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -654,18 +727,15 @@ private fun ScheduleTab(slots: List<String>, loading: Boolean, onBookNow: () -> 
             else -> slots
         }
 
-    LazyColumn(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+    Column(
+        Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(display) { s ->
-            Surface(
+        display.forEach { s ->
+            // Use LiquidGlassCard to match ReviewItem style
+            com.mentorme.app.ui.theme.LiquidGlassCard(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                color = Color.White.copy(alpha = 0.12f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f))
+                radius = 16.dp
             ) {
                 Row(
                     Modifier
@@ -674,12 +744,24 @@ private fun ScheduleTab(slots: List<String>, loading: Boolean, onBookNow: () -> 
                         .animateContentSize(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(s, modifier = Modifier.weight(1f))
+                    Text(
+                        s,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.95f)
+                    )
                     if (!loading && slots.isNotEmpty()) {
                         Button(
                             onClick = onBookNow,
-                            modifier = Modifier.fillMaxWidth(0.38f).heightIn(min = 46.dp)
-                        ) { Text("Đặt lịch") }
+                            modifier = Modifier.heightIn(min = 46.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF2563EB),
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Đặt lịch", fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
             }

@@ -1,0 +1,253 @@
+package com.mentorme.app.ui.dashboard
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.mentorme.app.core.utils.Logx
+import com.mentorme.app.core.utils.AppResult
+import com.mentorme.app.data.dto.mentor.MentorStatsDto
+import com.mentorme.app.data.dto.review.ReviewDto
+import com.mentorme.app.data.model.Booking
+import com.mentorme.app.data.remote.MentorMeApi
+import com.mentorme.app.data.repository.BookingRepository
+import com.mentorme.app.data.repository.review.ReviewRepository
+import com.mentorme.app.core.datastore.DataStoreManager
+import com.mentorme.app.ui.calendar.toMentorUpcomingUi
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import javax.inject.Inject
+
+sealed class DashboardUiState {
+    object Loading : DashboardUiState()
+    data class Success(
+        val upcomingSession: UpcomingSessionUi?,
+        val stats: MentorStatsDto,
+        val recentReviews: List<ReviewDto>
+    ) : DashboardUiState()
+    data class Error(val message: String) : DashboardUiState()
+}
+
+data class UpcomingSessionUi(
+    val id: String,
+    val menteeName: String,
+    val topic: String,
+    val time: String,
+    val avatarInitial: String,
+    val isStartingSoon: Boolean,
+    val canJoin: Boolean
+)
+
+@HiltViewModel
+class MentorDashboardViewModel @Inject constructor(
+    private val api: MentorMeApi,
+    private val bookingRepository: BookingRepository,
+    private val reviewRepository: ReviewRepository,
+    private val dataStoreManager: DataStoreManager
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow<DashboardUiState>(DashboardUiState.Loading)
+    val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
+
+    private val TAG = "MentorDashboardVM"
+
+    init {
+        loadDashboard()
+    }
+
+    fun refresh() {
+        loadDashboard()
+    }
+
+    private fun loadDashboard() {
+        viewModelScope.launch {
+            try {
+                _uiState.value = DashboardUiState.Loading
+
+                // 1. Load upcoming bookings - sử dụng Repository như mentee
+                Logx.d(TAG) { "🔄 Refreshing bookings (mentor role)" }
+
+                val bookingsResult = bookingRepository.getBookings(
+                    role = "mentor",
+                    status = "Confirmed",
+                    page = 1,
+                    limit = 50
+                )
+
+                val upcomingBooking = when (bookingsResult) {
+                    is AppResult.Success -> {
+                        val bookings = bookingsResult.data.bookings
+                        Logx.d(TAG) { "✅ Repository Success: Loaded ${bookings.size} bookings (normalized)" }
+
+                        if (bookings.isEmpty()) {
+                            Logx.d(TAG) { "⚠️ No bookings found. Mentor may not have confirmed bookings." }
+                        } else {
+                            bookings.forEachIndexed { index, booking ->
+                                Logx.d(TAG) {
+                                    "📋 Booking #${index + 1}: " +
+                                    "id=${booking.id}, " +
+                                    "status=${booking.status}, " +
+                                    "date=${booking.date}, " +
+                                    "time=${booking.startTime}-${booking.endTime}, " +
+                                    "menteeId=${booking.menteeId}, " +
+                                    "menteeFullName=${booking.menteeFullName}"
+                                }
+                            }
+                        }
+
+                        findNextUpcomingSession(bookings)
+                    }
+                    is AppResult.Error -> {
+                        Logx.e(tag = TAG, message = { "❌ Repository Error: ${bookingsResult.throwable}" })
+                        null
+                    }
+                    AppResult.Loading -> null
+                }
+
+                // 2. Load stats
+                val statsResp = api.getMentorStats()
+                val stats = if (statsResp.isSuccessful) {
+                    statsResp.body()?.data ?: MentorStatsDto(0, 0, 0.0, 0.0)
+                } else {
+                    Logx.e(tag = TAG, message = { "Failed to load stats: ${statsResp.code()}" })
+                    MentorStatsDto(0, 0, 0.0, 0.0)
+                }
+
+                // 3. Load recent reviews for this mentor
+                val currentUserId = dataStoreManager.getUserId().first()
+                Logx.d(TAG) { "Loading reviews for mentor: $currentUserId" }
+
+                val reviews: List<ReviewDto> = if (currentUserId != null) {
+                    val reviewsResult = reviewRepository.getMentorReviews(
+                        mentorId = currentUserId,
+                        limit = 3
+                    )
+                    when (reviewsResult) {
+                        is com.mentorme.app.core.utils.AppResult.Success -> {
+                            Logx.d(TAG) { "Loaded ${reviewsResult.data.first.size} reviews" }
+                            reviewsResult.data.first
+                        }
+                        is com.mentorme.app.core.utils.AppResult.Error -> {
+                            Logx.e(tag = TAG, message = { "Failed to load reviews: ${reviewsResult.throwable}" })
+                            emptyList()
+                        }
+                        else -> emptyList()
+                    }
+                } else {
+                    Logx.e(tag = TAG, message = { "No user ID found, cannot load reviews" })
+                    emptyList()
+                }
+
+                _uiState.value = DashboardUiState.Success(
+                    upcomingSession = upcomingBooking,
+                    stats = stats,
+                    recentReviews = reviews
+                )
+
+            } catch (e: Exception) {
+                Logx.e(tag = TAG, message = { "Error loading dashboard: ${e.message}" })
+                _uiState.value = DashboardUiState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    private fun findNextUpcomingSession(bookings: List<Booking>): UpcomingSessionUi? {
+        val now = Instant.now()
+        val zoneId = ZoneId.systemDefault()
+        val today = LocalDate.now(zoneId)
+
+        // Filter bookings: chỉ lấy CONFIRMED và chưa qua giờ
+        val upcomingBookings = bookings
+            .filter { booking ->
+                // Must be CONFIRMED status
+                if (booking.status != com.mentorme.app.data.model.BookingStatus.CONFIRMED) {
+                    return@filter false
+                }
+
+                try {
+                    val bookingDate = LocalDate.parse(booking.date)
+                    val endTime = LocalTime.parse(booking.endTime, DateTimeFormatter.ofPattern("HH:mm"))
+                    val bookingEndDateTime = bookingDate.atTime(endTime).atZone(zoneId).toInstant()
+
+                    // Lấy các booking CHƯA KẾT THÚC (endTime > now)
+                    val isNotEnded = bookingEndDateTime.isAfter(now)
+
+                    if (!isNotEnded) {
+                        Logx.d(TAG) { "Booking ${booking.id} ended: ${booking.date} ${booking.endTime}" }
+                    }
+
+                    isNotEnded
+                } catch (e: Exception) {
+                    Logx.e(tag = TAG, message = { "Error parsing booking date/time: ${e.message}" })
+                    false
+                }
+            }
+            .sortedWith(compareBy({ it.date }, { it.startTime })) // Sort by date then time
+
+        Logx.d(TAG) { "Found ${upcomingBookings.size} upcoming confirmed bookings" }
+
+        val nextBooking = upcomingBookings.firstOrNull()
+        if (nextBooking == null) {
+            Logx.d(TAG) { "No upcoming session found" }
+            return null
+        }
+
+        Logx.d(TAG) { "Next booking: ${nextBooking.id} at ${nextBooking.date} ${nextBooking.startTime}" }
+
+        // Parse booking time
+        val bookingDate = LocalDate.parse(nextBooking.date)
+        val startTime = LocalTime.parse(nextBooking.startTime, DateTimeFormatter.ofPattern("HH:mm"))
+        val endTime = LocalTime.parse(nextBooking.endTime, DateTimeFormatter.ofPattern("HH:mm"))
+        val bookingDateTime = bookingDate.atTime(startTime).atZone(zoneId).toInstant()
+
+        // Format time display theo yêu cầu
+        val timeDisplay = when {
+            bookingDate == today -> {
+                val formatter = DateTimeFormatter.ofPattern("HH:mm")
+                "${startTime.format(formatter)} - ${endTime.format(formatter)} hôm nay"
+            }
+            bookingDate == today.plusDays(1) -> {
+                val formatter = DateTimeFormatter.ofPattern("HH:mm")
+                "${startTime.format(formatter)} - ${endTime.format(formatter)} ngày mai"
+            }
+            else -> {
+                val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+                val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+                "${timeFormatter.format(startTime)} - ${timeFormatter.format(endTime)}, ${dateFormatter.format(bookingDate)}"
+            }
+        }
+
+        // Check if can join: trong khoảng 15 phút trước đến 1 giờ sau giờ bắt đầu
+        val canJoin = now.isAfter(bookingDateTime.minus(java.time.Duration.ofMinutes(15)))
+            && now.isBefore(bookingDateTime.plus(java.time.Duration.ofHours(1)))
+
+        // Check if starting soon: trong vòng 30 phút tới
+        val isStartingSoon = now.isAfter(bookingDateTime.minus(java.time.Duration.ofMinutes(30)))
+            && now.isBefore(bookingDateTime.plus(java.time.Duration.ofHours(1)))
+
+        Logx.d(TAG) { "Session state: canJoin=$canJoin, isStartingSoon=$isStartingSoon" }
+
+        // Use mapper to get correct mentee name and avatar
+        val mappedUi = nextBooking.toMentorUpcomingUi()
+
+        Logx.d(TAG) { "Mapped UI: menteeName=${mappedUi.menteeName}, initial=${mappedUi.avatarInitial}" }
+
+        return UpcomingSessionUi(
+            id = nextBooking.id,
+            menteeName = mappedUi.menteeName,
+            topic = nextBooking.topic ?: "Buổi tư vấn",
+            time = timeDisplay,
+            avatarInitial = mappedUi.avatarInitial,
+            isStartingSoon = isStartingSoon,
+            canJoin = canJoin
+        )
+    }
+}
+

@@ -40,7 +40,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import coil.compose.AsyncImage
+import com.mentorme.app.data.dto.wallet.TopUpIntentDto
 import com.mentorme.app.ui.navigation.Routes
+import com.mentorme.app.ui.utils.AssetImage
 
 private fun formatCurrencyVnd(amount: Long): String {
     val nf = NumberFormat.getCurrencyInstance(Locale("vi", "VN"))
@@ -228,35 +231,127 @@ fun TopUpScreen(
     val uiState by walletViewModel.uiState.collectAsState()
     val balance = (uiState as? WalletUiState.Success)?.wallet?.balanceMinor ?: 0L
 
-    // Snackbar
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
-    // Collect top-up events
-    LaunchedEffect(walletViewModel) {
+    // Observe topUpIntent from ViewModel
+    val intent by walletViewModel.topUpIntent.collectAsState()
+    val topUpEvents = walletViewModel.topUpEvents // SharedFlow
+
+    LaunchedEffect(Unit) {
         walletViewModel.topUpEvents.collect { ev ->
             when (ev) {
-                is WalletViewModel.TopUpEvent.Success -> {
-                    snackbarHostState.showSnackbar("Nạp tiền thành công")
-                    // tùy ux: nav.popBackStack() từ caller; hoặc gửi event navigation
+                is WalletViewModel.TopUpEvent.Submitted -> {
+                    walletViewModel.clearTopUpIntent()
+                    snackbarHostState.showSnackbar(
+                        "Đã gửi yêu cầu nạp tiền, chờ admin duyệt"
+                    )
+                    onBack() // quay về home
                 }
+
+                is WalletViewModel.TopUpEvent.Approved -> {
+                    snackbarHostState.showSnackbar(
+                        "Nạp tiền thành công"
+                    )
+                }
+
                 is WalletViewModel.TopUpEvent.Error -> {
-                    snackbarHostState.showSnackbar("Lỗi: ${ev.message ?: "Không xác định"}")
+                    walletViewModel.clearTopUpIntent()
+                    snackbarHostState.showSnackbar(
+                        ev.message ?: "Có lỗi xảy ra"
+                    )
                 }
             }
         }
     }
 
-    // Reuse existing UI (không đổi)
-    TopUpScreen( // existing UI function defined earlier
+    // Reuse existing visual UI (unchanged)
+    TopUpScreen(
         balance = balance,
         onBack = onBack,
-        onSubmit = { amount, _method ->
-            walletViewModel.topUp(amount)
+        onSubmit = { amount, method ->
+            walletViewModel.setTopUpMethod(method)
+            walletViewModel.startTopUp(amount)
         }
     )
 
+    val method by walletViewModel.topUpMethod.collectAsState()
+
+    // If an intent exists, show transfer sheet
+    if (intent != null) {
+        TopUpTransferSheet(
+            intent = intent!!,
+            method = method,
+            onDismiss = { walletViewModel.clearTopUpIntent() },
+            onConfirmTransferred = {
+                walletViewModel.confirmTransferred()
+            }
+        )
+    }
+
     Box(Modifier.fillMaxSize()) {
         SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TopUpTransferSheet(
+    intent: TopUpIntentDto,
+    method: TopUpMethod,
+    onDismiss: () -> Unit,
+    onConfirmTransferred: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Color.DarkGray.copy(alpha = 0.5f),
+        scrimColor = Color.Black.copy(alpha = 0.75f),
+        shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Thông tin nạp tiền", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+
+            AssetImage(
+                assetPath = method.qrAsset(),
+                contentDescription = "QR ${method.label}",
+                modifier = Modifier
+                    .size(220.dp)
+                    .align(Alignment.CenterHorizontally)
+                    .clip(RoundedCornerShape(12.dp))
+            )
+
+            Text("Mã tham chiếu: ${intent.referenceCode ?: "—"}", color = Color.White)
+            Text("Số tiền: ${formatCurrencyVnd(intent.amount)}", color = Color.White)
+
+            var noteText by remember { mutableStateOf(intent.note ?: "Nap ${intent.amount} - <tên>") }
+            MMTextField(
+                value = noteText,
+                onValueChange = { noteText = it },
+                singleLine = true,
+                placeholder = "Ghi chú khi chuyển (bắt buộc)",
+            )
+
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MMPrimaryButton(onClick = {
+                    // copy to clipboard or keep
+                    onConfirmTransferred()
+                }, modifier = Modifier.weight(1f)) {
+                    Text("Tôi đã chuyển")
+                }
+                MMGhostButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                    Text("Huỷ")
+                }
+            }
+
+            Text("Lưu ý: Admin sẽ kiểm tra rồi duyệt. Giữ nguyên nội dung ghi chú để dễ đối soát.", color = Color.White.copy(.7f), style = MaterialTheme.typography.bodySmall)
+        }
     }
 }
 
@@ -394,7 +489,36 @@ fun WithdrawScreen(
     val balance = (uiState as? WalletUiState.Success)?.wallet?.balanceMinor ?: 0L
 
     val methods by walletViewModel.paymentMethods.collectAsState()
-    val defaultMethod = methods.firstOrNull { it.isDefault } ?: return
+
+    if (methods.isEmpty()) {
+        Box(
+            Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "Bạn chưa có phương thức rút tiền",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(Modifier.height(12.dp))
+                MMPrimaryButton(
+                    onClick = {
+                        navController.navigate(Routes.AddPaymentMethod)
+                    }
+                ) {
+                    Text("Thêm phương thức rút tiền")
+                }
+                Spacer(Modifier.height(8.dp))
+                MMGhostButton(onClick = onBack) {
+                    Text("Quay lại")
+                }
+            }
+        }
+        return
+    }
+
+    val defaultMethod = methods.firstOrNull { it.isDefault } ?: methods.first()
 
     val snackbarHostState = remember { SnackbarHostState() }
 

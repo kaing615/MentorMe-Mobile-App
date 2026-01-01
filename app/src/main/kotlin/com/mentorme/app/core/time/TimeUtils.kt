@@ -49,3 +49,43 @@ fun formatIsoToLocalShort(iso: String?, zoneId: ZoneId = ZoneId.systemDefault())
         local?.format(LOCAL_SHORT)
     }
 }
+
+/**
+ * Format ISO datetime to friendly format:
+ * - "Hôm nay 14:30"
+ * - "Ngày mai 10:00"
+ * - "31/12/2025 14:30"
+ */
+fun formatIsoToFriendly(iso: String?, zoneId: ZoneId = ZoneId.systemDefault()): String? {
+    if (iso.isNullOrBlank()) return null
+    val trimmed = iso.trim()
+
+    val timePart = trimmed.substringAfter('T', "")
+    val hasZone = timePart.contains("Z") || timePart.contains("+") || timePart.contains("-")
+
+    val localDateTime = if (hasZone) {
+        val instant = runCatching { Instant.parse(trimmed) }.getOrNull()
+            ?: runCatching { OffsetDateTime.parse(trimmed).toInstant() }.getOrNull()
+        instant?.atZone(zoneId)?.toLocalDateTime()
+    } else {
+        runCatching { LocalDateTime.parse(trimmed, ISO_WITH_FRACTION) }.getOrNull()
+    } ?: return null
+
+    val now = LocalDateTime.now(zoneId)
+    val today = now.toLocalDate()
+    val dateTime = localDateTime.toLocalDate()
+
+    val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+    val timeStr = localDateTime.format(timeFormatter)
+
+    return when {
+        dateTime == today -> "Hôm nay $timeStr"
+        dateTime == today.plusDays(1) -> "Ngày mai $timeStr"
+        dateTime == today.minusDays(1) -> "Hôm qua $timeStr"
+        else -> {
+            val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+            "${localDateTime.format(dateFormatter)} $timeStr"
+        }
+    }
+}
+

@@ -13,6 +13,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
@@ -118,11 +125,23 @@ fun CalendarScreen(
     val nowDate = remember { todayDate() }
     val nowTime = remember { nowHHmm() }
 
-    // Phân loại bookings theo status và thời gian
+    // ✅ FIX: Phân loại bookings với logic đúng - check endTime thay vì startTime
     val upcoming = remember(bookings, nowDate, nowTime) {
-        bookings.filter {
-            it.status == BookingStatus.CONFIRMED &&
-                    isFutureOrNow(it.date, it.startTime, nowDate, nowTime)
+        bookings.filter { booking ->
+            if (booking.status != BookingStatus.CONFIRMED) return@filter false
+
+            // ✅ Check endTime thay vì startTime để tránh bug session 01:00 sáng
+            val sessionEnded = when {
+                booking.date < nowDate -> true // Ngày đã qua
+                booking.date > nowDate -> false // Ngày chưa tới
+                else -> { // Cùng ngày - so sánh endTime
+                    val endMins = hhmmToMinutes(booking.endTime)
+                    val nowMins = hhmmToMinutes(nowTime)
+                    endMins <= nowMins // Session kết thúc nếu endTime <= now
+                }
+            }
+
+            !sessionEnded // Chỉ lấy sessions chưa kết thúc
         }.sortedWith(compareBy({ it.date }, { it.startTime }))
     }
 
@@ -133,13 +152,32 @@ fun CalendarScreen(
         }.sortedWith(compareBy({ it.date }, { it.startTime }))
     }
 
+    // ✅ FIX: Completed bao gồm cả CONFIRMED sessions đã kết thúc (endTime đã qua)
     val completed = remember(bookings, nowDate, nowTime) {
-        bookings.filter {
-            it.status == BookingStatus.COMPLETED ||
-                    it.status == BookingStatus.NO_SHOW_MENTOR ||
-                    it.status == BookingStatus.NO_SHOW_MENTEE ||
-                    it.status == BookingStatus.NO_SHOW_BOTH ||
-                    (it.status == BookingStatus.CONFIRMED && isPast(it.date, it.endTime, nowDate, nowTime))
+        bookings.filter { booking ->
+            // Case 1: Status là COMPLETED hoặc NO_SHOW
+            if (booking.status == BookingStatus.COMPLETED ||
+                booking.status == BookingStatus.NO_SHOW_MENTOR ||
+                booking.status == BookingStatus.NO_SHOW_MENTEE ||
+                booking.status == BookingStatus.NO_SHOW_BOTH) {
+                return@filter true
+            }
+
+            // Case 2: CONFIRMED nhưng đã qua endTime
+            if (booking.status == BookingStatus.CONFIRMED) {
+                val sessionEnded = when {
+                    booking.date < nowDate -> true
+                    booking.date > nowDate -> false
+                    else -> {
+                        val endMins = hhmmToMinutes(booking.endTime)
+                        val nowMins = hhmmToMinutes(nowTime)
+                        endMins <= nowMins
+                    }
+                }
+                return@filter sessionEnded
+            }
+
+            false
         }.sortedWith(compareByDescending<Booking> { it.date }.thenByDescending { it.startTime })
     }
 
@@ -311,10 +349,36 @@ private fun BookingCard(
     val dateToday = todayDate()
     val now = nowHHmm()
 
+    // ✅ FIX: Logic canJoin giống Mentor - check session chưa kết thúc và trong khoảng 15 phút trước
+    val sessionEnded = when {
+        booking.date < dateToday -> true // Ngày đã qua
+        booking.date > dateToday -> false // Ngày chưa tới
+        else -> { // Cùng ngày
+            val endMins = hhmmToMinutes(booking.endTime)
+            val nowMins = hhmmToMinutes(now)
+            endMins <= nowMins // Đã qua giờ kết thúc
+        }
+    }
+
     val canJoin = booking.status == BookingStatus.CONFIRMED &&
+            !sessionEnded &&
+            booking.date == dateToday && // Phải trong hôm nay
+            run {
+                val nowMins = hhmmToMinutes(now)
+                val startMins = hhmmToMinutes(booking.startTime)
+                // Có thể join trong khoảng 15 phút trước đến hết giờ session
+                nowMins >= (startMins - 15)
+            }
+
+    // ✅ Check if starting soon (trong vòng 30 phút)
+    val isStartingSoon = booking.status == BookingStatus.CONFIRMED &&
+            !sessionEnded &&
             booking.date == dateToday &&
-            (now >= addMinutes(booking.startTime, -10)) &&
-            (now <= booking.endTime)
+            run {
+                val nowMins = hhmmToMinutes(now)
+                val startMins = hhmmToMinutes(booking.startTime)
+                nowMins >= (startMins - 30) && nowMins < startMins
+            }
 
     val lateCancelLabel = if (booking.lateCancel == true) {
         val minutes = booking.lateCancelMinutes
@@ -386,7 +450,8 @@ private fun BookingCard(
                     )
                 }
 
-                StatusPill(booking.status)
+                // ✅ Pass sessionEnded to StatusPill
+                StatusPill(booking.status, sessionEnded = sessionEnded)
             }
 
             if (booking.status == BookingStatus.CANCELLED && lateCancelLabel != null) {
@@ -453,17 +518,62 @@ private fun BookingCard(
                         )
                     }
                     BookingStatus.CONFIRMED -> {
-                        MMButton(
-                            text = if (canJoin) "Tham gia" else "Chưa tới giờ",
-                            onClick = { onJoin(booking) },
-                            modifier = Modifier.weight(1f),
-                            leadingIcon = { Icon(Icons.Default.PlayArrow, null, tint = Color.White) }
-                        )
-                        MMGhostButton(
-                            text = "Hủy",
-                            onClick = { onCancel(booking) },
-                            modifier = Modifier.weight(1f)
-                        )
+                        if (!sessionEnded) {
+                            // Session chưa kết thúc - hiển thị nút Vào cuộc
+                            MMButton(
+                                text = if (canJoin) "Vào cuộc" else "Chưa tới giờ",
+                                onClick = { if (canJoin) onJoin(booking) },
+                                enabled = canJoin,
+                                modifier = Modifier.weight(1f),
+                                leadingIcon = { Icon(Icons.Default.PlayArrow, null, tint = Color.White) }
+                            )
+                            MMGhostButton(
+                                text = "Hủy",
+                                onClick = { onCancel(booking) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            // Session đã kết thúc - hiển thị như COMPLETED
+                            if (booking.reviewId == null) {
+                                MMButton(
+                                    text = "Đánh giá",
+                                    onClick = { onRate(booking) },
+                                    modifier = Modifier.weight(1f),
+                                    leadingIcon = { Icon(Icons.Default.CheckCircle, null, tint = Color.White) }
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(Color.White.copy(alpha = 0.1f))
+                                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            tint = Color.White.copy(alpha = 0.5f)
+                                        )
+                                        Text(
+                                            text = "Đã đánh giá",
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color.White.copy(alpha = 0.5f),
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                            MMGhostButton(
+                                text = "Đặt lại",
+                                onClick = { onRebook(booking) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                     BookingStatus.COMPLETED -> {
                         // Only show review button if not yet reviewed
@@ -544,18 +654,33 @@ private fun BookingCard(
 }
 
 @Composable
-private fun StatusPill(status: BookingStatus) {
-    val (label, dot, emoji) = when (status) {
-        BookingStatus.PAYMENT_PENDING -> Triple("Chờ thanh toán", Color(0xFFF59E0B), "💳")
-        BookingStatus.PENDING_MENTOR -> Triple("Chờ mentor", Color(0xFFF59E0B), "⏳")
-        BookingStatus.CONFIRMED -> Triple("Xác nhận", Color(0xFF10B981), "✅")
-        BookingStatus.COMPLETED -> Triple("Hoàn thành", Color(0xFF8B5CF6), "🎉")
-        BookingStatus.NO_SHOW_MENTOR -> Triple("No-show mentor", Color(0xFFF97316), "⚠️")
-        BookingStatus.NO_SHOW_MENTEE -> Triple("No-show mentee", Color(0xFFF97316), "⚠️")
-        BookingStatus.NO_SHOW_BOTH -> Triple("No-show cả hai", Color(0xFFF97316), "⚠️")
-        BookingStatus.CANCELLED -> Triple("Đã hủy", Color(0xFFEF4444), "❌")
-        BookingStatus.DECLINED -> Triple("Từ chối", Color(0xFFEF4444), "🚫")
-        BookingStatus.FAILED -> Triple("Thất bại", Color(0xFFEF4444), "⚠️")
+private fun StatusPill(status: BookingStatus, sessionEnded: Boolean = false) {
+    // ✅ Override: CONFIRMED but ended → show as COMPLETED
+    val (label, dotColor, icon) = when {
+        status == BookingStatus.CONFIRMED && sessionEnded ->
+            Triple("Hoàn thành", Color(0xFF8B5CF6), Icons.Default.Star)
+        status == BookingStatus.PAYMENT_PENDING ->
+            Triple("Chờ thanh toán", Color(0xFFF59E0B), Icons.Default.CreditCard)
+        status == BookingStatus.PENDING_MENTOR ->
+            Triple("Chờ mentor", Color(0xFFF59E0B), Icons.Default.HourglassEmpty)
+        status == BookingStatus.CONFIRMED ->
+            Triple("Xác nhận", Color(0xFF10B981), Icons.Default.CheckCircle)
+        status == BookingStatus.COMPLETED ->
+            Triple("Hoàn thành", Color(0xFF8B5CF6), Icons.Default.Star)
+        status == BookingStatus.NO_SHOW_MENTOR ->
+            Triple("No-show mentor", Color(0xFFF97316), Icons.Default.Warning)
+        status == BookingStatus.NO_SHOW_MENTEE ->
+            Triple("No-show mentee", Color(0xFFF97316), Icons.Default.Warning)
+        status == BookingStatus.NO_SHOW_BOTH ->
+            Triple("No-show cả hai", Color(0xFFF97316), Icons.Default.Warning)
+        status == BookingStatus.CANCELLED ->
+            Triple("Đã hủy", Color(0xFFEF4444), Icons.Default.Cancel)
+        status == BookingStatus.DECLINED ->
+            Triple("Từ chối", Color(0xFFEF4444), Icons.Default.Block)
+        status == BookingStatus.FAILED ->
+            Triple("Thất bại", Color(0xFFEF4444), Icons.Default.Error)
+        else ->
+            Triple("Unknown", Color.Gray, Icons.Default.Error)
     }
 
     Box(
@@ -567,15 +692,14 @@ private fun StatusPill(status: BookingStatus) {
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Box(
-                Modifier
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(dot)
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = dotColor,
+                modifier = Modifier.size(16.dp)
             )
-            Text(emoji, fontSize = MaterialTheme.typography.bodySmall.fontSize)
             Text(
                 label,
                 color = Color.White,

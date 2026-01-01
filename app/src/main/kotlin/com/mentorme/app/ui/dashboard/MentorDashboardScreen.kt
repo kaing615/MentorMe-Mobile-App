@@ -24,11 +24,17 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.components.ui.MMGhostButton
 import com.mentorme.app.ui.theme.LiquidBackground
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.theme.liquidGlass
+import java.text.NumberFormat
+import java.util.Locale
+import java.time.Instant
+import java.time.format.DateTimeFormatter
+import java.time.ZoneId
 
 private data class DashboardStat(
     val title: String,
@@ -37,58 +43,19 @@ private data class DashboardStat(
     val trend: String? = null
 )
 
-private data class UpcomingSession(
-    val id: String,
-    val menteeName: String,
-    val topic: String,
-    val time: String,
-    val avatarInitial: String,
-    val isStartingSoon: Boolean = false
-)
-
-private data class RecentReview(
-    val menteeName: String,
-    val rating: Double,
-    val comment: String,
-    val date: String
-)
-
-private val mentorStats = listOf(
-    DashboardStat("Thu nhập", "15.6M ₫", { Icon(Icons.Default.MonetizationOn, null, tint = Color(0xFF34D399)) }, "+8%"),
-    DashboardStat("Học viên", "128", { Icon(Icons.Default.Groups, null, tint = Color(0xFF60A5FA)) }, "+12"),
-    DashboardStat("Đánh giá", "4.9 ⭐", { Icon(Icons.Default.Star, null, tint = Color(0xFFFFD700)) }),
-    DashboardStat("Giờ dạy", "45h", { Icon(Icons.Default.AccessTime, null, tint = Color.White) })
-)
-
-private val nextSession = UpcomingSession(
-    id = "s1",
-    menteeName = "Phạm Tuấn Anh",
-    topic = "Mock Interview: System Design",
-    time = "10:00 - 11:00 hôm nay",
-    avatarInitial = "P",
-    isStartingSoon = true
-)
-
-private val recentReviews = listOf(
-    RecentReview("Lê Thu Hà", 5.0, "Mentor cực kỳ nhiệt tình, giải thích dễ hiểu!", "Hôm qua"),
-    RecentReview("Trần Văn B", 4.8, "Kiến thức sâu rộng, tuy nhiên hơi nhanh một chút.", "2 ngày trước"),
-    RecentReview("Nguyễn C", 5.0, "Rất đáng tiền, cảm ơn anh đã định hướng career path.", "1 tuần trước")
-)
-
 @Composable
 fun MentorDashboardScreen(
     vm: com.mentorme.app.ui.profile.ProfileViewModel,
+    dashboardVm: MentorDashboardViewModel = hiltViewModel(),
     onViewSchedule: () -> Unit = {},
     onViewStudents: () -> Unit = {},
     onViewEarnings: () -> Unit = {},
     onViewReviews: () -> Unit = {},
     onJoinSession: (String) -> Unit = {},
+    onViewBookingDetail: (String) -> Unit = {},
     onViewAllSessions: () -> Unit = {},
     onUpdateProfile: () -> Unit = {},
-
-    // ✅ NEW: mở thẳng tab "Cài đặt" trong profile
     onOpenSettings: () -> Unit = {},
-
     modifier: Modifier = Modifier
 ) {
     // Collect profile data from ViewModel
@@ -96,8 +63,96 @@ fun MentorDashboardScreen(
     val profile = state.profile
     val mentorName = profile?.fullName ?: "Mentor"
     
+    // Collect dashboard data
+    val dashboardState by dashboardVm.uiState.collectAsState()
+
     Box(modifier = modifier.fillMaxSize()) {
         LiquidBackground(Modifier.matchParentSize())
+
+        when (val dState = dashboardState) {
+            is DashboardUiState.Loading -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color.White)
+                }
+            }
+            is DashboardUiState.Error -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Lỗi tải dữ liệu", color = Color.White)
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = { dashboardVm.refresh() }) {
+                            Text("Thử lại")
+                        }
+                    }
+                }
+            }
+            is DashboardUiState.Success -> {
+                DashboardContent(
+                    mentorName = mentorName,
+                    upcomingSession = dState.upcomingSession,
+                    stats = dState.stats,
+                    recentReviews = dState.recentReviews,
+                    onViewSchedule = onViewSchedule,
+                    onViewStudents = onViewStudents,
+                    onViewEarnings = onViewEarnings,
+                    onViewReviews = onViewReviews,
+                    onJoinSession = onJoinSession,
+                    onViewBookingDetail = onViewBookingDetail,
+                    onViewAllSessions = onViewAllSessions,
+                    onUpdateProfile = onUpdateProfile,
+                    onOpenSettings = onOpenSettings
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardContent(
+    mentorName: String,
+    upcomingSession: UpcomingSessionUi?,
+    stats: com.mentorme.app.data.dto.mentor.MentorStatsDto,
+    recentReviews: List<com.mentorme.app.data.dto.review.ReviewDto>,
+    onViewSchedule: () -> Unit,
+    onViewStudents: () -> Unit,
+    onViewEarnings: () -> Unit,
+    onViewReviews: () -> Unit,
+    onJoinSession: (String) -> Unit,
+    onViewBookingDetail: (String) -> Unit,
+    onViewAllSessions: () -> Unit,
+    onUpdateProfile: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    // Format stats for display
+    val nf = NumberFormat.getCurrencyInstance(Locale("vi", "VN"))
+    val mentorStats = listOf(
+        DashboardStat(
+            "Thu nhập",
+            nf.format(stats.earnings),
+            { Icon(Icons.Default.MonetizationOn, null, tint = Color(0xFF34D399)) }
+        ),
+        DashboardStat(
+            "Mentee",
+            "${stats.menteeCount}",
+            { Icon(Icons.Default.Groups, null, tint = Color(0xFF60A5FA)) }
+        ),
+        DashboardStat(
+            "Đánh giá",
+            if (stats.averageRating > 0) {
+                "${String.format(Locale.US, "%.1f", stats.averageRating)} ⭐"
+            } else {
+                "Chưa có"
+            },
+            { Icon(Icons.Default.Star, null, tint = Color(0xFFFFD700)) }
+        ),
+        DashboardStat(
+            "Giờ tư vấn",
+            "${String.format(Locale.US, "%.1f", stats.totalHours)}h",
+            { Icon(Icons.Default.AccessTime, null, tint = Color.White) }
+        )
+    )
+
+    Box(modifier = Modifier.fillMaxSize()) {
 
         LazyColumn(
             modifier = Modifier
@@ -116,11 +171,16 @@ fun MentorDashboardScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     SectionTitle("Lịch hẹn sắp tới")
-                    NextSessionCard(
-                        session = nextSession,
-                        onJoin = { onJoinSession(nextSession.id) },
-                        onViewCalendar = onViewSchedule
-                    )
+                    if (upcomingSession != null) {
+                        NextSessionCard(
+                            session = upcomingSession,
+                            onJoin = { onJoinSession(upcomingSession.id) },
+                            onViewDetail = { onViewBookingDetail(upcomingSession.id) },
+                            onViewCalendar = onViewSchedule
+                        )
+                    } else {
+                        EmptySessionCard(onViewCalendar = onViewSchedule)
+                    }
                 }
             }
 
@@ -138,7 +198,7 @@ fun MentorDashboardScreen(
                                     onClick = {
                                         when (stat.title) {
                                             "Thu nhập" -> onViewEarnings()
-                                            "Học viên" -> onViewStudents()
+                                            "Mentee" -> onViewStudents()
                                             "Đánh giá" -> onViewReviews()
                                             else -> onViewAllSessions()
                                         }
@@ -172,31 +232,30 @@ fun MentorDashboardScreen(
                 }
             }
 
-            item {
-                // ✅ Gap giữa header và card bị rộng chủ yếu do TextButton default minHeight=48dp
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        SectionTitle("Đánh giá mới nhất")
-
-                        // ✅ giảm height/padding của TextButton để Row không bị cao
-                        TextButton(
-                            onClick = onViewReviews,
-                            modifier = Modifier.height(32.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+            if (recentReviews.isNotEmpty()) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Xem tất cả", color = Color.White.copy(0.7f))
+                            SectionTitle("Đánh giá mới nhất")
+                            TextButton(
+                                onClick = onViewReviews,
+                                modifier = Modifier.height(32.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                            ) {
+                                Text("Xem tất cả", color = Color.White.copy(0.7f))
+                            }
                         }
-                    }
 
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        contentPadding = PaddingValues(horizontal = 4.dp)
-                    ) {
-                        items(recentReviews) { review -> ReviewCard(review) }
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp)
+                        ) {
+                            items(recentReviews) { review -> ReviewCard(review) }
+                        }
                     }
                 }
             }
@@ -251,8 +310,9 @@ private fun MentorWelcomeSection(mentorName: String) {
 
 @Composable
 private fun NextSessionCard(
-    session: UpcomingSession,
+    session: UpcomingSessionUi,
     onJoin: () -> Unit,
+    onViewDetail: () -> Unit,
     onViewCalendar: () -> Unit
 ) {
     LiquidGlassCard(modifier = Modifier.fillMaxWidth(), radius = 24.dp) {
@@ -326,15 +386,52 @@ private fun NextSessionCard(
                 MMButton(
                     text = "Vào cuộc",
                     onClick = onJoin,
+                    enabled = session.canJoin,
                     modifier = Modifier.weight(1f),
                     leadingIcon = { Icon(Icons.Default.VideoCall, null, Modifier.size(20.dp)) }
                 )
                 MMGhostButton(
-                    onClick = onViewCalendar,
+                    onClick = onViewDetail,
                     modifier = Modifier.weight(1f),
                     content = { Text("Xem chi tiết") }
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun EmptySessionCard(onViewCalendar: () -> Unit) {
+    LiquidGlassCard(modifier = Modifier.fillMaxWidth(), radius = 24.dp) {
+        Column(
+            Modifier
+                .padding(24.dp)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                Icons.Default.CalendarToday,
+                null,
+                tint = Color.White.copy(0.5f),
+                modifier = Modifier.size(48.dp)
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Chưa có lịch hẹn",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White.copy(0.7f)
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Bạn chưa có lịch hẹn nào sắp tới",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(0.5f)
+            )
+            Spacer(Modifier.height(16.dp))
+            MMGhostButton(
+                onClick = onViewCalendar,
+                content = { Text("Xem lịch") }
+            )
         }
     }
 }
@@ -428,8 +525,20 @@ private fun QuickActionItem(icon: ImageVector, label: String, onClick: () -> Uni
 }
 
 @Composable
-private fun ReviewCard(review: RecentReview) {
-    val fullStars = review.rating.toInt().coerceIn(0, 5)
+private fun ReviewCard(review: com.mentorme.app.data.dto.review.ReviewDto) {
+    val fullStars = review.rating.coerceIn(0, 5)
+
+    // Format date from ISO string
+    val dateDisplay = try {
+        val instant = Instant.parse(review.createdAt)
+        val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+        formatter.format(instant.atZone(ZoneId.systemDefault()))
+    } catch (_: Exception) {
+        review.createdAt.take(10) // Fallback to first 10 chars
+    }
+
+    // Get mentee name from ReviewUserDto
+    val menteeName = review.mentee.name ?: review.mentee.userName
 
     LiquidGlassCard(
         modifier = Modifier
@@ -445,12 +554,12 @@ private fun ReviewCard(review: RecentReview) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(text = review.menteeName, fontWeight = FontWeight.Bold, color = Color.White)
-                Text(text = review.date, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.5f))
+                Text(text = menteeName, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(text = dateDisplay, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.5f))
             }
 
             Text(
-                text = "\"${review.comment}\"",
+                text = "\"${review.comment ?: "Không có nhận xét"}\"",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White.copy(0.8f),
                 maxLines = 3,

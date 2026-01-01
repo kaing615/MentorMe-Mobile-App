@@ -111,7 +111,6 @@ object NetworkModule {
     fun provideWalletApi(retrofit: Retrofit): WalletApi {
         return retrofit.create(WalletApi::class.java)
     }
-
 }
     fun provideWalletRepository(
         walletApi: WalletApi,

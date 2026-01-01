@@ -257,9 +257,15 @@ private fun toConversation(booking: Booking, currentUserId: String?, allBookings
     // Find active or most recent confirmed booking for session info
     val activeBooking = allBookings.firstOrNull { isSessionActive(it) }
     val confirmedBookings = allBookings.filter { it.status == BookingStatus.CONFIRMED }
+
+    // Get upcoming session: must be in the future (not started yet)
+    val now = Instant.now()
     val upcomingBooking = confirmedBookings
-        .filter { !isSessionActive(it) }
-        .minByOrNull { it.startTimeIso ?: "" }
+        .filter { booking ->
+            val start = runCatching { Instant.parse(booking.startTimeIso ?: "") }.getOrNull()
+            start != null && now.isBefore(start) // Must be in the future
+        }
+        .minByOrNull { it.startTimeIso ?: "" } // Get the soonest one
 
     val sessionBooking = activeBooking ?: upcomingBooking
     val startIso = sessionBooking?.startTimeIso ?: booking.startTimeIso ?: booking.createdAt

@@ -71,12 +71,12 @@ class MentorDashboardViewModel @Inject constructor(
             try {
                 _uiState.value = DashboardUiState.Loading
 
-                // 1. Load upcoming bookings - sử dụng Repository như mentee
-                Logx.d(TAG) { "🔄 Refreshing bookings (mentor role)" }
+                // 1. Load upcoming bookings - lấy TẤT CẢ bookings rồi filter trên client
+                Logx.d(TAG) { "🔄 Refreshing bookings (mentor role) - fetching ALL bookings" }
 
                 val bookingsResult = bookingRepository.getBookings(
                     role = "mentor",
-                    status = "Confirmed",
+                    status = null, // Get ALL bookings, filter on client side
                     page = 1,
                     limit = 50
                 )

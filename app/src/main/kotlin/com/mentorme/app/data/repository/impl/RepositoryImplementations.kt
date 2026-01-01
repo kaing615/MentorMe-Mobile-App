@@ -191,30 +191,31 @@ class BookingRepositoryImpl @Inject constructor(
         limit: Int
     ): AppResult<BookingListResponse> {
         return try {
+            android.util.Log.d("BookingRepository", "📡 Calling API: getBookings(role=$role, status=$status, page=$page, limit=$limit)")
             val response = api.getBookings(role, status, page, limit)
             if (response.isSuccessful) {
                 // ✅ Unwrap .data từ ApiEnvelope<BookingListResponse>
                 val envelope = response.body()
                 val bookingList = envelope?.data
                 if (bookingList != null) {
-                    var bookings = bookingList.bookings
-                    
-                    // DEV MOCK: If no bookings from API, inject mock live bookings for testing
-                    if (bookings.isEmpty() && role == "mentor" && status == "Confirmed") {
-                        android.util.Log.d("BookingRepository", "🧪 DEV MOCK: Injecting mock live bookings for testing")
-                        bookings = com.mentorme.app.data.mock.MockData.getMockLiveBookingsForMentor()
+                    android.util.Log.d("BookingRepository", "✅ API returned ${bookingList.bookings.size} bookings")
+                    bookingList.bookings.forEachIndexed { index, b ->
+                        android.util.Log.d("BookingRepository", "  📋 Booking[$index]: id=${b.id}, status=${b.status}, date=${b.date}, time=${b.startTime}-${b.endTime}")
                     }
                     
-                    val normalized = normalizeBookingList(bookings)
+                    val normalized = normalizeBookingList(bookingList.bookings)
                     val enriched = enrichBookingsWithMentor(normalized)
                     AppResult.success(bookingList.copy(bookings = enriched))
                 } else {
+                    android.util.Log.w("BookingRepository", "⚠️ API returned null data")
                     AppResult.failure(Exception("Empty response body"))
                 }
             } else {
+                android.util.Log.e("BookingRepository", "❌ API error: ${response.code()} - ${response.message()}")
                 AppResult.failure(Exception("Failed to get bookings: ${response.message()}"))
             }
         } catch (e: Exception) {
+            android.util.Log.e("BookingRepository", "❌ Exception: ${e.message}", e)
             AppResult.failure(e)
         }
     }

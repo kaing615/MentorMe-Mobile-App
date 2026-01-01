@@ -7,8 +7,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -52,7 +54,11 @@ fun ProfileTab(
     onCancel: () -> Unit
 ) {
     Column(
-        Modifier.verticalScroll(rememberScrollState()),
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding() // ✅ Handle system navigation bar
+            .padding(bottom = 110.dp), // Padding AFTER verticalScroll allows content to scroll behind bottom bar
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         LiquidGlassCard(
@@ -194,8 +200,5 @@ fun ProfileTab(
                 }
             }
         }
-
-        // Spacer để nội dung không bị bottom bar đè khi scroll xuống
-        Spacer(Modifier.height(80.dp))
     }
 }

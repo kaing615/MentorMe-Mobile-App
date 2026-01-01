@@ -186,7 +186,7 @@ fun ProfileScreen(
                         .fillMaxSize()
                         .padding(padding)
                         .padding(horizontal = 16.dp)
-                        .padding(top = 12.dp, bottom = 92.dp)
+                        .padding(top = 12.dp)
                 ) {
                     // Tabs
                     com.mentorme.app.ui.theme.LiquidGlassCard(

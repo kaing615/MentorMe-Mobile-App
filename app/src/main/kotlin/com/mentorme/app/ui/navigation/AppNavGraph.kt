@@ -600,26 +600,35 @@ internal fun AppNavGraph(
                 val profileEntry = remember { nav.getBackStackEntry(Routes.Profile) }
                 val walletVm: WalletViewModel = hiltViewModel(profileEntry)
 
-                ProfileScreen(
-                    vm = profileVm,
-                    user = UserHeader(fullName = "Nguyễn Văn A", email = "a@example.com", role = UserRole.MENTEE),
-                    notificationsViewModel = notificationsVm,
-                    walletViewModel = walletVm,
-                    onOpenNotifications = { nav.navigate(Routes.Notifications) },
-                    onOpenTopUp = { nav.navigate(Routes.TopUp) },
-                    onOpenWithdraw = { nav.navigate(Routes.Withdraw) },
-                    onOpenChangeMethod = { nav.navigate(Routes.PaymentMethods) },
-                    onAddMethod = { nav.navigate(Routes.AddPaymentMethod) },
-                    methods = emptyList(),
-                    onLogout = {
-                        localAuthVm.signOut {
-                            nav.navigate(Routes.Auth) {
-                                popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
-                                launchSingleTop = true
+                // ✅ Wrap with hazeSource to enable blur effect from bottom bar
+                val contentModifier = if (blurEnabled && hazeState != null) {
+                    Modifier.fillMaxSize().hazeSource(state = hazeState)
+                } else {
+                    Modifier.fillMaxSize()
+                }
+
+                Box(modifier = contentModifier) {
+                    ProfileScreen(
+                        vm = profileVm,
+                        user = UserHeader(fullName = "Nguyễn Văn A", email = "a@example.com", role = UserRole.MENTEE),
+                        notificationsViewModel = notificationsVm,
+                        walletViewModel = walletVm,
+                        onOpenNotifications = { nav.navigate(Routes.Notifications) },
+                        onOpenTopUp = { nav.navigate(Routes.TopUp) },
+                        onOpenWithdraw = { nav.navigate(Routes.Withdraw) },
+                        onOpenChangeMethod = { nav.navigate(Routes.PaymentMethods) },
+                        onAddMethod = { nav.navigate(Routes.AddPaymentMethod) },
+                        methods = emptyList(),
+                        onLogout = {
+                            localAuthVm.signOut {
+                                nav.navigate(Routes.Auth) {
+                                    popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
+                                    launchSingleTop = true
+                                }
                             }
                         }
-                    }
-                )
+                    )
+                }
             }
 
             // ---------- BOOKING ----------

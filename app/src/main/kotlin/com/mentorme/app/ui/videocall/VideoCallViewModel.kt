@@ -96,7 +96,7 @@ data class VideoCallUiState(
     val reconnectAttempt: Int = 0,
     val maxReconnectAttempts: Int = 5,
     // Preview mode
-    val isPreviewMode: Boolean = true,
+    val isPreviewMode: Boolean = false,
     // Toast messages
     val toastMessage: String? = null,
     // Booking time management

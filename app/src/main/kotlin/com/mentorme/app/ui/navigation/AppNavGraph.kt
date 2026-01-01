@@ -347,7 +347,8 @@ internal fun AppNavGraph(
                             "AppNav",
                             "Cancel session $sessionId - TODO"
                         )
-                    }
+                    },
+                    onOverlayChange = onOverlayVisibleChange // ✅ NEW: Wire overlay callback to hide bottom nav
                 )
             }
 

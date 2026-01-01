@@ -42,7 +42,8 @@ data class UpcomingSessionUi(
     val time: String,
     val avatarInitial: String,
     val avatarUrl: String?,  // Avatar URL for profile image
-    val isStartingSoon: Boolean,
+    val isOngoing: Boolean,  // Session has started and is currently happening
+    val isStartingSoon: Boolean,  // Session is upcoming within 30 min (but hasn't started)
     val canJoin: Boolean
 )
 
@@ -177,7 +178,12 @@ class MentorDashboardViewModel @Inject constructor(
 
                 try {
                     val bookingDate = LocalDate.parse(booking.date)
-                    val endTime = LocalTime.parse(booking.endTime, DateTimeFormatter.ofPattern("HH:mm"))
+                    // ✅ FIX: Handle both HH:mm and H:mm formats
+                    val endTime = try {
+                        LocalTime.parse(booking.endTime, DateTimeFormatter.ofPattern("HH:mm"))
+                    } catch (e: Exception) {
+                        LocalTime.parse(booking.endTime, DateTimeFormatter.ofPattern("H:mm"))
+                    }
                     val bookingEndDateTime = bookingDate.atTime(endTime).atZone(zoneId).toInstant()
 
                     // Lấy các booking CHƯA KẾT THÚC (endTime > now)
@@ -207,9 +213,18 @@ class MentorDashboardViewModel @Inject constructor(
         return upcomingBookings.mapNotNull { booking ->
             try {
                 val bookingDate = LocalDate.parse(booking.date)
-                val startTime = LocalTime.parse(booking.startTime, DateTimeFormatter.ofPattern("HH:mm"))
-                val endTime = LocalTime.parse(booking.endTime, DateTimeFormatter.ofPattern("HH:mm"))
-                
+                // ✅ FIX: Handle both HH:mm and H:mm formats
+                val startTime = try {
+                    LocalTime.parse(booking.startTime, DateTimeFormatter.ofPattern("HH:mm"))
+                } catch (e: Exception) {
+                    LocalTime.parse(booking.startTime, DateTimeFormatter.ofPattern("H:mm"))
+                }
+                val endTime = try {
+                    LocalTime.parse(booking.endTime, DateTimeFormatter.ofPattern("HH:mm"))
+                } catch (e: Exception) {
+                    LocalTime.parse(booking.endTime, DateTimeFormatter.ofPattern("H:mm"))
+                }
+
                 // Prefer ISO timestamps from server for accurate timezone handling
                 val bookingStartInstant = booking.startTimeIso?.let { iso ->
                     runCatching { Instant.parse(iso) }.getOrNull()
@@ -243,11 +258,15 @@ class MentorDashboardViewModel @Inject constructor(
                 // Check if can join - must be within join window
                 val canJoin = now.isAfter(joinWindowStart) && now.isBefore(joinWindowEnd)
 
-                // Check if starting soon (within 30 min of start time and before end)
+                // ✅ FIX: Proper status logic
+                // "Đang diễn ra": session has started and not yet ended
+                val isOngoing = now.isAfter(bookingStartInstant) && now.isBefore(bookingEndInstant)
+
+                // "Sắp diễn ra": within 30 min before start time (but hasn't started yet)
                 val isStartingSoon = now.isAfter(bookingStartInstant.minus(java.time.Duration.ofMinutes(30)))
-                    && now.isBefore(bookingEndInstant)
-                
-                Logx.d(TAG) { "Session ${booking.id}: startIso=${booking.startTimeIso}, start=$bookingStartInstant, end=$bookingEndInstant, now=$now, canJoin=$canJoin" }
+                    && now.isBefore(bookingStartInstant)
+
+                Logx.d(TAG) { "Session ${booking.id}: startIso=${booking.startTimeIso}, start=$bookingStartInstant, end=$bookingEndInstant, now=$now, canJoin=$canJoin, isOngoing=$isOngoing, isStartingSoon=$isStartingSoon" }
 
                 // Use mapper to get correct mentee name and avatar
                 val mappedUi = booking.toMentorUpcomingUi()
@@ -259,7 +278,8 @@ class MentorDashboardViewModel @Inject constructor(
                     time = timeDisplay,
                     avatarInitial = mappedUi.avatarInitial,
                     avatarUrl = mappedUi.avatarUrl,
-                    isStartingSoon = isStartingSoon,
+                    isOngoing = isOngoing, // ✅ FIX: Pass isOngoing separately
+                    isStartingSoon = isStartingSoon, // ✅ FIX: Only true when session hasn't started but within 30 min
                     canJoin = canJoin
                 )
             } catch (e: Exception) {

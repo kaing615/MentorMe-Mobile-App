@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt // ✅ NEW: For "Starting Soon" indicator
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.Icon
@@ -391,12 +392,24 @@ fun SessionsTab(
                                     .border(1.dp, Color(0xFFF472B6).copy(0.4f), RoundedCornerShape(12.dp))
                                     .padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
-                                Text(
-                                    "⚡ Phiên học sắp bắt đầu",
-                                    color = Color(0xFFF472B6),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                // ✅ NEW: Use Material Icon instead of emoji
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = androidx.compose.material.icons.Icons.Default.Bolt,
+                                        contentDescription = null,
+                                        tint = Color(0xFFF472B6),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        "Phiên học sắp bắt đầu",
+                                        color = Color(0xFFF472B6),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
 

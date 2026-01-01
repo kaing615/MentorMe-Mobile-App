@@ -11,10 +11,11 @@ import {
 
 const router = Router();
 
-// Mentee role (lowercase as per user.model.ts)
+// Both mentee and mentor can access wallet
 const MENTEE_ROLE = "mentee";
+const MENTOR_ROLE = "mentor";
 
-router.get("/me", auth, requireRoles(MENTEE_ROLE), walletController.getMyWallet);
+router.get("/me", auth, requireRoles(MENTEE_ROLE, MENTOR_ROLE), walletController.getMyWallet);
 
 router.post(
   "/topups/mock",

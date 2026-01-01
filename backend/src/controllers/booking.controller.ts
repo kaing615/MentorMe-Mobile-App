@@ -38,6 +38,7 @@ import {
 } from '../utils/notification.service';
 import { generateBookingIcs } from '../utils/ics.service';
 import { captureBookingPayment, refundBookingPayment } from '../services/walletBooking.service';
+import { emitToUser } from '../socket';
 
 const BOOKING_EXPIRY_MINUTES = parseInt(process.env.BOOKING_EXPIRY_MINUTES || '15', 10) || 15;
 const LATE_CANCEL_MINUTES = parseInt(process.env.LATE_CANCEL_MINUTES || '1440', 10) || 1440;
@@ -557,6 +558,18 @@ export const cancelBooking = asyncHandler(async (req: Request, res: Response) =>
         isMentor
       ),
     ]);
+
+    // ✅ Emit realtime event to both mentor and mentee
+    emitToUser(String(booking.mentor), 'booking:cancelled', {
+      bookingId: String(booking._id),
+      cancelledBy: userId,
+      reason,
+    });
+    emitToUser(String(booking.mentee), 'booking:cancelled', {
+      bookingId: String(booking._id),
+      cancelledBy: userId,
+      reason,
+    });
   } catch (err) {
     console.error('Failed to send cancellation notifications:', err);
   }
@@ -750,6 +763,15 @@ export async function confirmBooking(bookingId: string): Promise<void> {
         startTime: new Date(booking.startTime),
       }),
     ]);
+
+    // ✅ Emit realtime event to mentor so dashboard auto-refreshes
+    emitToUser(String(booking.mentor), 'booking:created', {
+      bookingId: String(booking._id),
+      menteeId: String(booking.mentee),
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      topic: booking.topic,
+    });
   } catch (err) {
     console.error('Failed to send confirmation notifications:', err);
   }

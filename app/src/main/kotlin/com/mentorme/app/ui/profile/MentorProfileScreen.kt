@@ -122,6 +122,13 @@ fun MentorProfileScreen(
     val state by vm.state.collectAsState()
     val notificationPreferences by notificationsViewModel.preferences.collectAsState()
 
+    // ✅ Collect stats and wallet data from ViewModel
+    val walletBalance by vm.walletBalance.collectAsState()
+    val overallStats by vm.overallStats.collectAsState()
+    val weeklyEarnings by vm.weeklyEarnings.collectAsState()
+    val yearlyEarnings by vm.yearlyEarnings.collectAsState()
+    val currentYear by vm.currentYear.collectAsState()
+
     val profile = state.profile
     val isLoading = state.loading
     val isEditing = state.editing
@@ -312,7 +319,7 @@ fun MentorProfileScreen(
                         )
 
                         2 -> MentorWalletTab(
-                            balance = 15_600_000L,
+                            balance = walletBalance,
                             onWithdraw = onOpenWithdraw,
                             methods = methods,
                             onAddMethod = onAddMethod
@@ -578,10 +585,13 @@ private fun MentorStatsTab(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    val maxAmount = 700_000L // 700K VND as reference
                     val days = listOf("T2", "T3", "T4", "T5", "T6", "T7", "CN")
 
                     if (weeklyEarnings.isNotEmpty() && weeklyEarnings.size == 7) {
+                        // ✅ Calculate dynamic maxAmount from actual data
+                        val maxEarning = weeklyEarnings.maxOrNull() ?: 1L
+                        val maxAmount = if (maxEarning > 0) maxEarning else 700_000L
+
                         weeklyEarnings.forEachIndexed { index, amount ->
                             Column(
                                 Modifier.weight(1f).padding(horizontal = 2.dp),
@@ -668,10 +678,13 @@ private fun MentorStatsTab(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    val maxAmount = 10_000_000L // 10M VND as reference for yearly
                     val months = listOf("T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12")
 
                     if (yearlyEarnings.isNotEmpty() && yearlyEarnings.size == 12) {
+                        // ✅ Calculate dynamic maxAmount from actual data
+                        val maxEarning = yearlyEarnings.maxOrNull() ?: 1L
+                        val maxAmount = if (maxEarning > 0) maxEarning else 10_000_000L
+
                         yearlyEarnings.forEachIndexed { index, amount ->
                             Column(
                                 Modifier.weight(1f).padding(horizontal = 1.dp),

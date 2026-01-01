@@ -1,6 +1,7 @@
 package com.mentorme.app.ui.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -10,13 +11,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.ThumbUp
-import androidx.compose.material.icons.filled.Timelapse
 import androidx.compose.material.icons.filled.VideoCall
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.WorkspacePremium
@@ -35,12 +36,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -65,7 +68,7 @@ data class SuccessStory(
 )
 
 // ===== Sample Data =====
-private data class QuickStat(val title: String, val subtitle: String, val icon: @Composable () -> Unit)
+private data class QuickStat(val title: String, val subtitle: String)
 
 private data class Category(val name: String, val icon: ImageVector)
 private val categories = listOf(
@@ -75,16 +78,6 @@ private val categories = listOf(
     Category("Marketing", CategoryIcons.getIcon("marketing")),
     Category("Finance", CategoryIcons.getIcon("finance")),
     Category("Career", CategoryIcons.getIcon("career")),
-)
-
-private data class MentorUi(val name: String, val role: String, val rating: Double)
-
-// Sample top mentors for fallback only
-private val sampleTopMentors = listOf(
-    MentorUi("Nguyễn An", "Software Engineer", 4.9),
-    MentorUi("Trần Minh", "Product Manager", 4.8),
-    MentorUi("Lê Lan",    "UX Designer", 4.9),
-    MentorUi("Hoàng Quân","Data Scientist", 4.7)
 )
 
 
@@ -147,19 +140,19 @@ fun HomeScreen(
             QuickStat(
                 formatCompactNumber(uiState.mentorCount),
                 "Mentor chất lượng"
-            ) { Icon(Icons.Filled.Star, null, tint = Color.White) },
+            ),
             QuickStat(
                 formatCompactNumber(uiState.sessionCount),
                 "Buổi tư vấn"
-            ) { Icon(Icons.Filled.CalendarMonth, null, tint = Color.White) },
+            ),
             QuickStat(
                 if (uiState.avgRating > 0) "%.1f★".format(uiState.avgRating) else "0★",
                 "Đánh giá trung bình"
-            ) { Icon(Icons.Filled.ThumbUp, null, tint = Color.White) },
+            ),
             QuickStat(
                 "< 2h",
                 "Phản hồi nhanh"
-            ) { Icon(Icons.Filled.Timelapse, null, tint = Color.White) },
+            )
         )
     }
 
@@ -179,9 +172,9 @@ fun HomeScreen(
                 )
             )
             .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp), // Increased from 12dp
         contentPadding = PaddingValues(
-            top = 12.dp,
+            top = 16.dp,
             bottom = 110.dp
         )
     ) {
@@ -190,9 +183,8 @@ fun HomeScreen(
             MenteeWelcomeSection(menteeName = uiState.userName)
         }
 
-        // Show upcoming sessions OR HeroSection (not both)
+        // Show upcoming sessions OR HeroSection
         if (uiState.upcomingSessions.isNotEmpty()) {
-            // Show upcoming sessions cards
             item {
                 MenteeUpcomingSessionsSection(
                     sessions = uiState.upcomingSessions,
@@ -269,41 +261,82 @@ fun HomeScreen(
         }
 
         item { SectionTitle("Thống kê nhanh") }
-        items(quickStats.chunked(2)) { row ->
+
+        // Calculate chunked list ONCE to get proper indices
+        val chunkedStats = quickStats.chunked(2)
+
+        items(chunkedStats) { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                row.forEach { stat ->
+                // Get row index to calculate proper statIndex
+                val rowIndex = chunkedStats.indexOf(row)
+
+                row.forEachIndexed { index, stat ->
+                    val statIndex = rowIndex * 2 + index
+
+                    // UNIQUE colors for each stat - all different
+                    val iconColor = when (statIndex) {
+                        0 -> Color(0xFFFFAA00) // Bright Orange/Amber for Mentors (People icon)
+                        1 -> Color(0xFF00E5FF) // Electric Cyan for Sessions (Calendar icon)
+                        2 -> Color(0xFFFFD700) // Bright Gold/Yellow for Rating (Star icon)
+                        else -> Color(0xFF00FF88) // Bright Neon Green for Response (Message icon)
+                    }
+
                     LiquidGlassCard(
                         modifier = Modifier
                             .weight(1f)
-                            .height(100.dp),
+                            .height(130.dp)
+                            .shadow(
+                                elevation = 8.dp,
+                                shape = RoundedCornerShape(22.dp),
+                                ambientColor = Color.Black.copy(alpha = 0.25f),
+                                spotColor = Color.Black.copy(alpha = 0.4f)
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = Color.White.copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(22.dp)
+                            ),
                         radius = 22.dp
                     ) {
-                        Row(
+                        // Left-aligned layout with better padding
+                        Column(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(14.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(20.dp), // Increased padding for breathing room
+                            verticalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .liquidGlass(radius = 12.dp),
-                                contentAlignment = Alignment.Center
-                            ) { stat.icon() }
+                            // ✅ UNIQUE ICONS - all different
+                            Icon(
+                                imageVector = when (statIndex) {
+                                    0 -> Icons.Filled.People // ✅ People icon for Mentors
+                                    1 -> Icons.Filled.CalendarMonth // ✅ Calendar for Sessions
+                                    2 -> Icons.Filled.Star // ✅ Star for Rating
+                                    else -> Icons.AutoMirrored.Filled.Message // ✅ Message for Quick Response
+                                },
+                                contentDescription = null,
+                                tint = iconColor, // UNIQUE color for each
+                                modifier = Modifier.size(36.dp)
+                            )
 
-                            Column {
+                            // Text column - left aligned with proper spacing
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
                                 Text(
                                     stat.title,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White,
+                                    maxLines = 1
                                 )
                                 Text(
                                     stat.subtitle,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = Color.White.copy(alpha = 0.85f)
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    fontWeight = FontWeight.Normal,
+                                    maxLines = 2,
+                                    lineHeight = 20.sp
                                 )
                             }
                         }
@@ -317,41 +350,79 @@ fun HomeScreen(
         items(categories.chunked(2)) { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 row.forEach { cat ->
+                    // NEON/Highly saturated colors - MUST POP against dark blue background
+                    val categoryColor = when (cat.name) {
+                        "Technology" -> Color(0xFF00F5FF) // Electric NEON Cyan/Aqua
+                        "Business" -> Color(0xFFBB6BFF) // Bright NEON Purple
+                        "Design" -> Color(0xFFFF1493) // Deep NEON Pink/Magenta
+                        "Marketing" -> Color(0xFFFF6600) // Vibrant NEON Orange
+                        "Finance" -> Color(0xFF00FF7F) // Bright NEON Spring Green
+                        "Career" -> Color(0xFFFFD700) // Bright NEON Gold
+                        else -> Color(0xFF00E5FF) // Electric Cyan default
+                    }
+
+                    // Subtitle for each category
+                    val categorySubtitle = when (cat.name) {
+                        "Technology" -> "Java, Python, AI"
+                        "Business" -> "Startup, Management"
+                        "Design" -> "UI/UX, Graphic"
+                        "Marketing" -> "SEO, Content, Ads"
+                        "Finance" -> "Investment, Trading"
+                        "Career" -> "Resume, Interview"
+                        else -> "Tư vấn chuyên nghiệp"
+                    }
+
                     LiquidGlassCard(
                         modifier = Modifier
                             .weight(1f)
-                            .height(90.dp)
+                            .height(120.dp) // Increased to prevent clipping
                             .noIndicationClickable {
-                                // ✅ Navigate to search with this category as filter
                                 onNavigateToCategory(cat.name)
-                            },
+                            }
+                            .shadow(
+                                elevation = 8.dp,
+                                shape = RoundedCornerShape(22.dp),
+                                ambientColor = Color.Black.copy(alpha = 0.3f),
+                                spotColor = Color.Black.copy(alpha = 0.3f)
+                            ),
                         radius = 22.dp
                     ) {
-                        Row(
+                        // Left-aligned column layout with proper padding
+                        Column(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                .padding(18.dp), // Increased padding
+                            verticalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .liquidGlass(radius = 12.dp),
-                                contentAlignment = Alignment.Center
+                            // Icon WITHOUT background - NEON color to POP!
+                            Icon(
+                                imageVector = cat.icon,
+                                contentDescription = null,
+                                tint = categoryColor, // NEON saturated color
+                                modifier = Modifier.size(36.dp) // Larger icon
+                            )
+
+                            // Text column - left aligned
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Icon(
-                                    imageVector = cat.icon,
-                                    contentDescription = null,
-                                    tint = Color.White
+                                Text(
+                                    cat.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    categorySubtitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(alpha = 0.75f),
+                                    fontWeight = FontWeight.Normal,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
                             }
-                            Text(
-                                cat.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color.White
-                            )
                         }
                     }
                 }
@@ -393,53 +464,98 @@ fun HomeScreen(
         item {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(horizontal = 2.dp)
+                contentPadding = PaddingValues(horizontal = 4.dp)
             ) {
                 items(uiState.topMentors) { m ->
                     LiquidGlassCard(
                         modifier = Modifier
-                            .width(240.dp)
-                            .height(140.dp),
-                        radius = 20.dp
+                            .width(250.dp) // Increased from 240dp
+                            .height(150.dp) // Increased from 140dp
+                            .shadow(
+                                elevation = 8.dp,
+                                shape = RoundedCornerShape(22.dp),
+                                ambientColor = Color.Black.copy(alpha = 0.25f),
+                                spotColor = Color.Black.copy(alpha = 0.25f)
+                            ),
+                        radius = 22.dp
                     ) {
                         Column(
-                            modifier = Modifier.padding(14.dp),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(18.dp), // Increased from 14dp
                             verticalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(
                                     m.name,
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    color = Color.White // Full white
                                 )
                                 Text(
                                     m.role,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = Color.White.copy(alpha = 0.85f)
+                                    color = Color.White.copy(alpha = 0.9f), // Increased
+                                    maxLines = 2,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
                             }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .height(28.dp)
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .liquidGlass(radius = 14.dp)
-                                        .padding(horizontal = 10.dp),
+                                        .height(32.dp) // Increased from 28dp
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(
+                                            Brush.linearGradient(
+                                                colors = listOf(
+                                                    Color(0xFFFFA726), // Gold
+                                                    Color(0xFFFF6F00)
+                                                )
+                                            )
+                                        )
+                                        .shadow(
+                                            elevation = 4.dp,
+                                            shape = RoundedCornerShape(16.dp)
+                                        )
+                                        .padding(horizontal = 12.dp),
                                     contentAlignment = Alignment.Center
-                                ) { Text("⭐ ${m.rating}", color = Color.White) }
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Star,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            "${m.rating}",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
 
                                 Box(
                                     modifier = Modifier
-                                        .height(28.dp)
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .liquidGlass(radius = 14.dp)
-                                        .padding(horizontal = 12.dp),
+                                        .height(32.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(Color.White.copy(alpha = 0.2f))
+                                        .padding(horizontal = 14.dp),
                                     contentAlignment = Alignment.Center
-                                ) { Text("Đặt lịch", color = Color.White) }
+                                ) {
+                                    Text(
+                                        "Đặt lịch",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Medium,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
                             }
                         }
                     }
@@ -456,27 +572,63 @@ fun HomeScreen(
         }
         items(successStories) { story ->
             LiquidGlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                radius = 22.dp
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(
+                        elevation = 8.dp,
+                        shape = RoundedCornerShape(24.dp),
+                        ambientColor = Color.Black.copy(alpha = 0.25f),
+                        spotColor = Color.Black.copy(alpha = 0.25f)
+                    ),
+                radius = 24.dp
             ) {
                 Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.Top
+                    modifier = Modifier.padding(20.dp), // Increased from 16dp
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(56.dp) // Increased from 48dp
                             .clip(CircleShape)
-                            .background(story.bgGradient),
+                            .background(story.bgGradient)
+                            .shadow(
+                                elevation = 6.dp,
+                                shape = CircleShape,
+                                ambientColor = Color.Black.copy(alpha = 0.3f),
+                                spotColor = Color.Black.copy(alpha = 0.3f)
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(story.icon, null, tint = Color.White)
+                        Icon(
+                            story.icon,
+                            null,
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text(story.title, style = MaterialTheme.typography.titleMedium, color = Color.White)
-                        Text(story.quote, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.7f))
-                        Text("- ${story.author}", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.6f))
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            story.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White, // Full white
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            story.quote,
+                            style = MaterialTheme.typography.bodyMedium, // Larger from bodySmall
+                            color = Color.White.copy(alpha = 0.85f), // Better contrast
+                            lineHeight = 20.sp
+                        )
+                        Text(
+                            "- ${story.author}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFFFA726), // Gold accent
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 }
             }
@@ -537,14 +689,41 @@ fun HomeScreen(
     } // End outer Box
 }
 
+
 @Composable
 private fun SectionTitle(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.headlineSmall,
-        fontWeight = FontWeight.Bold,
-        color = Color.White
-    )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Spacer(Modifier.height(8.dp)) // Extra whitespace above
+        Text(
+            text = text,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color.White,
+            letterSpacing = (-0.5).sp
+        )
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String, subtitle: String) {
+    Column(
+        modifier = Modifier.padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color.White,
+            letterSpacing = (-0.5).sp
+        )
+        Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodyLarge,
+            color = Color.White.copy(alpha = 0.7f),
+            fontWeight = FontWeight.Light
+        )
+    }
 }
 
 @Composable
@@ -763,25 +942,8 @@ private fun MenteeSessionCard(
     }
 }
 
-@Composable
-private fun SectionHeader(title: String, subtitle: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.White.copy(alpha = 0.7f)
-        )
-    }
-}
 
-
-// ===== HOME MENTOR CARD - Premium Glassmorphism (Private component) =====
+// ===== HOME MENTOR CARD - FEATURED PROFILE EDITORIAL STYLE =====
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HomeMentorCard(
@@ -790,202 +952,299 @@ private fun HomeMentorCard(
     onBookSession: () -> Unit
 ) {
     LiquidGlassCard(
-        modifier = Modifier.fillMaxWidth(),
-        radius = 22.dp
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 12.dp,
+                shape = RoundedCornerShape(28.dp),
+                ambientColor = Color.Black.copy(alpha = 0.3f),
+                spotColor = Color.Black.copy(alpha = 0.5f)
+            )
+            .border(
+                width = 1.5.dp,
+                color = Color.White.copy(alpha = 0.25f),
+                shape = RoundedCornerShape(28.dp)
+            ),
+        radius = 28.dp
     ) {
+        // Removed duplicate inner border Box since we now have border on LiquidGlassCard
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            // Row 1: Avatar + Name + Title + Rating
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.Top
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Avatar
-                val avatarUrl = mentor.imageUrl.trim()
-                val initials = mentor.name
-                    .trim()
-                    .split(Regex("\\s+"))
-                    .filter { it.isNotBlank() }
-                    .mapNotNull { it.firstOrNull() }
-                    .take(2)
-                    .joinToString("")
-
+                // FEATURED BADGE - Deep Black với white border
                 Box(
                     modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(Color(0xFF667eea), Color(0xFF764ba2))
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (avatarUrl.isNotBlank()) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current)
-                                .data(avatarUrl)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.matchParentSize().clip(CircleShape)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black) // Solid Deep Black
+                        .border(
+                            width = 1.dp,
+                            color = Color.White.copy(alpha = 0.3f),
+                            shape = RoundedCornerShape(8.dp)
                         )
-                    } else {
-                        Text(
-                            text = initials,
-                            color = Color.White,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                        .shadow(
+                            elevation = 8.dp,
+                            shape = RoundedCornerShape(8.dp),
+                            ambientColor = Color.Black.copy(alpha = 0.6f),
+                            spotColor = Color.Black.copy(alpha = 0.6f)
                         )
-                    }
-                }
-
-                // Name + Title
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = mentor.name,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Text(
-                        text = mentor.role,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.8f)
-                    )
-                    if (mentor.company.isNotBlank()) {
-                        Text(
-                            text = mentor.company,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.6f)
-                        )
-                    }
-                }
-
-                // Rating pill (top-right)
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White.copy(alpha = 0.12f))
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Icon(
-                            Icons.Default.Star,
+                            Icons.Default.WorkspacePremium,
                             contentDescription = null,
-                            tint = Color(0xFFFFD700),
+                            tint = Color.White,
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
-                            text = "${mentor.rating}",
+                            "FEATURED",
                             color = Color.White,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Bold
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.2.sp
                         )
                     }
                 }
-            }
 
-            // Row 2: Skills (FlowRow with glass chips)
-            if (mentor.skills.isNotEmpty()) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                // ROW: Avatar + Name/Role (cùng hàng)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.Top // Đổi từ CenterVertically
                 ) {
-                    mentor.skills.take(4).forEach { skill ->
+                    // Avatar + Rating (column layout - rating BELOW avatar)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val avatarUrl = mentor.imageUrl.trim()
+                        val initials = mentor.name
+                            .trim()
+                            .split(Regex("\\s+"))
+                            .filter { it.isNotBlank() }
+                            .mapNotNull { it.firstOrNull() }
+                            .take(2)
+                            .joinToString("")
+
+                        // Avatar - KHÔNG có rating che mặt
+                        Box(
+                            modifier = Modifier
+                                .size(90.dp)
+                                .shadow(
+                                    elevation = 12.dp,
+                                    shape = CircleShape,
+                                    ambientColor = Color.Black.copy(alpha = 0.4f),
+                                    spotColor = Color.Black.copy(alpha = 0.4f)
+                                )
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.linearGradient(
+                                        colors = listOf(Color(0xFF667eea), Color(0xFF764ba2))
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (avatarUrl.isNotBlank()) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(avatarUrl)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.matchParentSize().clip(CircleShape)
+                                )
+                            } else {
+                                Text(
+                                    text = initials,
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        // Rating badge - BÊN DƯỚI avatar (transparent pill với yellow star)
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color.White.copy(alpha = 0.12f))
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .background(Color.Black.copy(alpha = 0.6f)) // Dark semi-transparent
+                                .border(
+                                    width = 0.5.dp,
+                                    color = Color(0xFFFFD700).copy(alpha = 0.5f), // Gold border
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {
-                            Text(
-                                text = skill,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.9f)
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Star,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFFD700), // Solid Yellow star
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "${mentor.rating}",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
-                    if (mentor.skills.size > 4) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color.White.copy(alpha = 0.12f))
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = "+${mentor.skills.size - 4}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.75f)
-                            )
-                        }
-                    }
-                }
-            }
 
-            // Row 3: Action Buttons (✅ CRITICAL - Matching MentorDetailSheet style)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Button 2: View Profile (Ghost style)
-                Surface(
-                    onClick = onViewProfile,
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color.White.copy(alpha = 0.1f)
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.padding(vertical = 12.dp)
+                    // Name + Role
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            "Xem hồ sơ",
-                            style = MaterialTheme.typography.labelLarge,
+                            text = mentor.name,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                            maxLines = 2,
+                            lineHeight = MaterialTheme.typography.headlineMedium.fontSize * 1.1
+                        )
+
+                        Text(
+                            text = mentor.role,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = Color.White.copy(alpha = 0.95f),
                             fontWeight = FontWeight.Medium,
-                            color = Color.White.copy(alpha = 0.9f)
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
+
+                        if (mentor.company.isNotBlank()) {
+                            Text(
+                                text = mentor.company,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.75f),
+                                fontWeight = FontWeight.Light,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
 
-                // Button 1: Book Session (✅ Vibrant Blue #2563EB)
-                if (mentor.isAvailable) {
-                    Button(
-                        onClick = onBookSession,
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF2563EB), // ✅ Vibrant Blue
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(12.dp)
+                // Skills
+                if (mentor.skills.isNotEmpty()) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            Icons.Default.VideoCall,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            "Đặt lịch",
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        mentor.skills.take(5).forEach { skill ->
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color.White.copy(alpha = 0.2f))
+                                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = skill,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                        if (mentor.skills.size > 5) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color.White.copy(alpha = 0.2f))
+                                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = "+${mentor.skills.size - 5}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White.copy(alpha = 0.85f)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // ACTION BUTTONS
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // PRIMARY: Book Session - Professional Blue (matching SearchScreen)
+                    if (mentor.isAvailable) {
+                        Button(
+                            onClick = onBookSession,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF2563EB), // ✅ Professional Blue from SearchScreen
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(14.dp),
+                            elevation = ButtonDefaults.buttonElevation(
+                                defaultElevation = 0.dp,
+                                pressedElevation = 0.dp
+                            )
+                        ) {
+                            Icon(
+                                Icons.Default.VideoCall,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                "Đặt lịch ngay",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    // SECONDARY: View Profile
+                    Surface(
+                        onClick = onViewProfile,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .border(
+                                width = 1.dp,
+                                color = Color.White.copy(alpha = 0.3f),
+                                shape = RoundedCornerShape(14.dp)
+                            ),
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color.White.copy(alpha = 0.1f)
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.padding(vertical = 12.dp)
+                        ) {
+                            Text(
+                                "Xem hồ sơ đầy đủ",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
             }
-        }
     }
 }
+
 
 // ===== Helper function for clickable without ripple effect =====
 private fun Modifier.noIndicationClickable(onClick: () -> Unit) = composed {

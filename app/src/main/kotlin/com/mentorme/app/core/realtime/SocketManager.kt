@@ -175,6 +175,12 @@ class SocketManager @Inject constructor(
         newSocket.on(EVENT_USER_OFFLINE) { args ->
             handleUserOfflineEvent(args)
         }
+        newSocket.on(EVENT_BOOKING_CREATED) { args ->
+            handleBookingCreatedEvent(args)
+        }
+        newSocket.on(EVENT_BOOKING_CANCELLED) { args ->
+            handleBookingCancelledEvent(args)
+        }
 
         socket = newSocket
         newSocket.connect()
@@ -395,7 +401,49 @@ class SocketManager @Inject constructor(
                 Log.w(TAG, "handleSessionChatEvent - missing required fields: bookingId=$bookingId, message=$message")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse session chat event: ${e.message}", e)
+            Log.e(TAG, "Error parsing session:chat event: ${e.message}")
+        }
+    }
+
+    private fun handleBookingCreatedEvent(args: Array<Any>) {
+        val raw = args.firstOrNull() ?: return
+        Log.d(TAG, "handleBookingCreatedEvent - raw: $raw")
+
+        try {
+            val bookingId = when (raw) {
+                is JSONObject -> raw.optString("bookingId", "")
+                is Map<*, *> -> raw["bookingId"]?.toString() ?: ""
+                is String -> JSONObject(raw).optString("bookingId", "")
+                else -> ""
+            }
+
+            if (bookingId.isNotEmpty()) {
+                Log.d(TAG, "Booking created: $bookingId - emitting BookingCreated event")
+                RealtimeEventBus.emit(RealtimeEvent.BookingCreated(bookingId))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing booking:created event: ${e.message}")
+        }
+    }
+
+    private fun handleBookingCancelledEvent(args: Array<Any>) {
+        val raw = args.firstOrNull() ?: return
+        Log.d(TAG, "handleBookingCancelledEvent - raw: $raw")
+
+        try {
+            val bookingId = when (raw) {
+                is JSONObject -> raw.optString("bookingId", "")
+                is Map<*, *> -> raw["bookingId"]?.toString() ?: ""
+                is String -> JSONObject(raw).optString("bookingId", "")
+                else -> ""
+            }
+
+            if (bookingId.isNotEmpty()) {
+                Log.d(TAG, "Booking cancelled: $bookingId - emitting BookingCancelled event")
+                RealtimeEventBus.emit(RealtimeEvent.BookingCancelled(bookingId))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing booking:cancelled event: ${e.message}")
         }
     }
 
@@ -450,5 +498,7 @@ class SocketManager @Inject constructor(
         private const val EVENT_SESSION_STATUS = "session:status"
         private const val EVENT_SESSION_MEDIA_STATE = "session:media-state"
         private const val EVENT_SESSION_CHAT = "session:chat"
+        private const val EVENT_BOOKING_CREATED = "booking:created"
+        private const val EVENT_BOOKING_CANCELLED = "booking:cancelled"
     }
 }

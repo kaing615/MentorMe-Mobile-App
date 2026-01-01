@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt // ✅ NEW: For "Starting Soon" indicator
+import androidx.compose.material.icons.filled.PlayArrow // ✅ NEW: For "Ongoing" indicator
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.Icon
@@ -382,21 +384,83 @@ fun SessionsTab(
                         val canJoin = canJoinSession(b)
                         val isStartingSoon = isSessionStartingSoon(b)
 
-                        // Show "Starting Soon" indicator if applicable
-                        if (isStartingSoon) {
+                        // ✅ NEW: Check if session is ONGOING (đang diễn ra)
+                        val isOngoing = try {
+                            val bookingDate = LocalDate.parse(b.date)
+                            val startTime = try {
+                                LocalTime.parse(b.startTime, DateTimeFormatter.ofPattern("HH:mm"))
+                            } catch (e: Exception) {
+                                LocalTime.parse(b.startTime, DateTimeFormatter.ofPattern("H:mm"))
+                            }
+                            val endTime = try {
+                                LocalTime.parse(b.endTime, DateTimeFormatter.ofPattern("HH:mm"))
+                            } catch (e: Exception) {
+                                LocalTime.parse(b.endTime, DateTimeFormatter.ofPattern("H:mm"))
+                            }
+
+                            val endDate = if (endTime.isBefore(startTime) || endTime == startTime) {
+                                bookingDate.plusDays(1)
+                            } else {
+                                bookingDate
+                            }
+
+                            val bookingStartDateTime = bookingDate.atTime(startTime).atZone(zoneId).toInstant()
+                            val bookingEndDateTime = endDate.atTime(endTime).atZone(zoneId).toInstant()
+
+                            // Ongoing = after start time AND before end time
+                            now.isAfter(bookingStartDateTime) && now.isBefore(bookingEndDateTime)
+                        } catch (e: Exception) {
+                            false
+                        }
+
+                        // Show status indicator if starting soon OR ongoing
+                        if (isOngoing || isStartingSoon) {
+                            val bgColor: Color
+                            val borderColor: Color
+                            val textColor: Color
+                            val iconVector: androidx.compose.ui.graphics.vector.ImageVector
+                            val labelText: String
+
+                            if (isOngoing) {
+                                // ONGOING: Green color
+                                bgColor = Color(0xFF22C55E).copy(0.2f)
+                                borderColor = Color(0xFF22C55E).copy(0.4f)
+                                textColor = Color(0xFF22C55E)
+                                iconVector = Icons.Default.PlayArrow
+                                labelText = "Phiên tư vấn đang diễn ra"
+                            } else {
+                                // STARTING SOON: Pink/Purple color
+                                bgColor = Color(0xFFF472B6).copy(0.2f)
+                                borderColor = Color(0xFFF472B6).copy(0.4f)
+                                textColor = Color(0xFFF472B6)
+                                iconVector = Icons.Default.Bolt
+                                labelText = "Phiên tư vấn sắp bắt đầu"
+                            }
+
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFFF472B6).copy(0.2f))
-                                    .border(1.dp, Color(0xFFF472B6).copy(0.4f), RoundedCornerShape(12.dp))
+                                    .background(bgColor)
+                                    .border(1.dp, borderColor, RoundedCornerShape(12.dp))
                                     .padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
-                                Text(
-                                    "⚡ Phiên học sắp bắt đầu",
-                                    color = Color(0xFFF472B6),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = iconVector,
+                                        contentDescription = null,
+                                        tint = textColor,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        labelText,
+                                        color = textColor,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
 

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CalendarToday // ✅ NEW: For empty state icon
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.*
@@ -292,11 +293,12 @@ fun CalendarScreen(
 
 @Composable
 private fun EmptyState(tab: CalendarTab) {
-    val (emoji, text) = when (tab) {
-        CalendarTab.Upcoming -> "📅" to "Chưa có lịch sắp tới"
-        CalendarTab.Pending -> "⏳" to "Không có booking chờ duyệt"
-        CalendarTab.Completed -> "✅" to "Chưa có phiên hoàn thành"
-        CalendarTab.Cancelled -> "❌" to "Không có lịch đã hủy"
+    // ✅ NEW: Use Material Icons instead of emoji
+    val (icon, text) = when (tab) {
+        CalendarTab.Upcoming -> Icons.Default.CalendarToday to "Chưa có lịch sắp tới"
+        CalendarTab.Pending -> Icons.Default.HourglassEmpty to "Không có booking chờ duyệt"
+        CalendarTab.Completed -> Icons.Default.CheckCircle to "Chưa có phiên hoàn thành"
+        CalendarTab.Cancelled -> Icons.Default.Cancel to "Không có lịch đã hủy"
     }
 
     LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
@@ -314,7 +316,13 @@ private fun EmptyState(tab: CalendarTab) {
                     .liquidGlass(radius = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(emoji, fontSize = MaterialTheme.typography.titleMedium.fontSize)
+                // ✅ NEW: Show Material Icon instead of emoji
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color.White.copy(0.8f),
+                    modifier = Modifier.size(20.dp)
+                )
             }
             Text(
                 text,

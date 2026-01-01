@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -40,7 +41,14 @@ import com.mentorme.app.ui.theme.LiquidGlassCard
 
 @Composable
 fun StatsTab(userRole: UserRole, profile: UserProfile) {
-    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding() // ✅ Handle system navigation bar
+            .padding(bottom = 110.dp), // Padding AFTER verticalScroll
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatCard(
                 title = if (userRole == UserRole.MENTOR) "Phiên đã dạy" else "Buổi tư vấn",
@@ -105,9 +113,6 @@ fun StatsTab(userRole: UserRole, profile: UserProfile) {
                 }
             }
         }
-
-        // Spacer để nội dung không bị bottom bar đè khi scroll xuống
-        Spacer(Modifier.height(80.dp))
     }
 }
 
@@ -185,3 +190,5 @@ private fun AchievementItem(
         }
     }
 }
+
+

@@ -1,27 +1,27 @@
 import * as React from "react";
 import {
+  List,
+  Datagrid,
+  TextField,
+  DateField,
+  NumberField,
+  TextInput,
+  SelectInput,
   Button,
   Confirm,
-  Datagrid,
-  DateField,
-  DateTimeInput,
   Edit,
   EditButton,
-  List,
-  NumberField,
-  NumberInput,
-  SelectInput as RaSelectInput,
-  TextInput as RaTextInput,
-  required,
-  SelectInput,
   SimpleForm,
-  TextField,
-  TextInput,
-  useDataProvider,
+  DateTimeInput,
+  NumberInput,
   useNotify,
-  useRecordContext,
   useRefresh,
+  useRecordContext,
+  required,
 } from "react-admin";
+import { Chip } from "@mui/material";
+
+/* ===================== Types ===================== */
 
 type Booking = {
   id: string | number;
@@ -31,44 +31,88 @@ type Booking = {
   startTime?: string;
   endTime?: string;
   price?: number;
+  createdAt?: string;
 };
 
+/* ===================== Constants ===================== */
+
 const bookingStatusChoices = [
-  { id: "pending", name: "pending" },
-  { id: "confirmed", name: "confirmed" },
-  { id: "completed", name: "completed" },
-  { id: "cancelled", name: "cancelled" },
+  { id: "pending", name: "Pending" },
+  { id: "confirmed", name: "Confirmed" },
+  { id: "completed", name: "Completed" },
+  { id: "cancelled", name: "Cancelled" },
 ];
+
+const apiUrl = import.meta.env.VITE_API_URL;
+const token = () => localStorage.getItem("access_token") || "";
+
+/* ===================== Filters ===================== */
 
 const BookingFilters = [
   <TextInput key="mentorId" source="mentorId" label="Mentor ID" />,
   <TextInput key="menteeId" source="menteeId" label="Mentee ID" />,
-  <SelectInput key="status" source="status" label="Status" choices={bookingStatusChoices} alwaysOn />,
+  <SelectInput
+    key="status"
+    source="status"
+    label="Status"
+    choices={bookingStatusChoices}
+    alwaysOn
+  />,
 ];
 
-function QuickStatusButton(props: { toStatus: Booking["status"]; label: string }) {
+/* ===================== UI Helpers ===================== */
+
+function StatusChip() {
+  const record = useRecordContext<Booking>();
+  if (!record?.status) return null;
+
+  const colorMap: any = {
+    pending: "warning",
+    confirmed: "info",
+    completed: "success",
+    cancelled: "error",
+  };
+
+  return (
+    <Chip size="small" label={record.status} color={colorMap[record.status]} />
+  );
+}
+
+/* ===================== Quick Action Button ===================== */
+
+function ChangeStatusButton(props: {
+  toStatus: Booking["status"];
+  label: string;
+}) {
   const { toStatus, label } = props;
   const record = useRecordContext<Booking>();
-  const dataProvider = useDataProvider();
   const notify = useNotify();
   const refresh = useRefresh();
   const [open, setOpen] = React.useState(false);
 
   if (!record) return null;
+  if (record.status === toStatus) return null;
 
-  const disabled = record.status === toStatus;
+  // business rule: completed/cancelled không đổi nữa
+  if (["completed", "cancelled"].includes(record.status || "")) return null;
 
   const onConfirm = async () => {
     try {
-      await dataProvider.update("bookings", {
-        id: record.id,
-        data: { status: toStatus },
-        previousData: record,
+      const res = await fetch(`${apiUrl}/bookings/${record.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token()}`,
+        },
+        body: JSON.stringify({ status: toStatus }),
       });
-      notify("Booking updated", { type: "success" });
+
+      if (!res.ok) throw new Error("Update failed");
+
+      notify(`Booking ${toStatus}`, { type: "success" });
       refresh();
     } catch (e: any) {
-      notify(e?.message || "Update failed", { type: "error" });
+      notify(e.message || "Update failed", { type: "error" });
     } finally {
       setOpen(false);
     }
@@ -76,7 +120,7 @@ function QuickStatusButton(props: { toStatus: Booking["status"]; label: string }
 
   return (
     <>
-      <Button label={label} onClick={() => setOpen(true)} disabled={disabled} />
+      <Button label={label} onClick={() => setOpen(true)} />
       <Confirm
         isOpen={open}
         title="Change booking status"
@@ -88,33 +132,46 @@ function QuickStatusButton(props: { toStatus: Booking["status"]; label: string }
   );
 }
 
+/* ===================== List ===================== */
+
 export function BookingList() {
   return (
-    <List filters={BookingFilters} sort={{ field: "startTime", order: "DESC" }}>
+    <List
+      filters={BookingFilters}
+      sort={{ field: "startTime", order: "DESC" }}
+      perPage={25}
+      title="Bookings"
+    >
       <Datagrid rowClick={false}>
         <TextField source="id" />
         <TextField source="mentorId" />
         <TextField source="menteeId" />
-        <TextField source="status" />
+        <StatusChip />
         <DateField source="startTime" showTime />
         <DateField source="endTime" showTime />
         <NumberField source="price" />
         <EditButton />
-        <QuickStatusButton toStatus="confirmed" label="Confirm" />
-        <QuickStatusButton toStatus="completed" label="Complete" />
-        <QuickStatusButton toStatus="cancelled" label="Cancel" />
+        <ChangeStatusButton toStatus="confirmed" label="Confirm" />
+        <ChangeStatusButton toStatus="completed" label="Complete" />
+        <ChangeStatusButton toStatus="cancelled" label="Cancel" />
       </Datagrid>
     </List>
   );
 }
 
+/* ===================== Edit ===================== */
+
 export function BookingEdit() {
   return (
     <Edit>
       <SimpleForm>
-        <RaSelectInput source="status" choices={bookingStatusChoices} validate={[required()]} />
-        <RaTextInput source="mentorId" validate={[required()]} />
-        <RaTextInput source="menteeId" validate={[required()]} />
+        <SelectInput
+          source="status"
+          choices={bookingStatusChoices}
+          validate={[required()]}
+        />
+        <TextInput source="mentorId" validate={[required()]} />
+        <TextInput source="menteeId" validate={[required()]} />
         <DateTimeInput source="startTime" validate={[required()]} />
         <DateTimeInput source="endTime" validate={[required()]} />
         <NumberInput source="price" />

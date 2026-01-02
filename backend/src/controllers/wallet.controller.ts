@@ -14,10 +14,11 @@ import PaymentMethod from "../models/paymentMethod.model";
 const { ok, created, badRequest, forbidden } = responseHandler;
 
 function getUserId(req: Request): string | null {
-  return ((req as any).user?.id ?? (req as any).user?._id ?? null) as string | null;
+  return ((req as any).user?.id ?? (req as any).user?._id ?? null) as
+    | string
+    | null;
 }
 
-// GET /wallet/me
 export const getMyWallet = asyncHandler(async (req: Request, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return forbidden(res, "Unauthorized");
@@ -27,7 +28,6 @@ export const getMyWallet = asyncHandler(async (req: Request, res: Response) => {
   return ok(res, mapWalletToDto(wallet));
 });
 
-// helper: get or create wallet within a session
 async function getOrCreateWallet(
   userId: string,
   currency: "VND" | "USD",
@@ -52,7 +52,6 @@ async function getOrCreateWallet(
   return wallet;
 }
 
-// POST /wallet/topups/mock
 export const mockTopup = asyncHandler(async (req: Request, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return forbidden(res, "Unauthorized");
@@ -67,7 +66,6 @@ export const mockTopup = asyncHandler(async (req: Request, res: Response) => {
 
   const idempotencyKey = clientRequestId;
 
-  // Check idempotent
   const existingTx = await WalletTransaction.findOne({
     userId,
     source: "MANUAL_TOPUP",
@@ -90,38 +88,37 @@ export const mockTopup = asyncHandler(async (req: Request, res: Response) => {
     const wallet = await getOrCreateWallet(userId, currency, session);
 
     const balanceBefore = wallet.balanceMinor;
-    const amountMinor = amount; // for VND: 1 unit = 1 VND
+    const amountMinor = amount;
     const balanceAfter = balanceBefore + amountMinor;
 
     wallet.balanceMinor = balanceAfter;
     await wallet.save({ session });
 
     const [tx] = await WalletTransaction.create(
-    [
-      {
-        walletId: wallet._id,
-        userId,
-        type: "CREDIT",
-        source: "MANUAL_TOPUP",
-        amountMinor,
-        currency,
-        balanceBeforeMinor: balanceBefore,
-        balanceAfterMinor: balanceAfter,
-        idempotencyKey,
-      },
-    ],
-    { session }
-  );
+      [
+        {
+          walletId: wallet._id,
+          userId,
+          type: "CREDIT",
+          source: "MANUAL_TOPUP",
+          amountMinor,
+          currency,
+          balanceBeforeMinor: balanceBefore,
+          balanceAfterMinor: balanceAfter,
+          idempotencyKey,
+        },
+      ],
+      { session }
+    );
 
-  await session.commitTransaction();
-  session.endSession();
+    await session.commitTransaction();
+    session.endSession();
 
-  return created(res, {
-    idempotent: false,
-    wallet: mapWalletToDto(wallet),
-    transaction: mapWalletTransactionToDto(tx),
-  });
-
+    return created(res, {
+      idempotent: false,
+      wallet: mapWalletToDto(wallet),
+      transaction: mapWalletTransactionToDto(tx),
+    });
   } catch (err: any) {
     await session.abortTransaction();
     session.endSession();
@@ -130,7 +127,6 @@ export const mockTopup = asyncHandler(async (req: Request, res: Response) => {
       return badRequest(res, "Wallet is locked");
     }
 
-    // handle unique constraint on (userId, source, idempotencyKey)
     if (err?.code === 11000) {
       const tx = await WalletTransaction.findOne({
         userId,
@@ -150,7 +146,6 @@ export const mockTopup = asyncHandler(async (req: Request, res: Response) => {
   }
 });
 
-// POST /wallet/debits/mock
 export const mockDebit = asyncHandler(async (req: Request, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return forbidden(res, "Unauthorized");
@@ -252,16 +247,12 @@ export const mockDebit = asyncHandler(async (req: Request, res: Response) => {
   }
 });
 
-// GET /wallet/transactions
 export const listTransactions = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = getUserId(req);
     if (!userId) return forbidden(res, "Unauthorized");
 
-    const limit = Math.min(
-      50,
-      Math.max(1, Number(req.query.limit ?? 20))
-    );
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit ?? 20)));
     const cursor = (req.query.cursor as string | undefined) ?? undefined;
     const type = (req.query.type as string | undefined) ?? undefined;
     const source = (req.query.source as string | undefined) ?? undefined;
@@ -294,7 +285,6 @@ export const listTransactions = asyncHandler(
   }
 );
 
-// POST /wallet/debits
 export const withdraw = asyncHandler(async (req: Request, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return forbidden(res, "Unauthorized");
@@ -319,7 +309,7 @@ export const withdraw = asyncHandler(async (req: Request, res: Response) => {
 
   const currency = (req.body?.currency ?? "VND") as "VND" | "USD";
   const clientRequestId = String(req.body?.clientRequestId ?? "").trim();
-  const payoutInfo = req.body?.payoutInfo ?? null; // optional payout details (bank account, momo id, ...)
+  const payoutInfo = req.body?.payoutInfo ?? null;
 
   if (!amount || amount <= 0 || !clientRequestId) {
     return badRequest(res, "amount and clientRequestId are required");
@@ -327,7 +317,6 @@ export const withdraw = asyncHandler(async (req: Request, res: Response) => {
 
   const idempotencyKey = clientRequestId;
 
-  // If there's an existing identical withdraw tx (idempotency), return it
   const existingTx = await WalletTransaction.findOne({
     userId,
     source: "MANUAL_WITHDRAW",
@@ -358,7 +347,6 @@ export const withdraw = asyncHandler(async (req: Request, res: Response) => {
       return badRequest(res, "INSUFFICIENT_BALANCE");
     }
 
-    // Subtract immediately (optimistic) to avoid double-spend
     const balanceAfter = balanceBefore - amountMinor;
     wallet.balanceMinor = balanceAfter;
     await wallet.save({ session });
@@ -389,10 +377,6 @@ export const withdraw = asyncHandler(async (req: Request, res: Response) => {
       { session }
     );
 
-    // Here: trigger actual payout to provider (async). Do NOT block UI on slow provider.
-    // Example: push to queue / call payout service
-    // await payoutService.enqueuePayout({ txId: tx._id, amount: amountMinor, payoutInfo });
-
     await session.commitTransaction();
     session.endSession();
 
@@ -410,7 +394,6 @@ export const withdraw = asyncHandler(async (req: Request, res: Response) => {
     }
 
     if (err?.code === 11000) {
-      // idempotency race
       const tx = await WalletTransaction.findOne({
         userId,
         source: "MANUAL_WITHDRAW",

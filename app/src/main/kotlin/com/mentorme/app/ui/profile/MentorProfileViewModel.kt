@@ -38,9 +38,13 @@ class MentorProfileViewModel @Inject constructor(
     private val _currentYear = MutableStateFlow<Int>(java.util.Calendar.getInstance().get(java.util.Calendar.YEAR))
     val currentYear: StateFlow<Int> = _currentYear
 
+    private val _walletBalance = MutableStateFlow<Long>(0L)
+    val walletBalance: StateFlow<Long> = _walletBalance
+
     init {
         refresh()
         loadStats()
+        loadWallet()
     }
 
     fun refresh() = viewModelScope.launch {
@@ -98,6 +102,18 @@ class MentorProfileViewModel @Inject constructor(
             }
         } catch (e: Exception) {
             // Handle error silently or log it
+        }
+    }
+
+    fun loadWallet() = viewModelScope.launch {
+        try {
+            val walletResp = api.getMyWallet()
+            if (walletResp.isSuccessful) {
+                _walletBalance.value = walletResp.body()?.data?.balanceMinor ?: 0L
+            }
+        } catch (e: Exception) {
+            // Handle error silently or log it
+            android.util.Log.e("MentorProfile", "Failed to load wallet: ${e.message}")
         }
     }
 

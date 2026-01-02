@@ -11,8 +11,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -140,10 +143,35 @@ private fun buildBookingWebSchema(draft: BookingDraft, menteeId: String): Bookin
 @Composable private fun PriceCardHomeStyle(priceVnd: Long) {
     LiquidGlassCard(modifier = Modifier.fillMaxWidth(), radius = 24.dp) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("?? Giá buổi hẹn", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    Icons.Default.AttachMoney,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.9f),
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    "Tổng chi phí",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
             Divider(color = Color.White.copy(alpha = 0.3f))
-            Text(formatVnd(priceVnd), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
-            Text("Giá này do mentor thiết lập cho khung giờ này.", color = Color.White.copy(alpha = 0.7f))
+            Text(
+                formatVnd(priceVnd),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF22C55E)
+            )
+            Text(
+                "Giá này do mentor thiết lập cho khung giờ này.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.7f)
+            )
         }
     }
 }
@@ -296,7 +324,23 @@ fun BookingSummaryScreen(
             item {
                 LiquidGlassCard(radius = 24.dp, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("📝 Ghi chú của bạn", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.9f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                "Ghi chú của bạn",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
                         Text(draft.notes, color = Color.White.copy(alpha = 0.85f))
                     }
                 }
@@ -304,12 +348,65 @@ fun BookingSummaryScreen(
         }
 
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MMPrimaryButton(onClick = onBack, modifier = Modifier.weight(1f)) { Text("Quay lại") }
-                MMPrimaryButton(onClick = {
-                    val booking = buildBookingWebSchema(draft, currentUserId)
-                    onConfirmed(booking)
-                }, modifier = Modifier.weight(1f)) { Text("Xác nhận") }
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Primary button: Confirm payment (Professional Blue)
+                Button(
+                    onClick = {
+                        val booking = buildBookingWebSchema(draft, currentUserId)
+                        onConfirmed(booking)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2563EB),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Xác nhận đặt lịch",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                // Secondary button: Back (Glass style)
+                Surface(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.White.copy(alpha = 0.1f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.9f)
+                            )
+                            Text(
+                                "Quay lại",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White.copy(alpha = 0.9f)
+                            )
+                        }
+                    }
+                }
             }
         }
     }

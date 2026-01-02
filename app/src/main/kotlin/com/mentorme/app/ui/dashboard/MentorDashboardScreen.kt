@@ -406,9 +406,14 @@ private fun NextSessionCard(
                         Icon(Icons.Default.Videocam, null, tint = Color(0xFFF472B6), modifier = Modifier.size(16.dp))
                     }
                     Spacer(Modifier.width(10.dp))
+                    // ✅ FIX: Show correct status text
                     Text(
-                        text = if (session.isStartingSoon) "Đang diễn ra" else "Sắp tới",
-                        color = if (session.isStartingSoon) Color(0xFFF472B6) else Color.White,
+                        text = when {
+                            session.isOngoing -> "Đang diễn ra"
+                            session.isStartingSoon -> "Sắp bắt đầu"
+                            else -> "Sắp tới"
+                        },
+                        color = if (session.isOngoing || session.isStartingSoon) Color(0xFFF472B6) else Color.White,
                         fontWeight = FontWeight.Bold
                     )
                 }

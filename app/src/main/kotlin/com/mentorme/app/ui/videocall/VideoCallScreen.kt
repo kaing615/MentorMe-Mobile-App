@@ -18,20 +18,29 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.ScreenShare
+import androidx.compose.material.icons.automirrored.filled.StopScreenShare
 import androidx.compose.material.icons.filled.BlurOff
 import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.CallEnd
@@ -40,6 +49,8 @@ import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhoneInTalk
 import androidx.compose.material.icons.filled.ScreenShare
 import androidx.compose.material.icons.filled.SignalCellularAlt
@@ -99,6 +110,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -354,6 +366,44 @@ fun VideoCallScreen(
             modifier = Modifier.fillMaxSize()
         )
         
+        // ✅ Gradient Scrim at bottom - để nút control nổi bật
+        if (!isInPipMode && (controlsVisible || state.phase != CallPhase.InCall)) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.3f),
+                                Color.Black.copy(alpha = 0.7f)
+                            )
+                        )
+                    )
+            )
+        }
+
+        // ✅ Gradient Scrim at top - để top bar rõ ràng
+        if (!isInPipMode && (controlsVisible || state.phase != CallPhase.InCall)) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.6f),
+                                Color.Black.copy(alpha = 0.3f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+        }
+
         // Peer camera off overlay - show when peer has video disabled
         AnimatedVisibility(
             visible = state.phase == CallPhase.InCall && !state.peerVideoEnabled && !isInPipMode,
@@ -523,37 +573,7 @@ fun VideoCallScreen(
             }
         }
 
-        // Top bar with back button and network indicator - hide during InCall when controls are hidden or in PiP
-        AnimatedVisibility(
-            visible = !isInPipMode && (state.phase != CallPhase.InCall || controlsVisible),
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier.align(Alignment.TopStart)
-        ) {
-            Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Hide back button completely during InCall to prevent accidental exit
-                if (state.phase != CallPhase.InCall) {
-                    GlassIconButton(
-                        icon = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        onClick = onBack
-                    )
-                }
-
-                // Network quality indicator
-                if (state.phase == CallPhase.InCall) {
-                    NetworkQualityIndicator(
-                        quality = state.networkQuality,
-                        rttMs = state.rttMs
-                    )
-                }
-            }
-        }
-
+        // Status label and timer for top bar
         val statusLabel = remember(state.phase, state.role, state.peerJoined, state.reconnectAttempt) {
             when (state.phase) {
                 CallPhase.InCall -> "In call"
@@ -585,15 +605,208 @@ fun VideoCallScreen(
             formatDuration(state.callDurationSec)
         }
 
-        // Hide status pills in PiP mode
-        if (!isInPipMode && statusLabel.isNotBlank()) {
-            CallStatusPill(
-                label = statusLabel,
-                timerText = if (state.phase == CallPhase.InCall) timerText else null,
+        // ✅ Top bar with safe area - gom status + timer + network vào 1 hàng
+        AnimatedVisibility(
+            visible = !isInPipMode && (state.phase != CallPhase.InCall || controlsVisible),
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
+        ) {
+            Row(
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 12.dp)
-            )
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left: Back button (chỉ hiển thị khi không InCall)
+                if (state.phase != CallPhase.InCall) {
+                    GlassIconButton(
+                        icon = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        onClick = onBack
+                    )
+                } else {
+                    Spacer(Modifier.width(44.dp)) // Placeholder để giữ symmetry
+                }
+
+                // Center: Status + Timer + Network (gom vào 1 pill)
+                if (statusLabel.isNotBlank()) {
+                    Surface(
+                        modifier = Modifier.liquidGlassStrong(radius = 20.dp, alpha = 0.3f),
+                        color = Color.Transparent
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Network indicator
+                            if (state.phase == CallPhase.InCall) {
+                                val networkIcon = when (state.networkQuality) {
+                                    NetworkQuality.Excellent, NetworkQuality.Good -> Icons.Default.SignalCellularAlt
+                                    NetworkQuality.Fair -> Icons.Default.SignalCellularAlt2Bar
+                                    NetworkQuality.Poor, NetworkQuality.VeryPoor -> Icons.Default.SignalCellularAlt1Bar
+                                    NetworkQuality.Unknown -> null
+                                }
+                                val networkColor = when (state.networkQuality) {
+                                    NetworkQuality.Excellent -> Color.Green
+                                    NetworkQuality.Good -> Color(0xFF90EE90)
+                                    NetworkQuality.Fair -> Color.Yellow
+                                    NetworkQuality.Poor -> Color(0xFFFF8C00)
+                                    NetworkQuality.VeryPoor -> Color.Red
+                                    NetworkQuality.Unknown -> Color.Gray
+                                }
+                                networkIcon?.let {
+                                    Icon(
+                                        imageVector = it,
+                                        contentDescription = "Network",
+                                        tint = networkColor,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+
+                            // Status text
+                            Text(
+                                statusLabel,
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelLarge
+                            )
+
+                            // Timer
+                            if (state.phase == CallPhase.InCall && timerText.isNotBlank()) {
+                                Text(
+                                    "•",
+                                    color = Color.White.copy(alpha = 0.6f)
+                                )
+                                Text(
+                                    timerText,
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Spacer(Modifier.width(1.dp)) // Placeholder
+                }
+
+                // Right: Secondary controls (Chat, Screen Share, Effects, Camera Switch)
+                if (state.phase == CallPhase.InCall) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Chat with badge
+                        Box {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .liquidGlassStrong(radius = 22.dp, alpha = 0.26f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                IconButton(
+                                    onClick = { viewModel.toggleChatPanel() },
+                                    modifier = Modifier.size(44.dp)
+                                ) {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.Chat,
+                                        contentDescription = "Chat",
+                                        tint = if (state.isChatPanelOpen) Color(0xFF059669) else Color.White
+                                    )
+                                }
+                            }
+                            if (state.unreadChatCount > 0 && !state.isChatPanelOpen) {
+                                Badge(
+                                    containerColor = Color(0xFFDC2626),
+                                    contentColor = Color.White,
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = 4.dp, y = (-4).dp)
+                                ) {
+                                    Text(
+                                        if (state.unreadChatCount > 9) "9+" else state.unreadChatCount.toString(),
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                            }
+                        }
+
+                        // More menu (3 dots) - chứa các tính năng phụ
+                        var showMoreMenu by remember { mutableStateOf(false) }
+                        Box {
+                            GlassIconButton(
+                                icon = Icons.Default.MoreVert,
+                                contentDescription = "More options",
+                                onClick = { showMoreMenu = !showMoreMenu }
+                            )
+
+                            // Dropdown menu for secondary features
+                            androidx.compose.material3.DropdownMenu(
+                                expanded = showMoreMenu,
+                                onDismissRequest = { showMoreMenu = false },
+                                modifier = Modifier.background(Color(0xFF1A1A2E).copy(alpha = 0.95f))
+                            ) {
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text("Switch Camera", color = Color.White) },
+                                    onClick = {
+                                        viewModel.switchCamera()
+                                        showMoreMenu = false
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Cameraswitch, null, tint = Color.White)
+                                    }
+                                )
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            if (state.isScreenSharing) "Stop Sharing" else "Share Screen",
+                                            color = Color.White
+                                        )
+                                    },
+                                    onClick = {
+                                        if (state.isScreenSharing) {
+                                            viewModel.stopScreenSharing()
+                                        } else {
+                                            val mediaProjectionManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                                            screenCaptureLauncher.launch(mediaProjectionManager.createScreenCaptureIntent())
+                                        }
+                                        showMoreMenu = false
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            if (state.isScreenSharing) Icons.AutoMirrored.Filled.StopScreenShare else Icons.AutoMirrored.Filled.ScreenShare,
+                                            null,
+                                            tint = if (state.isScreenSharing) Color(0xFF2563EB) else Color.White
+                                        )
+                                    }
+                                )
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            if (state.isBackgroundBlurEnabled) "Blur: On" else "Blur: Off",
+                                            color = Color.White
+                                        )
+                                    },
+                                    onClick = {
+                                        viewModel.toggleBackgroundBlur()
+                                        showMoreMenu = false
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            if (state.isBackgroundBlurEnabled) Icons.Default.BlurOn else Icons.Default.BlurOff,
+                                            null,
+                                            tint = if (state.isBackgroundBlurEnabled) Color(0xFF7C3AED) else Color.White
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Spacer(Modifier.width(44.dp)) // Placeholder
+                }
+            }
         }
 
         // Peer connection status banner - hide in PiP mode
@@ -795,71 +1008,68 @@ private fun CallControls(
     onToggleChat: () -> Unit,
     onEndCall: () -> Unit
 ) {
+    // ✅ Single control bar layout - kiểu Zalo
     Column(
-        modifier = modifier.padding(bottom = 24.dp),
+        modifier = modifier
+            .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Bottom))
+            .padding(bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Top row - Video effects and chat
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+        // ✅ Main control bar - hình viên thuốc, chứa 4 nút chính
+        Surface(
+            modifier = Modifier.liquidGlassStrong(radius = 32.dp, alpha = 0.3f),
+            color = Color.Black.copy(alpha = 0.4f),
+            shape = RoundedCornerShape(32.dp)
         ) {
-            ControlButton(
-                icon = Icons.Default.Cameraswitch,
-                contentDescription = "Switch camera",
-                onClick = onSwitchCamera,
-                size = 44.dp
-            )
-            ControlButton(
-                icon = if (state.isScreenSharing) Icons.Default.StopScreenShare else Icons.Default.ScreenShare,
-                contentDescription = if (state.isScreenSharing) "Stop screen share" else "Share screen",
-                onClick = onToggleScreenShare,
-                background = if (state.isScreenSharing) Color(0xFF2563EB) else null,
-                size = 44.dp
-            )
-            ControlButton(
-                icon = if (state.isBackgroundBlurEnabled) Icons.Default.BlurOn else Icons.Default.BlurOff,
-                contentDescription = if (state.isBackgroundBlurEnabled) "Blur on" else "Blur off",
-                onClick = onToggleBackgroundBlur,
-                background = if (state.isBackgroundBlurEnabled) Color(0xFF7C3AED) else null,
-                size = 44.dp
-            )
-            // Chat button with badge
-            ChatControlButton(
-                unreadCount = state.unreadChatCount,
-                isChatOpen = state.isChatPanelOpen,
-                onClick = onToggleChat,
-                size = 44.dp
-            )
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Mic
+                ControlButton(
+                    icon = if (state.isAudioEnabled) Icons.Default.Mic else Icons.Default.MicOff,
+                    contentDescription = "Toggle mic",
+                    onClick = onToggleAudio,
+                    background = if (!state.isAudioEnabled) Color(0xFFDC2626) else null,
+                    size = 52.dp
+                )
+
+                // Camera
+                ControlButton(
+                    icon = if (state.isVideoEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
+                    contentDescription = "Toggle camera",
+                    onClick = onToggleVideo,
+                    background = if (!state.isVideoEnabled) Color(0xFFDC2626) else null,
+                    size = 52.dp
+                )
+
+                // Speaker
+                ControlButton(
+                    icon = if (state.isSpeakerEnabled) Icons.AutoMirrored.Filled.VolumeUp else Icons.Default.PhoneInTalk,
+                    contentDescription = if (state.isSpeakerEnabled) "Speaker" else "Earpiece",
+                    onClick = onToggleSpeaker,
+                    size = 52.dp
+                )
+            }
         }
 
-        // Bottom row - Main controls
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+        // ✅ End Call button - TO, ĐỎ, NỔIỆT BẬT
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(Color(0xFFDC2626))
+                .shadow(8.dp, CircleShape)
+                .clickable(onClick = onEndCall),
+            contentAlignment = Alignment.Center
         ) {
-            ControlButton(
-                icon = if (state.isAudioEnabled) Icons.Default.Mic else Icons.Default.MicOff,
-                contentDescription = "Toggle mic",
-                onClick = onToggleAudio
-            )
-            ControlButton(
-                icon = if (state.isVideoEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
-                contentDescription = "Toggle camera",
-                onClick = onToggleVideo
-            )
-            ControlButton(
-                icon = if (state.isSpeakerEnabled) Icons.AutoMirrored.Filled.VolumeUp else Icons.Default.PhoneInTalk,
-                contentDescription = if (state.isSpeakerEnabled) "Speaker" else "Earpiece",
-                onClick = onToggleSpeaker
-            )
-            ControlButton(
-                icon = Icons.Default.CallEnd,
+            Icon(
+                Icons.Default.CallEnd,
                 contentDescription = "End call",
-                onClick = onEndCall,
-                background = Color(0xFFDC2626),
-                useGlass = false
+                tint = Color.White,
+                modifier = Modifier.size(32.dp)
             )
         }
     }

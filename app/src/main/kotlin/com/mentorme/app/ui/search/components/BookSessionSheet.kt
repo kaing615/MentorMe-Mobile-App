@@ -9,6 +9,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
@@ -268,7 +269,7 @@ fun BookSessionContent(
                     Text("Xác nhận đặt lịch", fontWeight = FontWeight.SemiBold)
                 }
 
-                // Secondary: Cancel (Subtle glass)
+                // Secondary: Cancel (Subtle glass with icon)
                 Surface(
                     onClick = onClose,
                     modifier = Modifier
@@ -278,12 +279,22 @@ fun BookSessionContent(
                     color = Color.White.copy(alpha = 0.1f)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            "Hủy",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White.copy(alpha = 0.9f)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.9f)
+                            )
+                            Text(
+                                "Quay lại",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White.copy(alpha = 0.9f)
+                            )
+                        }
                     }
                 }
 
@@ -519,23 +530,81 @@ private fun SelectedSlotCard(slot: SlotChoice, priceFormatter: java.text.NumberF
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // Header with icon
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF22C55E))
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = Color(0xFF22C55E),
+                    modifier = Modifier.size(20.dp)
+                )
                 Text(
-                    "Tóm tắt đặt lịch",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
+                    "Xác nhận đặt lịch",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
             }
-            Text("${slot.date} • ${slot.startTime} - ${slot.endTime}")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                InfoPill(icon = Icons.Default.Schedule, text = "${slot.durationMins} phút")
-                InfoPill(icon = Icons.Default.AttachMoney, text = priceFormatter.format(slot.priceVnd))
+
+            // Date and Time
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    Icons.Default.Schedule,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.7f),
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    "${slot.date} • ${slot.startTime} - ${slot.endTime}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.9f)
+                )
+            }
+
+            // Duration and Price in separate rows for better visibility
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "Thời lượng:",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        "${slot.durationMins} phút",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "Giá:",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        priceFormatter.format(slot.priceVnd),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color(0xFF22C55E),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }

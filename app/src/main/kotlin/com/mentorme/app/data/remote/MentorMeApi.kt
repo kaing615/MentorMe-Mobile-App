@@ -253,4 +253,8 @@ interface MentorMeApi {
     suspend fun updateNotificationPreferences(
         @Body request: NotificationPreferencesDto
     ): Response<ApiEnvelope<NotificationPreferencesDto>>
+
+    // Wallet endpoints
+    @GET("wallet/me")
+    suspend fun getMyWallet(): Response<ApiEnvelope<WalletDto>>
 }

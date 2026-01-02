@@ -5,6 +5,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons // ✅ NEW: For Material Icons
+import androidx.compose.material.icons.filled.Schedule // ✅ NEW: For empty state icon
+import androidx.compose.material.icons.filled.Person // ✅ NEW: For mentee label icon
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -106,7 +109,13 @@ fun PendingBookingsTab(
                                     .background(Color.White.copy(0.08f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("🕒", fontWeight = FontWeight.Bold, color = Color.White)
+                                // ✅ NEW: Use Material Icon instead of emoji
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.Schedule,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(0.8f),
+                                    modifier = androidx.compose.ui.Modifier.size(40.dp)
+                                )
                             }
                             Spacer(Modifier.height(16.dp))
                             Text(
@@ -151,11 +160,23 @@ fun PendingBookingsTab(
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        "👤 Mentee: ${menteeLabel}",
-                                        color = Color.White.copy(.85f),
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
+                                    // ✅ NEW: Use Row with icon instead of emoji in text
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = androidx.compose.material.icons.Icons.Default.Person,
+                                            contentDescription = null,
+                                            tint = Color.White.copy(0.8f),
+                                            modifier = androidx.compose.ui.Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            "Mentee: ${menteeLabel}",
+                                            color = Color.White.copy(.85f),
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
                                 }
                                 val pillColor = Color(0xFFF59E0B)
                                 Box(

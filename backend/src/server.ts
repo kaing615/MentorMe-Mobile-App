@@ -61,6 +61,7 @@ async function startServer() {
     server.listen(PORT, () => {
       console.log(`Server is running on http://localhost:${PORT}`);
       console.log(`API docs: http://localhost:${PORT}/api-docs`);
+      console.log("🔑 GOOGLE_API_KEY =", process.env.GOOGLE_API_KEY);
     });
   } catch (err) {
     console.error("Failed to start server:", err);

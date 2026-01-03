@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -72,6 +73,7 @@ import java.text.DateFormat
 import java.text.ParseException
 import java.util.Date
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.SnackbarHostState
 import androidx.hilt.navigation.compose.hiltViewModel
 import java.time.Instant
@@ -106,8 +108,10 @@ fun WalletTab(
 
     Column(
         Modifier
+            .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(vertical = 4.dp),
+            .navigationBarsPadding() // ✅ Handle system navigation bar
+            .padding(bottom = 110.dp), // Padding AFTER verticalScroll
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
@@ -210,8 +214,8 @@ fun WalletTab(
             }
         }
 
-        // Spacer để nội dung không bị bottom bar đè khi scroll xuống
-        Spacer(Modifier.height(80.dp))
+        // Spacer để nội dung scroll thêm một đoạn lên trên bottom bar
+        Spacer(Modifier.height(120.dp))
     }
 }
 

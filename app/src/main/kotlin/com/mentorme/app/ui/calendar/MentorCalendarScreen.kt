@@ -47,6 +47,7 @@ fun MentorCalendarScreen(
     onCreateSession: () -> Unit = {},
     onUpdateAvailability: () -> Unit = {},
     onCancelSession: (String) -> Unit = {},
+    onOverlayChange: (Boolean) -> Unit = {}, // ✅ NEW: Callback to hide bottom nav
     modifier: Modifier = Modifier
 ) {
     // --- Tabs: 0 = Availability, 1 = Bookings, 2 = Sessions ---
@@ -56,6 +57,12 @@ fun MentorCalendarScreen(
     // --- Dialog states for availability (lifted from AvailabilityTabSection) ---
     var showAdd by remember { mutableStateOf(false) }
     var showEdit by remember { mutableStateOf(false) }
+
+    // ✅ NEW: Notify parent when overlay state changes to hide/show bottom nav
+    LaunchedEffect(showAdd, showEdit) {
+        val overlayVisible = showAdd || showEdit
+        onOverlayChange(overlayVisible)
+    }
 
     // --- ViewModel for Availability ---
     val vm =

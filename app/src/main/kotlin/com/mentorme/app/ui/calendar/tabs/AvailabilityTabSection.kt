@@ -14,6 +14,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.AttachMoney // ✅ NEW: For "Giá & khoảng đệm" section
+import androidx.compose.material.icons.filled.Description // ✅ NEW: For "Mô tả" section
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.*
@@ -625,7 +627,7 @@ private fun AvailabilityDialog(
                 
                 HorizontalDivider(color = Color.White.copy(alpha = 0.15f), thickness = 1.dp)
 
-                DialogSectionHeader("📅 Bước 1: Chọn thời gian")
+                DialogSectionHeader(text = "Bước 1: Chọn thời gian", icon = Icons.Default.CalendarToday)
 
                 // Ngày
                 FormLabel("Ngày")
@@ -707,7 +709,7 @@ private fun AvailabilityDialog(
 
                 HorizontalDivider(color = Color.White.copy(alpha = 0.15f), thickness = 1.dp)
 
-                DialogSectionHeader("💰 Bước 2: Giá & khoảng đệm")
+                DialogSectionHeader(text = "Bước 2: Giá & khoảng đệm", icon = Icons.Default.AttachMoney)
 
                 if (priceDigits != null && onPriceChange != null) {
                     FormLabel("Giá (VND)")
@@ -768,7 +770,7 @@ private fun AvailabilityDialog(
 
                 HorizontalDivider(color = Color.White.copy(alpha = 0.15f), thickness = 1.dp)
 
-                DialogSectionHeader("📝 Bước 3: Mô tả")
+                DialogSectionHeader(text = "Bước 3: Mô tả", icon = Icons.Default.Description)
 
                 // Mô tả
                 FormLabel("Mô tả (tùy chọn)")
@@ -817,11 +819,24 @@ private fun AvailabilityDialog(
 }
 
 @Composable
-private fun DialogSectionHeader(text: String) {
+private fun DialogSectionHeader(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null // ✅ NEW: Optional icon
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
+        // ✅ NEW: Show icon if provided
+        icon?.let {
+            Icon(
+                imageVector = it,
+                contentDescription = null,
+                tint = Color.White.copy(0.9f),
+                modifier = Modifier.size(20.dp)
+            )
+        }
         Text(
             text = text,
             style = MaterialTheme.typography.titleMedium,

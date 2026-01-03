@@ -4,9 +4,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -61,7 +63,14 @@ fun SettingsTab(
         notificationPreferences.pushMessage &&
         notificationPreferences.pushSystem
 
-    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding() // ✅ Handle system navigation bar
+            .padding(bottom = 110.dp), // Padding AFTER verticalScroll
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         LiquidGlassCard(modifier = Modifier.fillMaxWidth(), radius = 22.dp) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -203,9 +212,6 @@ fun SettingsTab(
                 }
             }
         }
-
-        // Spacer để nội dung không bị bottom bar đè khi scroll xuống
-        Spacer(Modifier.height(80.dp))
     }
 }
 

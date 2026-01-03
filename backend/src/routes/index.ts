@@ -22,6 +22,7 @@ import notificationRouter from "./notification.route";
 import paymentMethodRouter from "./paymentMethod.route";
 import sessionRouter from "./session.route";
 import messageRouter from "./message.route";
+import aiRouter from "./ai.route";
 
 const router = Router();
 
@@ -63,5 +64,8 @@ router.use("/sessions", sessionRouter);
 
 // Messages (chat)
 router.use("/messages", messageRouter);
+
+// AI Chatbot
+router.use("/ai", aiRouter);
 
 export default router;

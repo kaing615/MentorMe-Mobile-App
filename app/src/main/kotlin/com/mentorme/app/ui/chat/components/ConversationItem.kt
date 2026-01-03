@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -38,37 +39,70 @@ fun ConversationCard(
             Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar with fallback
-            Box(contentAlignment = Alignment.BottomStart) {
-                if (conversation.peerAvatar != null) {
-                    AsyncImage(
-                        model = conversation.peerAvatar,
-                        contentDescription = conversation.peerName,
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Box(
-                        Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .gradientBackground(GradientSecondary),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(conversation.peerName.firstOrNull()?.uppercase() ?: "?", fontWeight = FontWeight.Bold)
+            // Avatar with online status indicator
+            Box(
+                modifier = Modifier.size(48.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                // Avatar container with shadow when online
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .then(
+                            if (conversation.isOnline) {
+                                Modifier.shadow(
+                                    elevation = 6.dp,
+                                    shape = CircleShape,
+                                    ambientColor = Color(0xFF22C55E).copy(alpha = 0.5f),
+                                    spotColor = Color(0xFF22C55E).copy(alpha = 0.5f)
+                                )
+                            } else {
+                                Modifier
+                            }
+                        )
+                        .clip(CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (conversation.peerAvatar != null) {
+                        AsyncImage(
+                            model = conversation.peerAvatar,
+                            contentDescription = conversation.peerName,
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            Modifier
+                                .matchParentSize()
+                                .gradientBackground(GradientSecondary),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = conversation.peerName.firstOrNull()?.uppercase() ?: "?",
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
-                // Online dot
+
+                // Online status badge
                 if (conversation.isOnline) {
                     Box(
-                        Modifier
-                            .offset(x = (-2).dp, y = 2.dp)
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(androidx.compose.ui.graphics.Color(0xFF11E37C))
-                    )
+                        modifier = Modifier
+                            .size(14.dp)
+                            .align(Alignment.BottomEnd)
+                            .background(Color(0xFF1F2937), CircleShape) // Dark background
+                            .padding(2.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF22C55E), CircleShape) // Green indicator
+                        )
+                    }
                 }
             }
 
@@ -76,15 +110,33 @@ fun ConversationCard(
 
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(conversation.peerName, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text = conversation.peerName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
                     Spacer(Modifier.width(8.dp))
                     if (conversation.unreadCount > 0) {
                         UnreadPill(conversation.unreadCount)
                     }
                 }
-                Text(conversation.peerRole, style = MaterialTheme.typography.labelSmall)
+                Text(
+                    text = when (conversation.peerRole.lowercase()) {
+                        "mentor" -> "Mentor"
+                        "mentee" -> "Mentee"
+                        else -> conversation.peerRole
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFFFBBF24) // Amber/Gold color for role - nổi bật trên nền glass
+                )
                 Spacer(Modifier.height(4.dp))
-                Text(conversation.lastMessage, maxLines = 1, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = conversation.lastMessage,
+                    maxLines = 1,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.8f)
+                )
             }
 
             Spacer(Modifier.width(10.dp))

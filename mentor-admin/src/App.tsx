@@ -14,6 +14,7 @@ import {
   TopUpList,
   MentorApplicationList,
   MentorApplicationEdit,
+  WebhookPage,
 } from "./resources";
 
 import { MyProfile } from "./MyProfile";
@@ -38,6 +39,12 @@ export default function App() {
         name="admin/payouts"
         options={{ label: "Mentor Payouts" }}
         list={PayoutList}
+      />
+
+      <Resource
+        name="admin/webhook-logs"
+        options={{ label: "Webhook Logs" }}
+        list={WebhookPage}
       />
 
       <Resource

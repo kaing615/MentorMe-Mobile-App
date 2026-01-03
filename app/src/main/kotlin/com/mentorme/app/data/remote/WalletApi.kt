@@ -1,10 +1,13 @@
 package com.mentorme.app.data.remote
 
+import com.mentorme.app.data.dto.wallet.CreatePayoutRequest
 import com.mentorme.app.data.dto.wallet.CreateTopUpIntentRequest
 import com.mentorme.app.data.dto.wallet.TopupRequest
 import com.mentorme.app.data.dto.wallet.TopupResponse
 import com.mentorme.app.data.dto.wallet.DebitRequest
 import com.mentorme.app.data.dto.wallet.DebitResponse
+import com.mentorme.app.data.dto.wallet.MentorPayoutDto
+import com.mentorme.app.data.dto.wallet.PayoutListResponse
 import com.mentorme.app.data.dto.wallet.TopUpIntentDto
 import com.mentorme.app.data.dto.wallet.TopUpIntentListDto
 import com.mentorme.app.data.dto.wallet.WalletDto
@@ -56,4 +59,12 @@ interface WalletApi {
     suspend fun withdraw(
         @Body req: DebitRequest
     ): Response<DebitResponse>
+
+    @POST("payouts/requests")
+    suspend fun createPayoutRequest(
+        @Body body: CreatePayoutRequest
+    ): MentorPayoutDto
+
+    @GET("payouts/requests/me")
+    suspend fun getMyPayouts(): ApiResponse<PayoutListResponse>
 }

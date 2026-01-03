@@ -11,6 +11,7 @@
     "removeData": "tsx src/utils/removeData.ts",
     "seed:mentors": "tsx src/utils/scripts/seed-mentors.ts",
     "seed:admin": "tsx src/utils/scripts/seed-admin.ts",
+    "seed:database": "tsx src/utils/scripts/seed-database.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "db:setup": "psql \"$PG_URL\" -f db.sql"
@@ -22,6 +23,7 @@
     "@sendgrid/mail": "^8.1.5",
     "@socket.io/redis-adapter": "^8.2.1",
     "@types/axios": "^0.9.36",
+    "@types/bcrypt": "^6.0.0",
     "@types/mongoose": "^5.11.96",
     "@types/multer": "^2.0.0",
     "axios": "^1.10.0",
@@ -53,6 +55,7 @@
     "remove": "^0.1.5",
     "rrule": "^2.8.1",
     "socket.io": "^4.8.1",
+    "@socket.io/redis-adapter": "^8.2.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "yamljs": "^0.3.0"

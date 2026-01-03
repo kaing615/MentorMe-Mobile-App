@@ -7,6 +7,7 @@ import WalletTransaction from "../models/walletTransaction.model";
 import MentorPayoutRequest, {
   IMentorPayoutRequest,
 } from "../models/mentorPayoutRequest.model";
+import PaymentMethod from "../models/paymentMethod.model";
 
 const { ok, created, badRequest, notFound, forbidden } = responseHandler;
 
@@ -54,6 +55,15 @@ export const createPayoutRequest = asyncHandler(
   async (req: Request, res: Response) => {
     const mentorId = getUserId(req);
     if (!mentorId) return forbidden(res, "Unauthorized");
+
+    const defaultMethod = await PaymentMethod.findOne({
+      userId: mentorId,
+      isDefault: true,
+    });
+
+    if (!defaultMethod) {
+      return badRequest(res, "PAYMENT_METHOD_REQUIRED");
+    }
 
     const amount = Number(req.body?.amount ?? 0);
     const currency = (req.body?.currency ?? "VND") as "VND" | "USD";

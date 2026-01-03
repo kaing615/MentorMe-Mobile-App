@@ -3,8 +3,10 @@ package com.mentorme.app.data.repository.wallet
 import android.util.Log
 import com.mentorme.app.data.dto.paymentMethods.AddPaymentMethodRequest
 import com.mentorme.app.data.dto.paymentMethods.UpdatePaymentMethodRequest
+import com.mentorme.app.data.dto.wallet.CreatePayoutRequest
 import com.mentorme.app.data.dto.wallet.DebitRequest
 import com.mentorme.app.data.dto.wallet.DebitResponse
+import com.mentorme.app.data.dto.wallet.MentorPayoutDto
 import com.mentorme.app.data.dto.wallet.TopupRequest
 import com.mentorme.app.data.dto.wallet.TopupResponse
 import com.mentorme.app.data.dto.wallet.WalletDto
@@ -16,6 +18,10 @@ import com.mentorme.app.ui.profile.WalletTx
 import com.mentorme.app.data.mapper.toUi
 import com.mentorme.app.data.remote.PaymentMethodApi
 import com.mentorme.app.ui.wallet.PaymentMethod
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import retrofit2.Response
 import java.util.UUID
 import javax.inject.Inject
@@ -75,4 +81,18 @@ class WalletRepository @Inject constructor(
 
     suspend fun updateMethod(id: String, req: UpdatePaymentMethodRequest) =
         paymentMethodApi.update(id, req).data
+
+    suspend fun createPayout(
+        amountMinor: Long
+    ): MentorPayoutDto {
+        val body = CreatePayoutRequest(
+            amount = amountMinor,
+            clientRequestId = UUID.randomUUID().toString()
+        )
+        return api.createPayoutRequest(body)
+    }
+
+    suspend fun getMyPayouts(): List<MentorPayoutDto> {
+        return api.getMyPayouts().data.items
+    }
 }

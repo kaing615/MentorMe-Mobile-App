@@ -368,6 +368,7 @@ internal fun AppNavGraph(
             composable(Routes.MentorProfile) {
                 val localAuthVm = hiltViewModel<AuthViewModel>()
                 MentorProfileScreen(
+                    navController = nav,
                     notificationsViewModel = notificationsVm,
                     startTarget = "profile",
                     onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
@@ -412,6 +413,7 @@ internal fun AppNavGraph(
                 val target = backStackEntry.arguments?.getString("target") ?: "profile"
 
                 MentorProfileScreen(
+                    navController = nav,
                     notificationsViewModel = notificationsVm,
                     startTarget = target,
                     onEditProfile = { Log.d("AppNav", "MentorProfile: onEditProfile - TODO") },
@@ -818,12 +820,8 @@ internal fun AppNavGraph(
             }
 
 
-            composable(Routes.PaymentMethods) { backStackEntry ->
-                val parentEntry = remember {
-                    nav.getBackStackEntry(Routes.Profile)
-                }
-                val walletViewModel: WalletViewModel = hiltViewModel(parentEntry)
-
+            composable(Routes.PaymentMethods) {
+                val walletViewModel: WalletViewModel = hiltViewModel()
                 val methods by walletViewModel.paymentMethods.collectAsState()
 
                 PaymentMethodScreen(
@@ -843,23 +841,19 @@ internal fun AppNavGraph(
             }
 
             composable(Routes.AddPaymentMethod) {
-                val parent = remember { nav.getBackStackEntry(Routes.Profile) }
-                val walletVm: WalletViewModel = hiltViewModel(parent)
+                val walletVm: WalletViewModel = hiltViewModel()
 
                 AddPaymentMethodScreen(
                     onBack = { nav.popBackStack() },
-                    onSaved = { req ->
-                        walletVm.addPaymentMethod(req)
+                    onSaved = {
+                        walletVm.addPaymentMethod(it)
                         nav.popBackStack()
                     }
                 )
             }
 
             composable(Routes.EditPaymentMethod) {
-                val parent = remember {
-                    nav.getBackStackEntry(Routes.Profile)
-                }
-                val walletVm: WalletViewModel = hiltViewModel(parent)
+                val walletVm: WalletViewModel = hiltViewModel()
 
                 val method =
                     nav.previousBackStackEntry
@@ -870,8 +864,8 @@ internal fun AppNavGraph(
                 EditPaymentMethodScreen(
                     method = method,
                     onBack = { nav.popBackStack() },
-                    onSaved = { updated ->
-                        walletVm.updatePaymentMethod(method.id, updated)
+                    onSaved = {
+                        walletVm.updatePaymentMethod(method.id, it)
                         nav.popBackStack()
                     }
                 )

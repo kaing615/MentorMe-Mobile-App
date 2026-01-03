@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.mentorme.app.data.model.NotificationPreferences
@@ -50,35 +51,12 @@ import com.mentorme.app.ui.wallet.PaymentMethod
 import com.mentorme.app.ui.wallet.initialPaymentMethods
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
-import java.util.*
-import java.util.*
-
-private fun mockTxLocal(): List<WalletTx> = listOf(
-    WalletTx(
-        id = "t1",
-        date = GregorianCalendar(2025, 8, 21, 10, 15).timeInMillis,
-        type = TxType.TOP_UP,
-        amount = 5_000_000,
-        note = "Thu nhập tháng 8",
-        status = TxStatus.SUCCESS
-    ),
-    WalletTx(
-        id = "t2",
-        date = GregorianCalendar(2025, 8, 20, 14, 0).timeInMillis,
-        type = TxType.WITHDRAW,
-        amount = -2_000_000,
-        note = "Rút về VCB",
-        status = TxStatus.SUCCESS
-    ),
-    WalletTx(
-        id = "t3",
-        date = GregorianCalendar(2025, 8, 19, 9, 30).timeInMillis,
-        type = TxType.PAYMENT,
-        amount = 500_000,
-        note = "Booking #123",
-        status = TxStatus.SUCCESS
-    ),
-)
+import com.mentorme.app.data.dto.wallet.MentorPayoutDto
+import com.mentorme.app.data.dto.wallet.PayoutStatus
+import com.mentorme.app.ui.navigation.Routes
+import com.mentorme.app.ui.wallet.PayProvider
+import com.mentorme.app.ui.wallet.WalletViewModel
+import java.util.Locale
 
 // ✅ helper map target -> tab index
 private fun tabIndexFor(target: String): Int {
@@ -94,7 +72,6 @@ private fun tabIndexFor(target: String): Int {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MentorProfileScreen(
-    // ✅ NEW: nhận “điểm vào” để mở đúng tab
     startTarget: String = "profile",
     notificationsViewModel: NotificationsViewModel,
 
@@ -112,17 +89,21 @@ fun MentorProfileScreen(
     onOpenWithdraw: () -> Unit = {},
     onOpenChangeMethod: () -> Unit = {},
     onAddMethod: () -> Unit = {},
-    methods: List<PaymentMethod> = initialPaymentMethods()
+    methods: List<PaymentMethod> = initialPaymentMethods(),
+    navController: NavHostController,
 ) {
     val TAG = "MentorProfileUI"
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val vm: MentorProfileViewModel = hiltViewModel()
+    val vmWallet: MentorWalletViewModel = hiltViewModel()
+    val walletVm: WalletViewModel = hiltViewModel()
+    val methods by walletVm.paymentMethods.collectAsState()
+    val payouts by vmWallet.payouts.collectAsState(initial = emptyList())
     val state by vm.state.collectAsState()
     val notificationPreferences by notificationsViewModel.preferences.collectAsState()
 
-    // ✅ Collect stats and wallet data from ViewModel
     val walletBalance by vm.walletBalance.collectAsState()
     val overallStats by vm.overallStats.collectAsState()
     val weeklyEarnings by vm.weeklyEarnings.collectAsState()
@@ -138,6 +119,12 @@ fun MentorProfileScreen(
     // - rememberSaveable giữ tab khi rotate/process restore
     // - LaunchedEffect(startTarget) chỉ set khi target thay đổi (vd: từ dashboard sang settings)
     var selectedTab by rememberSaveable { mutableIntStateOf(tabIndexFor(startTarget)) }
+
+    LaunchedEffect(Unit) {
+        vmWallet.loadPayouts()
+        walletVm.loadPaymentMethods()
+    }
+
     LaunchedEffect(startTarget) {
         Log.d(TAG, "Enter MentorProfileScreen -> startTarget=$startTarget -> selectedTab=${tabIndexFor(startTarget)}")
         selectedTab = tabIndexFor(startTarget)
@@ -320,9 +307,17 @@ fun MentorProfileScreen(
 
                         2 -> MentorWalletTab(
                             balance = walletBalance,
-                            onWithdraw = onOpenWithdraw,
+                            payouts = payouts,
                             methods = methods,
-                            onAddMethod = onAddMethod
+                            onAddMethod = {
+                                navController.navigate(Routes.PaymentMethods)
+                            },
+                            onCreatePayout = { amount ->
+                                vmWallet.createPayout(amount)
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Đã gửi yêu cầu rút tiền")
+                                }
+                            }
                         )
 
                         3 -> MentorSettingsTab(
@@ -755,25 +750,32 @@ private fun MentorStatsTab(
     }
 }
 
+private fun hasPendingPayout(payouts: List<MentorPayoutDto>): Boolean {
+    return payouts.any {
+        it.status == PayoutStatus.PENDING || it.status == PayoutStatus.PROCESSING
+    }
+}
+
 // --- TAB 3: VÍ (Wallet) ---
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MentorWalletTab(
     balance: Long,
-    onWithdraw: () -> Unit,
-    methods: List<com.mentorme.app.ui.wallet.PaymentMethod>,
-    onAddMethod: () -> Unit
+    payouts: List<MentorPayoutDto>,
+    methods: List<PaymentMethod>,
+    onAddMethod: () -> Unit,
+    onCreatePayout: (amountMinor: Long) -> Unit
 ) {
-    val txs = remember { mockTxLocal() }
-    var filter by remember { mutableStateOf<TxType?>(null) }
-    var selectedBank by remember { mutableStateOf("VCB") }
-    var accountNumber by remember { mutableStateOf("") }
-    var isEditingBank by remember { mutableStateOf(false) }
+    val defaultMethod = remember(methods) { methods.firstOrNull { it.isDefault } }
+    val hasPaymentMethod = methods.isNotEmpty()
+    val hasPending = hasPendingPayout(payouts)
 
-    // Filter transactions
-    val filteredTxs = remember(filter, txs) {
-        filter?.let { t -> txs.filter { it.type == t } } ?: txs
-    }
+    var showWithdrawSheet by remember { mutableStateOf(false) }
+
+    val canWithdraw =
+        balance > 0 &&
+                hasPaymentMethod &&
+                !hasPending
 
     Column(
         Modifier
@@ -782,7 +784,6 @@ private fun MentorWalletTab(
             .padding(bottom = 100.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Balance Card (matching mentee style)
         LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -790,207 +791,420 @@ private fun MentorWalletTab(
                     Spacer(Modifier.width(8.dp))
                     Text("Thu nhập khả dụng", style = MaterialTheme.typography.titleMedium, color = Color.White)
                 }
+
                 Text(
-                    text = formatMoneyShortVnd(balance, withCurrency = true),
+                    text = formatMoneyVnd(balance, withCurrency = true),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color.White
                 )
-                MMGhostButton(onClick = onWithdraw, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Outlined.ArrowDownward, contentDescription = null, tint = Color.White)
+
+                MMGhostButton(
+                    enabled = canWithdraw,
+                    onClick = {
+                        if (methods.isEmpty()) {
+                            onAddMethod()
+                        } else {
+                            showWithdrawSheet = true
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Outlined.ArrowDownward, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Rút tiền về tài khoản")
+                    Text("Yêu cầu rút tiền")
+                }
+
+                when {
+                    !hasPaymentMethod -> {
+                        Text(
+                            "Vui lòng thêm phương thức thanh toán để rút tiền",
+                            color = Color(0xFFF59E0B),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        TextButton(onClick = onAddMethod) {
+                            Text("Thêm phương thức thanh toán")
+                        }
+                    }
+                    hasPending -> {
+                        Text(
+                            "Bạn đang có yêu cầu rút tiền đang xử lý",
+                            color = Color(0xFFF59E0B),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    balance <= 0 -> {
+                        Text(
+                            "Số dư không đủ để rút",
+                            color = Color.White.copy(0.6f),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
             }
         }
 
-        // Bank Information Card (NEW for mentor)
+        // --- Phương thức rút tiền (default / đổi) ---
         LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.AccountBalance, contentDescription = null, tint = Color.White)
+                        Icon(Icons.Outlined.CreditCard, contentDescription = null, tint = Color.White)
                         Spacer(Modifier.width(8.dp))
-                        Text("Thông tin ngân hàng", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                        Text("Phương thức rút tiền", style = MaterialTheme.typography.titleMedium, color = Color.White)
                     }
-                    MMGhostButton(onClick = { isEditingBank = !isEditingBank }) {
-                        Text(if (isEditingBank) "Lưu" else "Sửa")
+
+                    // dùng ghost button cho đổi / sửa
+                    MMGhostButton(onClick = onAddMethod) {
+                        Text(if (defaultMethod == null) "Thêm" else "Đổi / Sửa", color = Color.White)
                     }
                 }
 
-                if (isEditingBank) {
-                    // Bank selection dropdown
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Ngân hàng", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(0.85f))
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf("VCB", "MB", "Momo", "BIDV").forEach { bank ->
-                                MentorBankChip(
-                                    label = bank,
-                                    selected = selectedBank == bank,
-                                    onClick = { selectedBank = bank }
-                                )
-                            }
-                        }
+                if (defaultMethod == null) {
+                    Text(
+                        "Chưa có phương thức rút tiền mặc định",
+                        color = Color.White.copy(0.7f),
+                        style = MaterialTheme.typography.bodySmall
+                    )
 
-                        Text("Số tài khoản", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(0.85f))
-                        MMTextField(
-                            value = accountNumber,
-                            onValueChange = { accountNumber = it },
-                            placeholder = "Nhập số tài khoản",
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                    MMPrimaryButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onAddMethod
+                    ) {
+                        Text("Thêm phương thức thanh toán")
                     }
                 } else {
-                    // Display saved bank info
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White.copy(0.08f))
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.12f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Outlined.AccountBalance, contentDescription = null, tint = Color.White)
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(selectedBank, fontWeight = FontWeight.SemiBold, color = Color.White)
-                            Text(
-                                if (accountNumber.isNotBlank()) accountNumber else "Chưa thêm số tài khoản",
-                                color = Color.White.copy(0.75f),
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
+                    DefaultPaymentMethodRow(defaultMethod)
                 }
             }
         }
 
-        // Transaction History with Filters (matching mentee style)
+        // --- Lịch sử giao dịch (PHẢI Ở TRONG Column) ---
         LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Lịch sử giao dịch", style = MaterialTheme.typography.titleMedium, color = Color.White)
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    MentorFilterChip("Tất cả", selected = filter == null) { filter = null }
-                    MentorFilterChip("Rút", selected = filter == TxType.WITHDRAW) { filter = TxType.WITHDRAW }
-                    MentorFilterChip("Thanh toán", selected = filter == TxType.PAYMENT) { filter = TxType.PAYMENT }
-                    MentorFilterChip("Thu nhập", selected = filter == TxType.EARN) { filter = TxType.EARN }
-                    MentorFilterChip("Hoàn tiền", selected = filter == TxType.REFUND) { filter = TxType.REFUND }
-                }
-            }
-        }
+            Column(Modifier.padding(12.dp)) {
+                Text("Lịch sử giao dịch", style = MaterialTheme.typography.titleMedium)
 
-        // Transaction List (matching mentee style)
-        filteredTxs.forEach { item ->
-            MentorTransactionRow(item)
-        }
-
-        if (filteredTxs.isEmpty()) {
-            LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
-                Box(Modifier.padding(16.dp), contentAlignment = Alignment.Center) {
-                    Text("Không có giao dịch", color = Color.White.copy(0.8f))
+                if (payouts.isEmpty()) {
+                    Text(
+                        "Chưa có yêu cầu rút tiền",
+                        color = Color.White.copy(0.7f),
+                        modifier = Modifier.padding(vertical = 12.dp)
+                    )
+                } else {
+                    payouts.forEach { payout ->
+                        MentorPayoutRow(payout)
+                    }
                 }
             }
         }
 
         Spacer(Modifier.height(80.dp))
     }
+
+    if (showWithdrawSheet) {
+        WithdrawBottomSheet(
+            balance = balance,
+            methods = methods,
+            onAddMethod = onAddMethod,
+            onConfirm = { amount ->
+                onCreatePayout(amount)
+            },
+            onDismiss = { showWithdrawSheet = false }
+        )
+    }
 }
 
 @Composable
-private fun MentorBankChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
-        color = if (selected) Color.White.copy(0.22f) else Color.White.copy(0.08f),
-        border = BorderStroke(1.dp, Color.White.copy(if (selected) 0.5f else 0.2f))
+private fun DefaultPaymentMethodRow(method: PaymentMethod) {
+    val icon = when (method.provider) {
+        PayProvider.MOMO    -> Icons.Outlined.Payments
+        PayProvider.ZALOPAY -> Icons.Outlined.CreditCard
+        PayProvider.BANK    -> Icons.Outlined.AccountBalance
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White.copy(0.08f))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
         ) {
-            Text(label, color = Color.White, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+            Icon(icon, contentDescription = null, tint = Color.White)
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        Column(Modifier.weight(1f)) {
+            Text(
+                method.label,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White
+            )
+            Text(
+                method.detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(0.7f)
+            )
+        }
+
+        Text(
+            "Mặc định",
+            color = Color(0xFF22C55E),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+private fun formatVndInput(rawDigits: String): String {
+    if (rawDigits.isBlank()) return ""
+    return try {
+        val number = rawDigits.toLong()
+        java.text.NumberFormat
+            .getNumberInstance(Locale("vi", "VN"))
+            .format(number)
+    } catch (e: Exception) {
+        rawDigits
+    }
+}
+
+private fun parseVndInputToLong(formatted: String): Long {
+    return formatted.replace(".", "").toLongOrNull() ?: 0L
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WithdrawBottomSheet(
+    balance: Long,
+    methods: List<PaymentMethod>,
+    onAddMethod: () -> Unit,
+    onConfirm: (amountMinor: Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var rawAmount by remember { mutableStateOf("") }
+    var selectedIndex by remember {
+        mutableStateOf(methods.indexOfFirst { it.isDefault }.coerceAtLeast(0))
+    }
+
+    val formattedAmount = formatVndInput(rawAmount)
+    val amountLong = parseVndInputToLong(formattedAmount)
+
+    val canSubmit =
+        amountLong > 0 &&
+                amountLong <= balance &&
+                methods.isNotEmpty()
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF0F172A), // dark glass
+        tonalElevation = 0.dp,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            Modifier
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Drag handle
+            Box(
+                Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .size(width = 42.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.White.copy(0.3f))
+            )
+
+            Text(
+                "Yêu cầu rút tiền",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                "Số dư khả dụng: ${formatMoneyVnd(balance, true)}",
+                color = Color.White.copy(0.7f),
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            // --- Amount input ---
+            Column {
+                Text("Số tiền rút", style = MaterialTheme.typography.labelLarge)
+
+                MMTextField(
+                    value = formattedAmount,
+                    onValueChange = { input ->
+                        rawAmount = input.filter { it.isDigit() }
+                    },
+                    placeholder = "VD: 500.000",
+                    modifier = Modifier.fillMaxWidth(),
+                    trailing = {
+                        Text(
+                            "đ",
+                            color = Color.White.copy(0.6f),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                )
+
+                if (amountLong > balance) {
+                    Text(
+                        "Số tiền vượt quá số dư",
+                        color = Color(0xFFEF4444),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                TextButton(
+                    onClick = { rawAmount = balance.toString() },
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text("Rút toàn bộ", color = Color(0xFF60A5FA))
+                }
+            }
+
+            // --- Payment method ---
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Phương thức nhận tiền", style = MaterialTheme.typography.labelLarge)
+
+                if (methods.isEmpty()) {
+                    Text(
+                        "Chưa có phương thức thanh toán",
+                        color = Color.White.copy(0.7f)
+                    )
+                    MMPrimaryButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onAddMethod
+                    ) {
+                        Text("Thêm phương thức")
+                    }
+                } else {
+                    methods.forEachIndexed { index, method ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (selectedIndex == index)
+                                        Color.White.copy(0.12f)
+                                    else Color.White.copy(0.05f)
+                                )
+                                .clickable { selectedIndex = index }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selectedIndex == index,
+                                onClick = { selectedIndex = index }
+                            )
+
+                            Spacer(Modifier.width(8.dp))
+
+                            Column(Modifier.weight(1f)) {
+                                Text(method.label, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    method.detail,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(0.7f)
+                                )
+                            }
+
+                            if (method.isDefault) {
+                                Text(
+                                    "Mặc định",
+                                    color = Color(0xFF22C55E),
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
+                    }
+
+                    TextButton(onClick = onAddMethod) {
+                        Text("Quản lý phương thức")
+                    }
+                }
+            }
+
+            MMPrimaryButton(
+                enabled = canSubmit,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = {
+                    onConfirm(amountLong)
+                    onDismiss()
+                }
+            ) {
+                Text("Xác nhận rút tiền")
+            }
+
+            Spacer(Modifier.height(8.dp))
         }
     }
 }
 
 @Composable
-private fun MentorFilterChip(text: String, selected: Boolean, onClick: () -> Unit) {
-    AssistChip(
-        onClick = onClick,
-        label = { Text(text) },
-        colors = AssistChipDefaults.assistChipColors(
-            containerColor = if (selected) Color.White.copy(0.22f) else Color.White.copy(0.08f),
-            labelColor = Color.White
-        ),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = if (selected) 0.5f else 0.2f))
-    )
-}
-
-@Composable
-private fun MentorTransactionRow(tx: WalletTx) {
-    val (icon, tint) = when (tx.type) {
-        TxType.TOP_UP -> Icons.Outlined.ArrowUpward to Color(0xFF22C55E)
-        TxType.WITHDRAW -> Icons.Outlined.ArrowDownward to Color(0xFFEF4444)
-        TxType.PAYMENT -> Icons.Outlined.ArrowDownward to Color(0xFF60A5FA)
-        TxType.EARN -> Icons.Outlined.ArrowUpward to Color(0xFF22C55E)
-        TxType.REFUND -> Icons.Outlined.Cached to Color(0xFFF59E0B)
-    }
-    val amountText = (if (tx.amount > 0) "+ " else "- ") + formatMoneyShortVnd(kotlin.math.abs(tx.amount), withCurrency = true)
-    val amountColor = if (tx.amount > 0) Color(0xFF22C55E) else Color(0xFFEF4444)
-    val statusColor = when (tx.status) {
-        TxStatus.SUCCESS -> Color(0xFF10B981)
-        TxStatus.PENDING -> Color(0xFFF59E0B)
-        TxStatus.FAILED -> Color(0xFFEF4444)
+private fun MentorPayoutRow(payout: MentorPayoutDto) {
+    val statusColor = when (payout.status) {
+        PayoutStatus.PENDING -> Color(0xFFF59E0B)
+        PayoutStatus.PROCESSING -> Color(0xFF60A5FA)
+        PayoutStatus.PAID -> Color(0xFF22C55E)
+        PayoutStatus.FAILED -> Color(0xFFEF4444)
     }
 
-    LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+    LiquidGlassCard(
+        radius = 18.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+    ) {
         Row(
-            Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, contentDescription = null, tint = tint)
-            }
-
             Column(Modifier.weight(1f)) {
-                Text(tx.note, fontWeight = FontWeight.SemiBold, color = Color.White)
                 Text(
-                    SimpleDateFormat("yyyy-MM-dd • HH:mm", Locale.getDefault()).format(Date(tx.date)),
+                    "Rút ${formatMoneyVnd(payout.amount, true)}",
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    formatDate(payout.createdAt),
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(0.75f)
+                    color = Color.White.copy(0.6f)
                 )
             }
 
-            Column(horizontalAlignment = Alignment.End) {
-                Text(amountText, fontWeight = FontWeight.Bold, color = amountColor)
-                MentorStatusDotChip(tx.status.name.lowercase().replaceFirstChar { it.titlecase() }, statusColor)
-            }
+            MentorStatusDotChip(
+                payout.status.name,
+                statusColor
+            )
         }
+    }
+}
+
+private fun formatDate(iso: String): String {
+    return try {
+        val instant = java.time.Instant.parse(iso)
+        val date = java.util.Date.from(instant)
+        java.text.SimpleDateFormat(
+            "dd/MM/yyyy",
+            Locale.getDefault()
+        ).format(date)
+    } catch (e: Exception) {
+        iso
     }
 }
 

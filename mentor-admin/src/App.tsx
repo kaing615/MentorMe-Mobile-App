@@ -14,6 +14,7 @@ import {
   TopUpList,
   MentorApplicationList,
   MentorApplicationEdit,
+  WebhookPage,
 } from "./resources";
 
 import { MyProfile } from "./MyProfile";
@@ -25,7 +26,10 @@ export default function App() {
       authProvider={authProvider}
       layout={Layout}
       requireAuth
+      requireAuth
     >
+      <Resource name="users" list={UserList} edit={UserEdit} />
+
       <Resource name="users" list={UserList} edit={UserEdit} />
 
       <Resource name="bookings" list={BookingList} edit={BookingEdit} />
@@ -33,11 +37,21 @@ export default function App() {
       {/* Moderation */}
       <Resource name="reports" list={ReportList} />
 
+      {/* Moderation */}
+      <Resource name="reports" list={ReportList} />
+
+      {/* Admin only */}
       {/* Admin only */}
       <Resource
         name="admin/payouts"
         options={{ label: "Mentor Payouts" }}
         list={PayoutList}
+      />
+
+      <Resource
+        name="admin/webhook-logs"
+        options={{ label: "Webhook Logs" }}
+        list={WebhookPage}
       />
 
       <Resource

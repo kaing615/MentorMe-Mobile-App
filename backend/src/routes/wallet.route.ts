@@ -15,7 +15,12 @@ const router = Router();
 const MENTEE_ROLE = "mentee";
 const MENTOR_ROLE = "mentor";
 
-router.get("/me", auth, requireRoles(MENTEE_ROLE, MENTOR_ROLE), walletController.getMyWallet);
+router.get(
+  "/me",
+  auth,
+  requireRoles(MENTEE_ROLE, MENTOR_ROLE),
+  walletController.getMyWallet
+);
 
 router.post(
   "/topups/mock",
@@ -38,7 +43,7 @@ router.post(
 router.get(
   "/transactions",
   auth,
-  requireRoles(MENTEE_ROLE),
+  requireRoles(MENTEE_ROLE, MENTOR_ROLE),
   listTransactionsValidator,
   validate,
   walletController.listTransactions

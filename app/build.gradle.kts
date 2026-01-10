@@ -165,6 +165,7 @@ dependencies {
     implementation(libs.identity.jvm)
     implementation(libs.litertlm.jvm)
     implementation(libs.androidx.foundation.layout)
+    implementation(libs.androidx.compose.runtime)
     ksp(libs.hilt.compiler)
 
     // Room database (removed duplicate)

@@ -621,5 +621,20 @@ fun ChatScreen(
                 onClose = { showProfile = false }
             )
         }
+
+        val context = androidx.compose.ui.platform.LocalContext.current
+
+        // Show error toast
+        errorMessage?.let { error ->
+            LaunchedEffect(error) {
+                android.widget.Toast.makeText(
+                    context,
+                    error,
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                // Clear error after showing
+                viewModel.clearError()
+            }
+        }
     }
 }

@@ -4655,6 +4655,99 @@ paths:
         "404":
           description: Booking not found
 
+  /sessions/{bookingId}/check-no-show:
+    post:
+      tags:
+        - Sessions
+      summary: Check and process no-show for a booking (Admin only)
+      description: |
+        Kiểm tra và xử lý no-show cho một booking cụ thể.
+        
+        **Logic xử lý:**
+        - **TH1 (NoShowMentee)**: Mentee vắng → Mentor giữ 100% tiền (đã được credit)
+        - **TH2 (NoShowMentor)**: Mentor vắng → Hoàn 100% cho mentee
+        - **TH3 (NoShowBoth)**: Cả hai vắng → Hoàn 80% cho mentee, platform giữ 20%
+        
+        **Điều kiện:**
+        - Booking phải có status "Confirmed"
+        - Đã qua grace period (SESSION_GRACE_MINUTES sau startTime)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: bookingId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: No-show processed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          bookingId: { type: string }
+                          status:
+                            type: string
+                            enum: [NoShowMentor, NoShowMentee, NoShowBoth]
+                          refundAmount: { type: number, description: "Số tiền hoàn cho mentee (VND)" }
+                          platformFee: { type: number, description: "Phí platform giữ (chỉ áp dụng cho NoShowBoth)" }
+                          message: { type: string }
+        "400":
+          description: Not a no-show or grace period not passed
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden (admin only)
+        "404":
+          description: Booking not found
+
+  /sessions/check-all-no-shows:
+    post:
+      tags:
+        - Sessions
+      summary: Batch check all confirmed bookings for no-show (Admin only)
+      description: |
+        Kiểm tra và xử lý no-show cho tất cả các booking đã confirmed và đã qua grace period.
+        Thường được gọi bởi cron job tự động.
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Batch no-show check completed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          processed: { type: integer, description: "Số booking đã xử lý" }
+                          results:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                bookingId: { type: string }
+                                status:
+                                  type: string
+                                  enum: [NoShowMentor, NoShowMentee, NoShowBoth]
+                                refundAmount: { type: number }
+                                platformFee: { type: number }
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden (admin only)
+
   /messages/{bookingId}:
     get:
       tags:

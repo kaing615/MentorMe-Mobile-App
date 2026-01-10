@@ -1,10 +1,11 @@
+import { randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import { randomUUID } from 'crypto';
 import { asyncHandler } from '../handlers/async.handler';
-import { ok, badRequest, notFound, forbidden, unauthorized } from '../handlers/response.handler';
+import { badRequest, forbidden, notFound, ok, unauthorized } from '../handlers/response.handler';
 import Booking from '../models/booking.model';
 import SessionLog from '../models/sessionLog.model';
+import noShowService from '../services/noShow.service';
 import { ensureSessionLog, getSessionWindow, isWithinSessionWindow } from '../services/session.service';
 
 const SESSION_JOIN_TTL_MINUTES =
@@ -198,8 +199,72 @@ export const adminListSessions = asyncHandler(async (req: Request, res: Response
   });
 });
 
+/**
+ * Check and process no-show for a specific booking
+ * Can be triggered manually by admin or automatically by cron job
+ */
+export const checkNoShow = asyncHandler(async (req: Request, res: Response) => {
+  const { bookingId } = req.params as { bookingId: string };
+
+  const booking = await Booking.findById(bookingId).lean();
+  if (!booking) {
+    return notFound(res, 'Booking not found');
+  }
+
+  // Detect no-show
+  const noShowResult = await noShowService.detectNoShow(bookingId);
+
+  if (!noShowResult) {
+    return ok(res, null, 'Not a no-show - both parties joined or grace period not passed');
+  }
+
+  // Process no-show
+  const result = await noShowService.processNoShow(bookingId);
+
+  return ok(res, {
+    bookingId: result.bookingId,
+    status: result.status,
+    refundAmount: result.refundAmount,
+    platformFee: result.platformFee,
+    message: getNoShowMessage(result.status),
+  });
+});
+
+/**
+ * Batch check all confirmed bookings for no-show
+ * Should be called by cron job
+ */
+export const checkAllNoShows = asyncHandler(async (req: Request, res: Response) => {
+  const results = await noShowService.checkAllNoShows();
+
+  return ok(res, {
+    processed: results.length,
+    results: results.map((r) => ({
+      bookingId: r.bookingId,
+      status: r.status,
+      refundAmount: r.refundAmount,
+      platformFee: r.platformFee,
+    })),
+  });
+});
+
+function getNoShowMessage(status: string): string {
+  switch (status) {
+    case 'NoShowMentee':
+      return 'Mentee không tham gia - Mentor giữ 100% tiền';
+    case 'NoShowMentor':
+      return 'Mentor không tham gia - Hoàn 100% cho mentee';
+    case 'NoShowBoth':
+      return 'Cả hai không tham gia - Hoàn 80% cho mentee, platform giữ 20%';
+    default:
+      return 'No-show processed';
+  }
+}
+
 export default {
   createJoinToken,
   getSessionLog,
   adminListSessions,
+  checkNoShow,
+  checkAllNoShows,
 };

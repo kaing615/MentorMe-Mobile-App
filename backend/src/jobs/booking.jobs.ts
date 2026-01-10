@@ -1,9 +1,10 @@
 import { Queue, QueueEvents, Worker } from 'bullmq';
 import {
-  processBookingReminders,
-  processExpiredBookings,
-  processPendingMentorBookings,
+    processBookingReminders,
+    processExpiredBookings,
+    processPendingMentorBookings,
 } from '../controllers/booking.controller';
+import noShowService from '../services/noShow.service';
 import { processNoShowBookings } from '../services/session.service';
 import { notifyBookingNoShow } from '../utils/notification.service';
 import { getUserInfo } from '../utils/userInfo';
@@ -30,7 +31,7 @@ async function runBookingJobs() {
   console.log(`\n[${timestamp}] BOOKING_JOBS: Starting cycle`);
   
   try {
-    const [expiredCount, declinedCount, reminders, noShowCount] = await Promise.all([
+    const [expiredCount, declinedCount, reminders, noShowCount, noShowResults] = await Promise.all([
       processExpiredBookings(),
       processPendingMentorBookings(),
       processBookingReminders(),
@@ -50,18 +51,33 @@ async function runBookingJobs() {
           noShowBy,
         });
       }),
+      // New no-show detection service
+      noShowService.checkAllNoShows(),
     ]);
 
     if (
       expiredCount ||
       declinedCount ||
       noShowCount ||
+      noShowResults.length ||
       reminders.reminded24h ||
       reminders.reminded1h
     ) {
       console.log(
-        `[${new Date().toISOString()}] BOOKING_JOBS: Processed - expired=${expiredCount}, declined=${declinedCount}, noShow=${noShowCount}, reminders24h=${reminders.reminded24h}, reminders1h=${reminders.reminded1h}`
+        `[${new Date().toISOString()}] BOOKING_JOBS: Processed - expired=${expiredCount}, declined=${declinedCount}, noShow=${noShowCount}, newNoShows=${noShowResults.length}, reminders24h=${reminders.reminded24h}, reminders1h=${reminders.reminded1h}`
       );
+      
+      // Log no-show details
+      if (noShowResults.length > 0) {
+        console.log(`[${new Date().toISOString()}] BOOKING_JOBS: No-show details:`, 
+          noShowResults.map(r => ({
+            bookingId: r.bookingId,
+            status: r.status,
+            refund: r.refundAmount,
+            fee: r.platformFee,
+          }))
+        );
+      }
     } else {
       console.log(`[${new Date().toISOString()}] BOOKING_JOBS: No bookings needed processing`);
     }

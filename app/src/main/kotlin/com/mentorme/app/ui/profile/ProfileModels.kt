@@ -14,16 +14,12 @@ private val oneDecimalUS = DecimalFormat("#.#").apply {
     decimalFormatSymbols = DecimalFormatSymbols(Locale.US)
 }
 
-/** 1_000 -> 1K, 1_000_000 -> 1M. Giữ 1 chữ số thập phân, bỏ .0 nếu không cần. */
-fun formatMoneyShortVnd(amount: Long, withCurrency: Boolean = false): String {
-    val absAmount = abs(amount)
-    val sign = if (amount < 0) "-" else ""
-    val text = when {
-        absAmount >= 1_000_000 -> sign + oneDecimalUS.format(absAmount / 1_000_000.0) + "M"
-        absAmount >= 1_000 -> sign + oneDecimalUS.format(absAmount / 1_000.0) + "K"
-        else -> sign + NumberFormat.getNumberInstance(Locale("vi", "VN")).format(absAmount)
-    }
-    return if (withCurrency) "$text ₫" else text
+fun formatMoneyVnd(amount: Long, withCurrency: Boolean = true): String {
+    val formatted = java.text.NumberFormat
+        .getNumberInstance(Locale("vi", "VN"))
+        .format(amount)
+
+    return if (withCurrency) "$formatted đ" else formatted
 }
 
 enum class TxType { TOP_UP, WITHDRAW, PAYMENT, EARN, REFUND }

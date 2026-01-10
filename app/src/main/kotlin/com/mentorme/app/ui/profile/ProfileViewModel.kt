@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import com.mentorme.app.core.utils.AppResult
 import com.mentorme.app.data.dto.profile.ProfileMePayload
+import com.mentorme.app.data.remote.MentorMeApi
 import com.mentorme.app.data.repository.ProfileRepository
 import com.mentorme.app.domain.usecase.profile.UpdateProfileParams
 import com.mentorme.app.data.mapper.toUi as toUiMapper
@@ -25,13 +26,17 @@ data class ProfileUiState(
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-    private val repo: ProfileRepository
+    private val repo: ProfileRepository,
+    private val api: MentorMeApi // ✅ Inject API để gọi getMenteeStats
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ProfileUiState())
     val state: StateFlow<ProfileUiState> = _state
 
-    init { refresh() }
+    init {
+        refresh()
+        // ✅ REMOVED: Không gọi loadMenteeStats ở đây vì profile chưa có
+    }
 
     fun refresh() = viewModelScope.launch {
         _state.value = _state.value.copy(loading = true, error = null)
@@ -39,6 +44,9 @@ class ProfileViewModel @Inject constructor(
             is AppResult.Success -> {
                 val payload: ProfileMePayload = res.data
                 val (uiProfile, uiRole) = payload.toUiMapper()
+
+                android.util.Log.d("ProfileViewModel", "Profile loaded: role=$uiRole")
+
                 _state.value = ProfileUiState(
                     loading = false,
                     profile = uiProfile,
@@ -46,6 +54,14 @@ class ProfileViewModel @Inject constructor(
                     edited = uiProfile.copy(),
                     editing = false
                 )
+
+                // ✅ Load stats sau khi profile đã set vào state
+                if (uiRole == UserRole.MENTEE) {
+                    android.util.Log.d("ProfileViewModel", "User is MENTEE, loading stats...")
+                    loadMenteeStats()
+                } else {
+                    android.util.Log.d("ProfileViewModel", "User is NOT mentee, skip loading stats")
+                }
             }
             is AppResult.Error -> {
                 _state.value = _state.value.copy(
@@ -54,6 +70,44 @@ class ProfileViewModel @Inject constructor(
                 )
             }
             AppResult.Loading -> Unit
+        }
+    }
+
+    // ✅ NEW: Load mentee stats từ backend
+    private fun loadMenteeStats() = viewModelScope.launch {
+        try {
+            android.util.Log.d("ProfileViewModel", "📡 Calling getMenteeStats API...")
+            val response = api.getMenteeStats()
+            android.util.Log.d("ProfileViewModel", "📥 Response: code=${response.code()}, success=${response.isSuccessful}")
+
+            if (response.isSuccessful) {
+                val envelope = response.body()
+                android.util.Log.d("ProfileViewModel", "📦 Envelope: $envelope")
+                val stats = envelope?.data
+                android.util.Log.d("ProfileViewModel", "📊 Stats: totalSessions=${stats?.totalSessions}, totalSpent=${stats?.totalSpent}")
+
+                if (stats != null) {
+                    val currentProfile = _state.value.profile
+                    if (currentProfile != null) {
+                        android.util.Log.d("ProfileViewModel", "✅ Updating profile with stats...")
+                        val updatedProfile = currentProfile.copy(
+                            totalSessions = stats.totalSessions,
+                            totalSpent = stats.totalSpent
+                        )
+                        _state.value = _state.value.copy(profile = updatedProfile)
+                        android.util.Log.d("ProfileViewModel", "✅ Profile updated successfully!")
+                    } else {
+                        android.util.Log.e("ProfileViewModel", "❌ Current profile is null, cannot update stats")
+                    }
+                } else {
+                    android.util.Log.e("ProfileViewModel", "❌ Stats data is null")
+                }
+            } else {
+                val errorBody = response.errorBody()?.string()
+                android.util.Log.e("ProfileViewModel", "❌ API error: ${response.message()}, body: $errorBody")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ProfileViewModel", "❌ Exception loading mentee stats: ${e.message}", e)
         }
     }
 

@@ -40,9 +40,16 @@ import com.mentorme.app.ui.theme.liquidGlass
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.core.time.formatIsoToLocalShort
 import java.util.Calendar
+import java.text.NumberFormat
+import java.util.Locale
 import androidx.compose.ui.graphics.Brush
 
 // ---------- Helpers (API 24 friendly) ----------
+private fun formatVnd(amount: Double): String {
+    val nf = NumberFormat.getCurrencyInstance(Locale("vi", "VN"))
+    return nf.format(amount)
+}
+
 private fun todayDate(): String {
     val c = Calendar.getInstance()
     return "%04d-%02d-%02d".format(
@@ -112,7 +119,7 @@ enum class CalendarTab(val label: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(
-    bookings: List<Booking> = MockData.mockBookings,
+    bookings: List<Booking>,  // ✅ REMOVED default mock data - always use real data from ViewModel
     startTab: CalendarTab = CalendarTab.Upcoming,
     onJoinSession: (Booking) -> Unit = {},
     onRate: (Booking) -> Unit = {},
@@ -121,6 +128,14 @@ fun CalendarScreen(
     onCancel: (Booking) -> Unit = {},
     onOpen: (Booking) -> Unit = {}
 ) {
+    // ✅ LOG: Xác nhận nhận data từ backend
+    androidx.compose.runtime.LaunchedEffect(bookings.size) {
+        android.util.Log.d("CalendarScreen", "📊 Received ${bookings.size} bookings from backend")
+        bookings.take(3).forEachIndexed { i, b ->
+            android.util.Log.d("CalendarScreen", "  [$i] id=${b.id}, price=${b.price}, status=${b.status}, date=${b.date}")
+        }
+    }
+
     var active by rememberSaveable(startTab) { mutableStateOf(startTab) }
 
     val nowDate = remember { todayDate() }
@@ -474,31 +489,87 @@ private fun BookingCard(
                 }
             }
 
-            // Duration và Price
+            // Duration và Price - ✅ NEW: Frosted glass với background mờ đục, nội dung rõ ràng
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 val minutes = durationMinutes(booking.startTime, booking.endTime)
 
+                // Duration Box - Gradient xanh dương mờ đục (haze effect)
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
-                        .liquidGlass(radius = 12.dp)
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    Color(0xFF3B82F6).copy(alpha = 0.35f),
+                                    Color(0xFF2563EB).copy(alpha = 0.35f)
+                                )
+                            )
+                        )
+                        .border(
+                            BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
                 ) {
-                    Text("${minutes} phút", color = Color.White)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.CalendarToday,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            "$minutes phút",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
 
                 Spacer(Modifier.weight(1f))
 
+                // Price Box - Gradient vàng/cam mờ đục (haze effect)
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
-                        .liquidGlass(radius = 12.dp)
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    Color(0xFFFBBF24).copy(alpha = 0.4f),
+                                    Color(0xFFF59E0B).copy(alpha = 0.4f)
+                                )
+                            )
+                        )
+                        .border(
+                            BorderStroke(1.dp, Color(0xFFFBBF24).copy(alpha = 0.3f)),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
                 ) {
-                    Text("\$${"%.2f".format(booking.price)}", color = Color.White)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.CreditCard,
+                            contentDescription = null,
+                            tint = Color(0xFFFBBF24),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            formatVnd(booking.price),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
             }
 
@@ -663,38 +734,39 @@ private fun BookingCard(
 
 @Composable
 private fun StatusPill(status: BookingStatus, sessionEnded: Boolean = false) {
-    // ✅ Override: CONFIRMED but ended → show as COMPLETED
-    val (label, dotColor, icon) = when {
+    // ✅ NEW: Background màu mờ đục (frosted glass) với border nổi bật
+    val (label, bgColor, textColor, borderColor, icon) = when {
         status == BookingStatus.CONFIRMED && sessionEnded ->
-            Triple("Hoàn thành", Color(0xFF8B5CF6), Icons.Default.Star)
+            Tuple5("Hoàn thành", Color(0xFF8B5CF6).copy(alpha = 0.35f), Color.White, Color(0xFF8B5CF6).copy(alpha = 0.5f), Icons.Default.Star)
         status == BookingStatus.PAYMENT_PENDING ->
-            Triple("Chờ thanh toán", Color(0xFFF59E0B), Icons.Default.CreditCard)
+            Tuple5("Chờ thanh toán", Color(0xFFF59E0B).copy(alpha = 0.35f), Color.White, Color(0xFFF59E0B).copy(alpha = 0.6f), Icons.Default.CreditCard)
         status == BookingStatus.PENDING_MENTOR ->
-            Triple("Chờ mentor", Color(0xFFF59E0B), Icons.Default.HourglassEmpty)
+            Tuple5("Chờ mentor", Color(0xFFFBBF24).copy(alpha = 0.35f), Color.White, Color(0xFFFBBF24).copy(alpha = 0.6f), Icons.Default.HourglassEmpty)
         status == BookingStatus.CONFIRMED ->
-            Triple("Xác nhận", Color(0xFF10B981), Icons.Default.CheckCircle)
+            Tuple5("Xác nhận", Color(0xFF10B981).copy(alpha = 0.35f), Color.White, Color(0xFF10B981).copy(alpha = 0.6f), Icons.Default.CheckCircle)
         status == BookingStatus.COMPLETED ->
-            Triple("Hoàn thành", Color(0xFF8B5CF6), Icons.Default.Star)
+            Tuple5("Hoàn thành", Color(0xFF8B5CF6).copy(alpha = 0.35f), Color.White, Color(0xFF8B5CF6).copy(alpha = 0.5f), Icons.Default.Star)
         status == BookingStatus.NO_SHOW_MENTOR ->
-            Triple("No-show mentor", Color(0xFFF97316), Icons.Default.Warning)
+            Tuple5("No-show mentor", Color(0xFFF97316).copy(alpha = 0.35f), Color.White, Color(0xFFF97316).copy(alpha = 0.6f), Icons.Default.Warning)
         status == BookingStatus.NO_SHOW_MENTEE ->
-            Triple("No-show mentee", Color(0xFFF97316), Icons.Default.Warning)
+            Tuple5("No-show mentee", Color(0xFFF97316).copy(alpha = 0.35f), Color.White, Color(0xFFF97316).copy(alpha = 0.6f), Icons.Default.Warning)
         status == BookingStatus.NO_SHOW_BOTH ->
-            Triple("No-show cả hai", Color(0xFFF97316), Icons.Default.Warning)
+            Tuple5("No-show cả hai", Color(0xFFF97316).copy(alpha = 0.35f), Color.White, Color(0xFFF97316).copy(alpha = 0.6f), Icons.Default.Warning)
         status == BookingStatus.CANCELLED ->
-            Triple("Đã hủy", Color(0xFFEF4444), Icons.Default.Cancel)
+            Tuple5("Đã hủy", Color(0xFFEF4444).copy(alpha = 0.35f), Color.White, Color(0xFFEF4444).copy(alpha = 0.6f), Icons.Default.Cancel)
         status == BookingStatus.DECLINED ->
-            Triple("Từ chối", Color(0xFFEF4444), Icons.Default.Block)
+            Tuple5("Từ chối", Color(0xFFDC2626).copy(alpha = 0.35f), Color.White, Color(0xFFDC2626).copy(alpha = 0.6f), Icons.Default.Block)
         status == BookingStatus.FAILED ->
-            Triple("Thất bại", Color(0xFFEF4444), Icons.Default.Error)
+            Tuple5("Thất bại", Color(0xFFB91C1C).copy(alpha = 0.35f), Color.White, Color(0xFFB91C1C).copy(alpha = 0.6f), Icons.Default.Error)
         else ->
-            Triple("Unknown", Color.Gray, Icons.Default.Error)
+            Tuple5("Unknown", Color.Gray.copy(alpha = 0.35f), Color.White, Color.Gray.copy(alpha = 0.6f), Icons.Default.Error)
     }
 
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(14.dp))
-            .liquidGlass(radius = 14.dp)
+            .background(bgColor)
+            .border(BorderStroke(1.dp, borderColor), RoundedCornerShape(14.dp))
             .padding(horizontal = 10.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -705,18 +777,23 @@ private fun StatusPill(status: BookingStatus, sessionEnded: Boolean = false) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = dotColor,
-                modifier = Modifier.size(16.dp)
+                tint = textColor,
+                modifier = Modifier.size(14.dp)
             )
             Text(
                 label,
-                color = Color.White,
+                color = textColor,
                 style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.Bold
             )
         }
     }
 }
+
+// Helper data class for 5 values
+private data class Tuple5<A, B, C, D, E>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E)
+// Helper data class for 4 values
+private data class Tuple4<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
 @Composable
 private fun PolicyTag(text: String) {

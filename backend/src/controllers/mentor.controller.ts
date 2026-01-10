@@ -112,8 +112,40 @@ export const getMentorById = asyncHandler(async (req: Request, res: Response) =>
   // Optionally enforce role: if ((user as any).role !== "mentor") return response.notFound(res, "Mentor not found");
 
   const profile = await Profile.findOne({ user: user._id }).lean();
-  const card = toMentorCard(user, profile);
-  return response.ok(res, card);
+
+  // ✅ FIXED: Trả về đầy đủ thông tin giống getPublicProfile thay vì chỉ MentorCard
+  if (!profile) {
+    return response.notFound(res, "Mentor profile not found");
+  }
+
+  const mentorProfile = {
+    // Basic MentorCard fields
+    id: String(user._id),
+    ownerId: String(user._id),
+    userId: String(user._id),
+    name: profile.fullName || (user as any).userName || "",
+    role: profile.jobTitle || "",
+    company: (profile as any).company || "",
+    rating: Number((profile as any).rating?.average ?? 0) || 0,
+    ratingCount: Number((profile as any).rating?.count ?? 0) || 0,
+    hourlyRate: Number(profile.hourlyRateVnd ?? 0) || 0,
+    skills: Array.isArray(profile.skills) ? profile.skills : [],
+    avatarUrl: profile.avatarUrl || "",
+
+    // ✅ FIXED: Thêm các field còn thiếu
+    phone: profile.phone,
+    bio: profile.bio,
+    languages: Array.isArray(profile.languages) ? profile.languages : [],
+    category: profile.category,
+    hourlyRateVnd: profile.hourlyRateVnd,
+    headline: profile.headline,
+    experience: profile.experience,
+    education: profile.education,
+    location: profile.location,
+    links: profile.links,
+  };
+
+  return response.ok(res, mentorProfile);
 });
 
 export default {

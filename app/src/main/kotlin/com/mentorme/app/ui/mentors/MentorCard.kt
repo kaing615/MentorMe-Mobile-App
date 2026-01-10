@@ -155,7 +155,7 @@ fun MentorCard(
                         )
                         Spacer(Modifier.width(4.dp))
                         Text(
-                            text = "${mentor.rating}",
+                            text = "%.1f".format(mentor.rating), // ✅ Làm tròn đến 1 chữ số thập phân
                             color = Color.White,
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold

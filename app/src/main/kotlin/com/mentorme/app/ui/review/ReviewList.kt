@@ -13,8 +13,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.mentorme.app.data.dto.review.ReviewDto
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import java.text.SimpleDateFormat
@@ -120,23 +122,28 @@ fun ReviewItem(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Avatar placeholder
+                    // Avatar
                     Box(
                         modifier = Modifier
                             .size(40.dp)
-                            .clip(CircleShape)
-                            .then(
-                                Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                            ),
+                            .clip(CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.6f),
-                            modifier = Modifier.size(24.dp)
-                        )
+                        if (!review.mentee.avatarUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = review.mentee.avatarUrl,
+                                contentDescription = "Avatar of ${review.mentee.name}",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.6f),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
 
                     // Name and date

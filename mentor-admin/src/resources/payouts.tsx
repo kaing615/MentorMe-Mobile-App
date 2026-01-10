@@ -47,15 +47,20 @@ type Payout = {
 /* ================= FILTERS ================= */
 
 const statusChoices = [
-  { id: "PENDING", name: "Pending" },
-  { id: "PROCESSING", name: "Processing" },
-  { id: "PAID", name: "Paid" },
-  { id: "FAILED", name: "Failed" },
+  { id: "PENDING", name: "Chờ duyệt" },
+  { id: "PROCESSING", name: "Đang xử lý" },
+  { id: "PAID", name: "Đã chi trả" },
+  { id: "FAILED", name: "Thất bại" },
 ];
+
+const statusLabelMap = statusChoices.reduce<Record<string, string>>((acc, choice) => {
+  acc[choice.id] = choice.name;
+  return acc;
+}, {});
 
 /* ================= UI FIELDS ================= */
 
-function ShortId() {
+function ShortId({ label: _label }: { label?: string }) {
   const record = useRecordContext<Payout>();
   if (!record) return null;
   return (
@@ -65,7 +70,7 @@ function ShortId() {
   );
 }
 
-function AmountField() {
+function AmountField({ label: _label }: { label?: string }) {
   const record = useRecordContext<Payout>();
   if (!record) return null;
   return (
@@ -75,11 +80,11 @@ function AmountField() {
   );
 }
 
-function StatusChip() {
+function StatusChip({ label: _label }: { label?: string }) {
   const record = useRecordContext<Payout>();
   if (!record) return null;
 
-  const map: any = {
+  const map: Record<string, "warning" | "info" | "success" | "error"> = {
     PENDING: "warning",
     PROCESSING: "info",
     PAID: "success",
@@ -89,7 +94,7 @@ function StatusChip() {
   return (
     <Chip
       size="small"
-      label={record.status}
+      label={statusLabelMap[record.status] || record.status}
       color={map[record.status]}
       variant="outlined"
     />
@@ -112,22 +117,24 @@ function PayoutDrawer({
   return (
     <Drawer anchor="right" open={open} onClose={onClose}>
       <Box sx={{ width: 360, p: 2 }}>
-        <Typography variant="h6">Payout Detail</Typography>
+        <Typography variant="h6">Chi tiết yêu cầu rút tiền</Typography>
         <Divider sx={{ my: 2 }} />
 
-        <Typography>ID: {record.id}</Typography>
+        <Typography>Mã: {record.id}</Typography>
         <Typography>Mentor: {record.mentorId}</Typography>
         <Typography>
-          Amount: {record.amount.toLocaleString()} {record.currency}
-        </Typography>
-        <Typography>Status: {record.status}</Typography>
-        <Typography>Attempts: {record.attemptCount}</Typography>
-        <Typography>External ID: {record.externalId || "—"}</Typography>
-        <Typography>
-          Created: {new Date(record.createdAt).toLocaleString()}
+          Số tiền: {record.amount.toLocaleString()} {record.currency}
         </Typography>
         <Typography>
-          Updated: {new Date(record.updatedAt).toLocaleString()}
+          Trạng thái: {statusLabelMap[record.status] || record.status}
+        </Typography>
+        <Typography>Số lần thử: {record.attemptCount}</Typography>
+        <Typography>Mã ngoài: {record.externalId || "—"}</Typography>
+        <Typography>
+          Tạo lúc: {new Date(record.createdAt).toLocaleString()}
+        </Typography>
+        <Typography>
+          Cập nhật: {new Date(record.updatedAt).toLocaleString()}
         </Typography>
       </Box>
     </Drawer>
@@ -148,29 +155,40 @@ function PayoutActions() {
 
   if (!record) return null;
 
-  const callApi = async (path: string, message: string, type: any) => {
-    await fetch(`${apiUrl}${path}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-      },
-    });
-    notify(message, { type });
-    refresh();
-    setConfirm(null);
+  const callApi = async (path: string, message: string, type: "success" | "info") => {
+    try {
+      const res = await fetch(`${apiUrl}${path}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+        },
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Thao tác thất bại");
+      }
+
+      notify(message, { type });
+      refresh();
+      setConfirm(null);
+    } catch (e: any) {
+      notify(e.message || "Thao tác thất bại", { type: "error" });
+      setConfirm(null);
+    }
   };
 
   return (
     <>
       <Stack direction="row" spacing={1}>
-        <Tooltip title="View detail">
+        <Tooltip title="Xem chi tiết">
           <IconButton onClick={() => setDrawerOpen(true)}>
             <VisibilityIcon fontSize="small" />
           </IconButton>
         </Tooltip>
 
         {record.status === "PENDING" && (
-          <Tooltip title="Approve payout">
+          <Tooltip title="Duyệt yêu cầu">
             <IconButton color="success" onClick={() => setConfirm("approve")}>
               <CheckCircleIcon fontSize="small" />
             </IconButton>
@@ -178,7 +196,7 @@ function PayoutActions() {
         )}
 
         {["FAILED", "PROCESSING"].includes(record.status) && (
-          <Tooltip title="Retry payout">
+          <Tooltip title="Thử lại">
             <IconButton color="warning" onClick={() => setConfirm("retry")}>
               <ReplayIcon fontSize="small" />
             </IconButton>
@@ -186,7 +204,7 @@ function PayoutActions() {
         )}
 
         {record.status === "PENDING" && (
-          <Tooltip title="Reject payout">
+          <Tooltip title="Từ chối yêu cầu">
             <IconButton color="error" onClick={() => setConfirm("reject")}>
               <CancelIcon fontSize="small" />
             </IconButton>
@@ -194,48 +212,35 @@ function PayoutActions() {
         )}
       </Stack>
 
-      {/* CONFIRMS */}
       <Confirm
         isOpen={confirm === "approve"}
-        title="Approve payout"
-        content="Approve this payout request?"
+        title="Duyệt yêu cầu rút tiền"
+        content="Duyệt yêu cầu rút tiền này?"
         confirmColor="primary"
         onConfirm={() =>
-          callApi(
-            `/admin/payouts/${record.id}/approve`,
-            "Payout approved",
-            "success",
-          )
+          callApi(`/admin/payouts/${record.id}/approve`, "Đã duyệt yêu cầu", "success")
         }
         onClose={() => setConfirm(null)}
       />
 
       <Confirm
         isOpen={confirm === "retry"}
-        title="Retry payout"
-        content="Retry this payout?"
+        title="Thử lại yêu cầu"
+        content="Thử lại yêu cầu rút tiền này?"
         confirmColor="warning"
         onConfirm={() =>
-          callApi(
-            `/admin/payouts/${record.id}/retry`,
-            "Retry triggered",
-            "info",
-          )
+          callApi(`/admin/payouts/${record.id}/retry`, "Đã gửi yêu cầu thử lại", "info")
         }
         onClose={() => setConfirm(null)}
       />
 
       <Confirm
         isOpen={confirm === "reject"}
-        title="Reject payout"
-        content="Reject this payout request?"
+        title="Từ chối yêu cầu"
+        content="Từ chối yêu cầu rút tiền này?"
         confirmColor="warning"
         onConfirm={() =>
-          callApi(
-            `/admin/payouts/${record.id}/reject`,
-            "Payout rejected",
-            "info",
-          )
+          callApi(`/admin/payouts/${record.id}/reject`, "Đã từ chối yêu cầu", "info")
         }
         onClose={() => setConfirm(null)}
       />
@@ -254,14 +259,15 @@ function PayoutActions() {
 export function PayoutList() {
   return (
     <List
-      title="💸 Mentor Payouts"
+      title="Yêu cầu rút tiền"
       filters={[
-        <TextInput key="mentorId" source="mentorId" label="Mentor ID" />,
+        <TextInput key="mentorId" source="mentorId" label="ID mentor" />,
         <SelectInput
           key="status"
           source="status"
           choices={statusChoices}
           alwaysOn
+          label="Trạng thái"
         />,
       ]}
       sort={{ field: "createdAt", order: "DESC" }}
@@ -274,13 +280,13 @@ export function PayoutList() {
           "& .RaDatagrid-row": { height: 56 },
         }}
       >
-        <ShortId />
-        <TextField source="mentorId" />
-        <AmountField />
-        <StatusChip />
-        <NumberField source="attemptCount" />
-        <TextField source="externalId" />
-        <DateField source="createdAt" showTime />
+        <ShortId label="Mã yêu cầu" />
+        <TextField source="mentorId" label="ID mentor" />
+        <AmountField label="Số tiền" />
+        <StatusChip label="Trạng thái" />
+        <NumberField source="attemptCount" label="Số lần thử" />
+        <TextField source="externalId" label="Mã ngoài" />
+        <DateField source="createdAt" showTime label="Tạo lúc" />
         <PayoutActions />
       </Datagrid>
     </List>

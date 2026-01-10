@@ -1221,6 +1221,61 @@ export const completeBooking = asyncHandler(async (req: Request, res: Response) 
   return ok(res, formatBookingResponse(booking, userSummaries), 'Booking completed successfully');
 });
 
+/**
+ * GET /bookings/mentee/stats
+ * Get mentee statistics: total sessions and total spent
+ */
+export const getMenteeStats = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id;
+  if (!userId) {
+    return unauthorized(res, 'UNAUTHORIZED');
+  }
+
+  console.log('📊 [getMenteeStats] userId:', userId);
+
+  const now = new Date();
+
+  //  FIXED: Count sessions that have ENDED (Confirmed/Completed + endTime < now)
+  const sessionsQuery = {
+    mentee: userId,
+    status: { $in: ['Confirmed', 'Completed'] },
+    endTime: { $lt: now },  //  Session đã kết thúc
+  };
+
+  const completedSessions = await Booking.find(sessionsQuery).lean();
+
+  console.log('📊 [getMenteeStats] Found', completedSessions.length, 'completed sessions (endTime < now)');
+
+  const totalSessions = completedSessions.length;
+
+  //  Calculate totalSpent from ALL PAID bookings (Confirmed + Completed)
+  // Because money is deducted when booking is Confirmed (after payment)
+  const paidBookings = await Booking.find({
+    mentee: userId,
+    status: { $in: ['Confirmed', 'Completed'] },
+  }).lean();
+
+  console.log(' [getMenteeStats] Found', paidBookings.length, 'paid bookings (Confirmed + Completed)');
+
+  const totalSpent = paidBookings.reduce((sum, booking) => {
+    const price = (booking as any).price || 0;
+    console.log(' [getMenteeStats] Booking', booking._id, '- status:', (booking as any).status, '- price:', price, '- endTime:', (booking as any).endTime);
+    return sum + price;
+  }, 0);
+
+  console.log(' [getMenteeStats] Result: totalSessions=', totalSessions, 'totalSpent=', totalSpent);
+
+  return ok(
+    res,
+    {
+      totalSessions,
+      totalSpent,
+    },
+    'Mentee stats fetched successfully'
+  );
+});
+
+
 export default {
   createBooking,
   getBookings,
@@ -1240,4 +1295,5 @@ export default {
   processExpiredBookings,
   processPendingMentorBookings,
   processBookingReminders,
+  getMenteeStats, // ✅ Mentee stats
 };

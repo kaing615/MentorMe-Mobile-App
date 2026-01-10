@@ -199,13 +199,13 @@ export const getPublicProfile = asyncHandler(
       skills: profile.skills,
       languages: profile.languages,
       links: profile.links,
+      phone: profile.phone, // ✅ FIXED: Thêm phone
+      category: profile.category, // ✅ FIXED: Thêm category (lĩnh vực quan tâm)
+      hourlyRateVnd: profile.hourlyRateVnd, // ✅ FIXED: Thêm hourlyRateVnd (cho mentor)
     };
 
-    return responseHandler.ok(
-      res,
-      { profile: publicProfile },
-      "Public profile fetched"
-    );
+    //  FIXED: Trả về publicProfile trực tiếp, không wrap thêm { profile: ... }
+    return responseHandler.ok(res, publicProfile, "Public profile fetched");
   }
 );
 
@@ -482,11 +482,13 @@ export const createRequiredProfile = asyncHandler(
     });
 
     const newStatus = role === "mentor" ? "pending-mentor" : "active";
-    await User.findByIdAndUpdate(
-      userId,
-      { $set: { status: newStatus } },
-      { new: false }
-    );
+    const userUpdates: any = { status: newStatus };
+    if (role === "mentor") {
+      userUpdates.mentorApplicationStatus = "pending";
+      userUpdates.mentorApplicationSubmittedAt = new Date();
+      userUpdates.mentorApplicationNote = "";
+    }
+    await User.findByIdAndUpdate(userId, { $set: userUpdates }, { new: false });
 
     const next = role === "mentor" ? "/onboarding/review" : "/home";
     const msg =

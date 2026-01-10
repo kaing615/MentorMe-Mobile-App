@@ -16,14 +16,22 @@ export const LoginPage = () => (
       },
     }}
   >
-     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3, width: '100%' }}>
-        <Typography variant="h5" color="primary" fontWeight="bold" gutterBottom>
-            MentorMe Admin
-        </Typography>
-        <Typography variant="body2" color="text.secondary" align="center">
-            Welcome back! Please login to continue.
-        </Typography>
-     </Box>
-     <LoginForm />
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        mb: 3,
+        width: "100%",
+      }}
+    >
+      <Typography variant="h5" color="primary" fontWeight="bold" gutterBottom>
+        MentorMe Admin
+      </Typography>
+      <Typography variant="body2" color="text.secondary" align="center">
+        Chào mừng bạn quay lại! Vui lòng đăng nhập để tiếp tục.
+      </Typography>
+    </Box>
+    <LoginForm />
   </Login>
 );

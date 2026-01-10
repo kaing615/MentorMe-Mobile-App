@@ -80,6 +80,15 @@ fun MentorCard(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
+                        // Show initials by default (background)
+                        Text(
+                            text = initials,
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        // Try to load avatar image on top if URL exists
                         if (avatarUrl.isNotBlank()) {
                             AsyncImage(
                                 model = ImageRequest.Builder(LocalContext.current)
@@ -89,13 +98,6 @@ fun MentorCard(
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.matchParentSize().clip(CircleShape)
-                            )
-                        } else {
-                            Text(
-                                text = initials,
-                                color = Color.White,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
                             )
                         }
                     }

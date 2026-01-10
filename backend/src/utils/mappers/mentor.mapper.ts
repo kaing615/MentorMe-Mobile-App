@@ -10,6 +10,7 @@ export interface MentorCard {
   hourlyRate: number;
   skills: string[];
   avatarUrl: string;
+  isAvailable?: boolean; // ✅ NEW: Mentor has published availability
 }
 
 /**
@@ -52,6 +53,9 @@ export function toMentorCard(docUser: any, docProfile?: any): MentorCard {
 
   const avatarUrl: string = docProfile?.avatarUrl ? String(docProfile.avatarUrl) : "";
 
+  // ✅ NEW: isAvailable from aggregation pipeline
+  const isAvailable: boolean = docProfile?.isAvailable === true;
+
   // Return only the required fields
   return {
     id,
@@ -65,6 +69,7 @@ export function toMentorCard(docUser: any, docProfile?: any): MentorCard {
     hourlyRate,
     skills,
     avatarUrl,
+    isAvailable, // ✅ Add to response
   };
 }
 

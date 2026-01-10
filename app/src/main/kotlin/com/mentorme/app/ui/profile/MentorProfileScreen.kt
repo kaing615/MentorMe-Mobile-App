@@ -53,6 +53,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import com.mentorme.app.data.dto.wallet.MentorPayoutDto
 import com.mentorme.app.data.dto.wallet.PayoutStatus
+import com.mentorme.app.data.dto.mentor.MentorOverallStatsDto
 import com.mentorme.app.ui.navigation.Routes
 import com.mentorme.app.ui.wallet.PayProvider
 import com.mentorme.app.ui.wallet.WalletViewModel
@@ -279,6 +280,7 @@ fun MentorProfileScreen(
                     when (selectedTab) {
                         0 -> MentorInfoTab(
                             profile = profile,
+                            overallStats = overallStats, // ✅ Truyền stats để hiển thị rating
                             isEditing = isEditing,
                             edited = edited ?: profile,
                             onEditToggle = { vm.toggleEdit() },
@@ -340,6 +342,7 @@ fun MentorProfileScreen(
 @Composable
 private fun MentorInfoTab(
     profile: UserProfile,
+    overallStats: MentorOverallStatsDto?, // ✅ Nhận stats để lấy rating
     isEditing: Boolean,
     edited: UserProfile,
     onEditToggle: () -> Unit,
@@ -392,7 +395,49 @@ private fun MentorInfoTab(
                     if (!isEditing) {
                         Spacer(Modifier.height(12.dp))
                         Text(profile.fullName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text(headline, color = Color(0xFF60A5FA))
+
+                        // ✅ Rating badge thay vì headline skills - Haze compose style
+                        Spacer(Modifier.height(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(
+                                            Color(0xFFFFD700).copy(alpha = 0.35f), // Gold
+                                            Color(0xFFFFA500).copy(alpha = 0.25f)  // Orange
+                                        )
+                                    )
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = Color(0xFFFFD700).copy(alpha = 0.6f),
+                                    shape = RoundedCornerShape(16.dp)
+                                )
+                                .padding(horizontal = 16.dp, vertical = 10.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Star,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFFD700), // Gold star
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = if (overallStats != null && overallStats.averageRating > 0) {
+                                        "%.1f Đánh giá trung bình".format(overallStats.averageRating)
+                                    } else {
+                                        "Chưa có đánh giá"
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
                     }
                 }
 

@@ -149,6 +149,15 @@ fun AvatarPicker(
             .clickable(enabled = enabled) { pickImageLauncher.launch("image/*") },
         contentAlignment = Alignment.Center
     ) {
+        // Always show initial as fallback background
+        Text(
+            initial.toString(),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Black,
+            color = Color.White
+        )
+
+        // Load avatar on top if URL exists
         if (!avatarUrl.isNullOrBlank()) {
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
@@ -158,13 +167,6 @@ fun AvatarPicker(
                 contentDescription = "Avatar",
                 modifier = Modifier.matchParentSize().clip(CircleShape),
                 contentScale = ContentScale.Crop
-            )
-        } else {
-            Text(
-                initial.toString(),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Black,
-                color = Color.White
             )
         }
 

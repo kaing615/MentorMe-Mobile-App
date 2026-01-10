@@ -45,9 +45,9 @@ class ChatRepositoryImpl @Inject constructor(
             val role = dataStoreManager.getUserRole().first()
             val userId = dataStoreManager.getUserId().first()
             val response = if (role.isNullOrBlank()) {
-                bookingRepository.getBookings(page = 1, limit = 50)
+                bookingRepository.getBookings(page = 1, limit = 100)
             } else {
-                bookingRepository.getBookings(role = role, page = 1, limit = 50)
+                bookingRepository.getBookings(role = role, page = 1, limit = 100)
             }
 
             if (response is AppResult.Success) {
@@ -91,9 +91,9 @@ class ChatRepositoryImpl @Inject constructor(
 
             // Get all bookings to find conversation with this peer
             val response = if (role.isNullOrBlank()) {
-                bookingRepository.getBookings(page = 1, limit = 50)
+                bookingRepository.getBookings(page = 1, limit = 100)
             } else {
-                bookingRepository.getBookings(role = role, page = 1, limit = 50)
+                bookingRepository.getBookings(role = role, page = 1, limit = 100)
             }
 
             if (response is AppResult.Success) {

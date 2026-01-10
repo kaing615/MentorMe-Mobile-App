@@ -82,6 +82,22 @@ fun AiChatPanel(
                                 mentor = mentor,
                                 onClick = { onMentorClick(mentor.mentorId) }
                             )
+                            Spacer(Modifier.height(4.dp))
+                        }
+                        
+                        // Show suggestions if available
+                        if (msg.suggestions.isNotEmpty()) {
+                            Spacer(Modifier.height(8.dp))
+                            msg.suggestions.forEach { suggestion ->
+                                SuggestionChip(
+                                    text = suggestion,
+                                    onClick = {
+                                        input = suggestion
+                                        viewModel.ask(suggestion)
+                                        input = ""
+                                    }
+                                )
+                            }
                         }
                     }
                 }

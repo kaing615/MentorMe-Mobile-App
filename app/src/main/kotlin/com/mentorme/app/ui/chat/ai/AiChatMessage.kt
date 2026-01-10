@@ -10,6 +10,7 @@ sealed class AiChatMessage {
     data class Ai(
         val text: String,
         val mentors: List<MentorWithExplanation> = emptyList(),
-        val type: String = "text" // "text" | "mentor_recommend" | "app_qa"
+        val type: String = "text",
+        val suggestions: List<String> = emptyList()
     ) : AiChatMessage()
 }

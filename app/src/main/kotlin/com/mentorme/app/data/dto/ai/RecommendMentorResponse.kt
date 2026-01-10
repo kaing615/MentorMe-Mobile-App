@@ -1,13 +1,13 @@
 package com.mentorme.app.data.dto.ai
 
-import com.mentorme.app.data.dto.mentors.MentorCardDto
 import com.google.gson.annotations.SerializedName
 
 data class RecommendMentorResponse(
     val type: String,
     val answer: String?,
     val ai: AiIntentResult?,
-    val mentors: List<MentorWithExplanation>?
+    val mentors: List<MentorWithExplanation>?,
+    val suggestions: List<String>? = null
 )
 
 data class AiIntentResult(

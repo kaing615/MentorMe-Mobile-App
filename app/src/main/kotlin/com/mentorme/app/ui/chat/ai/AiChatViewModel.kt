@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class AiChatViewModel @Inject constructor(
     private val aiRepository: AiRepository,
-    private val historyManager: AiChatHistoryManager  // Inject
+    private val historyManager: AiChatHistoryManager
 ) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<AiChatMessage>>(emptyList())
@@ -24,25 +24,34 @@ class AiChatViewModel @Inject constructor(
     val loading = _loading.asStateFlow()
 
     init {
-        // Load history khi khởi tạo
         loadHistory()
     }
 
     private fun loadHistory() {
         viewModelScope.launch {
             val history = historyManager.loadMessages()
-            _messages.value = history
+            if (history.isEmpty()) {
+                // Add welcome message
+                _messages.value = listOf(
+                    AiChatMessage.Ai(
+                        text = "Xin chào! 👋 Tôi là trợ lý AI của MentorMe.\n\nTôi có thể giúp bạn tìm mentor phù hợp!",
+                        type = "text",
+                        suggestions = listOf(
+                            "Tìm mentor Java cho người mới",
+                            "App có những tính năng gì?"
+                        )
+                    )
+                )
+            } else {
+                _messages.value = history
+            }
         }
     }
 
     fun ask(message: String) {
         if (message.isBlank()) return
 
-        _messages.update {
-            it + AiChatMessage.User(message)
-        }
-        
-        // Save after adding user message
+        _messages.update { it + AiChatMessage.User(message) }
         saveHistory()
 
         viewModelScope.launch {
@@ -52,47 +61,38 @@ class AiChatViewModel @Inject constructor(
 
             res.fold(
                 onSuccess = { response ->
-                    when (response.type) {
-                        "app_qa" -> {
-                            _messages.update {
-                                it + AiChatMessage.Ai(
-                                    text = response.answer ?: "Em không hiểu câu hỏi này",
-                                    type = "app_qa"
-                                )
-                            }
-                        }
+                    val aiMsg = when (response.type) {
+                        "app_qa" -> AiChatMessage.Ai(
+                            text = response.answer ?: "Em không hiểu câu hỏi này",
+                            type = "app_qa",
+                            suggestions = response.suggestions ?: emptyList()
+                        )
                         "mentor_recommend" -> {
                             val mentors = response.mentors ?: emptyList()
-                            val text = if (mentors.isNotEmpty()) {
-                                "Dựa trên yêu cầu của anh, em gợi ý ${mentors.size} mentor phù hợp:"
-                            } else {
-                                "Em chưa tìm thấy mentor phù hợp với yêu cầu này"
-                            }
-                            _messages.update {
-                                it + AiChatMessage.Ai(
-                                    text = text,
-                                    mentors = mentors,
-                                    type = "mentor_recommend"
-                                )
-                            }
+                            AiChatMessage.Ai(
+                                text = if (mentors.isNotEmpty()) {
+                                    "Dựa trên yêu cầu của bạn, em gợi ý ${mentors.size} mentor phù hợp:"
+                                } else {
+                                    "Em chưa tìm thấy mentor phù hợp"
+                                },
+                                mentors = mentors,
+                                type = "mentor_recommend",
+                                suggestions = response.suggestions ?: emptyList()
+                            )
                         }
-                        else -> {
-                            _messages.update {
-                                it + AiChatMessage.Ai(
-                                    text = "Em không hiểu câu hỏi này",
-                                    type = "text"
-                                )
-                            }
-                        }
+                        else -> AiChatMessage.Ai(
+                            text = response.answer ?: "Em không hiểu",
+                            type = "text",
+                            suggestions = response.suggestions ?: emptyList()
+                        )
                     }
-                    
-                    // Save after AI response
+                    _messages.update { it + aiMsg }
                     saveHistory()
                 },
                 onFailure = { error ->
                     _messages.update {
                         it + AiChatMessage.Ai(
-                            text = "Xin lỗi, em gặp lỗi khi xử lý: ${error.message}",
+                            text = "Xin lỗi, em gặp lỗi: ${error.message}",
                             type = "text"
                         )
                     }
@@ -113,12 +113,12 @@ class AiChatViewModel @Inject constructor(
         viewModelScope.launch {
             historyManager.clearHistory()
             _messages.value = emptyList()
+            loadHistory() // Reload welcome message
         }
     }
-    
+
     override fun onCleared() {
         super.onCleared()
-        // Save trước khi ViewModel bị destroy
         viewModelScope.launch {
             historyManager.saveMessages(_messages.value)
         }

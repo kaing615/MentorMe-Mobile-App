@@ -24,6 +24,10 @@ object Routes {
     const val Messages = "messages"
 
     const val AiChat = "ai_chat"
+    const val AiChatWithMode = "ai_chat?mode={mode}"
+    fun aiChat(mode: String? = null): String {
+        return if (mode.isNullOrBlank()) AiChat else "ai_chat?mode=$mode"
+    }
     const val Profile = "profile"
     const val Chat = "chat"
     const val VideoCall = "video_call"

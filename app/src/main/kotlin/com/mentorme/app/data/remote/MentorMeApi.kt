@@ -274,4 +274,9 @@ interface MentorMeApi {
     suspend fun recommendMentor(
         @Body request: Map<String, String>
     ): Response<ApiEnvelope<RecommendMentorResponse>>
+
+    @POST("ai/mentor-assistant")
+    suspend fun mentorAssistant(
+        @Body request: Map<String, String>
+    ): Response<ApiEnvelope<RecommendMentorResponse>>
 }

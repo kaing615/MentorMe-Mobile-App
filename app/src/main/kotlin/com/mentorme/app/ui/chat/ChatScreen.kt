@@ -38,6 +38,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.mentorme.app.core.utils.DateTimeUtils
+import com.mentorme.app.ui.chat.ai.AiChatPanel
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.chat.components.ChatComposer
 import com.mentorme.app.ui.chat.components.GlassIconButton
@@ -51,7 +52,8 @@ fun ChatScreen(
     conversationId: String,
     onBack: () -> Unit,
     onJoinSession: (String) -> Unit,
-    onOpenBookingDetail: (String) -> Unit = {}
+    onOpenBookingDetail: (String) -> Unit = {},
+    onOpenProfile: (mentorId: String) -> Unit
 ) {
     val viewModel = hiltViewModel<ChatViewModel>()
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()

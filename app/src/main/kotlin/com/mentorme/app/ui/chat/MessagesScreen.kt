@@ -1,9 +1,9 @@
 package com.mentorme.app.ui.chat
 
+import android.R.id
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -24,10 +24,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import com.mentorme.app.data.model.BookingStatus
 import com.mentorme.app.ui.chat.components.ConversationCard
 import com.mentorme.app.ui.chat.components.GlassIconButton
 import com.mentorme.app.ui.components.ui.MMTextField
 import com.mentorme.app.ui.theme.liquidGlass
+import com.mentorme.app.data.model.chat.Conversation
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -40,7 +42,35 @@ fun MessagesScreen(
     val viewModel = hiltViewModel<ChatViewModel>()
     var query by remember { mutableStateOf("") }
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
+
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    val AI_CONVERSATION_ID = "ai_conversation"
+
+    val aiConversation = Conversation(
+        id = AI_CONVERSATION_ID,
+        peerId = "ai",
+        peerName = "MentorMe AI",
+        peerAvatar = null,
+        peerRole = "AI",
+        lastMessage = "Hỏi AI để tìm mentor phù hợp",
+        lastMessageTimeIso = "",
+        unreadCount = 0,
+        isOnline = true,
+        bookingStatus = BookingStatus.CONFIRMED
+    )
+
+    val combinedConversations = remember(conversations, query) {
+        val base = listOf(aiConversation) + conversations
+
+        if (query.isBlank()) {
+            base
+        } else {
+            base.filter {
+                it.peerName.contains(query, ignoreCase = true)
+            }
+        }
+    }
 
     CompositionLocalProvider(LocalContentColor provides Color.White) {
         Column(
@@ -93,7 +123,6 @@ fun MessagesScreen(
 
             Spacer(Modifier.height(12.dp))
 
-            // List
             val filtered = remember(query, conversations) {
                 if (query.isBlank()) conversations
                 else conversations.filter { it.peerName.contains(query, ignoreCase = true) }
@@ -105,10 +134,18 @@ fun MessagesScreen(
                 contentPadding = PaddingValues(bottom = 80.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(filtered) { c ->
-                    ConversationCard(conversation = c, onClick = { onOpenConversation(c.id) })
+                items(combinedConversations) { c ->
+                    ConversationCard(
+                        conversation = c,
+                        onClick = {
+                            if (c.id == AI_CONVERSATION_ID) {
+                                onOpenConversation(AI_CONVERSATION_ID)
+                            } else {
+                                onOpenConversation(c.id)
+                            }
+                        }
+                    )
                 }
-
             }
         }
     }

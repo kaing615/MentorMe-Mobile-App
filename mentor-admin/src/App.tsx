@@ -26,7 +26,6 @@ export default function App() {
       authProvider={authProvider}
       layout={Layout}
       requireAuth
-      requireAuth
     >
       <Resource name="users" list={UserList} edit={UserEdit} />
 
@@ -40,7 +39,6 @@ export default function App() {
       {/* Moderation */}
       <Resource name="reports" list={ReportList} />
 
-      {/* Admin only */}
       {/* Admin only */}
       <Resource
         name="admin/payouts"

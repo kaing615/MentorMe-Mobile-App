@@ -1,5 +1,9 @@
 import { generateGeminiContent } from "./gemini.client";
 import { mentorExplainPrompt } from "./mentorExplain.prompt";
+import {
+  retrieveRelevantKB,
+  buildContextFromKB,
+} from "../baseKnowledge.service";
 
 export async function explainMentorWithAI({
   userMessage,
@@ -9,6 +13,9 @@ export async function explainMentorWithAI({
   profile: any;
 }): Promise<string | null> {
   try {
+    const kbEntries = retrieveRelevantKB(userMessage, 3);
+    const systemContext = buildContextFromKB(kbEntries);
+
     const prompt = mentorExplainPrompt({
       userGoal: userMessage,
       mentorProfile: {
@@ -21,10 +28,9 @@ export async function explainMentorWithAI({
       },
     });
 
-    const text = await generateGeminiContent(prompt);
+    const text = await generateGeminiContent(prompt, systemContext);
 
     if (!text || text.length < 20) return null;
-
     return text.trim();
   } catch (err) {
     console.error("❌ AI EXPLAIN FAILED", err);

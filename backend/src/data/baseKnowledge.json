@@ -1,0 +1,38 @@
+[
+  {
+    "id": "app_overview",
+    "title": "Giới thiệu MentorMe",
+    "content": "MentorMe là nền tảng kết nối mentor và mentee. Người dùng có thể tìm mentor theo kỹ năng, đặt lịch, thanh toán, và chat trực tiếp trong app.",
+    "tags": ["overview", "feature"]
+  },
+  {
+    "id": "feature_booking",
+    "title": "Tính năng đặt lịch",
+    "content": "Mentee chọn mentor, chọn khung giờ, thanh toán qua ví trong app. Mentor sẽ nhận thông báo và có thể xác nhận hoặc huỷ buổi.",
+    "tags": ["booking", "payment", "notification"]
+  },
+  {
+    "id": "pricing",
+    "title": "Chính sách giá",
+    "content": "Giá do mentor đặt theo giờ (hourlyRateVnd). Platform thu phí dịch vụ 10% trên mỗi buổi. Có gói trial miễn phí 1 buổi cho người mới.",
+    "tags": ["pricing", "finance"]
+  },
+  {
+    "id": "founder",
+    "title": "Người sáng lập",
+    "content": "Nguyễn Đình Tâm - 23521389, Bùi Ngọc Thái - 23521412 và Huỳnh Lê Đại Thắng - 23521422 đã khởi xướng MentorMe năm 2025 với mục tiêu giúp người mới tìm mentor dễ dàng.",
+    "tags": ["founder", "team", "about"]
+  },
+  {
+    "id": "contact",
+    "title": "Liên hệ",
+    "content": "Email hỗ trợ: 23521389@gm.uit.edu.vn. Chúng tôi sẵn sàng hỗ trợ bạn 24/7 qua email này.",
+    "tags": ["contact", "support"]
+  },
+  {
+    "id": "privacy",
+    "title": "Chính sách bảo mật",
+    "content": "Dữ liệu người dùng được mã hoá, không chia sẻ cho bên thứ 3. Xem chi tiết trong mục Privacy của app.",
+    "tags": ["privacy", "security"]
+  }
+]

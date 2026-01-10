@@ -40,6 +40,8 @@ room-ktx-version = "2.8.4"
 runtime = "1.10.0" # hoặc 33.+
 haze = "1.5.0"
 identity-jvm = "202411.1"
+litertlm-jvm = "0.8.0"
+foundation-layout-version = "1.10.0"
 
 [plugins]
 #noinspection GradlePluginVersion
@@ -120,3 +122,5 @@ room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room-ktx
 androidx-compose-runtime = { group = "androidx.compose.runtime", name = "runtime", version.ref = "runtime" }
 haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
 identity-jvm = { group = "com.android.identity", name = "identity-jvm", version.ref = "identity-jvm" }
+litertlm-jvm = { group = "com.google.ai.edge.litertlm", name = "litertlm-jvm", version.ref = "litertlm-jvm" }
+androidx-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "foundation-layout-version" }

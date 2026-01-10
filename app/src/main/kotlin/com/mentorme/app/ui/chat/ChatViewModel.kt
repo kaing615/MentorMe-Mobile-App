@@ -40,7 +40,7 @@ class ChatViewModel @Inject constructor(
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
-    
+
     private val _peerTypingStatus = MutableStateFlow<Map<String, Boolean>>(emptyMap())
     val peerTypingStatus: StateFlow<Map<String, Boolean>> = _peerTypingStatus.asStateFlow()
 
@@ -64,7 +64,7 @@ class ChatViewModel @Inject constructor(
                 is AppResult.Success -> {
                     _conversations.value = applyPresenceOverrides(res.data)
                     launch { syncPresence(res.data) }
-                    
+
                     // Load last message preview for each conversation
                     res.data.forEach { conversation ->
                         launch {
@@ -97,13 +97,13 @@ class ChatViewModel @Inject constructor(
     fun loadMessages(conversationId: String) {
         viewModelScope.launch {
             _loading.value = true
-            
+
             // Load messages
             when (val res = chatRepository.getMessages(conversationId)) {
                 is AppResult.Success -> {
                     val deduped = dedupeMessages(res.data)
                     _messages.value = deduped
-                    
+
                     val last = deduped.lastOrNull()
                     if (last != null) {
                         updateConversationPreview(conversationId, last, incrementUnread = false)
@@ -114,11 +114,11 @@ class ChatViewModel @Inject constructor(
                 }
                 AppResult.Loading -> Unit
             }
-            
+
             // Load restriction info separately
             val conversation = _conversations.value.find { it.id == conversationId }
             val bookingId = conversation?.primaryBookingId
-            
+
             if (bookingId != null) {
                 when (val restrictionRes = chatRepository.getChatRestrictionInfo(bookingId)) {
                 is AppResult.Success -> {
@@ -145,7 +145,7 @@ class ChatViewModel @Inject constructor(
                 AppResult.Loading -> Unit
             }
             }
-            
+
             _loading.value = false
         }
     }
@@ -154,23 +154,24 @@ class ChatViewModel @Inject constructor(
         if (text.isBlank()) return
         viewModelScope.launch {
             _errorMessage.value = null
-            
+
             when (val res = chatRepository.sendMessage(conversationId, text)) {
                 is AppResult.Success -> {
                     val msg = res.data
                     val isNew = addOrUpdateMessage(msg)
-                    
+
                     if (isNew && msg.fromCurrentUser) {
                         _conversations.update { list ->
                             list.map { convo ->
                                 if (convo.id == conversationId) {
                                     convo.copy(myMessageCount = convo.myMessageCount + 1)
-                            } else {
-                                convo
+                                } else {
+                                    convo
+                                }
                             }
                         }
                     }
-                    
+
                     if (isNew) {
                         updateConversationPreview(conversationId, msg, incrementUnread = false)
                     }
@@ -186,12 +187,12 @@ class ChatViewModel @Inject constructor(
     fun sendFileMessage(conversationId: String, fileUri: Uri, fileName: String) {
         viewModelScope.launch {
             _isUploading.value = true
-            
+
             // Upload file first
             when (val uploadResult = chatRepository.uploadFile(conversationId, fileUri, fileName)) {
                 is AppResult.Success -> {
                     val fileData = uploadResult.data
-                    
+
                     // Send message with file URL
                     when (val msgResult = chatRepository.sendMessage(
                         conversationId,
@@ -216,7 +217,7 @@ class ChatViewModel @Inject constructor(
                 }
                 AppResult.Loading -> Unit
             }
-            
+
             _isUploading.value = false
         }
     }
@@ -251,7 +252,7 @@ class ChatViewModel @Inject constructor(
             }
         }
     }
-    
+
     private fun handleTypingIndicator(userId: String, isTyping: Boolean) {
         android.util.Log.d("ChatViewModel", "handleTypingIndicator: userId=$userId, isTyping=$isTyping, currentConversation=$currentConversationId")
         _peerTypingStatus.update { currentMap ->
@@ -263,7 +264,7 @@ class ChatViewModel @Inject constructor(
             android.util.Log.d("ChatViewModel", "peerTypingStatus updated: $newMap")
             newMap
         }
-        
+
         // Auto-clear typing indicator after 5 seconds
         if (isTyping) {
             viewModelScope.launch {
@@ -272,7 +273,7 @@ class ChatViewModel @Inject constructor(
             }
         }
     }
-    
+
     fun emitTypingStatus(peerId: String, isTyping: Boolean) {
         viewModelScope.launch {
             try {
@@ -316,7 +317,7 @@ class ChatViewModel @Inject constructor(
             list.map { convo ->
                 if (convo.id == conversationId) {
                     val newUnread = if (incrementUnread) convo.unreadCount + 1 else 0
-                    
+
                     // Format preview text based on message type
                     val previewText = when (message.messageType) {
                         "image" -> {
@@ -329,7 +330,7 @@ class ChatViewModel @Inject constructor(
                         }
                         else -> message.text // Regular text message
                     }
-                    
+
                     convo.copy(
                         lastMessage = previewText,
                         lastMessageTimeIso = message.createdAtIso,
@@ -424,7 +425,7 @@ class ChatViewModel @Inject constructor(
             }
         }
     }
-    
+
     private fun updateUserOnlineStatus(userId: String, isOnline: Boolean) {
         val normalizedId = userId.trim()
         if (normalizedId.isEmpty()) return
@@ -477,3 +478,4 @@ class ChatViewModel @Inject constructor(
         }
     }
 }
+

@@ -157,7 +157,11 @@ fun HeroSection(
                             onClick = { onSearch(skill) },
                             modifier = Modifier,
                             shape = RoundedCornerShape(20.dp),
-                            color = Color.White.copy(alpha = 0.15f)
+                            color = Color.White.copy(alpha = 0.15f),
+                            border = androidx.compose.foundation.BorderStroke(
+                                width = 1.dp,
+                                color = Color.White.copy(alpha = 0.4f)
+                            )
                         ) {
                             Text(
                                 skill,

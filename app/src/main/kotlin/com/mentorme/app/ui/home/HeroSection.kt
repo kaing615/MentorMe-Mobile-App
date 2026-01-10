@@ -176,71 +176,47 @@ fun HeroSection(
             }
         }
 
-        // Floating stats row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        // Online count với haze effect
+        LiquidGlassCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(
+                    elevation = 8.dp,
+                    shape = RoundedCornerShape(18.dp),
+                    ambientColor = Color(0xFF00FF88).copy(alpha = 0.3f),
+                    spotColor = Color(0xFF00FF88).copy(alpha = 0.2f)
+                ),
+            radius = 18.dp
         ) {
-            // Online count
-            LiquidGlassCard(
+            Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .shadow(
-                        elevation = 6.dp,
-                        shape = RoundedCornerShape(16.dp),
-                        ambientColor = Color.Black.copy(alpha = 0.2f),
-                        spotColor = Color.Black.copy(alpha = 0.2f)
-                    ),
-                radius = 16.dp
+                    .fillMaxWidth()
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(
+                                Color(0xFF00FF88).copy(alpha = 0.25f), // Neon Green
+                                Color(0xFF00D9FF).copy(alpha = 0.15f)  // Cyan
+                            )
+                        )
+                    )
+                    .padding(horizontal = 18.dp, vertical = 12.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    // Pulsing green dot
                     Box(
                         modifier = Modifier
-                            .size(8.dp)
+                            .size(10.dp)
                             .clip(CircleShape)
                             .background(Color(0xFF00FF88)) // Neon Green
                     )
                     Text(
-                        text = "${formatCompactNumber(onlineCount)} online",
+                        text = "${formatCompactNumber(onlineCount)} người dùng đang hoạt động",
                         color = Color.White,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
-
-            // Rating
-            LiquidGlassCard(
-                modifier = Modifier
-                    .weight(1f)
-                    .shadow(
-                        elevation = 6.dp,
-                        shape = RoundedCornerShape(16.dp),
-                        ambientColor = Color.Black.copy(alpha = 0.2f),
-                        spotColor = Color.Black.copy(alpha = 0.2f)
-                    ),
-                radius = 16.dp
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Star,
-                        contentDescription = null,
-                        tint = Color(0xFFFFD700), // Gold star
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        text = if (avgRating > 0) "%.1f đánh giá".format(avgRating) else "0 đánh giá",
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }

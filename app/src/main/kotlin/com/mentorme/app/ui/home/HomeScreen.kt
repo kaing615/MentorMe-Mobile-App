@@ -504,21 +504,29 @@ fun HomeScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
+                                // Rating badge với haze gradient
                                 Box(
                                     modifier = Modifier
-                                        .height(32.dp) // Increased from 28dp
+                                        .height(32.dp)
                                         .clip(RoundedCornerShape(16.dp))
                                         .background(
                                             Brush.linearGradient(
                                                 colors = listOf(
-                                                    Color(0xFFFFA726), // Gold
-                                                    Color(0xFFFF6F00)
+                                                    Color(0xFFFFD700).copy(alpha = 0.40f), // Gold
+                                                    Color(0xFFFFA500).copy(alpha = 0.30f)  // Orange
                                                 )
                                             )
                                         )
-                                        .shadow(
-                                            elevation = 4.dp,
+                                        .border(
+                                            width = 1.dp,
+                                            color = Color(0xFFFFD700).copy(alpha = 0.6f),
                                             shape = RoundedCornerShape(16.dp)
+                                        )
+                                        .shadow(
+                                            elevation = 6.dp,
+                                            shape = RoundedCornerShape(16.dp),
+                                            ambientColor = Color(0xFFFFD700).copy(alpha = 0.3f),
+                                            spotColor = Color(0xFFFFD700).copy(alpha = 0.2f)
                                         )
                                         .padding(horizontal = 12.dp),
                                     contentAlignment = Alignment.Center
@@ -530,7 +538,7 @@ fun HomeScreen(
                                         Icon(
                                             Icons.Default.Star,
                                             contentDescription = null,
-                                            tint = Color.White,
+                                            tint = Color(0xFFFFD700), // Gold star
                                             modifier = Modifier.size(16.dp)
                                         )
                                         Text(
@@ -974,21 +982,28 @@ private fun HomeMentorCard(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // FEATURED BADGE - Deep Black với white border
+                // FEATURED BADGE - Gradient Haze Effect
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color.Black) // Solid Deep Black
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    Color(0xFFFFD700).copy(alpha = 0.35f), // Gold with transparency
+                                    Color(0xFFFFA500).copy(alpha = 0.25f)  // Orange with transparency
+                                )
+                            )
+                        )
                         .border(
                             width = 1.dp,
-                            color = Color.White.copy(alpha = 0.3f),
+                            color = Color(0xFFFFD700).copy(alpha = 0.5f), // Gold border
                             shape = RoundedCornerShape(8.dp)
                         )
                         .shadow(
                             elevation = 8.dp,
                             shape = RoundedCornerShape(8.dp),
-                            ambientColor = Color.Black.copy(alpha = 0.6f),
-                            spotColor = Color.Black.copy(alpha = 0.6f)
+                            ambientColor = Color(0xFFFFD700).copy(alpha = 0.4f), // Gold glow
+                            spotColor = Color(0xFFFFD700).copy(alpha = 0.3f)
                         )
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
@@ -999,7 +1014,7 @@ private fun HomeMentorCard(
                         Icon(
                             Icons.Default.WorkspacePremium,
                             contentDescription = null,
-                            tint = Color.White,
+                            tint = Color(0xFFFFD700), // Gold icon
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
@@ -1070,15 +1085,28 @@ private fun HomeMentorCard(
                             }
                         }
 
-                        // Rating badge - BÊN DƯỚI avatar (transparent pill với yellow star)
+                        // Rating badge - Haze gradient effect
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color.Black.copy(alpha = 0.6f)) // Dark semi-transparent
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(
+                                            Color(0xFFFFD700).copy(alpha = 0.35f), // Gold
+                                            Color(0xFFFFA500).copy(alpha = 0.25f)  // Orange
+                                        )
+                                    )
+                                )
                                 .border(
-                                    width = 0.5.dp,
-                                    color = Color(0xFFFFD700).copy(alpha = 0.5f), // Gold border
+                                    width = 1.dp,
+                                    color = Color(0xFFFFD700).copy(alpha = 0.6f), // Gold border
                                     shape = RoundedCornerShape(12.dp)
+                                )
+                                .shadow(
+                                    elevation = 6.dp,
+                                    shape = RoundedCornerShape(12.dp),
+                                    ambientColor = Color(0xFFFFD700).copy(alpha = 0.3f),
+                                    spotColor = Color(0xFFFFD700).copy(alpha = 0.2f)
                                 )
                                 .padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {

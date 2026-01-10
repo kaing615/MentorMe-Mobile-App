@@ -1,5 +1,7 @@
 package com.mentorme.app.data.repository.chat.impl
 
+import android.content.Context
+import android.net.Uri
 import com.mentorme.app.core.datastore.DataStoreManager
 import com.mentorme.app.core.utils.AppResult
 import com.mentorme.app.data.dto.Message as ApiMessage
@@ -12,13 +14,20 @@ import com.mentorme.app.data.model.chat.Conversation
 import com.mentorme.app.data.model.chat.Message
 import com.mentorme.app.data.model.chat.ChatRestrictionInfo
 import com.mentorme.app.data.network.api.chat.ChatApiService
+import com.mentorme.app.data.network.api.chat.FileUploadResponse
 import com.mentorme.app.data.network.api.home.HomeApiService
 import com.mentorme.app.data.repository.BookingRepository
 import com.mentorme.app.data.repository.chat.ChatRepository
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -27,7 +36,8 @@ class ChatRepositoryImpl @Inject constructor(
     private val chatApiService: ChatApiService,
     private val bookingRepository: BookingRepository,
     private val homeApiService: HomeApiService,
-    private val dataStoreManager: DataStoreManager
+    private val dataStoreManager: DataStoreManager,
+    @ApplicationContext private val context: Context
 ) : ChatRepository {
 
     override suspend fun getConversations(): AppResult<List<Conversation>> = withContext(Dispatchers.IO) {
@@ -148,32 +158,121 @@ class ChatRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun sendMessage(conversationId: String, text: String): AppResult<Message> =
-        withContext(Dispatchers.IO) {
-            try {
-                val userId = dataStoreManager.getUserId().first()
-                val request = SendMessageRequest(bookingId = conversationId, content = text)
-                val response = chatApiService.sendMessage(request)
-                if (response.isSuccessful) {
-                    val envelope: ApiEnvelope<ApiMessage>? = response.body()
-                    val dto = envelope?.data
-                    if (envelope?.success == true && dto != null) {
-                        val mapped = dto.toChatMessage(userId)
-                        if (mapped != null) {
-                            AppResult.success(mapped)
-                        } else {
-                            AppResult.failure("Failed to parse message")
-                        }
+    override suspend fun sendMessage(
+        conversationId: String, 
+        text: String,
+        messageType: String
+    ): AppResult<Message> = withContext(Dispatchers.IO) {
+        try {
+            val userId = dataStoreManager.getUserId().first()
+            
+            // Get the actual booking ID from conversations
+            val conversations = when (val result = getConversations()) {
+                is AppResult.Success -> result.data
+                else -> emptyList()
+            }
+            val conversation = conversations.find { it.id == conversationId }
+            val bookingId = conversation?.primaryBookingId
+            
+            if (bookingId == null) {
+                return@withContext AppResult.failure("No booking found for this conversation")
+            }
+            
+            val request = SendMessageRequest(
+                bookingId = bookingId,  // ✅ Use actual bookingId
+                content = text,
+                messageType = messageType
+            )
+            val response = chatApiService.sendMessage(request)
+            if (response.isSuccessful) {
+                val envelope: ApiEnvelope<ApiMessage>? = response.body()
+                val dto = envelope?.data
+                if (envelope?.success == true && dto != null) {
+                    val mapped = dto.toChatMessage(userId)
+                    if (mapped != null) {
+                        AppResult.success(mapped)
                     } else {
-                        AppResult.failure(envelope?.message ?: "Failed to send message")
+                        AppResult.failure("Failed to parse message")
                     }
                 } else {
-                    AppResult.failure("HTTP ${response.code()}: ${response.message()}")
+                    AppResult.failure(envelope?.message ?: "Failed to send message")
                 }
-            } catch (e: Exception) {
-                AppResult.failure(e.message ?: "Failed to send message")
+            } else {
+                AppResult.failure("HTTP ${response.code()}: ${response.message()}")
             }
+        } catch (e: Exception) {
+            AppResult.failure(e.message ?: "Failed to send message")
         }
+    }
+
+    override suspend fun uploadFile(
+        conversationId: String,
+        fileUri: Uri,
+        fileName: String
+    ): AppResult<FileUploadResponse> = withContext(Dispatchers.IO) {
+        try {
+            android.util.Log.d("ChatRepo", "📤 Uploading file: $fileName for conversation: $conversationId")
+            
+            // conversationId là peerId, cần lấy bookingId
+            // Tìm conversation để lấy primaryBookingId
+            val conversations = when (val result = getConversations()) {
+                is AppResult.Success -> result.data
+                else -> emptyList()
+            }
+            
+            val conversation = conversations.find { it.id == conversationId }
+            val bookingId = conversation?.primaryBookingId
+            
+            if (bookingId == null) {
+                android.util.Log.e("ChatRepo", "❌ No booking found for conversation: $conversationId")
+                return@withContext AppResult.failure("No booking found for this conversation")
+            }
+            
+            android.util.Log.d("ChatRepo", "✅ Found bookingId: $bookingId")
+            
+            // Convert URI to file
+            val inputStream = context.contentResolver.openInputStream(fileUri)
+                ?: return@withContext AppResult.failure("Cannot open file")
+            
+            val tempFile = File(context.cacheDir, fileName)
+            tempFile.outputStream().use { outputStream ->
+                inputStream.copyTo(outputStream)
+            }
+            
+            // Get MIME type
+            val mimeType = context.contentResolver.getType(fileUri) ?: "application/octet-stream"
+            
+            android.util.Log.d("ChatRepo", "📄 File type: $mimeType, size: ${tempFile.length()} bytes")
+            
+            // Create multipart body
+            val requestBody = tempFile.asRequestBody(mimeType.toMediaTypeOrNull())
+            val filePart = MultipartBody.Part.createFormData("file", fileName, requestBody)
+            val bookingIdBody = bookingId.toRequestBody("text/plain".toMediaTypeOrNull()) // Dùng bookingId thay vì conversationId
+            
+            val response = chatApiService.uploadFile(filePart, bookingIdBody)
+            
+            // Clean up temp file
+            tempFile.delete()
+            
+            if (response.isSuccessful) {
+                val envelope: ApiEnvelope<FileUploadResponse>? = response.body()
+                if (envelope?.success == true && envelope.data != null) {
+                    android.util.Log.d("ChatRepo", "✅ Upload successful: ${envelope.data.url}")
+                    AppResult.success(envelope.data)
+                } else {
+                    android.util.Log.e("ChatRepo", "❌ Upload failed: ${envelope?.message}")
+                    AppResult.failure(envelope?.message ?: "Upload failed")
+                }
+            } else {
+                android.util.Log.e("ChatRepo", "❌ HTTP ${response.code()}: ${response.message()}")
+                AppResult.failure("HTTP ${response.code()}: ${response.message()}")
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            android.util.Log.e("ChatRepo", "❌ Upload exception: ${e.message}")
+            AppResult.failure(e.message ?: "Upload failed")
+        }
+    }
 
     override suspend fun getChatRestrictionInfo(conversationId: String): AppResult<ChatRestrictionInfo> =
         withContext(Dispatchers.IO) {
@@ -241,7 +340,8 @@ private fun ApiMessage.toChatMessage(currentUserId: String?): Message? {
         createdAtIso = created,
         fromCurrentUser = senderId == currentUserId,
         senderName = sender?.fullName,
-        senderAvatar = sender?.avatar
+        senderAvatar = sender?.avatar,
+        messageType = messageType
     )
 }
 

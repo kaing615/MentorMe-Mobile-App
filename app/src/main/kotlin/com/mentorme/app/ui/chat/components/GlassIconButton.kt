@@ -19,16 +19,25 @@ fun GlassIconButton(
     contentDescription: String?,
     onClick: () -> Unit,
     size: Dp = 40.dp,
-    tint: Color = Color.White
+    tint: Color = Color.White,
+    enabled: Boolean = true // Thêm parameter này
 ) {
     Box(
         modifier = Modifier
             .size(size)
-            .liquidGlassStrong(radius = size / 2, alpha = 0.26f),
+            .liquidGlassStrong(radius = size / 2, alpha = if (enabled) 0.26f else 0.15f),
         contentAlignment = Alignment.Center
     ) {
-        IconButton(onClick = onClick, modifier = Modifier.size(size)) {
-            Icon(icon, contentDescription = contentDescription, tint = tint)
+        IconButton(
+            onClick = onClick,
+            modifier = Modifier.size(size),
+            enabled = enabled // Sử dụng enabled
+        ) {
+            Icon(
+                icon,
+                contentDescription = contentDescription,
+                tint = if (enabled) tint else tint.copy(alpha = 0.5f)
+            )
         }
     }
 }

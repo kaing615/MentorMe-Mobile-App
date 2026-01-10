@@ -129,6 +129,8 @@ fun ChatScreen(
         else -> ""
     }
 
+    val isUploading by viewModel.isUploading.collectAsStateWithLifecycle()
+
     CompositionLocalProvider(LocalContentColor provides Color.White) {
         val listState = rememberLazyListState()
         var composerHeightPx by remember { mutableStateOf(0) }
@@ -554,6 +556,11 @@ fun ChatScreen(
                             viewModel.sendMessage(conversationId, text)
                         }
                     },
+                    onSendFile = { uri, fileName ->
+                        if (canSendMessage) {
+                            viewModel.sendFileMessage(conversationId, uri, fileName)
+                        }
+                    },
                     enabled = canSendMessage,
                     placeholder = if (!canSendMessage) disabledPlaceholder else "Nhập tin nhắn...",
                     onTypingChanged = { isTyping ->
@@ -561,6 +568,7 @@ fun ChatScreen(
                             viewModel.emitTypingStatus(peerId, isTyping)
                         }
                     },
+                    isUploading = isUploading,
                     modifier = Modifier
                         .fillMaxWidth()
                         .imePadding()

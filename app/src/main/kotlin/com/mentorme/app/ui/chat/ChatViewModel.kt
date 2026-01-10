@@ -1,5 +1,6 @@
 package com.mentorme.app.ui.chat
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mentorme.app.core.datastore.DataStoreManager
@@ -42,6 +43,9 @@ class ChatViewModel @Inject constructor(
     
     private val _peerTypingStatus = MutableStateFlow<Map<String, Boolean>>(emptyMap())
     val peerTypingStatus: StateFlow<Map<String, Boolean>> = _peerTypingStatus.asStateFlow()
+
+    private val _isUploading = MutableStateFlow(false)
+    val isUploading: StateFlow<Boolean> = _isUploading.asStateFlow()
 
     private var currentConversationId: String? = null
     private var currentUserId: String? = null
@@ -190,6 +194,44 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun sendFileMessage(conversationId: String, fileUri: Uri, fileName: String) {
+        viewModelScope.launch {
+            _isUploading.value = true
+            
+            // Upload file first
+            when (val uploadResult = chatRepository.uploadFile(conversationId, fileUri, fileName)) {
+                is AppResult.Success -> {
+                    val fileData = uploadResult.data
+                    
+                    // Send message with file URL
+                    when (val msgResult = chatRepository.sendMessage(
+                        conversationId,
+                        fileData.url,
+                        fileData.fileType
+                    )) {
+                        is AppResult.Success -> {
+                            val newMsg = msgResult.data
+                            _messages.update { current ->
+                                (current + newMsg).distinctBy { it.id }
+                            }
+                            updateConversationPreview(conversationId, newMsg, incrementUnread = false)
+                        }
+                        is AppResult.Error -> {
+                            _errorMessage.value = msgResult.throwable
+                        }
+                        AppResult.Loading -> Unit
+                    }
+                }
+                is AppResult.Error -> {
+                    _errorMessage.value = uploadResult.throwable
+                }
+                AppResult.Loading -> Unit
+            }
+            
+            _isUploading.value = false
+        }
+    }
+
     fun clearError() {
         _errorMessage.value = null
     }
@@ -285,8 +327,22 @@ class ChatViewModel @Inject constructor(
             list.map { convo ->
                 if (convo.id == conversationId) {
                     val newUnread = if (incrementUnread) convo.unreadCount + 1 else 0
+                    
+                    // Format preview text based on message type
+                    val previewText = when (message.messageType) {
+                        "image" -> {
+                            val sender = if (message.fromCurrentUser) "Bạn" else message.senderName
+                            "$sender đã gửi một ảnh"
+                        }
+                        "file" -> {
+                            val sender = if (message.fromCurrentUser) "Bạn" else message.senderName
+                            "$sender đã gửi một file đính kèm"
+                        }
+                        else -> message.text // Regular text message
+                    }
+                    
                     convo.copy(
-                        lastMessage = message.text,
+                        lastMessage = previewText,
                         lastMessageTimeIso = message.createdAtIso,
                         unreadCount = newUnread
                     )

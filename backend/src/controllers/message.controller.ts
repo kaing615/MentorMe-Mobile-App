@@ -6,6 +6,7 @@ import Message from '../models/message.model';
 import Profile from '../models/profile.model';
 import User from '../models/user.model';
 import { emitToUser } from '../socket';
+import cloudinaryService from '../utils/cloudinary';
 
 const MAX_MESSAGE_LENGTH =
   parseInt(process.env.CHAT_MESSAGE_MAX_LENGTH || '2000', 10) || 2000;
@@ -419,9 +420,65 @@ export const getChatRestrictionInfo = asyncHandler(async (req: Request, res: Res
   });
 });
 
+/**
+ * POST /api/v1/messages/upload
+ * Upload file/image for chat message
+ */
+export const uploadMessageFile = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id ?? (req as any).user?._id;
+  if (!userId) {
+    return unauthorized(res, 'USER_NOT_AUTHENTICATED');
+  }
+
+  if (!req.file) {
+    return badRequest(res, 'No file uploaded');
+  }
+
+  const { bookingId } = req.body;
+  if (!bookingId) {
+    return badRequest(res, 'bookingId is required');
+  }
+
+  // Verify user has access to this booking
+  const booking = await Booking.findById(bookingId).lean();
+  if (!booking) {
+    return notFound(res, 'Booking not found');
+  }
+
+  const isMentor = String(booking.mentor) === String(userId);
+  const isMentee = String(booking.mentee) === String(userId);
+  if (!isMentor && !isMentee) {
+    return forbidden(res, 'Access denied to this booking');
+  }
+
+  try {
+    const file = req.file;
+    const fileType = file.mimetype.startsWith('image/') ? 'image' : 'file';
+    
+    const uploadResult = await cloudinaryService.uploadFile(file.buffer, {
+      folder: `mentor-me-mobile-app/chat-files/${bookingId}`,
+      resource_type: 'auto',
+      use_filename: true,
+    });
+
+    return ok(res, {
+      url: uploadResult.secure_url,
+      publicId: uploadResult.public_id,
+      fileType,
+      format: uploadResult.format,
+      size: uploadResult.bytes,
+      originalName: file.originalname,
+    });
+  } catch (error: any) {
+    console.error('File upload error:', error);
+    return badRequest(res, error.message || 'Failed to upload file');
+  }
+});
+
 export default {
   getMessages,
   getMessagesByPeer,
   sendMessage,
   getChatRestrictionInfo,
+  uploadMessageFile,
 };

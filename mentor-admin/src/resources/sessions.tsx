@@ -35,31 +35,36 @@ type SessionLog = {
 /* ===================== Constants ===================== */
 
 const statusChoices = [
-  { id: "waiting", name: "Waiting" },
-  { id: "active", name: "Active" },
-  { id: "ended", name: "Ended" },
-  { id: "no_show", name: "No Show" },
+  { id: "waiting", name: "Chờ bắt đầu" },
+  { id: "active", name: "Đang diễn ra" },
+  { id: "ended", name: "Đã kết thúc" },
+  { id: "no_show", name: "Vắng mặt" },
 ];
+
+const statusLabelMap = statusChoices.reduce<Record<string, string>>((acc, choice) => {
+  acc[choice.id] = choice.name;
+  return acc;
+}, {});
 
 /* ===================== Filters ===================== */
 
 const SessionFilters = [
-  <TextInput key="bookingId" source="bookingId" label="Booking ID" />,
-  <TextInput key="mentorId" source="mentorId" label="Mentor ID" />,
-  <TextInput key="menteeId" source="menteeId" label="Mentee ID" />,
+  <TextInput key="bookingId" source="bookingId" label="ID lịch hẹn" />,
+  <TextInput key="mentorId" source="mentorId" label="ID mentor" />,
+  <TextInput key="menteeId" source="menteeId" label="ID mentee" />,
   <SelectInput
     key="status"
     source="status"
-    label="Status"
+    label="Trạng thái"
     choices={statusChoices}
   />,
-  <DateTimeInput key="from" source="from" label="From" />,
-  <DateTimeInput key="to" source="to" label="To" />,
+  <DateTimeInput key="from" source="from" label="Từ" />,
+  <DateTimeInput key="to" source="to" label="Đến" />,
 ];
 
 /* ===================== UI Helpers ===================== */
 
-function StatusChip() {
+function StatusChip({ label: _label }: { label?: string }) {
   const record = useRecordContext<SessionLog>();
   if (!record?.status) return null;
 
@@ -73,7 +78,7 @@ function StatusChip() {
   return (
     <Chip
       size="small"
-      label={record.status.replace("_", " ")}
+      label={statusLabelMap[record.status] || record.status}
       color={colorMap[record.status] || "default"}
     />
   );
@@ -87,24 +92,24 @@ export function SessionList() {
       filters={SessionFilters}
       sort={{ field: "scheduledStart", order: "DESC" }}
       perPage={25}
-      title="Sessions"
+      title="Phiên học"
     >
       <Datagrid rowClick={false}>
-        <TextField source="id" />
-        <TextField source="bookingId" />
-        <TextField source="mentorId" />
-        <TextField source="menteeId" />
-        <StatusChip />
-        <DateField source="scheduledStart" showTime />
-        <DateField source="scheduledEnd" showTime />
-        <DateField source="actualStart" showTime />
-        <DateField source="actualEnd" showTime />
-        <NumberField source="durationSec" />
-        <TextField source="endReason" />
-        <NumberField source="waitingRoomMs" />
-        <NumberField source="mentorDisconnects" />
-        <NumberField source="menteeDisconnects" />
-        <DateField source="createdAt" showTime />
+        <TextField source="id" label="Mã phiên" />
+        <TextField source="bookingId" label="ID lịch hẹn" />
+        <TextField source="mentorId" label="ID mentor" />
+        <TextField source="menteeId" label="ID mentee" />
+        <StatusChip label="Trạng thái" />
+        <DateField source="scheduledStart" showTime label="Bắt đầu dự kiến" />
+        <DateField source="scheduledEnd" showTime label="Kết thúc dự kiến" />
+        <DateField source="actualStart" showTime label="Bắt đầu thực tế" />
+        <DateField source="actualEnd" showTime label="Kết thúc thực tế" />
+        <NumberField source="durationSec" label="Thời lượng (giây)" />
+        <TextField source="endReason" label="Lý do kết thúc" />
+        <NumberField source="waitingRoomMs" label="Thời gian chờ (ms)" />
+        <NumberField source="mentorDisconnects" label="Mentor ngắt kết nối" />
+        <NumberField source="menteeDisconnects" label="Mentee ngắt kết nối" />
+        <DateField source="createdAt" showTime label="Tạo lúc" />
       </Datagrid>
     </List>
   );

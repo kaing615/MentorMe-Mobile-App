@@ -19,7 +19,7 @@ export const WebhookPage = () => {
 
   const sendWebhook = async () => {
     if (!externalId) {
-      notify("externalId is required", { type: "warning" });
+      notify("Vui lòng nhập externalId", { type: "warning" });
       return;
     }
 
@@ -36,7 +36,7 @@ export const WebhookPage = () => {
             externalId,
             status,
           }),
-        },
+        }
       );
 
       if (!res.ok) {
@@ -44,10 +44,10 @@ export const WebhookPage = () => {
         throw new Error(text);
       }
 
-      notify(`Webhook sent: ${status}`, { type: "success" });
+      notify(`Đã gửi webhook: ${status}`, { type: "success" });
       refresh();
     } catch (e: any) {
-      notify(e.message || "Webhook failed", { type: "error" });
+      notify(e.message || "Gửi webhook thất bại", { type: "error" });
     } finally {
       setLoading(false);
     }
@@ -57,7 +57,7 @@ export const WebhookPage = () => {
     <Card>
       <CardContent>
         <Typography variant="h6" gutterBottom>
-          Mock Payout Webhook
+          Webhook giả lập chi trả
         </Typography>
 
         <Stack spacing={2} maxWidth={400}>
@@ -75,7 +75,7 @@ export const WebhookPage = () => {
               color="success"
               onClick={() => setStatus("PAID")}
             >
-              PAID
+              Đã chi trả
             </Button>
 
             <Button
@@ -83,12 +83,12 @@ export const WebhookPage = () => {
               color="error"
               onClick={() => setStatus("FAILED")}
             >
-              FAILED
+              Thất bại
             </Button>
           </Stack>
 
           <Button variant="contained" onClick={sendWebhook} disabled={loading}>
-            Send Webhook
+            Gửi webhook
           </Button>
         </Stack>
       </CardContent>

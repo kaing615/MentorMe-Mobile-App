@@ -2,18 +2,18 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { asyncHandler } from '../handlers/async.handler';
 import {
-  ok,
-  created,
   badRequest,
-  notFound,
-  unauthorized,
-  forbidden,
   conflict,
+  created,
+  forbidden,
   internalServerError,
+  notFound,
+  ok,
+  unauthorized,
 } from '../handlers/response.handler';
-import Review from '../models/review.model';
 import Booking from '../models/booking.model';
 import Profile from '../models/profile.model';
+import Review from '../models/review.model';
 import User from '../models/user.model';
 
 /**
@@ -193,9 +193,25 @@ export const createReview = asyncHandler(async (req: Request, res: Response) => 
     // ✅ FIX: Enrich with Profile.fullName
     const menteeId = (populatedReview as any).mentee?._id || (populatedReview as any).mentee;
     if (menteeId) {
-      const menteeProfile = await Profile.findOne({ user: menteeId }).select('fullName').lean();
-      if (menteeProfile?.fullName) {
-        (populatedReview as any).mentee.name = menteeProfile.fullName;
+      const menteeProfile = await Profile.findOne({ user: menteeId })
+        .select('fullName avatarUrl avatarPublicId')
+        .lean();
+      if (menteeProfile) {
+        (populatedReview as any).mentee.name = menteeProfile.fullName || (populatedReview as any).mentee.name;
+        (populatedReview as any).mentee.avatarUrl = menteeProfile.avatarUrl;
+        (populatedReview as any).mentee.avatarPublicId = menteeProfile.avatarPublicId;
+      }
+    }
+
+    const mentorId = (populatedReview as any).mentor?._id || (populatedReview as any).mentor;
+    if (mentorId) {
+      const mentorProfile = await Profile.findOne({ user: mentorId })
+        .select('fullName avatarUrl avatarPublicId')
+        .lean();
+      if (mentorProfile) {
+        (populatedReview as any).mentor.name = mentorProfile.fullName || (populatedReview as any).mentor.name;
+        (populatedReview as any).mentor.avatarUrl = mentorProfile.avatarUrl;
+        (populatedReview as any).mentor.avatarPublicId = mentorProfile.avatarPublicId;
       }
     }
 
@@ -291,14 +307,18 @@ export const getMentorReviews = asyncHandler(async (req: Request, res: Response)
     .populate('mentee', 'userName name')
     .lean();
 
-  // ✅ FIX: Enrich mentee with fullName from Profile
+  // ✅ FIX: Enrich mentee with fullName and avatar from Profile
   const enrichedReviews = await Promise.all(
     reviews.map(async (review: any) => {
       const menteeId = review.mentee?._id || review.mentee;
       if (menteeId) {
-        const profile = await Profile.findOne({ user: menteeId }).select('fullName').lean();
-        if (profile?.fullName) {
-          review.mentee.name = profile.fullName; // Override User.name with Profile.fullName
+        const profile = await Profile.findOne({ user: menteeId })
+          .select('fullName avatarUrl avatarPublicId')
+          .lean();
+        if (profile) {
+          review.mentee.name = profile.fullName || review.mentee.name;
+          review.mentee.avatarUrl = profile.avatarUrl;
+          review.mentee.avatarPublicId = profile.avatarPublicId;
         }
       }
       return review;
@@ -352,9 +372,27 @@ export const getMyReviews = asyncHandler(async (req: Request, res: Response) => 
     .populate('booking', 'startTime endTime topic')
     .lean();
 
+  // Enrich mentor with profile data
+  const enrichedReviews = await Promise.all(
+    reviews.map(async (review: any) => {
+      const mentorId = review.mentor?._id || review.mentor;
+      if (mentorId) {
+        const profile = await Profile.findOne({ user: mentorId })
+          .select('fullName avatarUrl avatarPublicId')
+          .lean();
+        if (profile) {
+          review.mentor.name = profile.fullName || review.mentor.name;
+          review.mentor.avatarUrl = profile.avatarUrl;
+          review.mentor.avatarPublicId = profile.avatarPublicId;
+        }
+      }
+      return review;
+    })
+  );
+
   // Pagination logic
-  const hasMore = reviews.length > limit;
-  const results = hasMore ? reviews.slice(0, limit) : reviews;
+  const hasMore = enrichedReviews.length > limit;
+  const results = hasMore ? enrichedReviews.slice(0, limit) : enrichedReviews;
   const nextCursor = hasMore ? String(results[results.length - 1]._id) : null;
 
   return ok(res, {

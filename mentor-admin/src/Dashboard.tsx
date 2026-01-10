@@ -4,9 +4,19 @@ import ReportIcon from "@mui/icons-material/Report";
 import WorkIcon from "@mui/icons-material/Work";
 import { Box, Card, CardContent, Grid, Typography } from "@mui/material";
 import React from "react";
-import { useGetList, usePermissions } from "react-admin";
+import { useGetList } from "react-admin";
 
-const StatCard = ({ title, value, icon, color }: { title: string, value?: number, icon: React.ReactNode, color: string }) => (
+const StatCard = ({
+  title,
+  value,
+  icon,
+  color,
+}: {
+  title: string;
+  value?: number;
+  icon: React.ReactNode;
+  color: string;
+}) => (
   <Card sx={{ height: "100%", display: "flex", alignItems: "center", p: 2 }}>
     <Box
       sx={{
@@ -24,7 +34,7 @@ const StatCard = ({ title, value, icon, color }: { title: string, value?: number
       {icon}
     </Box>
     <Box>
-      <Typography color="textSecondary" variant="h6">
+      <Typography color="text.secondary" variant="h6">
         {title}
       </Typography>
       <Typography variant="h4" component="div">
@@ -35,80 +45,93 @@ const StatCard = ({ title, value, icon, color }: { title: string, value?: number
 );
 
 export const Dashboard = () => {
-    const { permissions } = usePermissions();
+  const { total: totalUsers } = useGetList(
+    "users",
+    {
+      pagination: { page: 1, perPage: 1 },
+    },
+    { retry: false }
+  );
 
-    const { total: totalUsers } = useGetList("users", {
-        pagination: { page: 1, perPage: 1 },
-    }, { retry: false });
+  const { total: totalBookings } = useGetList(
+    "admin/bookings",
+    {
+      pagination: { page: 1, perPage: 1 },
+    },
+    { retry: false }
+  );
 
-    const { total: totalBookings } = useGetList("admin/bookings", {
-        pagination: { page: 1, perPage: 1 },
-    }, { retry: false });
+  const { total: totalApplications } = useGetList(
+    "mentor-applications",
+    {
+      pagination: { page: 1, perPage: 1 },
+    },
+    { retry: false }
+  );
 
-    const { total: totalApplications } = useGetList("mentor-applications", {
-        pagination: { page: 1, perPage: 1 },
-    }, { enabled: false }); // Disable this API call as it returns 404
-    
-    const { total: totalReports } = useGetList("reports", {
-        pagination: { page: 1, perPage: 1 },
-    }, { retry: false });
-
+  const { total: totalReports } = useGetList(
+    "reports",
+    {
+      pagination: { page: 1, perPage: 1 },
+    },
+    { retry: false }
+  );
 
   return (
     <Box mt={2}>
       <Typography variant="h4" gutterBottom>
-        Welcome to MentorMe Admin
+        Bảng điều khiển MentorMe
       </Typography>
-      <Typography variant="subtitle1" gutterBottom color="textSecondary" mb={4}>
-        Overview of key metrics and activities.
+      <Typography variant="subtitle1" gutterBottom color="text.secondary" mb={4}>
+        Tổng quan nhanh các chỉ số quan trọng.
       </Typography>
 
       <Grid container spacing={3}>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title="Total Users"
+            title="Tổng người dùng"
             value={totalUsers}
             icon={<PeopleIcon fontSize="large" />}
-            color="#4f46e5" // Indigo
+            color="#4f46e5"
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title="Total Bookings"
+            title="Tổng lịch hẹn"
             value={totalBookings}
             icon={<BookOnlineIcon fontSize="large" />}
-            color="#10b981" // Emerald
+            color="#10b981"
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title="Mentor Applications"
+            title="Đơn đăng ký mentor"
             value={totalApplications}
             icon={<WorkIcon fontSize="large" />}
-            color="#f59e0b" // Amber
+            color="#f59e0b"
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title="Reports"
+            title="Báo cáo"
             value={totalReports}
             icon={<ReportIcon fontSize="large" />}
-            color="#ef4444" // Red
+            color="#ef4444"
           />
         </Grid>
       </Grid>
-      
-      {/* Additional sections could be added here, like Recent Activity */}
+
       <Box mt={4}>
         <Card>
-            <CardContent>
-                <Typography variant="h6">Admin Tips</Typography>
-                <Typography variant="body2" color="textSecondary">
-                    - Check "Mentor Applications" daily for new requests.<br/>
-                    - Review "Reports" to ensure community safety.<br/>
-                    - Manage Payouts early in the billing cycle.
-                </Typography>
-            </CardContent>
+          <CardContent>
+            <Typography variant="h6">Gợi ý cho admin</Typography>
+            <Typography variant="body2" color="text.secondary">
+              - Kiểm tra "Đơn đăng ký mentor" hằng ngày.
+              <br />
+              - Xử lý "Báo cáo" để đảm bảo an toàn cộng đồng.
+              <br />- Duyệt "Yêu cầu rút tiền" sớm trong kỳ.
+            </Typography>
+          </CardContent>
         </Card>
       </Box>
     </Box>

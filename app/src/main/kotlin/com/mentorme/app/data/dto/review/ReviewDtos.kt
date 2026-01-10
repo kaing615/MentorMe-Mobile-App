@@ -45,7 +45,11 @@ data class ReviewUserDto(
     @SerializedName("name")
     val name: String? = null,
     @SerializedName("email")
-    val email: String? = null
+    val email: String? = null,
+    @SerializedName("avatarUrl")
+    val avatarUrl: String? = null,
+    @SerializedName("avatarPublicId")
+    val avatarPublicId: String? = null
 )
 
 /**

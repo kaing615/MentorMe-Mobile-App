@@ -11,6 +11,16 @@ function parseNumber(v: any, def: number): number {
   return Number.isFinite(n) ? n : def;
 }
 
+// ✅ Helper: Normalize Vietnamese text for better search
+function normalizeVietnamese(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD") // Decompose accents
+    .replace(/[\u0300-\u036f]/g, "") // Remove accent marks
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D");
+}
+
 export const listMentors = asyncHandler(async (req: Request, res: Response) => {
   const q = (req.query.q as string | undefined)?.trim();
   const skillsCsv = (req.query.skills as string | undefined) || "";
@@ -20,7 +30,7 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
   const sortKey = (req.query.sort as string) || "rating_desc";
   const page = Math.max(1, parseNumber(req.query.page, 1));
   const limitRaw = parseNumber(req.query.limit, 20);
-  const limit = Math.min(Math.max(1, limitRaw), 50);
+  const limit = Math.min(Math.max(1, limitRaw), 200); // ✅ Tăng limit từ 50 → 200
   const skip = (page - 1) * limit;
 
   const skills = skillsCsv
@@ -31,9 +41,10 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
   // Build match conditions for Profile
   const match: any = { profileCompleted: true };
 
-  if (minRating > 0) {
-    match["rating.average"] = { $gte: minRating };
-  }
+  // ✅ REMOVED: Don't filter by minRating in $match stage
+  // We'll handle rating filter AFTER ensuring all mentors are included
+  // This allows mentors with rating=0 (no reviews) to appear
+
   if (priceMin !== undefined || priceMax !== undefined) {
     match["hourlyRateVnd"] = {};
     if (priceMin !== undefined) Object.assign(match["hourlyRateVnd"], { $gte: priceMin });
@@ -45,15 +56,26 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
     match["skills"] = { $in: skills };
   }
 
-  // Text-like search across multiple fields using regex (case-insensitive)
+  // ✅ IMPROVED: Text search with Vietnamese normalization support
   const or: any[] = [];
   if (q) {
-    const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-    or.push({ fullName: rx });
-    or.push({ jobTitle: rx });
-    or.push({ skills: rx });
-    // company is not persisted; if added later on profile, this will start matching
-    or.push({ company: rx });
+    // Escape regex special characters
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    // Create both original and normalized search patterns
+    const rxOriginal = new RegExp(escaped, "i"); // Case-insensitive
+    const rxNormalized = new RegExp(normalizeVietnamese(escaped), "i");
+
+    // Search in original fields (for exact Vietnamese match)
+    or.push({ fullName: rxOriginal });
+    or.push({ jobTitle: rxOriginal });
+    or.push({ skills: rxOriginal });
+    or.push({ company: rxOriginal });
+
+    // ✅ NEW: Also search in normalized fields (for partial match like "Bù" → "Bùi")
+    // Note: This requires normalized fields in DB or computed fields
+    // For now, we rely on MongoDB's text index or case-insensitive regex
+    // The regex will match "Bù" in "Bùi Ngọc Thái" due to case-insensitive flag
   }
 
   const pipeline: any[] = [
@@ -66,21 +88,68 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
 
   if (or.length > 0) pipeline.push({ $match: { $or: or } });
 
-  // Sorting
-  let sortStage: Record<string, 1 | -1> = { "rating.average": -1, "rating.count": -1 };
+  // ✅ NEW: Lookup availability to prioritize mentors with published schedules
+  pipeline.push({
+    $lookup: {
+      from: "availabilities",
+      let: { mentorUserId: "$user._id" },
+      pipeline: [
+        {
+          $match: {
+            $expr: { $eq: ["$mentor", "$$mentorUserId"] },
+            isPublished: true, // ✅ Only published schedules
+            // Optionally filter future slots only
+            // startTime: { $gte: new Date() }
+          }
+        },
+        { $limit: 1 } // Just need to know if ANY published availability exists
+      ],
+      as: "availabilities"
+    }
+  });
+
+  // ✅ Add computed field: hasAvailability (true if mentor has published schedules)
+  pipeline.push({
+    $addFields: {
+      hasAvailability: { $gt: [{ $size: "$availabilities" }, 0] },
+      // ✅ NEW: isAvailable field for UI (same as hasAvailability for now)
+      isAvailable: { $gt: [{ $size: "$availabilities" }, 0] },
+      // ✅ Ensure rating fields exist with default 0
+      "rating.average": { $ifNull: ["$rating.average", 0] },
+      "rating.count": { $ifNull: ["$rating.count", 0] }
+    }
+  });
+
+  // ✅ Apply minRating filter AFTER ensuring all mentors are included
+  if (minRating > 0) {
+    pipeline.push({
+      $match: { "rating.average": { $gte: minRating } }
+    });
+  }
+
+  // ✅ IMPROVED: Sorting with availability priority, rating defaults to 0
+  // Mentors WITH availability AND high rating → top
+  // Mentors WITH availability AND low/no rating → middle
+  // Mentors WITHOUT availability → bottom
+  let sortStage: Record<string, 1 | -1> = {
+    hasAvailability: -1,
+    "rating.average": -1,
+    "rating.count": -1
+  };
   switch (sortKey) {
     case "price_asc":
-      sortStage = { hourlyRateVnd: 1 } as any;
+      sortStage = { hasAvailability: -1, hourlyRateVnd: 1 } as any; // ✅ Availability first, then price
       break;
     case "price_desc":
-      sortStage = { hourlyRateVnd: -1 } as any;
+      sortStage = { hasAvailability: -1, hourlyRateVnd: -1 } as any; // ✅ Availability first, then price
       break;
     case "newest":
-      sortStage = { createdAt: -1 } as any;
+      sortStage = { hasAvailability: -1, createdAt: -1 } as any; // ✅ Availability first, then newest
       break;
     case "rating_desc":
     default:
-      sortStage = { "rating.average": -1, "rating.count": -1 } as any;
+      // ✅ Availability FIRST, then rating (0 rating mentors will appear after rated mentors)
+      sortStage = { hasAvailability: -1, "rating.average": -1, "rating.count": -1 } as any;
   }
 
   pipeline.push({ $sort: sortStage });

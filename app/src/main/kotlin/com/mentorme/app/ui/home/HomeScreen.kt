@@ -284,7 +284,7 @@ fun HomeScreen(
                     LiquidGlassCard(
                         modifier = Modifier
                             .weight(1f)
-                            .height(130.dp)
+                            .height(145.dp) // ✅ Tăng từ 130dp → 145dp để tránh text bị cắt
                             .shadow(
                                 elevation = 8.dp,
                                 shape = RoundedCornerShape(22.dp),
@@ -336,7 +336,7 @@ fun HomeScreen(
                                     color = Color.White.copy(alpha = 0.9f),
                                     fontWeight = FontWeight.Normal,
                                     maxLines = 2,
-                                    lineHeight = 20.sp
+                                    lineHeight = 22.sp // ✅ Tăng từ 20sp → 22sp để text không bị cắt
                                 )
                             }
                         }

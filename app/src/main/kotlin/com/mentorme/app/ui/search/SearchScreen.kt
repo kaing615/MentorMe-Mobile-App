@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch // ✅ For coroutine scope
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -93,10 +94,18 @@ fun SearchMentorScreen(
         val deps = remember(context) { EntryPointAccessors.fromApplication(context, SearchDeps::class.java) }
         val searchUC = remember { deps.searchMentorsUseCase() }
 
+        // ✅ Coroutine scope for load more
+        val scope = rememberCoroutineScope()
+
         // Backing state for remote mentors
         var remoteMentors by remember { mutableStateOf<List<HomeMentor>>(emptyList()) }
         var loading by remember { mutableStateOf(false) }
         var error by remember { mutableStateOf<String?>(null) }
+
+        // ✅ Pagination state
+        var currentPage by remember { mutableIntStateOf(1) }
+        var hasMore by remember { mutableStateOf(true) }
+        var loadingMore by remember { mutableStateOf(false) }
 
         // ===== State (saveable) =====
         var query by rememberSaveable { mutableStateOf(initialExpertise ?: "") }
@@ -131,11 +140,14 @@ fun SearchMentorScreen(
             if (blurOn) onOverlayOpened() else onOverlayClosed()
         }
 
-        // Trigger network search when filters change
+        // ✅ Trigger network search when filters change - RESET to page 1
         LaunchedEffect(query, selectedSkills, minRating, priceStart, priceEnd, sortName) {
-            loading = true; error = null
-            val skills = selectedSkills
-            val minRatingArg = minRating.takeIf { it > 0f }
+            loading = true
+            error = null
+            currentPage = 1 // ✅ Reset to page 1
+            remoteMentors = emptyList() // ✅ Clear old results
+            hasMore = true
+
             val priceMin = (priceStart * 50_000).takeIf { it > 0 }
             val priceMax = (priceEnd * 50_000).takeIf { it > 0 }
             val res = searchUC(
@@ -146,11 +158,12 @@ fun SearchMentorScreen(
                 priceMax = priceMax,
                 sort = sortName,
                 page = 1,
-                limit = 50
+                limit = 20 // ✅ Giảm xuống 20/page để pagination
             )
             when (res) {
                 is com.mentorme.app.core.utils.AppResult.Success -> {
                     remoteMentors = res.data
+                    hasMore = res.data.size >= 20 // ✅ Nếu trả về đủ 20 → còn tiếp
                     loading = false
                 }
                 is com.mentorme.app.core.utils.AppResult.Error -> {
@@ -158,6 +171,38 @@ fun SearchMentorScreen(
                     loading = false
                 }
                 com.mentorme.app.core.utils.AppResult.Loading -> { loading = true }
+            }
+        }
+
+        // ✅ Load more function
+        suspend fun loadMore() {
+            if (loadingMore || !hasMore) return
+
+            loadingMore = true
+            val nextPage = currentPage + 1
+            val priceMin = (priceStart * 50_000).takeIf { it > 0 }
+            val priceMax = (priceEnd * 50_000).takeIf { it > 0 }
+            val res = searchUC(
+                q = query.takeIf { it.isNotBlank() },
+                skills = selectedSkills,
+                minRating = minRating.takeIf { it > 0f },
+                priceMin = priceMin,
+                priceMax = priceMax,
+                sort = sortName,
+                page = nextPage,
+                limit = 20
+            )
+            when (res) {
+                is com.mentorme.app.core.utils.AppResult.Success -> {
+                    remoteMentors = remoteMentors + res.data // ✅ Append new results
+                    currentPage = nextPage
+                    hasMore = res.data.size >= 20
+                    loadingMore = false
+                }
+                is com.mentorme.app.core.utils.AppResult.Error -> {
+                    loadingMore = false
+                }
+                com.mentorme.app.core.utils.AppResult.Loading -> { }
             }
         }
 
@@ -399,6 +444,57 @@ fun SearchMentorScreen(
                                     showBooking = true
                                 }
                             )
+                        }
+
+                        // ✅ Load More button/indicator
+                        if (hasMore) {
+                            item {
+                                LiquidGlassCard(
+                                    radius = 22.dp,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable(enabled = !loadingMore) {
+                                            scope.launch { loadMore() } // ✅ Use scope
+                                        }
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(18.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (loadingMore) {
+                                            CircularProgressIndicator(
+                                                color = Color.White,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        } else {
+                                            Text(
+                                                "Tải thêm mentor...",
+                                                color = Color.White,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else if (result.isNotEmpty()) {
+                            // ✅ End of list indicator
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(18.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "Đã hiển thị tất cả ${result.size} mentor",
+                                        color = Color.White.copy(0.6f),
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            }
                         }
                     }
 

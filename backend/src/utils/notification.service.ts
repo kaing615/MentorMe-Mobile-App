@@ -30,6 +30,18 @@ export interface NoShowNotificationData extends NotificationData {
   noShowBy: 'mentor' | 'mentee' | 'both';
 }
 
+export interface NoShowRefundData {
+  bookingId: string;
+  mentorId: string;
+  menteeId: string;
+  mentorName: string;
+  menteeName: string;
+  startTime: Date;
+  status: 'NoShowMentor' | 'NoShowMentee' | 'NoShowBoth';
+  refundAmount?: number;
+  platformFee?: number;
+}
+
 type NotificationPayload = {
   id: string;
   userId: string;
@@ -329,6 +341,73 @@ export async function notifyBookingNoShow(data: NoShowNotificationData) {
 
   await createNotification(menteeId, 'booking_no_show', menteeTitle, menteeBody, payload);
   await createNotification(mentorId, 'booking_no_show', mentorTitle, mentorBody, payload);
+}
+
+/**
+ * Notify about no-show with refund details
+ */
+export async function notifyNoShowWithRefund(data: NoShowRefundData) {
+  const { bookingId, mentorId, menteeId, mentorName, menteeName, startTime, status, refundAmount, platformFee } = data;
+  const dateIso = startTime.toISOString();
+  const dateStr = formatDateTimeVi(startTime);
+
+  const formatAmount = (amount?: number) => {
+    if (!amount) return '0đ';
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+  };
+
+  if (status === 'NoShowMentee') {
+    // TH1: Mentee vắng - Mentor giữ tiền
+    await createNotification(
+      menteeId,
+      'no_show_penalty',
+      'Vắng mặt phiên tư vấn',
+      `Bạn đã không tham gia phiên tư vấn với ${mentorName} lúc ${dateStr}. Mentor sẽ giữ toàn bộ số tiền.`,
+      { bookingId, mentorId, startTime: dateIso, status }
+    );
+
+    await createNotification(
+      mentorId,
+      'no_show_mentor_keeps',
+      'Mentee vắng mặt',
+      `${menteeName} không tham gia phiên tư vấn lúc ${dateStr}. Bạn vẫn giữ toàn bộ số tiền.`,
+      { bookingId, menteeId, startTime: dateIso, status }
+    );
+  } else if (status === 'NoShowMentor') {
+    // TH2: Mentor vắng - Hoàn 100% cho mentee
+    await createNotification(
+      menteeId,
+      'no_show_refund',
+      'Hoàn tiền do mentor vắng mặt',
+      `Mentor ${mentorName} không tham gia phiên tư vấn lúc ${dateStr}. Bạn đã được hoàn ${formatAmount(refundAmount)} (100%).`,
+      { bookingId, mentorId, startTime: dateIso, status, refundAmount }
+    );
+
+    await createNotification(
+      mentorId,
+      'no_show_penalty',
+      'Vi phạm: Vắng mặt phiên tư vấn',
+      `Bạn đã không tham gia phiên tư vấn với ${menteeName} lúc ${dateStr}. ${formatAmount(refundAmount)} đã được hoàn cho mentee.`,
+      { bookingId, menteeId, startTime: dateIso, status, refundAmount }
+    );
+  } else if (status === 'NoShowBoth') {
+    // TH3: Cả hai vắng - Hoàn 80% cho mentee, platform giữ 20%
+    await createNotification(
+      menteeId,
+      'no_show_partial_refund',
+      'Hoàn tiền một phần',
+      `Cả hai không tham gia phiên tư vấn với ${mentorName} lúc ${dateStr}. Bạn đã được hoàn ${formatAmount(refundAmount)} (80%). Phí xử lý: ${formatAmount(platformFee)} (20%).`,
+      { bookingId, mentorId, startTime: dateIso, status, refundAmount, platformFee }
+    );
+
+    await createNotification(
+      mentorId,
+      'no_show_penalty',
+      'Vi phạm: Vắng mặt phiên tư vấn',
+      `Cả hai không tham gia phiên tư vấn với ${menteeName} lúc ${dateStr}. Bạn bị trừ toàn bộ số tiền, mentee được hoàn 80%.`,
+      { bookingId, menteeId, startTime: dateIso, status, refundAmount, platformFee }
+    );
+  }
 }
 
 export async function notifyPaymentSuccess(data: PaymentNotificationData) {

@@ -1,4 +1,4 @@
-import { Schema, model, Types, Document } from "mongoose";
+import { Document, model, Schema, Types } from "mongoose";
 import { WalletCurrency } from "./wallet.model";
 
 export type WalletTransactionType = "CREDIT" | "DEBIT" | "REFUND";
@@ -60,6 +60,8 @@ const WalletTransactionSchema = new Schema<IWalletTransaction>(
         "BOOKING_REFUND",
         "MENTOR_PAYOUT",
         "MENTOR_PAYOUT_REFUND",
+        "NO_SHOW_REFUND",
+        "NO_SHOW_PENALTY",
       ],
       required: true,
     },

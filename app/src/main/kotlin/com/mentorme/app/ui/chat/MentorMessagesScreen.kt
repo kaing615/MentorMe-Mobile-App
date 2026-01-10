@@ -70,7 +70,7 @@ fun MentorMessagesScreen(
         peerName = "MentorMe AI",
         peerAvatar = null,
         peerRole = "AI",
-        lastMessage = "H?i AI v? h? tr? mentor",
+        lastMessage = "Hỏi AI về hỗ trợ mentor",
         lastMessageTimeIso = "",
         unreadCount = 0,
         isOnline = true,

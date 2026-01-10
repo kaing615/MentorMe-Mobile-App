@@ -1,5 +1,5 @@
 // path: src/models/notification.model.ts
-import { Schema, model, Types, Document } from 'mongoose';
+import { Document, model, Schema, Types } from 'mongoose';
 
 export type TNotificationType =
   | 'booking_confirmed'
@@ -10,7 +10,11 @@ export type TNotificationType =
   | 'booking_declined'
   | 'booking_no_show'
   | 'payment_success'
-  | 'payment_failed';
+  | 'payment_failed'
+  | 'no_show_penalty'
+  | 'no_show_mentor_keeps'
+  | 'no_show_refund'
+  | 'no_show_partial_refund';
 
 export interface INotification extends Document {
   _id: Types.ObjectId;
@@ -41,6 +45,10 @@ const NotificationSchema = new Schema<INotification>(
       'booking_no_show',
       'payment_success',
       'payment_failed',
+      'no_show_penalty',
+      'no_show_mentor_keeps',
+      'no_show_refund',
+      'no_show_partial_refund',
     ],
       required: true,
     },

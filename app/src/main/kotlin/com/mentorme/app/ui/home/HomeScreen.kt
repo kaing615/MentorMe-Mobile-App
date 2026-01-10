@@ -542,7 +542,7 @@ fun HomeScreen(
                                             modifier = Modifier.size(16.dp)
                                         )
                                         Text(
-                                            "${m.rating}",
+                                            "%.1f".format(m.rating), // ✅ Làm tròn đến 1 chữ số thập phân
                                             color = Color.White,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -1121,7 +1121,7 @@ private fun HomeMentorCard(
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Text(
-                                    text = "${mentor.rating}",
+                                    text = "%.1f".format(mentor.rating), // ✅ Làm tròn đến 1 chữ số thập phân
                                     color = Color.White,
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Bold

@@ -1,6 +1,7 @@
 package com.mentorme.app.core.di
 
 import com.mentorme.app.core.network.ApiKeyInterceptor
+import com.mentorme.app.core.network.AuthFailureInterceptor
 import com.mentorme.app.core.network.AuthInterceptor
 import com.mentorme.app.core.network.NetworkConstants
 import com.mentorme.app.data.remote.MentorMeApi
@@ -33,10 +34,12 @@ object NetworkModule {
     @Singleton
     fun provideOkHttpClient(
         authInterceptor: AuthInterceptor,
+        authFailureInterceptor: AuthFailureInterceptor,
         apiKeyInterceptor: ApiKeyInterceptor
     ): OkHttpClient =
         OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
+            .addInterceptor(authFailureInterceptor)
             .addInterceptor(apiKeyInterceptor)
             .addInterceptor(
                 HttpLoggingInterceptor().apply {

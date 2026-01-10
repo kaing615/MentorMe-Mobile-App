@@ -1,44 +1,44 @@
+import { randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
-import { randomUUID } from 'crypto';
 import { asyncHandler } from '../handlers/async.handler';
 import {
-  ok,
-  created,
   badRequest,
-  notFound,
-  unauthorized,
-  forbidden,
   conflict,
+  created,
+  forbidden,
+  notFound,
+  ok,
+  unauthorized,
 } from '../handlers/response.handler';
-import Booking, { TBookingStatus } from '../models/booking.model';
 import AvailabilityOccurrence from '../models/availabilityOccurrence.model';
 import AvailabilitySlot from '../models/availabilitySlot.model';
-import User from '../models/user.model';
+import Booking, { TBookingStatus } from '../models/booking.model';
 import Profile from '../models/profile.model';
-import redis from '../utils/redis';
-import { getUserInfo } from '../utils/userInfo';
-import {
-  sendBookingConfirmedEmail,
-  sendBookingFailedEmail,
-  sendBookingCancelledEmail,
-  resendBookingIcsEmail,
-  sendBookingPendingEmail,
-  sendBookingDeclinedEmail,
-  sendBookingReminderEmail,
-  BookingEmailData,
-} from '../utils/email.service';
-import {
-  notifyBookingConfirmed,
-  notifyBookingFailed,
-  notifyBookingCancelled,
-  notifyBookingPending,
-  notifyBookingDeclined,
-  notifyBookingReminder,
-} from '../utils/notification.service';
-import { generateBookingIcs } from '../utils/ics.service';
+import User from '../models/user.model';
 import { captureBookingPayment, refundBookingPayment } from '../services/walletBooking.service';
 import { emitToUser } from '../socket';
+import {
+  BookingEmailData,
+  resendBookingIcsEmail,
+  sendBookingCancelledEmail,
+  sendBookingConfirmedEmail,
+  sendBookingDeclinedEmail,
+  sendBookingFailedEmail,
+  sendBookingPendingEmail,
+  sendBookingReminderEmail,
+} from '../utils/email.service';
+import { generateBookingIcs } from '../utils/ics.service';
+import {
+  notifyBookingCancelled,
+  notifyBookingConfirmed,
+  notifyBookingDeclined,
+  notifyBookingFailed,
+  notifyBookingPending,
+  notifyBookingReminder,
+} from '../utils/notification.service';
+import redis from '../utils/redis';
+import { getUserInfo } from '../utils/userInfo';
 
 const BOOKING_EXPIRY_MINUTES = parseInt(process.env.BOOKING_EXPIRY_MINUTES || '15', 10) || 15;
 const LATE_CANCEL_MINUTES = parseInt(process.env.LATE_CANCEL_MINUTES || '1440', 10) || 1440;
@@ -1109,6 +1109,8 @@ export async function processBookingReminders(): Promise<{ reminded24h: number; 
   const now = new Date();
   const windowMinutes = parseInt(process.env.REMINDER_WINDOW_MINUTES || '10', 10) || 10;
 
+  console.log(`[${now.toISOString()}] REMINDERS: Starting reminder processing`);
+
   const reminderWindows = [
     { hours: 24, field: 'reminder24hSentAt' },
     { hours: 1, field: 'reminder1hSentAt' },
@@ -1123,11 +1125,15 @@ export async function processBookingReminders(): Promise<{ reminded24h: number; 
     const start = new Date(now.getTime() + minMs);
     const end = new Date(now.getTime() + maxMs);
 
+    console.log(`[${now.toISOString()}] REMINDERS: Checking ${window.hours}h window: ${start.toISOString()} to ${end.toISOString()}`);
+
     const bookings = await Booking.find({
       status: 'Confirmed',
       startTime: { $gte: start, $lte: end },
       [field]: { $exists: false },
     });
+
+    console.log(`[${now.toISOString()}] REMINDERS: Found ${bookings.length} bookings for ${window.hours}h reminder`);
 
     for (const booking of bookings) {
       try {
@@ -1149,14 +1155,17 @@ export async function processBookingReminders(): Promise<{ reminded24h: number; 
           { $set: { [field]: new Date() } }
         );
 
+        console.log(`[${now.toISOString()}] REMINDERS: Sent ${window.hours}h reminder for booking ${booking._id}`);
+
         if (window.hours === 24) results.reminded24h++;
         if (window.hours === 1) results.reminded1h++;
       } catch (err) {
-        console.error(`Failed to send reminder for booking ${booking._id}:`, err);
+        console.error(`[${now.toISOString()}] REMINDERS: Failed ${window.hours}h reminder for booking ${booking._id}:`, err);
       }
     }
   }
 
+  console.log(`[${now.toISOString()}] REMINDERS: Complete - 24h=${results.reminded24h}, 1h=${results.reminded1h}`);
   return results;
 }
 

@@ -8,12 +8,18 @@ class AiRepository @Inject constructor(
     private val api: MentorMeApi
 ) {
     suspend fun askAi(
-        message: String
+        message: String,
+        mode: AiChatMode = AiChatMode.MENTEE
     ): Result<RecommendMentorResponse> {
         return try {
-            val resp = api.recommendMentor(
-                request = mapOf("message" to message)
-            )
+            val resp = when (mode) {
+                AiChatMode.MENTEE -> api.recommendMentor(
+                    request = mapOf("message" to message)
+                )
+                AiChatMode.MENTOR -> api.mentorAssistant(
+                    request = mapOf("message" to message)
+                )
+            }
 
             if (resp.isSuccessful) {
                 val body = resp.body()

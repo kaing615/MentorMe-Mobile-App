@@ -155,29 +155,18 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             _errorMessage.value = null
             
-            // Get primaryBookingId from conversation
-            val conversation = _conversations.value.find { it.id == conversationId }
-            val bookingId = conversation?.primaryBookingId
-            
-            if (bookingId == null) {
-                _errorMessage.value = "Cannot send message: Booking not found"
-                return@launch
-            }
-            
-            when (val res = chatRepository.sendMessage(bookingId, text)) {
+            when (val res = chatRepository.sendMessage(conversationId, text)) {
                 is AppResult.Success -> {
                     val msg = res.data
                     val isNew = addOrUpdateMessage(msg)
                     
-                    // Update message count if message is from current user
                     if (isNew && msg.fromCurrentUser) {
                         _conversations.update { list ->
                             list.map { convo ->
                                 if (convo.id == conversationId) {
                                     convo.copy(myMessageCount = convo.myMessageCount + 1)
-                                } else {
-                                    convo
-                                }
+                            } else {
+                                convo
                             }
                         }
                     }

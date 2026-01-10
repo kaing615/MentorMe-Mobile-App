@@ -17,11 +17,19 @@ class AiChatHistoryManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val gson: Gson
 ) {
-    private val historyFile = File(context.filesDir, "ai_chat_history.json")
+    private fun historyFile(historyKey: String): File {
+        val key = historyKey.trim().lowercase()
+        return if (key == DEFAULT_HISTORY_KEY) {
+            File(context.filesDir, "ai_chat_history.json")
+        } else {
+            File(context.filesDir, "ai_chat_history_${key}.json")
+        }
+    }
 
-    suspend fun saveMessages(messages: List<AiChatMessage>) {
+    suspend fun saveMessages(messages: List<AiChatMessage>, historyKey: String = DEFAULT_HISTORY_KEY) {
         withContext(Dispatchers.IO) {
             try {
+                val file = historyFile(historyKey)
                 // Convert messages to serializable format
                 val serializableList = messages.map { msg ->
                     when (msg) {
@@ -43,19 +51,20 @@ class AiChatHistoryManager @Inject constructor(
                 }
 
                 val json = gson.toJson(serializableList)
-                historyFile.writeText(json)
+                file.writeText(json)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
     }
 
-    suspend fun loadMessages(): List<AiChatMessage> {
+    suspend fun loadMessages(historyKey: String = DEFAULT_HISTORY_KEY): List<AiChatMessage> {
         return withContext(Dispatchers.IO) {
             try {
-                if (!historyFile.exists()) return@withContext emptyList()
+                val file = historyFile(historyKey)
+                if (!file.exists()) return@withContext emptyList()
 
-                val json = historyFile.readText()
+                val json = file.readText()
                 val type = object : TypeToken<List<Map<String, Any>>>() {}.type
                 val list: List<Map<String, Any>> = gson.fromJson(json, type)
 
@@ -89,15 +98,20 @@ class AiChatHistoryManager @Inject constructor(
         }
     }
 
-    suspend fun clearHistory() {
+    suspend fun clearHistory(historyKey: String = DEFAULT_HISTORY_KEY) {
         withContext(Dispatchers.IO) {
             try {
-                if (historyFile.exists()) {
-                    historyFile.delete()
+                val file = historyFile(historyKey)
+                if (file.exists()) {
+                    file.delete()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
+    }
+
+    private companion object {
+        private const val DEFAULT_HISTORY_KEY = "mentee"
     }
 }

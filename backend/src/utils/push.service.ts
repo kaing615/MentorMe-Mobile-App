@@ -1,6 +1,6 @@
+import admin from 'firebase-admin';
 import fs from 'fs';
 import path from 'path';
-import admin from 'firebase-admin';
 import DeviceToken from '../models/deviceToken.model';
 
 export interface PushPayload {
@@ -67,8 +67,11 @@ function getFirebaseApp(): admin.app.App | null {
   cachedApp = admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
   });
+  console.log('[FCM] Firebase Admin SDK initialized successfully');
   return cachedApp;
 }
+
+export { getFirebaseApp };
 
 function normalizeData(data?: Record<string, string>) {
   if (!data) return undefined;

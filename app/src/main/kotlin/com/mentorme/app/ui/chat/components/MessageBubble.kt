@@ -72,6 +72,69 @@ fun MessageBubbleGlass(m: Message) {
 }
 
 @Composable
+fun AiMessageBubble(
+    text: String,
+    isMine: Boolean
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Top
+    ) {
+        // AI Bot Avatar (only for bot messages)
+        if (!isMine) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.linearGradient(
+                            colors = listOf(
+                                Color(0xFF6366F1),
+                                Color(0xFF8B5CF6),
+                                Color(0xFFEC4899)
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "🤖",
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+        }
+        
+        Surface(
+            modifier = Modifier
+                .widthIn(max = 280.dp)
+                .then(
+                    if (isMine) 
+                        Modifier.liquidGlassStrong(radius = 20.dp, alpha = 0.32f) 
+                    else 
+                        Modifier.liquidGlass(radius = 20.dp)
+                )
+                .then(
+                    if (isMine) 
+                        Modifier.background(Color(0xFF1D4ED8).copy(alpha = 0.26f)) 
+                    else 
+                        Modifier
+                ),
+            tonalElevation = 0.dp,
+            color = Color.Transparent
+        ) {
+            Text(
+                text = text,
+                modifier = Modifier.padding(12.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White
+            )
+        }
+    }
+}
+
+@Composable
 fun MessageContentWithFile(
     content: String,
     messageType: String,

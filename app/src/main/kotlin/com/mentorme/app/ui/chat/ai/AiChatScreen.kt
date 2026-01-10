@@ -2,6 +2,7 @@ package com.mentorme.app.ui.chat.ai
 
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,12 +18,14 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -44,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -54,18 +58,32 @@ import com.mentorme.app.ui.chat.components.GlassIconButton
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.components.ui.MMTextField
 import com.mentorme.app.ui.theme.liquidGlassStrong
+import com.mentorme.app.data.repository.ai.AiChatMode
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun AiChatScreen(
     onBack: () -> Unit,
-    onOpenProfile: (String) -> Unit
+    onOpenProfile: (String) -> Unit,
+    mode: AiChatMode = AiChatMode.MENTEE
 ) {
     val viewModel = hiltViewModel<AiChatViewModel>()
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val loading by viewModel.loading.collectAsStateWithLifecycle()
 
     val listState = rememberLazyListState()
+    val subtitle = remember(mode) {
+        when (mode) {
+            AiChatMode.MENTEE -> "Tr? l? t?m mentor"
+            AiChatMode.MENTOR -> "Tr? l? cho mentor"
+        }
+    }
+    val placeholder = remember(mode) {
+        when (mode) {
+            AiChatMode.MENTEE -> "H?i AI v? mentor b?n c?n..."
+            AiChatMode.MENTOR -> "H?i AI v? l?ch r?nh, booking, payout..."
+        }
+    }
 
     CompositionLocalProvider(LocalContentColor provides Color.White) {
         Column(
@@ -101,7 +119,7 @@ fun AiChatScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Trợ lý tìm mentor",
+                        subtitle,
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.White.copy(alpha = 0.7f)
                     )
@@ -130,25 +148,27 @@ fun AiChatScreen(
                     items(messages) { msg ->
                         when (msg) {
                             is AiChatMessage.User -> {
-                                MessageBubbleGlass(
+                                AiMessageBubble(
                                     text = msg.text,
                                     isMine = true
                                 )
                             }
 
                             is AiChatMessage.Ai -> {
-                                MessageBubbleGlass(
+                                AiMessageBubble(  // ✅ Changed from MessageBubbleGlass
                                     text = msg.text,
                                     isMine = false
                                 )
 
                                 Spacer(Modifier.height(6.dp))
 
-                                msg.mentors.forEach { mentor ->
-                                    MentorSuggestCard(
-                                        mentor = mentor,
-                                        onClick = { onOpenProfile(mentor.mentorId) }
-                                    )
+                                if (mode == AiChatMode.MENTEE) {
+                                    msg.mentors.forEach { mentor ->
+                                        MentorSuggestCard(
+                                            mentor = mentor,
+                                            onClick = { onOpenProfile(mentor.mentorId) }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -169,7 +189,7 @@ fun AiChatScreen(
                     viewModel.ask(text)
                 },
                 enabled = true,
-                placeholder = "Hỏi AI về mentor bạn cần...",
+                placeholder = placeholder,
                 modifier = Modifier
                     .fillMaxWidth()
                     .imePadding()
@@ -224,14 +244,40 @@ fun ChatHeader(
 }
 
 @Composable
-fun MessageBubbleGlass(
+fun AiMessageBubble(
     text: String,
     isMine: Boolean
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start
+        horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Top
     ) {
+        // ✅ AI Bot Avatar (only for bot messages)
+        if (!isMine) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                Color(0xFF6366F1),
+                                Color(0xFF8B5CF6),
+                                Color(0xFFEC4899)
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "🤖",
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+        }
+        
         Surface(
             modifier = Modifier.widthIn(max = 280.dp),
             shape = RoundedCornerShape(16.dp),

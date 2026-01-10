@@ -14,8 +14,6 @@
     "clear:data": "tsx src/utils/scripts/clear-data.ts",
     "clear:reviews": "tsx src/utils/scripts/clear-reviews.ts",
     "preview:data": "tsx src/utils/scripts/preview-data.ts",
-    "check:cronjobs": "tsx src/utils/scripts/check-cronjobs.ts",
-    "trigger:booking-job": "tsx src/utils/scripts/trigger-booking-job.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js"
   },

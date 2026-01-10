@@ -410,7 +410,7 @@ fun SearchMentorScreen(
             GlassOverlay(
                 visible = blurOn,
                 onDismiss = { showDetail = false; showBooking = false },
-                formModifier = Modifier.fillMaxSize().padding(12.dp)
+                formModifier = Modifier.fillMaxSize().padding(4.dp) // ✅ Giảm padding 12→4dp để sheet rộng hơn
             ) {
                 selectedMentor?.let { mentor ->
                     when {

@@ -52,7 +52,7 @@ fun MessageBubbleGlass(m: Message) {
         
         Surface(
             modifier = Modifier
-                .widthIn(max = 300.dp)
+                .widthIn(max = 320.dp)
                 .then(
                     if (isMe) Modifier.liquidGlassStrong(radius = 20.dp, alpha = 0.32f) else Modifier.liquidGlass(radius = 20.dp)
                 )
@@ -66,7 +66,7 @@ fun MessageBubbleGlass(m: Message) {
             MessageContentWithFile(
                 content = m.text,
                 messageType = m.messageType,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.wrapContentWidth()
             )
         }
     }
@@ -109,7 +109,7 @@ fun AiMessageBubble(
         
         Surface(
             modifier = Modifier
-                .widthIn(max = 280.dp)
+                .widthIn(max = 300.dp)
                 .then(
                     if (isMine) 
                         Modifier.liquidGlassStrong(radius = 20.dp, alpha = 0.32f) 
@@ -127,7 +127,7 @@ fun AiMessageBubble(
         ) {
             Text(
                 text = text,
-                modifier = Modifier.padding(12.dp),
+                modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White
             )
@@ -222,7 +222,12 @@ fun MessageContentWithFile(
         }
         else -> {
             // Regular text message
-            Text(content, modifier = modifier)
+            Text(
+                text = content,
+                modifier = modifier.padding(12.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White
+            )
         }
     }
 }

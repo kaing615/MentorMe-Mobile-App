@@ -371,6 +371,15 @@ private fun NotificationRow(
         item.type == com.mentorme.app.data.model.NotificationType.BOOKING_REMINDER ||
         item.type == com.mentorme.app.data.model.NotificationType.BOOKING_CONFIRMED
     )
+    var joinWindowState by remember(bookingId) {
+        mutableStateOf(NotificationsViewModel.JoinWindowState.UNKNOWN)
+    }
+
+    LaunchedEffect(bookingId, showJoinButton) {
+        if (showJoinButton && bookingId != null) {
+            joinWindowState = viewModel.getJoinWindowState(bookingId)
+        }
+    }
     
     // ✅ Soft & Airy Frosted Mist Style: White tint with gentle alpha
     val cardAlpha = if (!item.read) 0.20f else 0.08f // Unread: Distinct frosted | Read: Very subtle
@@ -469,6 +478,8 @@ private fun NotificationRow(
         
         // Join Session button for booking notifications
         if (showJoinButton && bookingId != null) {
+            val isTooEarly = joinWindowState == NotificationsViewModel.JoinWindowState.TOO_EARLY
+            val buttonLabel = if (isTooEarly) "Chưa tới giờ" else "Join Session"
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -489,7 +500,8 @@ private fun NotificationRow(
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isTooEarly
                 ) {
                     Icon(
                         androidx.compose.material.icons.Icons.Default.VideoCall,
@@ -497,7 +509,7 @@ private fun NotificationRow(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("Join Session")
+                    Text(buttonLabel)
                 }
             }
         }

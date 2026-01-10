@@ -317,6 +317,12 @@ export async function initSocket(server: HttpServer) {
           return respond(callback, { ok: false, message: "BOOKING_NOT_FOUND" });
         }
 
+        // Check if session has been marked as no-show
+        if (["NoShowMentor", "NoShowMentee", "NoShowBoth"].includes(booking.status)) {
+          console.log(`[Session] SESSION_NO_SHOW_CLOSED - status: ${booking.status}`);
+          return respond(callback, { ok: false, message: "SESSION_NO_SHOW_CLOSED" });
+        }
+
         if (booking.status !== "Confirmed") {
           return respond(callback, { ok: false, message: "SESSION_NOT_READY" });
         }

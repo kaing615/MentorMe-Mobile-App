@@ -18,6 +18,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.components.ui.MMGhostButton
+import com.mentorme.app.ui.components.session.OngoingSessionDialog
 import com.mentorme.app.ui.theme.LiquidBackground
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.theme.liquidGlass
@@ -109,6 +113,7 @@ fun MentorDashboardScreen(
                 )
             }
         }
+
     }
 }
 
@@ -156,6 +161,9 @@ private fun DashboardContent(
             { Icon(Icons.Default.AccessTime, null, tint = Color.White) }
         )
     )
+
+    var dismissedOngoingSessionId by rememberSaveable { mutableStateOf<String?>(null) }
+    val ongoingSession = upcomingSessions.firstOrNull { it.isOngoing && it.canJoin }
 
     Box(modifier = Modifier.fillMaxSize()) {
 
@@ -278,6 +286,19 @@ private fun DashboardContent(
                 }
             }
             item { Spacer(Modifier.height(24.dp)) }
+        }
+
+        if (ongoingSession != null && ongoingSession.id != dismissedOngoingSessionId) {
+            OngoingSessionDialog(
+                title = "Phiên tư vấn đang diễn ra",
+                description = "Bạn đang có phiên tư vấn với ${ongoingSession.menteeName}. Hãy vào phòng để bắt đầu.",
+                timeLabel = ongoingSession.time,
+                onJoin = {
+                    dismissedOngoingSessionId = ongoingSession.id
+                    onJoinSession(ongoingSession.id)
+                },
+                onDismiss = { dismissedOngoingSessionId = ongoingSession.id }
+            )
         }
     }
 }

@@ -34,10 +34,15 @@ type MentorApplication = {
 /* ===================== Constants ===================== */
 
 const statusChoices = [
-  { id: "pending", name: "Pending" },
-  { id: "approved", name: "Approved" },
-  { id: "rejected", name: "Rejected" },
+  { id: "pending", name: "Chờ duyệt" },
+  { id: "approved", name: "Đã duyệt" },
+  { id: "rejected", name: "Từ chối" },
 ];
+
+const statusLabelMap = statusChoices.reduce<Record<string, string>>((acc, choice) => {
+  acc[choice.id] = choice.name;
+  return acc;
+}, {});
 
 const apiUrl = import.meta.env.VITE_API_URL;
 const token = () => localStorage.getItem("access_token") || "";
@@ -45,29 +50,33 @@ const token = () => localStorage.getItem("access_token") || "";
 /* ===================== Filters ===================== */
 
 const MentorAppFilters = [
-  <TextInput key="q" source="q" label="Search" alwaysOn />,
+  <TextInput key="q" source="q" label="Tìm kiếm" alwaysOn />,
   <SelectInput
     key="status"
     source="status"
-    label="Status"
+    label="Trạng thái"
     choices={statusChoices}
   />,
 ];
 
 /* ===================== UI Helpers ===================== */
 
-function StatusChip() {
+function StatusChip({ label: _label }: { label?: string }) {
   const record = useRecordContext<MentorApplication>();
   if (!record?.status) return null;
 
-  const colorMap: any = {
+  const colorMap: Record<string, "warning" | "success" | "error"> = {
     pending: "warning",
     approved: "success",
     rejected: "error",
   };
 
   return (
-    <Chip size="small" label={record.status} color={colorMap[record.status]} />
+    <Chip
+      size="small"
+      label={statusLabelMap[record.status] || record.status}
+      color={colorMap[record.status]}
+    />
   );
 }
 
@@ -90,15 +99,15 @@ function ApproveButton() {
           headers: {
             Authorization: `Bearer ${token()}`,
           },
-        },
+        }
       );
 
-      if (!res.ok) throw new Error("Approve failed");
+      if (!res.ok) throw new Error("Duyệt thất bại");
 
-      notify("Mentor application approved", { type: "success" });
+      notify("Đã duyệt đơn đăng ký mentor", { type: "success" });
       refresh();
     } catch (e: any) {
-      notify(e.message || "Approve failed", { type: "error" });
+      notify(e.message || "Duyệt thất bại", { type: "error" });
     } finally {
       setOpen(false);
     }
@@ -106,11 +115,11 @@ function ApproveButton() {
 
   return (
     <>
-      <Button label="Approve" onClick={() => setOpen(true)} />
+      <Button label="Duyệt" onClick={() => setOpen(true)} />
       <Confirm
         isOpen={open}
-        title="Approve mentor application"
-        content="Approve this mentor application?"
+        title="Duyệt đơn đăng ký mentor"
+        content="Duyệt đơn đăng ký này?"
         onConfirm={onConfirm}
         onClose={() => setOpen(false)}
       />
@@ -129,7 +138,7 @@ function RejectButton() {
 
   const onConfirm = async () => {
     if (!reason.trim()) {
-      notify("Please provide a rejection reason", { type: "warning" });
+      notify("Vui lòng nhập lý do từ chối", { type: "warning" });
       return;
     }
 
@@ -143,15 +152,15 @@ function RejectButton() {
             Authorization: `Bearer ${token()}`,
           },
           body: JSON.stringify({ reason }),
-        },
+        }
       );
 
-      if (!res.ok) throw new Error("Reject failed");
+      if (!res.ok) throw new Error("Từ chối thất bại");
 
-      notify("Mentor application rejected", { type: "info" });
+      notify("Đã từ chối đơn đăng ký mentor", { type: "info" });
       refresh();
     } catch (e: any) {
-      notify(e.message || "Reject failed", { type: "error" });
+      notify(e.message || "Từ chối thất bại", { type: "error" });
     } finally {
       setOpen(false);
       setReason("");
@@ -160,13 +169,13 @@ function RejectButton() {
 
   return (
     <>
-      <Button label="Reject" onClick={() => setOpen(true)} />
+      <Button label="Từ chối" onClick={() => setOpen(true)} />
       <Confirm
         isOpen={open}
-        title="Reject mentor application"
+        title="Từ chối đơn đăng ký mentor"
         content={
           <textarea
-            placeholder="Reason (required)"
+            placeholder="Lý do (bắt buộc)"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={4}
@@ -188,16 +197,16 @@ export function MentorApplicationList() {
       filters={MentorAppFilters}
       sort={{ field: "submittedAt", order: "DESC" }}
       perPage={25}
-      title="Mentor Applications"
+      title="Đơn đăng ký mentor"
     >
       <Datagrid rowClick={false}>
-        <TextField source="id" />
-        <TextField source="mentorId" />
-        <TextField source="fullName" />
-        <TextField source="jobTitle" />
-        <TextField source="category" />
-        <StatusChip />
-        <DateField source="submittedAt" showTime />
+        <TextField source="id" label="Mã đơn" />
+        <TextField source="mentorId" label="ID mentor" />
+        <TextField source="fullName" label="Họ tên" />
+        <TextField source="jobTitle" label="Chức danh" />
+        <TextField source="category" label="Lĩnh vực" />
+        <StatusChip label="Trạng thái" />
+        <DateField source="submittedAt" showTime label="Nộp lúc" />
         <EditButton />
         <ApproveButton />
         <RejectButton />
@@ -214,18 +223,19 @@ export function MentorApplicationEdit() {
       <SimpleForm>
         <SelectInput
           source="status"
+          label="Trạng thái"
           choices={statusChoices}
           validate={[required()]}
         />
-        <TextInput source="fullName" fullWidth />
-        <TextInput source="jobTitle" fullWidth />
-        <TextInput source="category" fullWidth />
+        <TextInput source="fullName" label="Họ tên" fullWidth />
+        <TextInput source="jobTitle" label="Chức danh" fullWidth />
+        <TextInput source="category" label="Lĩnh vực" fullWidth />
         <TextInput
           source="note"
+          label="Ghi chú admin"
           fullWidth
           multiline
           minRows={4}
-          label="Admin note"
         />
       </SimpleForm>
     </Edit>

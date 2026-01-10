@@ -12,6 +12,7 @@ import {
   useRefresh,
   useRecordContext,
   useRedirect,
+  FunctionField,
 } from "react-admin";
 
 /* ===================== Types ===================== */
@@ -30,32 +31,42 @@ type Report = {
 /* ===================== Constants ===================== */
 
 const statusChoices = [
-  { id: "open", name: "Open" },
-  { id: "investigating", name: "Investigating" },
-  { id: "resolved", name: "Resolved" },
+  { id: "open", name: "Mới" },
+  { id: "investigating", name: "Đang xử lý" },
+  { id: "resolved", name: "Đã xử lý" },
 ];
 
+const statusLabelMap = statusChoices.reduce<Record<string, string>>((acc, choice) => {
+  acc[choice.id] = choice.name;
+  return acc;
+}, {});
+
 const targetTypeChoices = [
-  { id: "user", name: "User" },
-  { id: "review", name: "Review" },
-  { id: "message", name: "Message" },
-  { id: "file", name: "File" },
+  { id: "user", name: "Người dùng" },
+  { id: "review", name: "Đánh giá" },
+  { id: "message", name: "Tin nhắn" },
+  { id: "file", name: "Tệp" },
 ];
+
+const targetTypeLabelMap = targetTypeChoices.reduce<Record<string, string>>((acc, choice) => {
+  acc[choice.id] = choice.name;
+  return acc;
+}, {});
 
 /* ===================== Filters ===================== */
 
 const ReportFilters = [
-  <TextInput key="q" source="q" label="Search" alwaysOn />,
+  <TextInput key="q" source="q" label="Tìm kiếm" alwaysOn />,
   <SelectInput
     key="status"
     source="status"
-    label="Status"
+    label="Trạng thái"
     choices={statusChoices}
   />,
   <SelectInput
     key="targetType"
     source="targetType"
-    label="Target"
+    label="Đối tượng"
     choices={targetTypeChoices}
   />,
 ];
@@ -88,15 +99,15 @@ function UpdateStatusButton({
             Authorization: `Bearer ${localStorage.getItem("access_token")}`,
           },
           body: JSON.stringify({ status: toStatus }),
-        },
+        }
       );
 
-      if (!res.ok) throw new Error("Update failed");
+      if (!res.ok) throw new Error("Cập nhật thất bại");
 
-      notify("Report updated", { type: "success" });
+      notify("Đã cập nhật báo cáo", { type: "success" });
       refresh();
     } catch (e: any) {
-      notify(e.message || "Update failed", { type: "error" });
+      notify(e.message || "Cập nhật thất bại", { type: "error" });
     } finally {
       setOpen(false);
     }
@@ -107,8 +118,8 @@ function UpdateStatusButton({
       <Button label={label} onClick={() => setOpen(true)} />
       <Confirm
         isOpen={open}
-        title="Update report status"
-        content={`Set status to "${toStatus}"?`}
+        title="Cập nhật trạng thái báo cáo"
+        content={`Chuyển trạng thái thành "${statusLabelMap[toStatus ?? ""] || toStatus}"?`}
         onConfirm={onConfirm}
         onClose={() => setOpen(false)}
       />
@@ -122,20 +133,13 @@ function GoToTargetButton() {
   const record = useRecordContext<Report>();
   const redirect = useRedirect();
 
-  if (!record || !record.targetType || !record.targetId) return null;
-
-  const label =
-    record.targetType === "user" ? "Open User" : `Open ${record.targetType}`;
+  if (!record || record.targetType !== "user" || !record.targetId) return null;
 
   const onClick = () => {
-    if (record.targetType === "user") {
-      redirect(`/users/${record.targetId}`);
-    } else {
-      redirect(`/${record.targetType}s/${record.targetId}`);
-    }
+    redirect(`/users/${record.targetId}`);
   };
 
-  return <Button label={label} onClick={onClick} />;
+  return <Button label="Mở người dùng" onClick={onClick} />;
 }
 
 /* ===================== List ===================== */
@@ -146,19 +150,31 @@ export function ReportList() {
       filters={ReportFilters}
       sort={{ field: "createdAt", order: "DESC" }}
       perPage={25}
-      title="Reports"
+      title="Báo cáo"
     >
       <Datagrid rowClick={false}>
-        <TextField source="id" />
-        <TextField source="type" />
-        <TextField source="status" />
-        <TextField source="targetType" />
-        <TextField source="targetId" />
-        <TextField source="reporterId" />
-        <DateField source="createdAt" showTime />
+        <TextField source="id" label="Mã báo cáo" />
+        <TextField source="type" label="Loại" />
+        <FunctionField
+          label="Trạng thái"
+          render={(record: Report) =>
+            record.status ? statusLabelMap[record.status] || record.status : "—"
+          }
+        />
+        <FunctionField
+          label="Đối tượng"
+          render={(record: Report) =>
+            record.targetType
+              ? targetTypeLabelMap[record.targetType] || record.targetType
+              : "—"
+          }
+        />
+        <TextField source="targetId" label="ID đối tượng" />
+        <TextField source="reporterId" label="Người báo cáo" />
+        <DateField source="createdAt" showTime label="Tạo lúc" />
         <GoToTargetButton />
-        <UpdateStatusButton toStatus="investigating" label="Investigate" />
-        <UpdateStatusButton toStatus="resolved" label="Resolve" />
+        <UpdateStatusButton toStatus="investigating" label="Đang xử lý" />
+        <UpdateStatusButton toStatus="resolved" label="Đã xử lý" />
       </Datagrid>
     </List>
   );

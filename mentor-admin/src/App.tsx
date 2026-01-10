@@ -6,19 +6,20 @@ import { dataProvider } from "./dataProvider";
 import { Layout } from "./Layout";
 import { LoginPage } from "./LoginPage";
 import { darkTheme, lightTheme } from "./theme";
+import { i18nProvider } from "./i18nProvider";
 
 import {
-    BookingEdit,
-    BookingList,
-    MentorApplicationEdit,
-    MentorApplicationList,
-    PayoutList,
-    ReportList,
-    SessionList,
-    TopUpList,
-    UserEdit,
-    UserList,
-    WebhookPage,
+  BookingEdit,
+  BookingList,
+  MentorApplicationEdit,
+  MentorApplicationList,
+  PayoutList,
+  ReportList,
+  SessionList,
+  TopUpList,
+  UserEdit,
+  UserList,
+  WebhookPage,
 } from "./resources";
 
 import { MyProfile } from "./MyProfile";
@@ -33,48 +34,53 @@ export default function App() {
       darkTheme={darkTheme}
       dashboard={Dashboard}
       loginPage={LoginPage}
+      i18nProvider={i18nProvider}
       requireAuth
     >
-      <Resource name="users" list={UserList} edit={UserEdit} />
+      <Resource
+        name="users"
+        options={{ label: "Người dùng" }}
+        list={UserList}
+        edit={UserEdit}
+      />
 
       <Resource
         name="admin/bookings"
-        options={{ label: "Bookings" }}
+        options={{ label: "Lịch hẹn" }}
         list={BookingList}
         edit={BookingEdit}
       />
 
       <Resource
         name="admin/sessions"
-        options={{ label: "Sessions" }}
+        options={{ label: "Phiên học" }}
         list={SessionList}
       />
 
-      {/* Moderation */}
-      <Resource name="reports" list={ReportList} />
+      <Resource name="reports" options={{ label: "Báo cáo" }} list={ReportList} />
 
       {/* Admin only */}
       <Resource
         name="admin/payouts"
-        options={{ label: "Mentor Payouts" }}
+        options={{ label: "Yêu cầu rút tiền" }}
         list={PayoutList}
       />
 
       <Resource
         name="admin/webhook-logs"
-        options={{ label: "Webhook Logs" }}
+        options={{ label: "Webhook giả lập" }}
         list={WebhookPage}
       />
 
       <Resource
         name="admin/topup-intents"
-        options={{ label: "TopUp Intents" }}
+        options={{ label: "Yêu cầu nạp tiền" }}
         list={TopUpList}
       />
 
       <Resource
         name="mentor-applications"
-        options={{ label: "Mentor Applications" }}
+        options={{ label: "Đơn đăng ký mentor" }}
         list={MentorApplicationList}
         edit={MentorApplicationEdit}
       />

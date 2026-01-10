@@ -15,6 +15,10 @@ export interface IUser extends Document {
   role: "mentee" | "mentor" | "admin" | "root";
   status: "active" | "pending-mentor" | "verifying" | "onboarding";
   isBlocked: boolean;
+  mentorApplicationStatus?: "pending" | "approved" | "rejected";
+  mentorApplicationNote?: string;
+  mentorApplicationSubmittedAt?: Date;
+  mentorApplicationReviewedAt?: Date;
   notificationPrefs?: {
     pushBooking?: boolean;
     pushPayment?: boolean;
@@ -41,6 +45,14 @@ const userSchema: Schema<IUser> = new Schema(
       enum: ["active", "verifying", "pending-mentor", "onboarding"],
       default: "verifying",
     },
+    mentorApplicationStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: undefined,
+    },
+    mentorApplicationNote: { type: String, trim: true, default: "" },
+    mentorApplicationSubmittedAt: { type: Date },
+    mentorApplicationReviewedAt: { type: Date },
     isBlocked: { type: Boolean, default: false },
     notificationPrefs: {
       pushBooking: { type: Boolean, default: true },

@@ -213,17 +213,19 @@ export const markNotificationRead = asyncHandler(async (req: Request, res: Respo
   if (!userId) return badRequest(res, 'Unauthorized');
 
   const { id } = req.params;
-  const updated = await Notification.findOneAndUpdate(
-    { _id: id, user: userId },
-    { $set: { read: true } },
-    { new: true }
-  );
+  const notification = await Notification.findOne({ _id: id, user: userId });
 
-  if (!updated) return notFound(res, 'Notification not found');
+  if (!notification) return notFound(res, 'Notification not found');
+
+  if (!notification.read) {
+    notification.read = true;
+    notification.readAt = new Date();
+    await notification.save();
+  }
 
   return ok(
     res,
-    { id: String(updated._id), read: updated.read },
+    { id: String(notification._id), read: notification.read },
     'Notification marked as read'
   );
 });
@@ -234,7 +236,7 @@ export const markAllNotificationsRead = asyncHandler(async (req: Request, res: R
 
   const result = await Notification.updateMany(
     { user: userId, read: false },
-    { $set: { read: true } }
+    { $set: { read: true, readAt: new Date() } }
   );
 
   return ok(res, { updated: result.modifiedCount ?? 0 }, 'Notifications marked as read');

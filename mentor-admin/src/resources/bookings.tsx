@@ -55,17 +55,25 @@ type Booking = {
 /* ===================== Constants ===================== */
 
 const bookingStatusChoices = [
-  { id: "PaymentPending", name: "Payment Pending" },
-  { id: "PendingMentor", name: "Pending Mentor" },
-  { id: "Confirmed", name: "Confirmed" },
-  { id: "Failed", name: "Failed" },
-  { id: "Cancelled", name: "Cancelled" },
-  { id: "Declined", name: "Declined" },
-  { id: "Completed", name: "Completed" },
-  { id: "NoShowMentor", name: "No Show (Mentor)" },
-  { id: "NoShowMentee", name: "No Show (Mentee)" },
-  { id: "NoShowBoth", name: "No Show (Both)" },
+  { id: "PaymentPending", name: "Chờ thanh toán" },
+  { id: "PendingMentor", name: "Chờ mentor xác nhận" },
+  { id: "Confirmed", name: "Đã xác nhận" },
+  { id: "Failed", name: "Thất bại" },
+  { id: "Cancelled", name: "Đã hủy" },
+  { id: "Declined", name: "Từ chối" },
+  { id: "Completed", name: "Hoàn thành" },
+  { id: "NoShowMentor", name: "Mentor vắng mặt" },
+  { id: "NoShowMentee", name: "Mentee vắng mặt" },
+  { id: "NoShowBoth", name: "Cả hai vắng mặt" },
 ];
+
+const bookingStatusLabelMap = bookingStatusChoices.reduce<Record<string, string>>(
+  (acc, choice) => {
+    acc[choice.id] = choice.name;
+    return acc;
+  },
+  {}
+);
 
 const terminalStatuses: BookingStatus[] = [
   "Failed",
@@ -93,34 +101,34 @@ const statusColors: Record<BookingStatus, "default" | "info" | "success" | "warn
 const apiUrl = import.meta.env.VITE_API_URL;
 const token = () => localStorage.getItem("access_token") || "";
 
-const formatStatusLabel = (status: string) =>
-  status.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " " );
+const getStatusLabel = (status?: BookingStatus) =>
+  status ? bookingStatusLabelMap[status] || status : "";
 
 /* ===================== Filters ===================== */
 
 const BookingFilters = [
-  <TextInput key="mentorId" source="mentorId" label="Mentor ID" />,
-  <TextInput key="menteeId" source="menteeId" label="Mentee ID" />,
+  <TextInput key="mentorId" source="mentorId" label="ID mentor" />,
+  <TextInput key="menteeId" source="menteeId" label="ID mentee" />,
   <SelectInput
     key="status"
     source="status"
-    label="Status"
+    label="Trạng thái"
     choices={bookingStatusChoices}
   />,
-  <DateTimeInput key="from" source="from" label="From" />,
-  <DateTimeInput key="to" source="to" label="To" />,
+  <DateTimeInput key="from" source="from" label="Từ" />,
+  <DateTimeInput key="to" source="to" label="Đến" />,
 ];
 
 /* ===================== UI Helpers ===================== */
 
-function StatusChip() {
+function StatusChip({ label: _label }: { label?: string }) {
   const record = useRecordContext<Booking>();
   if (!record?.status) return null;
 
   return (
     <Chip
       size="small"
-      label={formatStatusLabel(record.status)}
+      label={getStatusLabel(record.status)}
       color={statusColors[record.status] || "default"}
     />
   );
@@ -155,12 +163,14 @@ function ChangeStatusButton(props: {
         body: JSON.stringify({ status: toStatus }),
       });
 
-      if (!res.ok) throw new Error("Update failed");
+      if (!res.ok) throw new Error("Cập nhật thất bại");
 
-      notify(`Booking ${formatStatusLabel(toStatus)}`, { type: "success" });
+      notify(`Đã cập nhật lịch hẹn: ${getStatusLabel(toStatus)}`, {
+        type: "success",
+      });
       refresh();
     } catch (e: any) {
-      notify(e.message || "Update failed", { type: "error" });
+      notify(e.message || "Cập nhật thất bại", { type: "error" });
     } finally {
       setOpen(false);
     }
@@ -171,8 +181,8 @@ function ChangeStatusButton(props: {
       <Button label={label} onClick={() => setOpen(true)} />
       <Confirm
         isOpen={open}
-        title="Change booking status"
-        content={`Change status to "${formatStatusLabel(toStatus)}"?`}
+        title="Cập nhật trạng thái lịch hẹn"
+        content={`Chuyển trạng thái thành "${getStatusLabel(toStatus)}"?`}
         onConfirm={onConfirm}
         onClose={() => setOpen(false)}
       />
@@ -188,27 +198,27 @@ function BookingActions() {
     <Stack direction="row" spacing={1}>
       <ChangeStatusButton
         toStatus="Confirmed"
-        label="Confirm"
+        label="Xác nhận"
         fromStatuses={["PendingMentor"]}
       />
       <ChangeStatusButton
         toStatus="Declined"
-        label="Decline"
+        label="Từ chối"
         fromStatuses={["PendingMentor"]}
       />
       <ChangeStatusButton
         toStatus="Completed"
-        label="Complete"
+        label="Hoàn thành"
         fromStatuses={["Confirmed"]}
       />
       <ChangeStatusButton
         toStatus="Cancelled"
-        label="Cancel"
+        label="Hủy"
         fromStatuses={["PaymentPending", "PendingMentor", "Confirmed"]}
       />
       <ChangeStatusButton
         toStatus="Failed"
-        label="Fail"
+        label="Thất bại"
         fromStatuses={["PaymentPending"]}
       />
     </Stack>
@@ -223,20 +233,20 @@ export function BookingList() {
       filters={BookingFilters}
       sort={{ field: "startTimeIso", order: "DESC" }}
       perPage={25}
-      title="Bookings"
+      title="Lịch hẹn"
     >
       <Datagrid rowClick={false}>
-        <TextField source="id" />
+        <TextField source="id" label="Mã lịch hẹn" />
         <TextField source="mentorFullName" label="Mentor" />
         <TextField source="menteeFullName" label="Mentee" />
-        <TextField source="mentorId" />
-        <TextField source="menteeId" />
-        <StatusChip />
-        <DateField source="startTimeIso" showTime />
-        <DateField source="endTimeIso" showTime />
-        <NumberField source="price" />
-        <TextField source="topic" />
-        <DateField source="createdAt" showTime />
+        <TextField source="mentorId" label="ID mentor" />
+        <TextField source="menteeId" label="ID mentee" />
+        <StatusChip label="Trạng thái" />
+        <DateField source="startTimeIso" showTime label="Bắt đầu" />
+        <DateField source="endTimeIso" showTime label="Kết thúc" />
+        <NumberField source="price" label="Giá" />
+        <TextField source="topic" label="Chủ đề" />
+        <DateField source="createdAt" showTime label="Tạo lúc" />
         <EditButton />
         <BookingActions />
       </Datagrid>
@@ -250,25 +260,27 @@ export function BookingEdit() {
   return (
     <Edit>
       <SimpleForm>
-        <TextField source="id" />
+        <TextField source="id" label="Mã lịch hẹn" />
         <TextField source="mentorFullName" label="Mentor" />
         <TextField source="menteeFullName" label="Mentee" />
-        <TextField source="mentorId" />
-        <TextField source="menteeId" />
-        <DateField source="startTimeIso" showTime />
-        <DateField source="endTimeIso" showTime />
-        <NumberField source="price" />
+        <TextField source="mentorId" label="ID mentor" />
+        <TextField source="menteeId" label="ID mentee" />
+        <DateField source="startTimeIso" showTime label="Bắt đầu" />
+        <DateField source="endTimeIso" showTime label="Kết thúc" />
+        <NumberField source="price" label="Giá" />
         <SelectInput
           source="status"
+          label="Trạng thái"
           choices={bookingStatusChoices}
           validate={[required()]}
         />
-        <TextInput source="topic" fullWidth />
-        <TextInput source="meetingLink" fullWidth />
-        <TextInput source="location" fullWidth />
-        <TextInput source="notes" fullWidth multiline minRows={3} />
+        <TextInput source="topic" label="Chủ đề" fullWidth />
+        <TextInput source="meetingLink" label="Link phòng họp" fullWidth />
+        <TextInput source="location" label="Địa điểm" fullWidth />
+        <TextInput source="notes" label="Ghi chú" fullWidth multiline minRows={3} />
         <TextInput
           source="cancelReason"
+          label="Lý do hủy"
           fullWidth
           multiline
           minRows={2}

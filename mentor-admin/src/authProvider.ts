@@ -1,4 +1,3 @@
-// src/authProvider.ts
 import type { AuthProvider } from "react-admin";
 
 const apiUrl = import.meta.env.VITE_API_URL;
@@ -12,16 +11,17 @@ export const authProvider: AuthProvider = {
     });
 
     if (!res.ok) {
-      const error = await res.json().catch(() => ({ message: "Login failed" }));
-      throw new Error(error.message || "Login failed");
+      const error = await res
+        .json()
+        .catch(() => ({ message: "Đăng nhập thất bại" }));
+      throw new Error(error.message || "Đăng nhập thất bại");
     }
 
     const response = await res.json();
-    // Backend trả về: { success: true, data: { accessToken, role, userId, email }, message: "..." }
     const data = response.data || response;
 
     if (!data.accessToken) {
-      throw new Error("No access token received");
+      throw new Error("Không nhận được access token");
     }
 
     localStorage.setItem("access_token", data.accessToken);
@@ -41,13 +41,12 @@ export const authProvider: AuthProvider = {
 
   async checkAuth() {
     const token = localStorage.getItem("access_token");
-    if (!token) throw new Error("No token");
+    if (!token) throw new Error("Không có token");
   },
 
   async checkError(error) {
     const status = error?.status || error?.response?.status;
-    
-    // 401 Unauthorized - token invalid/expired, need to logout
+
     if (status === 401) {
       localStorage.removeItem("access_token");
       localStorage.removeItem("role");
@@ -55,11 +54,9 @@ export const authProvider: AuthProvider = {
       localStorage.removeItem("user_email");
       return Promise.reject();
     }
-    
-    // 403 Forbidden - token valid but no permission, don't logout
-    // Just show error message to user
+
     if (status === 403) {
-      return Promise.resolve(); // Don't throw, just let the component handle it
+      return Promise.resolve();
     }
   },
 

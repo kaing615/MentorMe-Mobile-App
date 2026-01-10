@@ -41,17 +41,17 @@ export const MyProfile = () => {
     e.preventDefault();
 
     if (!currentPassword || !newPassword || !confirmPassword) {
-      notify("Please fill all fields", { type: "warning" });
+      notify("Vui lòng nhập đầy đủ.", { type: "warning" });
       return;
     }
 
     if (newPassword.length < 6) {
-      notify("Password must be at least 6 characters", { type: "error" });
+      notify("Mật khẩu phải tối thiểu 6 ký tự.", { type: "error" });
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      notify("Passwords do not match", { type: "error" });
+      notify("Mật khẩu không khớp.", { type: "error" });
       return;
     }
 
@@ -69,20 +69,20 @@ export const MyProfile = () => {
             currentPassword,
             newPassword,
           }),
-        },
+        }
       );
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.message || "Change password failed");
+        throw new Error(err.message || "Đổi mật khẩu thất bại");
       }
 
-      notify("Password updated successfully", { type: "success" });
+      notify("Đổi mật khẩu thành công", { type: "success" });
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (e: any) {
-      notify(e.message || "Change password failed", { type: "error" });
+      notify(e.message || "Đổi mật khẩu thất bại", { type: "error" });
     } finally {
       setLoading(false);
     }
@@ -90,15 +90,13 @@ export const MyProfile = () => {
 
   return (
     <Box sx={{ maxWidth: 900, mx: "auto", p: 3 }}>
-      {/* Header */}
       <Typography variant="h4" fontWeight={600} gutterBottom>
-        Account Settings
+        Cài đặt tài khoản
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
-        Manage your profile information and security settings
+        Quản lý thông tin và bảo mật tài khoản
       </Typography>
 
-      {/* Profile Card */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Stack direction="row" spacing={2} alignItems="center">
@@ -116,16 +114,15 @@ export const MyProfile = () => {
         </CardContent>
       </Card>
 
-      {/* Security Card */}
       <Card>
         <CardContent>
           <Stack direction="row" spacing={1} alignItems="center" mb={1}>
             <LockOutlined fontSize="small" />
-            <Typography variant="h6">Security</Typography>
+            <Typography variant="h6">Bảo mật</Typography>
           </Stack>
 
           <Typography color="text.secondary" fontSize={14} mb={2}>
-            Update your password to keep your account secure
+            Cập nhật mật khẩu để bảo vệ tài khoản
           </Typography>
 
           <Divider sx={{ mb: 2 }} />
@@ -133,7 +130,7 @@ export const MyProfile = () => {
           <Box component="form" onSubmit={handleSubmit}>
             <TextField
               fullWidth
-              label="Current Password"
+              label="Mật khẩu hiện tại"
               type={showCurrent ? "text" : "password"}
               margin="normal"
               value={currentPassword}
@@ -154,10 +151,10 @@ export const MyProfile = () => {
 
             <TextField
               fullWidth
-              label="New Password"
+              label="Mật khẩu mới"
               type={showNew ? "text" : "password"}
               margin="normal"
-              helperText="Minimum 6 characters"
+              helperText="Tối thiểu 6 ký tự"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               InputProps={{
@@ -173,7 +170,7 @@ export const MyProfile = () => {
 
             <TextField
               fullWidth
-              label="Confirm New Password"
+              label="Xác nhận mật khẩu mới"
               type={showConfirm ? "text" : "password"}
               margin="normal"
               value={confirmPassword}
@@ -198,7 +195,7 @@ export const MyProfile = () => {
               sx={{ mt: 3 }}
               disabled={loading}
             >
-              {loading ? "Updating..." : "Update Password"}
+              {loading ? "Đang cập nhật..." : "Cập nhật mật khẩu"}
             </Button>
           </Box>
         </CardContent>

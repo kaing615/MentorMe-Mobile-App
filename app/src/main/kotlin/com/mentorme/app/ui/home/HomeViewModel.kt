@@ -230,7 +230,7 @@ class HomeViewModel @Inject constructor(
                         role = "mentee",
                         status = null,
                         page = 1,
-                        limit = 50
+                        limit = 100
                     )) {
                         is AppResult.Success -> {
                             val sessions = findUpcomingSessions(bookingsResult.data.bookings)
@@ -253,7 +253,7 @@ class HomeViewModel @Inject constructor(
                     priceMax = null,
                     sort = "rating",
                     page = 1,
-                    limit = 20
+                    limit = 100 // ✅ Tăng từ 20 → 100 để hiển thị nhiều mentors hơn
                 )) {
                     is AppResult.Success -> {
                         val mentors = mentorsResult.data

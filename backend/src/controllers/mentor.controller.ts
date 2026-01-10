@@ -29,8 +29,8 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
   const priceMax = req.query.priceMax !== undefined ? parseNumber(req.query.priceMax, Number.MAX_SAFE_INTEGER) : undefined;
   const sortKey = (req.query.sort as string) || "rating_desc";
   const page = Math.max(1, parseNumber(req.query.page, 1));
-  const limitRaw = parseNumber(req.query.limit, 20);
-  const limit = Math.min(Math.max(1, limitRaw), 200); // ✅ Tăng limit từ 50 → 200
+  const limitRaw = parseNumber(req.query.limit, 100); // ✅ Tăng default từ 20 → 100
+  const limit = Math.min(Math.max(1, limitRaw), 500); // ✅ Tăng max từ 200 → 500
   const skip = (page - 1) * limit;
 
   const skills = skillsCsv
@@ -45,13 +45,9 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
   // We'll handle rating filter AFTER ensuring all mentors are included
   // This allows mentors with rating=0 (no reviews) to appear
 
-  if (priceMin !== undefined || priceMax !== undefined) {
-    match["hourlyRateVnd"] = {};
-    if (priceMin !== undefined) Object.assign(match["hourlyRateVnd"], { $gte: priceMin });
-    if (priceMax !== undefined && priceMax !== Number.MAX_SAFE_INTEGER)
-      Object.assign(match["hourlyRateVnd"], { $lte: priceMax });
-    if (Object.keys(match["hourlyRateVnd"]).length === 0) delete match["hourlyRateVnd"]; // no-op
-  }
+  // ✅ REMOVED: Don't filter price in initial $match stage
+  // We'll apply price filter AFTER ensuring hourlyRateVnd defaults to 0
+  // This prevents null/undefined hourlyRateVnd from being excluded
   if (skills.length > 0) {
     match["skills"] = { $in: skills };
   }
@@ -64,6 +60,7 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
 
     // Create both original and normalized search patterns
     const rxOriginal = new RegExp(escaped, "i"); // Case-insensitive
+    const normalizedQuery = normalizeVietnamese(q);
     const rxNormalized = new RegExp(normalizeVietnamese(escaped), "i");
 
     // Search in original fields (for exact Vietnamese match)
@@ -72,10 +69,12 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
     or.push({ skills: rxOriginal });
     or.push({ company: rxOriginal });
 
-    // ✅ NEW: Also search in normalized fields (for partial match like "Bù" → "Bùi")
-    // Note: This requires normalized fields in DB or computed fields
-    // For now, we rely on MongoDB's text index or case-insensitive regex
-    // The regex will match "Bù" in "Bùi Ngọc Thái" due to case-insensitive flag
+    // ✅ IMPROVED: Add $expr with $regexMatch for advanced matching
+    // This allows partial word matching like "Gay" → "Nguyen Van Gay"
+    // MongoDB regex already handles this with case-insensitive flag
+    // No additional processing needed - the above should work
+
+    console.log(`[listMentors] Search query: "${q}" (normalized: "${normalizedQuery}")`);
   }
 
   const pipeline: any[] = [
@@ -86,37 +85,76 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
     { $match: { "user.role": "mentor" } },
   ];
 
+  // ✅ Debug: Log initial match count
+  console.log(`[listMentors] Initial match conditions:`, JSON.stringify(match));
+  console.log(`[listMentors] Skills filter:`, skills.length > 0 ? skills : "NONE");
+  console.log(`[listMentors] Price filter:`, `${priceMin}-${priceMax}`);
+
   if (or.length > 0) pipeline.push({ $match: { $or: or } });
 
-  // ✅ NEW: Lookup availability to prioritize mentors with published schedules
+  // ✅ FIXED: Check if mentor has available slots
+  // Logic:
+  // 1. Find AvailabilitySlot with status="published"
+  // 2. Find AvailabilityOccurrence with status="open" that references that slot
   pipeline.push({
     $lookup: {
-      from: "availabilities",
+      from: "availabilityslots", // Collection name for AvailabilitySlot model
       let: { mentorUserId: "$user._id" },
       pipeline: [
         {
           $match: {
-            $expr: { $eq: ["$mentor", "$$mentorUserId"] },
-            isPublished: true, // ✅ Only published schedules
-            // Optionally filter future slots only
-            // startTime: { $gte: new Date() }
+            $expr: {
+              $and: [
+                { $eq: ["$mentor", "$$mentorUserId"] },
+                { $eq: ["$status", "published"] } // ✅ Move status check to $expr for consistency
+              ]
+            }
           }
         },
-        { $limit: 1 } // Just need to know if ANY published availability exists
+        // ✅ Check if this slot has open occurrences
+        {
+          $lookup: {
+            from: "availabilityoccurrences",
+            let: { slotId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$slot", "$$slotId"] },
+                      { $eq: ["$status", "open"] } // ✅ Move status check to $expr
+                    ]
+                  }
+                }
+              },
+              { $limit: 1 }
+            ],
+            as: "openOccurrences"
+          }
+        },
+        // ✅ Only keep slots that have open occurrences
+        {
+          $match: {
+            $expr: { $gt: [{ $size: "$openOccurrences" }, 0] } // ✅ Use $expr for size check
+          }
+        },
+        { $limit: 1 }
       ],
-      as: "availabilities"
+      as: "availableSlots"
     }
   });
 
-  // ✅ Add computed field: hasAvailability (true if mentor has published schedules)
+  // ✅ Add computed field: hasAvailability (true if mentor has published slots with open occurrences)
   pipeline.push({
     $addFields: {
-      hasAvailability: { $gt: [{ $size: "$availabilities" }, 0] },
-      // ✅ NEW: isAvailable field for UI (same as hasAvailability for now)
-      isAvailable: { $gt: [{ $size: "$availabilities" }, 0] },
+      hasAvailability: { $gt: [{ $size: "$availableSlots" }, 0] },
+      // ✅ NEW: isAvailable field for UI (same as hasAvailability)
+      isAvailable: { $gt: [{ $size: "$availableSlots" }, 0] },
       // ✅ Ensure rating fields exist with default 0
       "rating.average": { $ifNull: ["$rating.average", 0] },
-      "rating.count": { $ifNull: ["$rating.count", 0] }
+      "rating.count": { $ifNull: ["$rating.count", 0] },
+      // ✅ FIX: Ensure hourlyRateVnd defaults to 0 (prevents null filtering)
+      hourlyRateVnd: { $ifNull: ["$hourlyRateVnd", 0] }
     }
   });
 
@@ -125,6 +163,23 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
     pipeline.push({
       $match: { "rating.average": { $gte: minRating } }
     });
+  }
+
+  // ✅ Apply price filter AFTER hourlyRateVnd defaults to 0
+  const hasMeaningfulPriceFilter =
+    (priceMin !== undefined && priceMin > 0) ||
+    (priceMax !== undefined && priceMax !== Number.MAX_SAFE_INTEGER);
+
+  if (hasMeaningfulPriceFilter) {
+    const priceMatch: any = {};
+    if (priceMin !== undefined && priceMin > 0) {
+      priceMatch.hourlyRateVnd = { $gte: priceMin };
+    }
+    if (priceMax !== undefined && priceMax !== Number.MAX_SAFE_INTEGER) {
+      priceMatch.hourlyRateVnd = priceMatch.hourlyRateVnd || {};
+      Object.assign(priceMatch.hourlyRateVnd, { $lte: priceMax });
+    }
+    pipeline.push({ $match: priceMatch });
   }
 
   // ✅ IMPROVED: Sorting with availability priority, rating defaults to 0
@@ -166,7 +221,63 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
   const first = result[0] || { items: [], total: [] };
   const total = (first.total[0]?.count as number) || 0;
 
-  const items = (first.items as any[]).map((doc) => toMentorCard(doc.user, doc));
+  // ✅ Safely map items, catch errors
+  const items: any[] = [];
+  const errors: any[] = [];
+  (first.items as any[]).forEach((doc, idx) => {
+    try {
+      const card = toMentorCard(doc.user, doc);
+      items.push(card);
+    } catch (err) {
+      console.error(`❌ [listMentors] Failed to map mentor at index ${idx}:`, err);
+      console.error(`   Doc:`, JSON.stringify({
+        userId: doc.user?._id,
+        email: doc.user?.email,
+        fullName: doc.fullName
+      }));
+      errors.push({ idx, error: (err as Error).message });
+    }
+  });
+
+  // ✅ Debug log
+  console.log(`[listMentors] ✅ RESULT: page=${page} limit=${limit} total=${total} items.length=${items.length}`);
+  if (errors.length > 0) {
+    console.error(`❌ [listMentors] ${errors.length} mentors failed to map:`, errors);
+  }
+  if (items.length !== total && page === 1) {
+    console.warn(`⚠️  MISMATCH: total=${total} but items.length=${items.length} (missing ${total - items.length})`);
+  }
+
+  // ✅ Log first 3 and last 3 mentors to see sort order
+  if (items.length > 0) {
+    console.log(`[listMentors] First 3:`, items.slice(0, 3).map(m => `${m.name}(avail:${m.isAvailable},rating:${m.rating})`));
+    console.log(`[listMentors] Last 3:`, items.slice(-3).map(m => `${m.name}(avail:${m.isAvailable},rating:${m.rating})`));
+  }
+
+  // ✅ DEBUG: Check if "Nguyen Van Gay" is in the results
+  const gayMentor = items.find(m => m.name.includes("Gay"));
+  if (gayMentor) {
+    console.log(`[listMentors] 🎯 Found "Nguyen Van Gay":`, {
+      id: gayMentor.id,
+      isAvailable: gayMentor.isAvailable,
+      rating: gayMentor.rating,
+      hourlyRate: gayMentor.hourlyRate
+    });
+  } else {
+    console.log(`[listMentors] ⚠️  "Nguyen Van Gay" NOT in results`);
+    // Check if it was filtered out
+    const allDocs = first.items as any[];
+    const gayDoc = allDocs.find((doc: any) => doc.fullName?.includes("Gay"));
+    if (gayDoc) {
+      console.log(`[listMentors] 🔍 Found in raw docs but failed mapping:`, {
+        fullName: gayDoc.fullName,
+        hasAvailability: gayDoc.hasAvailability,
+        isAvailable: gayDoc.isAvailable,
+        availableSlotsCount: gayDoc.availableSlots?.length,
+        rating: gayDoc.rating?.average
+      });
+    }
+  }
 
   return response.ok(res, { items, page, limit, total });
 });

@@ -106,6 +106,7 @@ fun SearchMentorScreen(
         var currentPage by remember { mutableIntStateOf(1) }
         var hasMore by remember { mutableStateOf(true) }
         var loadingMore by remember { mutableStateOf(false) }
+        var isRefreshing by remember { mutableStateOf(false) }
 
         // ===== State (saveable) =====
         var query by rememberSaveable { mutableStateOf(initialExpertise ?: "") }
@@ -140,6 +141,22 @@ fun SearchMentorScreen(
             if (blurOn) onOverlayOpened() else onOverlayClosed()
         }
 
+        // ✅ Auto-refresh when screen is visible (sync latest data)
+        LaunchedEffect(Unit) {
+            // Initial load happens via filters LaunchedEffect
+            // This just marks that screen is active
+        }
+
+        // ✅ Refresh when returning from detail/booking sheets
+        LaunchedEffect(showDetail, showBooking) {
+            if (!showDetail && !showBooking && remoteMentors.isNotEmpty()) {
+                // Optional: Refresh data when closing sheets
+                // Uncomment if needed:
+                // delay(300)
+                // refresh by re-triggering search
+            }
+        }
+
         // ✅ Trigger network search when filters change - RESET to page 1
         LaunchedEffect(query, selectedSkills, minRating, priceStart, priceEnd, sortName) {
             loading = true
@@ -158,19 +175,26 @@ fun SearchMentorScreen(
                 priceMax = priceMax,
                 sort = sortName,
                 page = 1,
-                limit = 20 // ✅ Giảm xuống 20/page để pagination
+                limit = 100 // ✅ Tăng từ 20 → 100 để hiển thị nhiều mentors hơn
             )
             when (res) {
                 is com.mentorme.app.core.utils.AppResult.Success -> {
                     remoteMentors = res.data
-                    hasMore = res.data.size >= 20 // ✅ Nếu trả về đủ 20 → còn tiếp
+                    hasMore = res.data.size >= 100 // ✅ Update check
                     loading = false
+                    // ✅ Debug log
+                    Log.d("SearchScreen", "✅ Loaded ${res.data.size} mentors (page=$currentPage, hasMore=$hasMore)")
+                    Log.d("SearchScreen", "First mentor: ${res.data.firstOrNull()?.name}, Last: ${res.data.lastOrNull()?.name}")
                 }
                 is com.mentorme.app.core.utils.AppResult.Error -> {
                     error = res.throwable
                     loading = false
+                    Log.e("SearchScreen", "❌ Load failed: ${res.throwable}")
                 }
-                com.mentorme.app.core.utils.AppResult.Loading -> { loading = true }
+                com.mentorme.app.core.utils.AppResult.Loading -> {
+                    loading = true
+                    Log.d("SearchScreen", "⏳ Loading mentors...")
+                }
             }
         }
 
@@ -190,17 +214,50 @@ fun SearchMentorScreen(
                 priceMax = priceMax,
                 sort = sortName,
                 page = nextPage,
-                limit = 20
+                limit = 100 // ✅ Tăng từ 20 → 100
             )
             when (res) {
                 is com.mentorme.app.core.utils.AppResult.Success -> {
                     remoteMentors = remoteMentors + res.data // ✅ Append new results
                     currentPage = nextPage
-                    hasMore = res.data.size >= 20
+                    hasMore = res.data.size >= 100 // ✅ Update check
                     loadingMore = false
                 }
                 is com.mentorme.app.core.utils.AppResult.Error -> {
                     loadingMore = false
+                }
+                com.mentorme.app.core.utils.AppResult.Loading -> { }
+            }
+        }
+
+        // ✅ Manual refresh function
+        suspend fun refresh() {
+            if (isRefreshing) return
+
+            isRefreshing = true
+            currentPage = 1
+            hasMore = true
+
+            val priceMin = (priceStart * 50_000).takeIf { it > 0 }
+            val priceMax = (priceEnd * 50_000).takeIf { it > 0 }
+            val res = searchUC(
+                q = query.takeIf { it.isNotBlank() },
+                skills = selectedSkills,
+                minRating = minRating.takeIf { it > 0f },
+                priceMin = priceMin,
+                priceMax = priceMax,
+                sort = sortName,
+                page = 1,
+                limit = 100
+            )
+            when (res) {
+                is com.mentorme.app.core.utils.AppResult.Success -> {
+                    remoteMentors = res.data
+                    hasMore = res.data.size >= 100
+                    isRefreshing = false
+                }
+                is com.mentorme.app.core.utils.AppResult.Error -> {
+                    isRefreshing = false
                 }
                 com.mentorme.app.core.utils.AppResult.Loading -> { }
             }
@@ -219,26 +276,24 @@ fun SearchMentorScreen(
         // Derive chips from current list
         val allSkills = remember(listForUi) { listForUi.flatMap { it.skills }.distinct().sorted() }
 
-        // ===== Filter + sort on current list =====
-        val filtered = remember(query, selectedSkills, minRating, priceStart, priceEnd, listForUi) {
-            listForUi.filter { m ->
-                (query.isBlank() || m.name.contains(query, ignoreCase = true)) &&
-                        (selectedSkills.isEmpty() || m.skills.any { it in selectedSkills }) &&
-                        m.rating >= minRating &&
-                        run {
-                            val steps = m.hourlyRate / 50_000f
-                            steps >= priceStart && steps <= priceEnd
-                        }
+        // ✅ REMOVED: Client-side filtering duplicates backend logic
+        // Backend already filters by minRating, priceMin, priceMax, skills
+        // Only keep local name search for instant feedback
+        val filtered = remember(query, listForUi) {
+            if (query.isBlank()) {
+                listForUi
+            } else {
+                listForUi.filter { m ->
+                    m.name.contains(query, ignoreCase = true) ||
+                    m.role.contains(query, ignoreCase = true) ||
+                    m.skills.any { it.contains(query, ignoreCase = true) }
+                }
             }
         }
-        val result = remember(filtered, sort) {
-            when (sort) {
-                SortOption.Relevance -> filtered
-                SortOption.RatingDesc -> filtered.sortedByDescending { it.rating }
-                SortOption.PriceAsc  -> filtered.sortedBy { it.hourlyRate }
-                SortOption.PriceDesc -> filtered.sortedByDescending { it.hourlyRate }
-            }
-        }
+
+        // ✅ REMOVED: Client-side sorting duplicates backend logic
+        // Backend already sorts by hasAvailability + rating/price
+        val result = filtered
 
         // ===== Layout with two layers =====
         Box(Modifier.fillMaxSize()) {

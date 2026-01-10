@@ -372,7 +372,7 @@ private fun BookingCard(
     val dateToday = todayDate()
     val now = nowHHmm()
 
-    // ✅ FIX: Logic canJoin giống Mentor - check session chưa kết thúc và trong khoảng 15 phút trước
+    // ✅ FIX: Logic canJoin giống Mentor - check session chưa kết thúc và trong khoảng 20 phút trước
     val sessionEnded = when {
         booking.date < dateToday -> true // Ngày đã qua
         booking.date > dateToday -> false // Ngày chưa tới
@@ -389,8 +389,8 @@ private fun BookingCard(
             run {
                 val nowMins = hhmmToMinutes(now)
                 val startMins = hhmmToMinutes(booking.startTime)
-                // Có thể join trong khoảng 15 phút trước đến hết giờ session
-                nowMins >= (startMins - 15)
+                // Có thể join trong khoảng 20 phút trước đến hết giờ session
+                nowMins >= (startMins - 20)
             }
 
     // ✅ Check if starting soon (trong vòng 30 phút)

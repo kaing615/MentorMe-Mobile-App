@@ -74,14 +74,14 @@ fun AiChatScreen(
     val listState = rememberLazyListState()
     val subtitle = remember(mode) {
         when (mode) {
-            AiChatMode.MENTEE -> "Tr? l? t?m mentor"
-            AiChatMode.MENTOR -> "Tr? l? cho mentor"
+            AiChatMode.MENTEE -> "Trợ lý tìm mentor"
+            AiChatMode.MENTOR -> "Trợ lý cho mentor"
         }
     }
     val placeholder = remember(mode) {
         when (mode) {
-            AiChatMode.MENTEE -> "H?i AI v? mentor b?n c?n..."
-            AiChatMode.MENTOR -> "H?i AI v? l?ch r?nh, booking, payout..."
+            AiChatMode.MENTEE -> "Hỏi AI về mentor bạn cần..."
+            AiChatMode.MENTOR -> "Hỏi AI về lịch rảnh, booking, payout..."
         }
     }
 

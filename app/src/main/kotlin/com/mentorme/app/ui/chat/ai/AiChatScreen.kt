@@ -26,6 +26,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
@@ -103,6 +106,12 @@ fun AiChatScreen(
                         color = Color.White.copy(alpha = 0.7f)
                     )
                 }
+
+                Spacer(Modifier.weight(1f))
+
+                IconButton(onClick = { viewModel.clearHistory() }) {
+                    Icon(Icons.Default.Delete, "Xóa lịch sử")
+                }
             }
 
             Box(
@@ -138,7 +147,7 @@ fun AiChatScreen(
                                 msg.mentors.forEach { mentor ->
                                     MentorSuggestCard(
                                         mentor = mentor,
-                                        onClick = { onOpenProfile(mentor.id) }
+                                        onClick = { onOpenProfile(mentor.mentorId) }
                                     )
                                 }
                             }

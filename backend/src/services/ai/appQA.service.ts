@@ -5,21 +5,32 @@ import {
 } from "../baseKnowledge.service";
 
 export async function answerAppQuestion(userMessage: string): Promise<string> {
-  const entries = retrieveRelevantKB(userMessage, 4);
-  const systemContext = buildContextFromKB(entries, 1200);
+  const entries = retrieveRelevantKB(userMessage); // Lấy toàn bộ KB
+  const systemContext = buildContextFromKB(entries, 2000); // Tăng maxChars
 
   const prompt = `
-Bạn là trợ lý của MentorMe. Dựa trên thông tin nền tảng (dưới đây), trả lời câu hỏi của người dùng bằng TIẾNG VIỆT, ngắn gọn, thân thiện.
-Nếu không chắc, nói "Mình không rõ thông tin này — anh/chị vui lòng liên hệ support."
+Bạn là trợ lý ảo thông minh của MentorMe - nền tảng kết nối mentor và mentee.
 
-Câu hỏi: "${userMessage}"
-`;
+NHIỆM VỤ:
+- Trả lời câu hỏi của người dùng dựa trên Thông tin nền tảng bên dưới
+- Nếu người dùng hỏi về: người sáng lập, founder, ai tạo ra, team, nhóm phát triển → Trả lời thông tin về người sáng lập
+- Nếu hỏi về giá cả, chi phí, phí, pricing → Trả lời chính sách giá
+- Nếu hỏi về tính năng, làm gì được, booking, đặt lịch → Trả lời tính năng
+- Nếu hỏi về liên hệ, hỗ trợ, support, email → Trả lời thông tin liên hệ
+- Trả lời bằng TIẾNG VIỆT, tự nhiên, thân thiện, ngắn gọn (2-4 câu)
+- Nếu không có thông tin → "Mình chưa có thông tin này, anh/chị liên hệ support@mentorme.com nhé"
 
-  const fullPrompt = systemContext ? `${systemContext}\n\n${prompt}` : prompt;
-  const text = await generateGeminiContent(fullPrompt);
+THÔNG TIN NỀN TẢNG:
+${systemContext}
+
+CÂU HỎI: "${userMessage}"
+
+TRẢ LỜI:`;
+
+  const text = await generateGeminiContent(prompt);
 
   if (!text || text.trim().length === 0) {
-    return "Mình không chắc thông tin này — anh/chị vui lòng liên hệ 23521389@gm.uit.edu.vn.";
+    return "Mình chưa hiểu câu hỏi này lắm. Anh/chị có thể liên hệ 23521389@gm.uit.edu.vn để được hỗ trợ trực tiếp nhé!";
   }
   return text.trim();
 }

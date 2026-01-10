@@ -10,7 +10,8 @@ export async function recommendMentorController(req: Request, res: Response) {
   if (!message || typeof message !== "string") {
     return res.status(400).json({
       success: false,
-      error: "Message is required",
+      message: "Message is required",
+      data: null,
     });
   }
 
@@ -19,8 +20,11 @@ export async function recommendMentorController(req: Request, res: Response) {
       const answer = await answerAppQuestion(message);
       return res.json({
         success: true,
-        type: "app_qa",
-        answer,
+        message: null,
+        data: {
+          type: "app_qa",
+          answer,
+        },
       });
     }
 
@@ -29,15 +33,19 @@ export async function recommendMentorController(req: Request, res: Response) {
 
     return res.json({
       success: true,
-      type: "mentor_recommend",
-      ai: aiResult,
-      mentors,
+      message: null,
+      data: {
+        type: "mentor_recommend",
+        ai: aiResult,
+        mentors,
+      },
     });
   } catch (err) {
     console.error("❌ RECOMMEND CONTROLLER ERROR", err);
     return res.status(500).json({
       success: false,
-      error: "Internal server error",
+      message: "Internal server error",
+      data: null,
     });
   }
 }

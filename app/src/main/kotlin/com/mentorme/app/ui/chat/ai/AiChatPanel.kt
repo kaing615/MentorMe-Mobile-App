@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,7 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import com.mentorme.app.data.dto.mentors.MentorCardDto
+import com.mentorme.app.data.dto.ai.MentorWithExplanation
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.components.ui.MMTextField
 import com.mentorme.app.ui.theme.liquidGlassStrong
@@ -79,7 +80,7 @@ fun AiChatPanel(
                         msg.mentors.forEach { mentor ->
                             MentorSuggestCard(
                                 mentor = mentor,
-                                onClick = { onMentorClick(mentor.id) }
+                                onClick = { onMentorClick(mentor.mentorId) }
                             )
                         }
                     }
@@ -117,40 +118,93 @@ fun AiChatPanel(
 
 @Composable
 fun MentorSuggestCard(
-    mentor: MentorCardDto,
+    mentor: MentorWithExplanation,
     onClick: () -> Unit
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
             .background(Color.White.copy(alpha = 0.08f))
-            .padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(12.dp)
     ) {
-
-        AsyncImage(
-            model = mentor.avatarUrl,
-            contentDescription = null,
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-        )
-
-        Spacer(Modifier.width(8.dp))
-
-        Column {
-            Text(
-                mentor.name ?: "Mentor",
-                fontWeight = FontWeight.SemiBold
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AsyncImage(
+                model = mentor.avatarUrl,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
             )
 
-            Text(
-                mentor.skills?.joinToString(", ") ?: "",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.7f)
-            )
+            Spacer(Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    mentor.fullName,
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleSmall
+                )
+
+                if (mentor.headline != null) {
+                    Text(
+                        mentor.headline,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (mentor.rating?.average != null) {
+                        Text(
+                            "⭐ ${String.format("%.1f", mentor.rating.average)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFFFBBF24)
+                        )
+                    }
+
+                    Text(
+                        "${mentor.hourlyRateVnd.toString().replace(Regex("(\\d)(?=(\\d{3})+$)"), "$1.")}đ/h",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF10B981)
+                    )
+                }
+            }
+        }
+
+        // AI Explanation
+        if (mentor.explanation != null) {
+            Spacer(Modifier.height(8.dp))
+            
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = Color(0xFF8B5CF6).copy(alpha = 0.2f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(8.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text(
+                        "✨",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                    Text(
+                        mentor.explanation,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.85f),
+                        lineHeight = MaterialTheme.typography.bodySmall.lineHeight.times(1.4f)
+                    )
+                }
+            }
         }
     }
 }

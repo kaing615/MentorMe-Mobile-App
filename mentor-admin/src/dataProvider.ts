@@ -1,17 +1,44 @@
 // src/dataProvider.ts
 import simpleRestProvider from "ra-data-simple-rest";
-import { fetchUtils, DataProvider } from "react-admin";
+import { DataProvider, fetchUtils } from "react-admin";
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
-// httpClient cũ (giữ nguyên)
-const httpClient = (url: string, options: fetchUtils.Options = {}) => {
+const normalizeId = (item: any) => ({
+  ...item,
+  id: item.id ?? item._id,
+});
+
+const toQueryValue = (value: any) => {
+  if (value instanceof Date) return value.toISOString();
+  return String(value);
+};
+
+// httpClient with better error handling
+const httpClient = async (url: string, options: fetchUtils.Options = {}) => {
   const token = localStorage.getItem("access_token");
+  if (!token) {
+    throw new Error("No token");
+  }
   options.user = {
     authenticated: true,
-    token: token ? `Bearer ${token}` : "",
+    token: `Bearer ${token}`,
   };
-  return fetchUtils.fetchJson(url, options);
+  try {
+    return await fetchUtils.fetchJson(url, options);
+  } catch (error: any) {
+    // Log the error for debugging
+    if (error.status === 403) {
+      console.warn("Access forbidden:", url);
+    } else {
+      console.error("HTTP Client Error:", {
+        url,
+        status: error.status,
+        message: error.message,
+      });
+    }
+    throw error;
+  }
 };
 
 // base provider cho các resource bình thường (users, bookings, reports, ...)
@@ -23,7 +50,7 @@ export const dataProvider: DataProvider = {
 
   async getList(resource, params) {
     // 👉 Resource bookings: handle custom response format
-    if (resource === "bookings") {
+    if (resource === "bookings" || resource === "admin/bookings") {
       const { filter = {}, pagination, sort } = params;
       const { page = 1, perPage = 10 } = pagination || {};
 
@@ -35,24 +62,48 @@ export const dataProvider: DataProvider = {
       // Add filters
       Object.entries(filter).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== "") {
-          query[key] = String(value);
+          query[key] = toQueryValue(value);
         }
       });
 
       const searchParams = new URLSearchParams(query);
-      const url = `${apiUrl}/bookings?${searchParams.toString()}`;
+      const url = `${apiUrl}/${resource}?${searchParams.toString()}`;
 
       const { json } = await httpClient(url);
 
       // Backend returns: { success, message, data: { bookings, total, page, totalPages } }
-      const bookings = json?.data?.bookings ?? [];
-      const total = json?.data?.total ?? 0;
+      const bookings = json?.data?.bookings ?? json?.bookings ?? [];
+      const total = json?.data?.total ?? json?.total ?? 0;
 
-      // Ensure each item has id field
-      const data = bookings.map((item: any) => ({
-        ...item,
-        id: item.id ?? item._id,
-      }));
+      const data = bookings.map(normalizeId);
+
+      return { data, total };
+    }
+
+    // ?? Resource admin/sessions: handle custom response format
+    if (resource === "admin/sessions") {
+      const { filter = {}, pagination } = params;
+      const { page = 1, perPage = 25 } = pagination || {};
+
+      const query: Record<string, string> = {
+        page: String(page),
+        limit: String(perPage),
+      };
+
+      Object.entries(filter).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") {
+          query[key] = toQueryValue(value);
+        }
+      });
+
+      const searchParams = new URLSearchParams(query);
+      const url = `${apiUrl}/${resource}?${searchParams.toString()}`;
+
+      const { json } = await httpClient(url);
+
+      const sessions = json?.data?.sessions ?? json?.sessions ?? [];
+      const total = json?.data?.total ?? json?.total ?? 0;
+      const data = sessions.map(normalizeId);
 
       return { data, total };
     }
@@ -96,5 +147,28 @@ export const dataProvider: DataProvider = {
 
     // Other resources use simpleRestProvider
     return baseProvider.getList(resource, params);
+  },
+
+  async getOne(resource, params) {
+    if (resource === "admin/bookings") {
+      const { json } = await httpClient(`${apiUrl}/${resource}/${params.id}`);
+      const record = json?.data ?? json;
+      return { data: normalizeId(record) };
+    }
+
+    return baseProvider.getOne(resource, params);
+  },
+
+  async update(resource, params) {
+    if (resource === "admin/bookings") {
+      const { json } = await httpClient(`${apiUrl}/${resource}/${params.id}`, {
+        method: "PUT",
+        body: JSON.stringify(params.data),
+      });
+      const record = json?.data ?? json;
+      return { data: normalizeId(record) };
+    }
+
+    return baseProvider.update(resource, params);
   },
 };

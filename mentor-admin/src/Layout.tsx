@@ -3,10 +3,10 @@ import type { ReactNode } from "react";
 import {
   AppBar,
   CheckForApplicationUpdate,
-  Layout as RALayout,
   Logout,
   MenuItemLink,
-  UserMenu,
+  Layout as RALayout,
+  UserMenu
 } from "react-admin";
 
 /* ===================== User Menu ===================== */
@@ -24,7 +24,9 @@ const MyUserMenu = () => (
 
 /* ===================== App Bar ===================== */
 
-const MyAppBar = () => <AppBar userMenu={<MyUserMenu />} />;
+const MyAppBar = () => (
+    <AppBar userMenu={<MyUserMenu />} />
+);
 
 /* ===================== Layout ===================== */
 

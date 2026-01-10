@@ -481,6 +481,146 @@ export const getBookingById = asyncHandler(async (req: Request, res: Response) =
 });
 
 /**
+ * GET /api/admin/bookings
+ * List all bookings (admin/root)
+ */
+export const adminListBookings = asyncHandler(async (req: Request, res: Response) => {
+  const {
+    status,
+    mentorId,
+    menteeId,
+    from,
+    to,
+    page = 1,
+    limit = 25,
+  } = req.query as {
+    status?: TBookingStatus;
+    mentorId?: string;
+    menteeId?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    limit?: number;
+  };
+
+  const pageNum = Number(page) || 1;
+  const limitNum = Math.min(Number(limit) || 25, 100);
+  const skip = (pageNum - 1) * limitNum;
+
+  const query: any = {};
+  if (status) query.status = status;
+  if (mentorId) query.mentor = mentorId;
+  if (menteeId) query.mentee = menteeId;
+  if (from || to) {
+    query.startTime = {};
+    if (from) query.startTime.$gte = new Date(from);
+    if (to) query.startTime.$lte = new Date(to);
+  }
+
+  const [bookings, total] = await Promise.all([
+    Booking.find(query)
+      .sort({ startTime: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .lean(),
+    Booking.countDocuments(query),
+  ]);
+
+  const totalPages = Math.ceil(total / limitNum);
+
+  const userSummaries = await buildUserSummaryMap(
+    bookings.flatMap((b) => [String(b.mentee), String(b.mentor)])
+  );
+
+  const start = skip;
+  const end = Math.min(skip + bookings.length - 1, total - 1);
+  res.set('Content-Range', `bookings ${start}-${end}/${total}`);
+  res.set('Access-Control-Expose-Headers', 'Content-Range');
+
+  return ok(res, {
+    bookings: bookings.map((booking) => formatBookingResponse(booking, userSummaries)),
+    total,
+    page: pageNum,
+    totalPages,
+  });
+});
+
+/**
+ * GET /api/admin/bookings/:id
+ * Get booking details (admin/root)
+ */
+export const adminGetBookingById = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  const booking = await Booking.findById(id).lean();
+  if (!booking) {
+    return notFound(res, 'Booking not found');
+  }
+
+  const userSummaries = await buildUserSummaryMap([
+    String(booking.mentee),
+    String(booking.mentor),
+  ]);
+
+  return ok(res, formatBookingResponse(booking, userSummaries));
+});
+
+/**
+ * PUT /api/admin/bookings/:id
+ * Update booking fields (admin/root)
+ */
+export const adminUpdateBooking = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const adminId = (req as any).user?.id ?? (req as any).user?._id;
+
+  const booking = await Booking.findById(id);
+  if (!booking) {
+    return notFound(res, 'Booking not found');
+  }
+
+  const {
+    status,
+    topic,
+    notes,
+    meetingLink,
+    location,
+    cancelReason,
+  } = req.body as {
+    status?: TBookingStatus;
+    topic?: string;
+    notes?: string;
+    meetingLink?: string;
+    location?: string;
+    cancelReason?: string;
+  };
+
+  if (status && status !== booking.status) {
+    if (!canTransition(booking.status, status)) {
+      return badRequest(res, `Cannot transition from ${booking.status} to ${status}`);
+    }
+    booking.status = status;
+    if (status === 'Cancelled' && adminId) {
+      booking.cancelledBy = adminId;
+    }
+  }
+
+  if (topic !== undefined) booking.topic = topic;
+  if (notes !== undefined) booking.notes = notes;
+  if (meetingLink !== undefined) booking.meetingLink = meetingLink;
+  if (location !== undefined) booking.location = location;
+  if (cancelReason !== undefined) booking.cancelReason = cancelReason;
+
+  await booking.save();
+
+  const userSummaries = await buildUserSummaryMap([
+    String(booking.mentee),
+    String(booking.mentor),
+  ]);
+
+  return ok(res, formatBookingResponse(booking, userSummaries), 'Booking updated');
+});
+
+/**
  * POST /api/bookings/:id/cancel
  * Cancel a booking
  */
@@ -1085,6 +1225,9 @@ export default {
   createBooking,
   getBookings,
   getBookingById,
+  adminListBookings,
+  adminGetBookingById,
+  adminUpdateBooking,
   cancelBooking,
   resendIcs,
   mentorConfirmBooking,

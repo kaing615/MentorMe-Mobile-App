@@ -143,8 +143,20 @@ fun MessageContentWithFile(
 ) {
     val context = LocalContext.current
     
-    when (messageType) {
-        "image" -> {
+    // Auto-detect file type from URL if messageType is not set correctly
+    val isImageUrl = content.matches(Regex(".*\\.(jpg|jpeg|png|gif|webp|bmp)(\\?.*)?$", RegexOption.IGNORE_CASE)) ||
+        (content.contains("cloudinary.com") && content.contains("/image/"))
+    val isFileUrl = content.startsWith("http") && (
+        content.contains("cloudinary.com/") || 
+        content.matches(Regex(".*\\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar)(\\?.*)?$", RegexOption.IGNORE_CASE))
+    )
+    
+    // Debug logging
+    android.util.Log.d("MessageBubble", "Content: $content")
+    android.util.Log.d("MessageBubble", "MessageType: $messageType, isImageUrl: $isImageUrl, isFileUrl: $isFileUrl")
+    
+    when {
+        messageType == "image" || (isImageUrl && !isFileUrl) -> {
             // Display image
             AsyncImage(
                 model = ImageRequest.Builder(context)
@@ -163,60 +175,170 @@ fun MessageContentWithFile(
                     }
             )
         }
-        "file" -> {
+        messageType == "file" || isFileUrl -> {
             // Display file attachment
             Surface(
                 modifier = modifier
                     .fillMaxWidth()
                     .clickable {
                         try {
+                            android.util.Log.d("MessageBubble", "Download clicked - URL: $content")
+                            
+                            // Extract clean filename and extension
+                            val urlPath = content.substringBefore('?')
+                            val fileName = urlPath
+                                .substringAfterLast('/')
+                                .ifEmpty { "file_${System.currentTimeMillis()}" }
+                            
+                            android.util.Log.d("MessageBubble", "Extracted fileName: $fileName")
+                            
+                            // Ensure file has extension
+                            val finalFileName = if (!fileName.contains('.')) {
+                                when {
+                                    content.contains("pdf", ignoreCase = true) -> "$fileName.pdf"
+                                    content.contains("doc", ignoreCase = true) -> "$fileName.docx"
+                                    content.contains("xls", ignoreCase = true) -> "$fileName.xlsx"
+                                    else -> fileName
+                                }
+                            } else fileName
+                            
+                            android.util.Log.d("MessageBubble", "Final fileName: $finalFileName")
+                            
+                            // Detect MIME type
+                            val mimeType = when {
+                                finalFileName.endsWith(".pdf", ignoreCase = true) -> "application/pdf"
+                                finalFileName.endsWith(".doc", ignoreCase = true) -> "application/msword"
+                                finalFileName.endsWith(".docx", ignoreCase = true) -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                finalFileName.endsWith(".xls", ignoreCase = true) -> "application/vnd.ms-excel"
+                                finalFileName.endsWith(".xlsx", ignoreCase = true) -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                finalFileName.endsWith(".ppt", ignoreCase = true) -> "application/vnd.ms-powerpoint"
+                                finalFileName.endsWith(".pptx", ignoreCase = true) -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                                finalFileName.endsWith(".zip", ignoreCase = true) -> "application/zip"
+                                finalFileName.endsWith(".rar", ignoreCase = true) -> "application/x-rar-compressed"
+                                else -> "*/*"
+                            }
+                            
+                            android.util.Log.d("MessageBubble", "MIME type: $mimeType")
+                            
                             // Download file using DownloadManager
                             val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
-                            val fileName = content.substringAfterLast('/').substringBefore('?')
                             val request = android.app.DownloadManager.Request(Uri.parse(content)).apply {
                                 setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                                setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, fileName)
-                                setTitle("Đang tải $fileName")
+                                setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, finalFileName)
+                                setTitle("Đang tải $finalFileName")
                                 setDescription("Tải file từ chat")
+                                setMimeType(mimeType)
+                                // Allow download over metered network
+                                setAllowedOverMetered(true)
+                                setAllowedOverRoaming(true)
+                                // Add headers if needed for Cloudinary
+                                addRequestHeader("User-Agent", "MentorMe-Mobile-App")
                             }
-                            downloadManager.enqueue(request)
-                            android.widget.Toast.makeText(context, "Đang tải file xuống...", android.widget.Toast.LENGTH_SHORT).show()
+                            val downloadId = downloadManager.enqueue(request)
+                            android.util.Log.d("MessageBubble", "Download enqueued with ID: $downloadId")
+                            android.widget.Toast.makeText(context, "Đang tải xuống: $finalFileName", android.widget.Toast.LENGTH_SHORT).show()
                         } catch (e: Exception) {
-                            android.widget.Toast.makeText(context, "Không thể tải file: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                            android.util.Log.e("MessageBubble", "Download failed", e)
+                            android.widget.Toast.makeText(context, "Không thể tải file: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
                         }
                     },
-                tonalElevation = 2.dp
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                color = Color(0xFF2D3748).copy(alpha = 0.8f), // Dark blue-gray background
+                tonalElevation = 0.dp
             ) {
                 Row(
-                    modifier = Modifier.padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(modifier = Modifier.weight(1f)) {
-                        Icon(
-                            Icons.Default.InsertDriveFile,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp)
+                    modifier = Modifier
+                        .padding(14.dp)
+                        .background(
+                            androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color(0xFF1E293B).copy(alpha = 0.5f),
+                                    Color(0xFF334155).copy(alpha = 0.3f)
+                                )
+                            ),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
                         )
-                        Spacer(Modifier.width(8.dp))
-                        Column {
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Show icon based on file extension
+                        val fileName = content.substringAfterLast('/').substringBefore('?')
+                        val fileIcon = when {
+                            fileName.endsWith(".pdf", ignoreCase = true) -> "📄"
+                            fileName.endsWith(".doc", ignoreCase = true) || fileName.endsWith(".docx", ignoreCase = true) -> "📝"
+                            fileName.endsWith(".xls", ignoreCase = true) || fileName.endsWith(".xlsx", ignoreCase = true) -> "📊"
+                            fileName.endsWith(".ppt", ignoreCase = true) || fileName.endsWith(".pptx", ignoreCase = true) -> "📊"
+                            fileName.endsWith(".zip", ignoreCase = true) || fileName.endsWith(".rar", ignoreCase = true) -> "📦"
+                            else -> null
+                        }
+                        
+                        // Icon with background
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(
+                                    Color(0xFF4A5568).copy(alpha = 0.6f),
+                                    androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (fileIcon != null) {
+                                Text(
+                                    text = fileIcon,
+                                    style = MaterialTheme.typography.headlineMedium
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.InsertDriveFile,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(28.dp),
+                                    tint = Color(0xFFA5B4FC)
+                                )
+                            }
+                        }
+                        
+                        Spacer(Modifier.width(12.dp))
+                        
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = content.substringAfterLast('/').substringBefore('?'),
+                                text = fileName,
                                 style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 1,
+                                color = Color(0xFFE2E8F0),
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                                maxLines = 2,
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
+                            Spacer(Modifier.height(4.dp))
                             Text(
                                 "Nhấn để tải về",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                color = Color(0xFF94A3B8)
                             )
                         }
                     }
-                    Icon(
-                        Icons.Default.Download,
-                        contentDescription = "Download",
-                        modifier = Modifier.size(20.dp)
-                    )
+                    
+                    // Download icon with background
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(
+                                Color(0xFF3B82F6).copy(alpha = 0.2f),
+                                androidx.compose.foundation.shape.CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Download,
+                            contentDescription = "Download",
+                            modifier = Modifier.size(20.dp),
+                            tint = Color(0xFF60A5FA)
+                        )
+                    }
                 }
             }
         }

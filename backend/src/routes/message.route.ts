@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { 
-  getChatRestrictionInfo, 
-  getMessages, 
-  getMessagesByPeer, 
+import {
+  getChatRestrictionInfo,
+  getMessages,
+  getMessagesByPeer,
   sendMessage,
-  uploadMessageFile  // Import function mới
+  uploadMessageFile // Import function mới
 } from '../controllers/message.controller';
 import { validate } from '../handlers/request.handler';
 import { auth } from '../middlewares/auth.middleware';
@@ -17,9 +17,15 @@ const router = Router();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { 
-    fileSize: 10 * 1024 * 1024, // 10MB max
+    fileSize: 5 * 1024 * 1024, // 5MB max (giảm từ 10MB để tránh timeout)
   },
   fileFilter: (req, file, cb) => {
+    console.log('[MULTER] Checking file:', {
+      name: file.originalname,
+      mimeType: file.mimetype,
+      size: file.size,
+    });
+    
     // Allow images and common document types
     const allowedTypes = [
       'image/jpeg',
@@ -35,8 +41,10 @@ const upload = multer({
     ];
     
     if (allowedTypes.includes(file.mimetype)) {
+      console.log('[MULTER] File type allowed');
       cb(null, true);
     } else {
+      console.log('[MULTER] File type NOT allowed');
       cb(new Error('File type not allowed. Only images and documents are supported.'));
     }
   },

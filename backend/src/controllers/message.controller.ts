@@ -453,12 +453,42 @@ export const uploadMessageFile = asyncHandler(async (req: Request, res: Response
 
   try {
     const file = req.file;
+    const fileSizeMB = file.size / (1024 * 1024);
+    
+    console.log('[UPLOAD] Starting file upload:', {
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+      size: file.size,
+      sizeMB: fileSizeMB.toFixed(2),
+    });
+    
+    // Check file size (warn if > 5MB)
+    if (fileSizeMB > 5) {
+      console.warn(`[UPLOAD] Large file detected: ${fileSizeMB.toFixed(2)}MB`);
+    }
+    
     const fileType = file.mimetype.startsWith('image/') ? 'image' : 'file';
     
-    const uploadResult = await cloudinaryService.uploadFile(file.buffer, {
+    // Choose resource_type based on file type
+    const resourceType = file.mimetype.startsWith('image/') ? 'image' : 'raw';
+    
+    // Use uploadImage for images, uploadFile for others
+    const uploadMethod = fileType === 'image' 
+      ? cloudinaryService.uploadImage 
+      : cloudinaryService.uploadFile;
+    
+    const uploadResult = await uploadMethod(file.buffer, {
       folder: `mentor-me-mobile-app/chat-files/${bookingId}`,
-      resource_type: 'auto',
+      resource_type: resourceType,
       use_filename: true,
+      public_id: `${Date.now()}_${file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')}`,
+    });
+
+    console.log('[UPLOAD] File uploaded successfully:', {
+      url: uploadResult.secure_url,
+      type: fileType,
+      format: uploadResult.format,
+      size: uploadResult.bytes,
     });
 
     return ok(res, {
@@ -470,7 +500,7 @@ export const uploadMessageFile = asyncHandler(async (req: Request, res: Response
       originalName: file.originalname,
     });
   } catch (error: any) {
-    console.error('File upload error:', error);
+    console.error('[UPLOAD ERROR] File upload failed:', error);
     return badRequest(res, error.message || 'Failed to upload file');
   }
 });

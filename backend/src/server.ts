@@ -1,31 +1,40 @@
+import cookieParser from "cookie-parser";
+import cors from "cors";
 import "dotenv/config";
 import express, { Request, Response } from "express";
-import cors from "cors";
-import cookieParser from "cookie-parser";
 import helmet from "helmet";
-import morgan from "morgan";
-import swaggerUi from "swagger-ui-express";
-import YAML from "yamljs";
-import path from "path";
-import { fileURLToPath } from "url";
 import http from "http";
 import mongoose from "mongoose";
+import morgan from "morgan";
+import path from "path";
+import swaggerUi from "swagger-ui-express";
+import { fileURLToPath } from "url";
+import YAML from "yamljs";
 
-import routes from "./routes/index";
-import redis from "./utils/redis";
-import { connectMongoDB } from "./utils/mongo";
 import { startBookingJobs, stopBookingJobs } from "./jobs/booking.jobs";
 import {
-  startNotificationCleanupJobs,
-  stopNotificationCleanupJobs,
+    startNotificationCleanupJobs,
+    stopNotificationCleanupJobs,
 } from "./jobs/notificationCleanup.jobs";
-import { initSocket, closeSocket } from "./socket";
+import routes from "./routes/index";
+import { closeSocket, initSocket } from "./socket";
+import { connectMongoDB } from "./utils/mongo";
+import redis from "./utils/redis";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT: number = Number(process.env.PORT || 4000);
+
+// Increase timeout for file uploads
+app.use((req, res, next) => {
+  if (req.path.includes('/upload')) {
+    req.setTimeout(5 * 60 * 1000); // 5 minutes for upload routes
+    res.setTimeout(5 * 60 * 1000);
+  }
+  next();
+});
 
 app.use(cors());
 app.use(helmet());
@@ -75,6 +84,12 @@ async function startServer() {
 }
 
 const server = http.createServer(app);
+
+// Set server timeout to 5 minutes for file uploads
+server.timeout = 5 * 60 * 1000; // 5 minutes
+server.keepAliveTimeout = 5 * 60 * 1000;
+server.headersTimeout = 5 * 60 * 1000;
+
 startServer();
 
 const shutdown = async () => {

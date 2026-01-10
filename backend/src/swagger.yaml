@@ -8,7 +8,7 @@ info:
     email: 23521389@gm.uit.edu.vn
 
 servers:
-  - url: http://localhost:4000/api/v1
+  - url: http://localhost:4000
     description: Development server
 
 tags:
@@ -1107,6 +1107,74 @@ components:
       properties:
         amountMinor: { type: integer, description: "Amount in VND minor units", example: 100000 }
         reason: { type: string }
+
+    TopUpIntent:
+      type: object
+      properties:
+        _id:
+          type: string
+        user:
+          type: string
+          description: User ID
+        amount:
+          type: number
+          description: Top-up amount in VND
+        status:
+          type: string
+          enum: [pending, transferred, approved, rejected]
+        bankTransferInfo:
+          type: object
+          properties:
+            bankName:
+              type: string
+            accountNumber:
+              type: string
+            accountName:
+              type: string
+        transferredAt:
+          type: string
+          format: date-time
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        rejectedAt:
+          type: string
+          format: date-time
+          nullable: true
+        rejectionReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    MentorStats:
+      type: object
+      properties:
+        totalEarnings:
+          type: number
+          description: Total earnings this month
+        completedSessions:
+          type: number
+          description: Number of completed sessions
+        upcomingSessions:
+          type: number
+          description: Number of upcoming sessions
+        averageRating:
+          type: number
+          format: float
+          description: Average rating from reviews
+        totalReviews:
+          type: number
+          description: Total number of reviews
+        pendingPayouts:
+          type: number
+          description: Amount pending payout
 
 paths:
   /auth/signup:
@@ -5209,6 +5277,532 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  # ==================== AI Routes ====================
+  /ai/mentor-assistant:
+    post:
+      tags:
+        - AI
+      summary: AI Assistant for Mentors
+      description: Chat with AI assistant to get help with mentor-related questions (availability, payout, profile optimization)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  type: string
+                  description: Question or message to AI assistant
+                  example: "Cách tạo lịch rảnh?"
+      responses:
+        '200':
+          description: AI response successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                    nullable: true
+                  data:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                        enum: [app_qa, general_response]
+                        description: Type of response
+                      answer:
+                        type: string
+                        description: AI generated answer
+                      suggestions:
+                        type: array
+                        items:
+                          type: string
+                        description: Follow-up question suggestions
+              examples:
+                app_qa:
+                  value:
+                    success: true
+                    message: null
+                    data:
+                      type: "app_qa"
+                      answer: "Để tạo lịch rảnh, vào phần Calendar..."
+                      suggestions: ["Cách cập nhật lịch?", "Rút tiền thế nào?"]
+        '400':
+          description: Invalid request
+        '500':
+          description: Server error
+
+# ==================== Message/Chat Routes ====================
+  /messages/upload:
+    post:
+      tags:
+        - Messages
+      summary: Upload file/image for chat
+      description: Upload a file or image to Cloudinary for use in chat messages
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - bookingId
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: File to upload (image or document)
+                bookingId:
+                  type: string
+                  description: Booking ID for chat context
+      responses:
+        '200':
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      url:
+                        type: string
+                        description: Cloudinary URL of uploaded file
+                      publicId:
+                        type: string
+                      fileType:
+                        type: string
+                        enum: [image, file]
+                      format:
+                        type: string
+                      size:
+                        type: number
+                      originalName:
+                        type: string
+              example:
+                success: true
+                data:
+                  url: "https://res.cloudinary.com/.../file.pdf"
+                  publicId: "mentor-me/chat-files/..."
+                  fileType: "file"
+                  format: "pdf"
+                  size: 102400
+                  originalName: "document.pdf"
+        '400':
+          description: No file uploaded or invalid bookingId
+        '403':
+          description: Access denied to booking
+        '404':
+          description: Booking not found
+
+  /messages/peer/{peerId}:
+    get:
+      tags:
+        - Messages
+      summary: Get all messages with a peer across all bookings
+      description: Retrieve conversation history with a specific peer (mentor or mentee) across all bookings
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: peerId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: User ID of the peer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 200
+            maximum: 500
+          description: Maximum number of messages to return
+        - name: before
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Get messages before this timestamp (for pagination)
+      responses:
+        '200':
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageListResponse'
+        '401':
+          description: Unauthorized
+
+# ==================== Presence Routes ====================
+  /presence/ping:
+    post:
+      tags:
+        - Presence
+      summary: Update user online presence
+      description: Ping to indicate user is online (expires after 30 seconds)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Presence updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      userId:
+                        type: string
+                      expiresIn:
+                        type: number
+                        description: Seconds until presence expires
+              example:
+                success: true
+                data:
+                  userId: "507f1f77bcf86cd799439011"
+                  expiresIn: 30
+
+  /presence/lookup:
+    post:
+      tags:
+        - Presence
+      summary: Lookup online status for multiple users
+      description: Check if specified users are currently online
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userIds
+              properties:
+                userIds:
+                  type: array
+                  items:
+                    type: string
+                  description: Array of user IDs to check
+                  example: ["507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012"]
+      responses:
+        '200':
+          description: Lookup successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    additionalProperties:
+                      type: boolean
+                    description: Map of userId to online status
+              example:
+                success: true
+                data:
+                  "507f1f77bcf86cd799439011": true
+                  "507f1f77bcf86cd799439012": false
+
+  /presence/lastSeen:
+    post:
+      tags:
+        - Presence
+      summary: Get last seen timestamps for users
+      description: Retrieve last activity timestamps for specified users
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userIds
+              properties:
+                userIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Last seen data retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    additionalProperties:
+                      type: string
+                      format: date-time
+                      nullable: true
+
+# ==================== Wallet Top-up Routes ====================
+  /wallet-topup/topup-intent:
+    post:
+      tags:
+        - Wallet
+      summary: Create wallet top-up intent
+      description: Create a pending top-up request with bank transfer info
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+              properties:
+                amount:
+                  type: number
+                  minimum: 10000
+                  description: Amount to top up (VND)
+                  example: 100000
+      responses:
+        '200':
+          description: Top-up intent created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/TopUpIntent'
+
+  /wallet-topup/topup-intent/{id}/confirm:
+    post:
+      tags:
+        - Wallet
+      summary: Confirm bank transfer for top-up
+      description: Mark top-up as transferred (pending admin approval)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Top-up intent ID
+      responses:
+        '200':
+          description: Transfer confirmed, awaiting approval
+
+  /wallet-topup/topup-intents/me:
+    get:
+      tags:
+        - Wallet
+      summary: Get my top-up history
+      description: Retrieve all top-up intents for current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Top-up history retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TopUpIntent'
+
+  /wallet-topup/admin/topups/pending:
+    get:
+      tags:
+        - Admin
+        - Wallet
+      summary: List pending top-ups (Admin)
+      description: Get all pending top-up requests awaiting approval
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Pending top-ups retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TopUpIntent'
+
+  /wallet-topup/admin/topups/{id}/approve:
+    post:
+      tags:
+        - Admin
+        - Wallet
+      summary: Approve top-up (Admin)
+      description: Approve a pending top-up and credit user wallet
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Top-up approved and wallet credited
+
+  /wallet-topup/admin/topups/{id}/reject:
+    post:
+      tags:
+        - Admin
+        - Wallet
+      summary: Reject top-up (Admin)
+      description: Reject a pending top-up request
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Reason for rejection
+      responses:
+        '200':
+          description: Top-up rejected
+
+# ==================== Mentor Stats Routes ====================
+  /mentors/me/stats:
+      get:
+        tags:
+          - Mentors
+        summary: Get mentor dashboard stats (monthly)
+        description: Retrieve monthly statistics for authenticated mentor
+        security:
+          - bearerAuth: []
+        responses:
+          '200':
+            description: Stats retrieved successfully
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    success:
+                      type: boolean
+                    data:
+                      $ref: '#/components/schemas/MentorStats'
+
+  /mentors/me/stats/weekly:
+    get:
+      tags:
+        - Mentors
+      summary: Get weekly earnings (7 days)
+      description: Retrieve earnings for the past 7 days
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Weekly earnings retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      totalEarnings:
+                        type: number
+                      completedSessions:
+                        type: number
+                      period:
+                        type: string
+                        description: Date range
+
+  /mentors/me/stats/yearly:
+    get:
+      tags:
+        - Mentors
+      summary: Get yearly earnings
+      description: Retrieve earnings for the current year
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Yearly earnings retrieved
+
+  /mentors/me/stats/revenue-chart:
+    get:
+      tags:
+        - Mentors
+      summary: Get revenue chart data
+      description: Retrieve monthly revenue data for charts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Revenue chart data retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        month:
+                          type: string
+                        revenue:
+                          type: number
 
 security:
   - BearerAuth: []

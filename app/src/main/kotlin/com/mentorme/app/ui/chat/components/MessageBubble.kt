@@ -1,5 +1,6 @@
 package com.mentorme.app.ui.chat.components
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background

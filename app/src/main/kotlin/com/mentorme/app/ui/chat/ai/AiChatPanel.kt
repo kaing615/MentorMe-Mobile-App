@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -88,15 +89,20 @@ fun AiChatPanel(
                         // Show suggestions if available
                         if (msg.suggestions.isNotEmpty()) {
                             Spacer(Modifier.height(8.dp))
-                            msg.suggestions.forEach { suggestion ->
-                                SuggestionChip(
-                                    text = suggestion,
-                                    onClick = {
-                                        input = suggestion
-                                        viewModel.ask(suggestion)
-                                        input = ""
-                                    }
-                                )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                msg.suggestions.take(2).forEach { suggestion ->
+                                    SuggestionChip(
+                                        onClick = {
+                                            input = suggestion
+                                            viewModel.ask(suggestion)
+                                            input = ""
+                                        },
+                                        label = { Text(suggestion) }
+                                    )
+                                }
                             }
                         }
                     }

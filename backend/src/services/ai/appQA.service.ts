@@ -5,10 +5,11 @@ import {
 } from "../baseKnowledge.service";
 
 export async function answerAppQuestion(userMessage: string): Promise<string> {
-  const entries = retrieveRelevantKB(userMessage); // Lấy toàn bộ KB
-  const systemContext = buildContextFromKB(entries, 2000); // Tăng maxChars
+  try {
+    const entries = retrieveRelevantKB(userMessage); // Lấy toàn bộ KB
+    const systemContext = buildContextFromKB(entries, 2000); // Tăng maxChars
 
-  const prompt = `
+    const prompt = `
 Bạn là trợ lý ảo thông minh của MentorMe - nền tảng kết nối mentor và mentee.
 
 NHIỆM VỤ:
@@ -27,10 +28,14 @@ CÂU HỎI: "${userMessage}"
 
 TRẢ LỜI:`;
 
-  const text = await generateGeminiContent(prompt);
+    const text = await generateGeminiContent(prompt);
 
-  if (!text || text.trim().length === 0) {
-    return "Mình chưa hiểu câu hỏi này lắm. Anh/chị có thể liên hệ 23521389@gm.uit.edu.vn để được hỗ trợ trực tiếp nhé!";
+    if (!text || text.trim().length === 0) {
+      return "Mình chưa hiểu câu hỏi này lắm. Anh/chị có thể liên hệ 23521389@gm.uit.edu.vn để được hỗ trợ trực tiếp nhé!";
+    }
+    return text.trim();
+  } catch (error) {
+    console.error("❌ APP QA SERVICE ERROR:", error);
+    return "Mình đang gặp chút vấn đề kỹ thuật. Anh/chị vui lòng thử lại sau nhé! 🙏";
   }
-  return text.trim();
 }

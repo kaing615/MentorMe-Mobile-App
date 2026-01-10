@@ -7,32 +7,58 @@ import { generateGeminiContent } from "../services/ai/gemini.client";
  */
 export async function classifyIntent(
   message: string,
-  context: string = ""
-): Promise<"mentor_search" | "app_qa" | "general"> {
-  const prompt = `
-${context}
+  context?: string
+): Promise<"mentor_recommend" | "app_qa" | "general"> {
+  const lowerMsg = message.toLowerCase().trim();
 
-Phân loại câu hỏi người dùng vào 1 trong 3 loại:
-- "mentor_search": Tìm mentor, học skill, career advice, lộ trình học
-- "app_qa": Hỏi về tính năng app, giá cả, chính sách, liên hệ
-- "general": Câu hỏi chung chung, chào hỏi, cảm ơn, tạm biệt, không liên quan
+  // 🔥 Quick keyword check trước để tiết kiệm API calls
+  if (
+    lowerMsg.includes("mentor") ||
+    lowerMsg.includes("tìm") ||
+    lowerMsg.includes("gợi ý") ||
+    lowerMsg.includes("recommend")
+  ) {
+    return "mentor_recommend"; // ✅ Đổi thành mentor_recommend
+  }
 
-Câu hỏi hiện tại: "${message}"
+  if (
+    lowerMsg.includes("app") ||
+    lowerMsg.includes("tính năng") ||
+    lowerMsg.includes("giá") ||
+    lowerMsg.includes("pricing") ||
+    lowerMsg.includes("founder") ||
+    lowerMsg.includes("sáng lập") ||
+    lowerMsg.includes("sang lap") ||
+    lowerMsg.includes("liên hệ") ||
+    lowerMsg.includes("contact")
+  ) {
+    return "app_qa";
+  }
 
-CHỈ TRẢ VỀ 1 TRONG 3 GIÁ TRỊ: mentor_search, app_qa, general
+  // Nếu không match keyword thì mới gọi AI
+  try {
+    const prompt = `
+Phân loại ý định của người dùng vào 1 trong 3 loại:
+- "mentor_recommend": Tìm kiếm, gợi ý mentor
+- "app_qa": Hỏi về ứng dụng (tính năng, giá cả, founder, liên hệ)
+- "general": Chào hỏi, câu hỏi chung
+
+${context ? context : ""}
+
+Tin nhắn: "${message}"
+
+Trả về ĐÚNG 1 TRONG 3 TỪ: mentor_recommend, app_qa, general
 `;
 
-  try {
     const result = await generateGeminiContent(prompt);
     const intent = result.trim().toLowerCase();
 
-    if (intent.includes("mentor_search")) return "mentor_search";
-    if (intent.includes("app_qa")) return "app_qa";
+    if (intent.includes("mentor")) return "mentor_recommend";
+    if (intent.includes("app") || intent.includes("qa")) return "app_qa";
     return "general";
   } catch (error) {
     console.error("❌ Intent classification failed:", error);
-    // Fallback to keyword matching
-    return isMentorRelatedQuestion(message) ? "mentor_search" : "app_qa";
+    return "general"; // Fallback khi API fail
   }
 }
 

@@ -18,40 +18,45 @@ export async function recommendMentorController(req: Request, res: Response) {
   }
 
   try {
-    // ✅ Lưu tin nhắn người dùng
-    await ConversationContext.addMessage(userId, "user", message);
+    // ✅ Tạm comment để test
+    // await ConversationContext.addMessage(userId, "user", message);
+    // const contextPrompt = await ConversationContext.getContextPrompt(userId);
+    const contextPrompt = ""; // Tạm để rỗng
 
-    // ✅ Lấy context để AI hiểu ngữ cảnh
-    const contextPrompt = await ConversationContext.getContextPrompt(userId);
-
-    // ✅ Sử dụng context khi gọi AI
     const intent = await classifyIntent(message, contextPrompt);
 
+    // General response
     if (intent === "general") {
       return res.json({
         success: true,
-        type: "general_response",
-        answer: getGeneralResponse(message),
+        message: null,
+        data: {
+          type: "general_response",
+          answer: getGeneralResponse(message),
+          suggestions: ["Tìm mentor Java", "App có gì?"],
+        },
       });
     }
 
-    // ✅ Trả lời câu hỏi về app
+    // App QA
     if (intent === "app_qa") {
       const answer = await answerAppQuestion(message);
+      
+      // ✅ Lưu phản hồi của AI
+      await ConversationContext.addMessage(userId, "assistant", answer);
+      
       return res.json({
         success: true,
         message: null,
         data: {
           type: "app_qa",
           answer,
-          suggestions: [
-            "Làm sao để đăng ký mentor?",
-            "Chính sách hoàn tiền như thế nào?",
-          ],
+          suggestions: ["Làm sao đăng ký mentor?", "Chính sách hoàn tiền?"],
         },
       });
     }
 
+    // Mentor recommend
     const aiResult = await analyzeMentorIntent(message);
     const mentors = await recommendMentors(aiResult, message);
 
@@ -62,9 +67,10 @@ export async function recommendMentorController(req: Request, res: Response) {
         type: "mentor_recommend",
         ai: aiResult,
         mentors,
-        suggestions: mentors.length > 0 
-          ? ["Xem chi tiết mentor", "Đặt lịch ngay"]
-          : ["Thử tìm với giá cao hơn", "Tìm mentor khác"],
+        suggestions:
+          mentors.length > 0
+            ? ["Xem chi tiết", "Đặt lịch"]
+            : ["Thử giá cao hơn", "Tìm mentor khác"],
       },
     });
   } catch (err) {

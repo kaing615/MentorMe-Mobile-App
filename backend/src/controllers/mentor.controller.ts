@@ -155,6 +155,8 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
       "rating.count": { $ifNull: ["$rating.count", 0] },
       // ✅ FIX: Ensure hourlyRateVnd defaults to 0 (prevents null filtering)
       hourlyRateVnd: { $ifNull: ["$hourlyRateVnd", 0] }
+      // ✅ NOTE: avatarUrl will be preserved automatically from Profile doc (no need to re-add)
+      // MongoDB aggregation preserves all fields unless explicitly excluded with $project
     }
   });
 
@@ -226,7 +228,35 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
   const errors: any[] = [];
   (first.items as any[]).forEach((doc, idx) => {
     try {
+      // ✅ DEBUG: Log raw doc fields before mapping
+      if (idx < 3) {
+        console.log(`[listMentors] 🔍 Raw doc[${idx}]:`, {
+          _id: doc._id,
+          fullName: doc.fullName,
+          avatarUrl: doc.avatarUrl,
+          hasAllFields: {
+            fullName: !!doc.fullName,
+            avatarUrl: !!doc.avatarUrl,
+            jobTitle: !!doc.jobTitle,
+            skills: !!doc.skills,
+            rating: !!doc.rating,
+            user: !!doc.user
+          }
+        });
+      }
+
       const card = toMentorCard(doc.user, doc);
+
+      // ✅ DEBUG: Log mapped card
+      if (idx < 3) {
+        console.log(`[listMentors] ✅ Mapped card[${idx}]:`, {
+          name: card.name,
+          avatarUrl: card.avatarUrl,
+          rating: card.rating,
+          isAvailable: card.isAvailable
+        });
+      }
+
       items.push(card);
     } catch (err) {
       console.error(`❌ [listMentors] Failed to map mentor at index ${idx}:`, err);
@@ -261,7 +291,9 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
       id: gayMentor.id,
       isAvailable: gayMentor.isAvailable,
       rating: gayMentor.rating,
-      hourlyRate: gayMentor.hourlyRate
+      hourlyRate: gayMentor.hourlyRate,
+      avatarUrl: gayMentor.avatarUrl, // ✅ ADD: Log avatarUrl to debug
+      hasAvatarUrl: !!gayMentor.avatarUrl
     });
   } else {
     console.log(`[listMentors] ⚠️  "Nguyen Van Gay" NOT in results`);

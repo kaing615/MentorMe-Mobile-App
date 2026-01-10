@@ -1065,6 +1065,15 @@ private fun HomeMentorCard(
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
+                            // Always show initials as fallback
+                            Text(
+                                text = initials,
+                                color = Color.White,
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            // Load avatar on top if URL exists
                             if (avatarUrl.isNotBlank()) {
                                 AsyncImage(
                                     model = ImageRequest.Builder(LocalContext.current)
@@ -1074,13 +1083,6 @@ private fun HomeMentorCard(
                                     contentDescription = null,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.matchParentSize().clip(CircleShape)
-                                )
-                            } else {
-                                Text(
-                                    text = initials,
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }

@@ -33,6 +33,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -100,8 +101,13 @@ fun ProfileScreen(
     val notificationPreferences by notificationsViewModel.preferences.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
-
-    // ✅ FIX 2: Xóa LaunchedEffect gọi api.getMe() - ViewModel đã tự load trong init{}
+    
+    LaunchedEffect(user.email) {
+        // Nếu user email khác với profile email hiện tại, refresh
+        if (profile == null || profile.email != user.email) {
+            vm.refresh()
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
         com.mentorme.app.ui.theme.LiquidBackground(

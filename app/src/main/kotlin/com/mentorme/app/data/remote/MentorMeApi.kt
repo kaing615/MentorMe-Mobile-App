@@ -29,6 +29,7 @@ import com.mentorme.app.data.dto.notifications.NotificationReadResponse
 import com.mentorme.app.data.dto.notifications.NotificationReadAllResponse
 import com.mentorme.app.data.dto.notifications.NotificationPreferencesDto
 import com.mentorme.app.data.dto.*
+import com.mentorme.app.data.dto.MenteeStatsDto
 import com.mentorme.app.data.dto.wallet.TopupRequest
 import com.mentorme.app.data.dto.wallet.TopupResponse
 import com.mentorme.app.data.dto.wallet.WalletDto
@@ -257,4 +258,14 @@ interface MentorMeApi {
     // Wallet endpoints
     @GET("wallet/me")
     suspend fun getMyWallet(): Response<ApiEnvelope<WalletDto>>
+
+    // Profile endpoints
+    @GET("profile/{userId}")
+    suspend fun getProfile(
+        @Path("userId") userId: String
+    ): Response<ApiEnvelope<com.mentorme.app.data.dto.profile.ProfileDto>>
+
+    // Mentee Stats endpoints
+    @GET("bookings/mentee/stats")
+    suspend fun getMenteeStats(): Response<ApiEnvelope<MenteeStatsDto>>
 }

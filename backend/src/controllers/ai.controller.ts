@@ -197,7 +197,7 @@ function getGeneralResponse(message: string): string {
     lower.includes("giúp gì") ||
     lower.includes("what can you do")
   ) {
-    return "Tôi có thể giúp bạn:\n\n🎯 **Tìm Mentor:**\n• Gợi ý mentor theo kỹ năng (Backend, Frontend, Mobile...)\n• Lọc theo giá, đánh giá, kinh nghiệm\n• Giải thích tại sao mentor phù hợp với bạn\n\n💡 **Trả lời câu hỏi:**\n• Cách đặt lịch và thanh toán\n• Chính sách hoàn tiền\n• Tính năng video call, chat\n• Và nhiều câu hỏi khác!\n\nBạn muốn bắt đầu từ đâu? 😊";
+    return "Tôi có thể giúp bạn:\n\n🎯 Tìm Mentor:\n• Gợi ý mentor theo kỹ năng (Backend, Frontend, Mobile...)\n• Lọc theo giá, đánh giá, kinh nghiệm\n• Giải thích tại sao mentor phù hợp với bạn\n\n💡 Trả lời câu hỏi:\n• Cách đặt lịch và thanh toán\n• Chính sách hoàn tiền\n• Tính năng video call, chat\n• Và nhiều câu hỏi khác!\n\nBạn muốn bắt đầu từ đâu? 😊";
   }
 
   // Khen ngợi

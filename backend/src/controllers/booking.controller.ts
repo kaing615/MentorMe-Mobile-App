@@ -1135,6 +1135,7 @@ export const getMenteeStats = asyncHandler(async (req: Request, res: Response) =
   );
 });
 
+
 export default {
   createBooking,
   getBookings,
@@ -1151,5 +1152,5 @@ export default {
   processExpiredBookings,
   processPendingMentorBookings,
   processBookingReminders,
-  getMenteeStats, // ✅ NEW
+  getMenteeStats, // ✅ Mentee stats
 };

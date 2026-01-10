@@ -78,6 +78,8 @@ export const getMyStats = asyncHandler(async (req: Request, res: Response) => {
  * GET /mentors/me/stats/weekly
  * Lấy thu nhập theo từng ngày trong tuần hiện tại (7 ngày gần nhất)
  * Trả về mảng 7 phần tử tương ứng với 7 ngày (từ thứ 2 đến chủ nhật)
+ *
+ * ✅ UPDATED: Tính từ booking Confirmed/Completed đã qua endTime (đã diễn ra xong)
  */
 export const getWeeklyEarnings = asyncHandler(async (req: Request, res: Response) => {
   const mentorId = getUserId(req);
@@ -87,6 +89,8 @@ export const getWeeklyEarnings = asyncHandler(async (req: Request, res: Response
   const startOfWeek = new Date(now);
   startOfWeek.setDate(now.getDate() - now.getDay() + 1); // Monday
   startOfWeek.setHours(0, 0, 0, 0);
+
+  console.log('📊 [getWeeklyEarnings] Week start:', startOfWeek);
 
   // Tạo mảng 7 ngày
   const dailyEarnings: number[] = [];
@@ -99,20 +103,23 @@ export const getWeeklyEarnings = asyncHandler(async (req: Request, res: Response
     const dayEnd = new Date(dayStart);
     dayEnd.setHours(23, 59, 59, 999);
 
-    // Lấy các booking đã hoàn thành trong ngày này
+    // ✅ FIXED: Lấy booking đã Confirmed/Completed VÀ đã qua endTime trong ngày này
     const bookingsInDay = await Booking.find({
       mentor: new mongoose.Types.ObjectId(mentorId),
-      status: "Completed",
-      updatedAt: { $gte: dayStart, $lte: dayEnd } // Dùng updatedAt vì đó là lúc booking completed
+      status: { $in: ["Confirmed", "Completed"] },
+      endTime: { $gte: dayStart, $lt: dayEnd, $lte: now } // endTime trong ngày VÀ đã qua
     });
 
-    // Tính tổng thu nhập trong ngày
+    // ✅ FIXED: Tính tổng thu nhập trong ngày (dùng price thay vì priceMinor)
     const dailyTotal = bookingsInDay.reduce((sum, booking) => {
-      return sum + (booking.priceMinor ?? 0);
+      return sum + ((booking as any).price ?? 0);
     }, 0);
 
+    console.log(`📊 Day ${i + 1}:`, dayStart.toISOString().split('T')[0], '- earnings:', dailyTotal, 'from', bookingsInDay.length, 'bookings');
     dailyEarnings.push(dailyTotal);
   }
+
+  console.log('📊 [getWeeklyEarnings] Result:', dailyEarnings);
 
   return ok(res, {
     weeklyEarnings: dailyEarnings // Array of 7 numbers (Mon-Sun)
@@ -123,6 +130,8 @@ export const getWeeklyEarnings = asyncHandler(async (req: Request, res: Response
  * GET /mentors/me/stats/yearly
  * Lấy thu nhập theo từng tháng trong năm hiện tại (12 tháng)
  * Trả về mảng 12 phần tử tương ứng với 12 tháng (từ tháng 1 đến tháng 12)
+ *
+ * ✅ UPDATED: Tính từ booking Confirmed/Completed đã qua endTime (đã diễn ra xong)
  */
 export const getYearlyEarnings = asyncHandler(async (req: Request, res: Response) => {
   const mentorId = getUserId(req);
@@ -131,6 +140,8 @@ export const getYearlyEarnings = asyncHandler(async (req: Request, res: Response
   const now = new Date();
   const currentYear = now.getFullYear();
 
+  console.log('📊 [getYearlyEarnings] Year:', currentYear);
+
   // Tạo mảng 12 tháng
   const monthlyEarnings: number[] = [];
 
@@ -138,20 +149,23 @@ export const getYearlyEarnings = asyncHandler(async (req: Request, res: Response
     const monthStart = new Date(currentYear, month, 1, 0, 0, 0, 0);
     const monthEnd = new Date(currentYear, month + 1, 0, 23, 59, 59, 999);
 
-    // Lấy các booking đã hoàn thành trong tháng này
+    // ✅ FIXED: Lấy booking đã Confirmed/Completed VÀ đã qua endTime trong tháng này
     const bookingsInMonth = await Booking.find({
       mentor: new mongoose.Types.ObjectId(mentorId),
-      status: "Completed",
-      updatedAt: { $gte: monthStart, $lte: monthEnd }
+      status: { $in: ["Confirmed", "Completed"] },
+      endTime: { $gte: monthStart, $lt: monthEnd, $lte: now } // endTime trong tháng VÀ đã qua
     });
 
-    // Tính tổng thu nhập trong tháng
+    // ✅ FIXED: Tính tổng thu nhập trong tháng (dùng price thay vì priceMinor)
     const monthlyTotal = bookingsInMonth.reduce((sum, booking) => {
-      return sum + (booking.priceMinor ?? 0);
+      return sum + ((booking as any).price ?? 0);
     }, 0);
 
+    console.log(`📊 Month ${month + 1}:`, monthlyTotal, 'from', bookingsInMonth.length, 'bookings');
     monthlyEarnings.push(monthlyTotal);
   }
+
+  console.log('📊 [getYearlyEarnings] Result:', monthlyEarnings);
 
   return ok(res, {
     yearlyEarnings: monthlyEarnings, // Array of 12 numbers (Jan-Dec)

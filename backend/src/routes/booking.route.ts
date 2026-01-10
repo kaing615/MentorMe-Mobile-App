@@ -12,7 +12,7 @@ import {
   mentorDeclineBooking,
   completeBooking,
   captureBooking,
-  getMenteeStats,
+  getMenteeStats, // ✅ Mentee stats only
 } from '../controllers/booking.controller';
 import {
   createBookingRules,
@@ -27,8 +27,9 @@ import {
 
 const router = Router();
 
-// ✅ NEW: Get mentee stats (must be before /:id route)
+// ✅ Get mentee stats (must be before /:id route)
 router.get('/mentee/stats', auth, getMenteeStats);
+
 
 // Create booking (mentee only in practice)
 router.post('/', auth, createBookingRules, validate, createBooking);

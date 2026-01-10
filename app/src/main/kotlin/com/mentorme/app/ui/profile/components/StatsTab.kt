@@ -36,7 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mentorme.app.ui.profile.UserProfile
 import com.mentorme.app.ui.profile.UserRole
-import com.mentorme.app.ui.profile.formatMoneyShortVnd
+import com.mentorme.app.ui.profile.formatMoneyVnd
 import com.mentorme.app.ui.theme.LiquidGlassCard
 
 @Composable
@@ -57,9 +57,9 @@ fun StatsTab(userRole: UserRole, profile: UserProfile) {
                 modifier = Modifier.weight(1f)
             )
             val moneyText = if (userRole == UserRole.MENTOR) {
-                formatMoneyShortVnd(45_600_000L, withCurrency = true)
+                formatMoneyVnd(45_600_000L, withCurrency = true)
             } else {
-                formatMoneyShortVnd(profile.totalSpent, withCurrency = true)
+                formatMoneyVnd(profile.totalSpent, withCurrency = true)
             }
 
             StatCard(

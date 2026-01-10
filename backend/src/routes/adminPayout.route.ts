@@ -4,7 +4,6 @@ import payoutController from "../controllers/payout.controller";
 import { validate } from "../handlers/request.handler";
 import { param } from "express-validator";
 
-
 const router = Router();
 
 // Admin role (lowercase as per user.model.ts)
@@ -13,7 +12,6 @@ const ADMIN_ROLE = "admin";
 const payoutIdParamValidator = [
   param("id").isMongoId().withMessage("Invalid payout id"),
 ];
-
 
 router.get(
   "/",
@@ -29,6 +27,13 @@ router.post(
   payoutIdParamValidator,
   validate,
   payoutController.adminApprovePayout
+);
+
+router.post(
+  "/payouts/:id/reject",
+  auth,
+  requireRoles(ADMIN_ROLE),
+  payoutController.adminRejectPayout
 );
 
 router.post(

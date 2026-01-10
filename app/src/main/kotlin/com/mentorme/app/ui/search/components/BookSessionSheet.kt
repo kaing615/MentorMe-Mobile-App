@@ -40,6 +40,7 @@ import com.mentorme.app.domain.usecase.profile.GetPublicProfileUseCase
 import com.mentorme.app.ui.components.ui.glassOutlinedTextFieldColors
 import com.mentorme.app.ui.components.ui.MMGhostButton
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
+import com.mentorme.app.ui.utils.normalizeLanguageLabels
 import com.mentorme.app.ui.home.Mentor as HomeMentor
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import dagger.hilt.EntryPoint
@@ -341,7 +342,7 @@ private fun MentorSummaryCard(
     val company = mentor.company.trim().takeIf { it.isNotBlank() }
     val headline = profile?.headline?.trim()?.takeIf { it.isNotBlank() }
     val skills = (profile?.skills?.filter { it.isNotBlank() } ?: mentor.skills).filter { it.isNotBlank() }
-    val languages = profile?.languages?.filter { it.isNotBlank() } ?: emptyList()
+    val languages = profile?.languages?.let { normalizeLanguageLabels(it) } ?: emptyList()
     val avatarUrl = profile?.avatarUrl?.trim()?.takeIf { it.isNotBlank() }
         ?: mentor.imageUrl.trim().takeIf { it.isNotBlank() }
     val initials = displayName

@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import userRouter from "./user.route";
 import bookingRouter from "./booking.route";
+import adminBookingRouter from "./adminBooking.route";
 import availabilityRouter from "./availability.route";
 import mentorRouter from "./mentor.route";
 import mentorStatsRouter from "./mentor.stats.route";
@@ -21,6 +22,7 @@ import reviewRouter from "./review.route";
 import notificationRouter from "./notification.route";
 import paymentMethodRouter from "./paymentMethod.route";
 import sessionRouter from "./session.route";
+import adminSessionRouter from "./adminSession.route";
 import messageRouter from "./message.route";
 import aiRouter from "./ai.route";
 
@@ -32,6 +34,7 @@ router.use("/users", userRouter);
 
 // Core booking / profile
 router.use("/bookings", bookingRouter);
+router.use("/admin/bookings", adminBookingRouter);
 router.use("/reports", reportRouter);
 router.use("/profile", profileRouter);
 router.use("/availability", availabilityRouter);
@@ -61,6 +64,7 @@ router.use("/notifications", notificationRouter);
 
 // Sessions (WebRTC)
 router.use("/sessions", sessionRouter);
+router.use("/admin/sessions", adminSessionRouter);
 
 // Messages (chat)
 router.use("/messages", messageRouter);

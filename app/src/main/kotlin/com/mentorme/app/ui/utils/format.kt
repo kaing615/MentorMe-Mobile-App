@@ -20,3 +20,21 @@ fun Int.compactVnd(): String {
         else -> vnd.toString()
     }
 }
+
+
+fun normalizeLanguageLabels(raw: List<String>): List<String> {
+    return raw
+        .flatMap { it.split(",", ";") }
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .map { toLanguageLabel(it) }
+}
+
+private fun toLanguageLabel(value: String): String {
+    return when (value.trim().lowercase()) {
+        "vi", "vi-vn", "vietnamese", "tieng viet", "tiếng việt" -> "Tiếng Việt"
+        "en", "en-us", "en-uk", "english" -> "Tiếng Anh"
+        else -> value.trim()
+    }
+}
+

@@ -9,6 +9,7 @@ import {
   UserEdit,
   BookingList,
   BookingEdit,
+  SessionList,
   ReportList,
   PayoutList,
   TopUpList,
@@ -32,7 +33,18 @@ export default function App() {
 
       <Resource name="users" list={UserList} edit={UserEdit} />
 
-      <Resource name="bookings" list={BookingList} edit={BookingEdit} />
+      <Resource
+        name="admin/bookings"
+        options={{ label: "Bookings" }}
+        list={BookingList}
+        edit={BookingEdit}
+      />
+
+      <Resource
+        name="admin/sessions"
+        options={{ label: "Sessions" }}
+        list={SessionList}
+      />
 
       {/* Moderation */}
       <Resource name="reports" list={ReportList} />

@@ -2,8 +2,6 @@ import * as React from "react";
 import {
   List,
   Datagrid,
-  TextField,
-  EmailField,
   DateField,
   TextInput,
   SelectInput,
@@ -46,33 +44,43 @@ type User = {
 /* ===================== FILTERS ===================== */
 
 const roleChoices = [
-  { id: "root", name: "Root" },
-  { id: "admin", name: "Admin" },
+  { id: "root", name: "Quản trị hệ thống" },
+  { id: "admin", name: "Quản trị viên" },
   { id: "mentor", name: "Mentor" },
   { id: "mentee", name: "Mentee" },
 ];
 
+const roleLabelMap = roleChoices.reduce<Record<string, string>>((acc, choice) => {
+  acc[choice.id] = choice.name;
+  return acc;
+}, {});
+
 const statusChoices = [
-  { id: "active", name: "Active" },
-  { id: "pending-mentor", name: "Pending Mentor" },
-  { id: "verifying", name: "Verifying" },
-  { id: "onboarding", name: "Onboarding" },
+  { id: "active", name: "Hoạt động" },
+  { id: "pending-mentor", name: "Chờ duyệt mentor" },
+  { id: "verifying", name: "Đang xác minh" },
+  { id: "onboarding", name: "Hướng dẫn ban đầu" },
 ];
 
+const statusLabelMap = statusChoices.reduce<Record<string, string>>((acc, choice) => {
+  acc[choice.id] = choice.name;
+  return acc;
+}, {});
+
 const UserFilters = [
-  <TextInput key="q" source="q" label="Search" alwaysOn />,
-  <SelectInput key="role" source="role" label="Role" choices={roleChoices} />,
+  <TextInput key="q" source="q" label="Tìm kiếm" alwaysOn />,
+  <SelectInput key="role" source="role" label="Vai trò" choices={roleChoices} />,
   <SelectInput
     key="status"
     source="status"
-    label="Status"
+    label="Trạng thái"
     choices={statusChoices}
   />,
 ];
 
 /* ===================== FIELDS ===================== */
 
-function UserIdentity() {
+function UserIdentity({ label: _label }: { label?: string }) {
   const record = useRecordContext<User>();
   if (!record) return null;
 
@@ -92,7 +100,7 @@ function UserIdentity() {
   );
 }
 
-function ShortId() {
+function ShortId({ label: _label }: { label?: string }) {
   const record = useRecordContext<User>();
   if (!record?.id) return null;
 
@@ -103,11 +111,11 @@ function ShortId() {
   );
 }
 
-function RoleChip() {
+function RoleChip({ label: _label }: { label?: string }) {
   const record = useRecordContext<User>();
   if (!record?.role) return null;
 
-  const map: any = {
+  const map: Record<string, "default" | "info" | "success" | "warning" | "error"> = {
     root: "error",
     admin: "warning",
     mentor: "info",
@@ -117,18 +125,18 @@ function RoleChip() {
   return (
     <Chip
       size="small"
-      label={record.role.toUpperCase()}
+      label={roleLabelMap[record.role] || record.role.toUpperCase()}
       color={map[record.role]}
       sx={{ fontWeight: 600 }}
     />
   );
 }
 
-function StatusChip() {
+function StatusChip({ label: _label }: { label?: string }) {
   const record = useRecordContext<User>();
   if (!record?.status) return null;
 
-  const map: any = {
+  const map: Record<string, "default" | "info" | "success" | "warning" | "error"> = {
     active: "success",
     "pending-mentor": "warning",
     verifying: "info",
@@ -138,7 +146,7 @@ function StatusChip() {
   return (
     <Chip
       size="small"
-      label={record.status}
+      label={statusLabelMap[record.status] || record.status}
       color={map[record.status]}
       variant="outlined"
     />
@@ -166,10 +174,10 @@ function UserActions() {
         body: JSON.stringify({ isBlocked: !record.isBlocked }),
       });
 
-      notify("User updated", { type: "success" });
+      notify("Đã cập nhật người dùng", { type: "success" });
       refresh();
     } catch {
-      notify("Update failed", { type: "error" });
+      notify("Cập nhật thất bại", { type: "error" });
     } finally {
       setOpen(false);
     }
@@ -177,13 +185,13 @@ function UserActions() {
 
   return (
     <Stack direction="row" spacing={1}>
-      <Tooltip title="Edit">
+      <Tooltip title="Chỉnh sửa">
         <IconButton size="small" href={`#/users/${record.id}`}>
           <EditIcon fontSize="small" />
         </IconButton>
       </Tooltip>
 
-      <Tooltip title={record.isBlocked ? "Unlock" : "Lock"}>
+      <Tooltip title={record.isBlocked ? "Mở khóa" : "Khóa"}>
         <IconButton
           size="small"
           color={record.isBlocked ? "success" : "error"}
@@ -195,10 +203,10 @@ function UserActions() {
 
       <Confirm
         isOpen={open}
-        title={record.isBlocked ? "Unlock user" : "Lock user"}
-        content={`Are you sure you want to ${
-          record.isBlocked ? "unlock" : "lock"
-        } this user?`}
+        title={record.isBlocked ? "Mở khóa người dùng" : "Khóa người dùng"}
+        content={`Bạn có chắc muốn ${
+          record.isBlocked ? "mở khóa" : "khóa"
+        } người dùng này?`}
         confirmColor={record.isBlocked ? "primary" : "warning"}
         onConfirm={toggleBlock}
         onClose={() => setOpen(false)}
@@ -215,7 +223,7 @@ export function UserList() {
       filters={UserFilters}
       sort={{ field: "createdAt", order: "DESC" }}
       perPage={25}
-      title="Users"
+      title="Người dùng"
     >
       <Datagrid
         rowClick={false}
@@ -228,12 +236,12 @@ export function UserList() {
           },
         }}
       >
-        <ShortId />
-        <UserIdentity />
-        <RoleChip />
-        <StatusChip />
-        <BooleanField source="isBlocked" label="Blocked" />
-        <DateField source="createdAt" showTime />
+        <ShortId label="Mã ngắn" />
+        <UserIdentity label="Người dùng" />
+        <RoleChip label="Vai trò" />
+        <StatusChip label="Trạng thái" />
+        <BooleanField source="isBlocked" label="Bị khóa" />
+        <DateField source="createdAt" showTime label="Tạo lúc" />
         <UserActions />
       </Datagrid>
     </List>
@@ -246,15 +254,11 @@ export function UserEdit() {
   return (
     <Edit>
       <SimpleForm>
-        <TextInput source="userName" validate={[required()]} fullWidth />
-        <TextInput source="email" validate={[required()]} fullWidth />
-        <SelectInput
-          source="role"
-          choices={roleChoices}
-          validate={[required()]}
-        />
-        <SelectInput source="status" choices={statusChoices} />
-        <BooleanField source="isBlocked" />
+        <TextInput source="userName" label="Tên người dùng" validate={[required()]} fullWidth />
+        <TextInput source="email" label="Email" validate={[required()]} fullWidth />
+        <SelectInput source="role" label="Vai trò" choices={roleChoices} validate={[required()]} />
+        <SelectInput source="status" label="Trạng thái" choices={statusChoices} />
+        <BooleanField source="isBlocked" label="Bị khóa" />
       </SimpleForm>
     </Edit>
   );

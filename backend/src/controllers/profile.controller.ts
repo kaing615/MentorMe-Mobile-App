@@ -482,11 +482,13 @@ export const createRequiredProfile = asyncHandler(
     });
 
     const newStatus = role === "mentor" ? "pending-mentor" : "active";
-    await User.findByIdAndUpdate(
-      userId,
-      { $set: { status: newStatus } },
-      { new: false }
-    );
+    const userUpdates: any = { status: newStatus };
+    if (role === "mentor") {
+      userUpdates.mentorApplicationStatus = "pending";
+      userUpdates.mentorApplicationSubmittedAt = new Date();
+      userUpdates.mentorApplicationNote = "";
+    }
+    await User.findByIdAndUpdate(userId, { $set: userUpdates }, { new: false });
 
     const next = role === "mentor" ? "/onboarding/review" : "/home";
     const msg =

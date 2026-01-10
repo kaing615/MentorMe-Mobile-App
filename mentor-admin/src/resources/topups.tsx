@@ -49,6 +49,12 @@ type TopUpItem = {
 
 /* ================= UI HELPERS ================= */
 
+const statusLabelMap: Record<TopupStatus, string> = {
+  PENDING: "Chờ duyệt",
+  APPROVED: "Đã duyệt",
+  REJECTED: "Từ chối",
+};
+
 const StatusChip = ({ status }: { status?: TopupStatus }) => {
   const map: Record<TopupStatus, "warning" | "success" | "error"> = {
     PENDING: "warning",
@@ -57,11 +63,16 @@ const StatusChip = ({ status }: { status?: TopupStatus }) => {
   };
 
   if (!status) {
-    return <Chip size="small" label="UNKNOWN" variant="outlined" />;
+    return <Chip size="small" label="Không rõ" variant="outlined" />;
   }
 
   return (
-    <Chip size="small" label={status} color={map[status]} variant="outlined" />
+    <Chip
+      size="small"
+      label={statusLabelMap[status] || status}
+      color={map[status]}
+      variant="outlined"
+    />
   );
 };
 
@@ -77,6 +88,10 @@ export function TopUpList() {
   const [approveId, setApproveId] = React.useState<string | null>(null);
   const [rejectId, setRejectId] = React.useState<string | null>(null);
   const [rejectReason, setRejectReason] = React.useState("");
+  const [qrPreview, setQrPreview] = React.useState<{
+    url: string;
+    reference?: string;
+  } | null>(null);
 
   /* ---------------- FETCH ---------------- */
 
@@ -94,7 +109,7 @@ export function TopUpList() {
         list.map((it: any) => ({
           id: it.id ?? it._id,
           ...it,
-        })),
+        }))
       );
     } catch {
       notify("Không tải được danh sách topup", { type: "error" });
@@ -111,13 +126,21 @@ export function TopUpList() {
 
   const approveTopup = async () => {
     if (!approveId) return;
-    await fetch(`${apiUrl}/wallet/admin/topups/${approveId}/approve`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    notify("Topup đã được duyệt", { type: "success" });
-    setApproveId(null);
-    fetchList();
+    try {
+      const res = await fetch(`${apiUrl}/wallet/admin/topups/${approveId}/approve`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Duyệt thất bại");
+      }
+      notify("Topup đã được duyệt", { type: "success" });
+      setApproveId(null);
+      fetchList();
+    } catch (e: any) {
+      notify(e.message || "Duyệt thất bại", { type: "error" });
+    }
   };
 
   const rejectTopup = async () => {
@@ -125,18 +148,26 @@ export function TopUpList() {
       notify("Nhập lý do từ chối", { type: "warning" });
       return;
     }
-    await fetch(`${apiUrl}/wallet/admin/topups/${rejectId}/reject`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ reason: rejectReason }),
-    });
-    notify("Topup đã bị từ chối", { type: "info" });
-    setRejectId(null);
-    setRejectReason("");
-    fetchList();
+    try {
+      const res = await fetch(`${apiUrl}/wallet/admin/topups/${rejectId}/reject`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reason: rejectReason }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Từ chối thất bại");
+      }
+      notify("Topup đã bị từ chối", { type: "info" });
+      setRejectId(null);
+      setRejectReason("");
+      fetchList();
+    } catch (e: any) {
+      notify(e.message || "Từ chối thất bại", { type: "error" });
+    }
   };
 
   /* ================= UI ================= */
@@ -144,7 +175,7 @@ export function TopUpList() {
   return (
     <Box p={3}>
       <Typography variant="h4" fontWeight={600} gutterBottom>
-        Top Up Intents
+        Yêu cầu nạp tiền
       </Typography>
 
       <Card sx={{ mb: 3 }}>
@@ -163,12 +194,12 @@ export function TopUpList() {
         <Table sx={{ borderRadius: 2 }}>
           <TableHead>
             <TableRow>
-              <TableCell>User</TableCell>
-              <TableCell>Reference</TableCell>
-              <TableCell>Amount</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Created</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell>Người dùng</TableCell>
+              <TableCell>Mã tham chiếu</TableCell>
+              <TableCell>Số tiền</TableCell>
+              <TableCell>Trạng thái</TableCell>
+              <TableCell>Tạo lúc</TableCell>
+              <TableCell align="right">Hành động</TableCell>
             </TableRow>
           </TableHead>
 
@@ -208,14 +239,21 @@ export function TopUpList() {
                 <TableCell align="right">
                   <Stack direction="row" spacing={1} justifyContent="flex-end">
                     {it.qrImageUrl && (
-                      <Tooltip title="View QR">
-                        <IconButton>
+                      <Tooltip title="Xem QR">
+                        <IconButton
+                          onClick={() =>
+                            setQrPreview({
+                              url: it.qrImageUrl as string,
+                              reference: it.referenceCode,
+                            })
+                          }
+                        >
                           <QrCodeIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     )}
 
-                    <Tooltip title="Approve">
+                    <Tooltip title="Duyệt">
                       <IconButton
                         color="success"
                         onClick={() => setApproveId(it.id)}
@@ -224,7 +262,7 @@ export function TopUpList() {
                       </IconButton>
                     </Tooltip>
 
-                    <Tooltip title="Reject">
+                    <Tooltip title="Từ chối">
                       <IconButton
                         color="error"
                         onClick={() => setRejectId(it.id)}
@@ -240,23 +278,21 @@ export function TopUpList() {
         </Table>
       )}
 
-      {/* APPROVE */}
       <Dialog open={!!approveId} onClose={() => setApproveId(null)}>
-        <DialogTitle>Duyệt Topup</DialogTitle>
+        <DialogTitle>Duyệt yêu cầu nạp tiền</DialogTitle>
         <DialogContent>
-          <Typography>Xác nhận duyệt topup này?</Typography>
+          <Typography>Xác nhận duyệt yêu cầu này?</Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setApproveId(null)}>Huỷ</Button>
+          <Button onClick={() => setApproveId(null)}>Hủy</Button>
           <Button variant="contained" onClick={approveTopup}>
             Duyệt
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* REJECT */}
       <Dialog open={!!rejectId} onClose={() => setRejectId(null)}>
-        <DialogTitle>Từ chối Topup</DialogTitle>
+        <DialogTitle>Từ chối yêu cầu nạp tiền</DialogTitle>
         <DialogContent>
           <TextField
             label="Lý do"
@@ -268,10 +304,34 @@ export function TopUpList() {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRejectId(null)}>Huỷ</Button>
+          <Button onClick={() => setRejectId(null)}>Hủy</Button>
           <Button color="error" variant="contained" onClick={rejectTopup}>
             Từ chối
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!qrPreview} onClose={() => setQrPreview(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Mã QR nạp tiền</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} alignItems="center">
+            {qrPreview?.reference && (
+              <Typography color="text.secondary">
+                Mã tham chiếu: {qrPreview.reference}
+              </Typography>
+            )}
+            {qrPreview?.url && (
+              <Box
+                component="img"
+                src={qrPreview.url}
+                alt="QR nạp tiền"
+                sx={{ maxWidth: "100%", borderRadius: 1 }}
+              />
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setQrPreview(null)}>Đóng</Button>
         </DialogActions>
       </Dialog>
     </Box>

@@ -6,7 +6,7 @@ import {
   Logout,
   MenuItemLink,
   Layout as RALayout,
-  UserMenu
+  UserMenu,
 } from "react-admin";
 
 /* ===================== User Menu ===================== */
@@ -15,7 +15,7 @@ const MyUserMenu = () => (
   <UserMenu>
     <MenuItemLink
       to="/my-profile"
-      primaryText="My Profile"
+      primaryText="Hồ sơ của tôi"
       leftIcon={<SettingsIcon />}
     />
     <Logout />

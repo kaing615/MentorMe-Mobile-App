@@ -18,7 +18,7 @@ const toQueryValue = (value: any) => {
 const httpClient = async (url: string, options: fetchUtils.Options = {}) => {
   const token = localStorage.getItem("access_token");
   if (!token) {
-    throw new Error("No token");
+    throw new Error("Không có token");
   }
   options.user = {
     authenticated: true,

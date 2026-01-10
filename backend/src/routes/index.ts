@@ -6,6 +6,7 @@ import adminBookingRouter from "./adminBooking.route";
 import availabilityRouter from "./availability.route";
 import mentorRouter from "./mentor.route";
 import mentorStatsRouter from "./mentor.stats.route";
+import mentorApplicationRouter from "./mentorApplication.route";
 import walletRouter from "./wallet.route";
 import walletTopupRouter from "./walletTopup.route";
 
@@ -31,6 +32,7 @@ const router = Router();
 // Auth + user
 router.use("/auth", userRouter);
 router.use("/users", userRouter);
+router.use("/mentor-applications", mentorApplicationRouter);
 
 // Core booking / profile
 router.use("/bookings", bookingRouter);

@@ -45,12 +45,21 @@ export const authProvider: AuthProvider = {
   },
 
   async checkError(error) {
-    // Khi API trả 401/403, cho logout
-    const status = error?.status;
-    if (status === 401 || status === 403) {
+    const status = error?.status || error?.response?.status;
+    
+    // 401 Unauthorized - token invalid/expired, need to logout
+    if (status === 401) {
       localStorage.removeItem("access_token");
       localStorage.removeItem("role");
-      throw new Error("Unauthorized");
+      localStorage.removeItem("userId");
+      localStorage.removeItem("user_email");
+      return Promise.reject();
+    }
+    
+    // 403 Forbidden - token valid but no permission, don't logout
+    // Just show error message to user
+    if (status === 403) {
+      return Promise.resolve(); // Don't throw, just let the component handle it
     }
   },
 

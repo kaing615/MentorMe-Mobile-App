@@ -158,6 +158,8 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
     implementation(libs.androidx.material3)
     implementation(libs.identity.jvm)
+    implementation(libs.litertlm.jvm)
+    implementation(libs.androidx.foundation.layout)
     ksp(libs.hilt.compiler)
 
     // Room database (removed duplicate)

@@ -139,7 +139,67 @@ export const getSessionLog = asyncHandler(async (req: Request, res: Response) =>
   return ok(res, formatSessionLog(log));
 });
 
+export const adminListSessions = asyncHandler(async (req: Request, res: Response) => {
+  const {
+    status,
+    bookingId,
+    mentorId,
+    menteeId,
+    from,
+    to,
+    page = 1,
+    limit = 25,
+  } = req.query as {
+    status?: string;
+    bookingId?: string;
+    mentorId?: string;
+    menteeId?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    limit?: number;
+  };
+
+  const pageNum = Number(page) || 1;
+  const limitNum = Math.min(Number(limit) || 25, 100);
+  const skip = (pageNum - 1) * limitNum;
+
+  const query: any = {};
+  if (status) query.status = status;
+  if (bookingId) query.booking = bookingId;
+  if (mentorId) query.mentor = mentorId;
+  if (menteeId) query.mentee = menteeId;
+  if (from || to) {
+    query.scheduledStart = {};
+    if (from) query.scheduledStart.$gte = new Date(from);
+    if (to) query.scheduledStart.$lte = new Date(to);
+  }
+
+  const [logs, total] = await Promise.all([
+    SessionLog.find(query)
+      .sort({ scheduledStart: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .lean(),
+    SessionLog.countDocuments(query),
+  ]);
+
+  const totalPages = Math.ceil(total / limitNum);
+  const start = skip;
+  const end = Math.min(skip + logs.length - 1, total - 1);
+  res.set('Content-Range', `sessions ${start}-${end}/${total}`);
+  res.set('Access-Control-Expose-Headers', 'Content-Range');
+
+  return ok(res, {
+    sessions: logs.map((log) => formatSessionLog(log)),
+    total,
+    page: pageNum,
+    totalPages,
+  });
+});
+
 export default {
   createJoinToken,
   getSessionLog,
+  adminListSessions,
 };

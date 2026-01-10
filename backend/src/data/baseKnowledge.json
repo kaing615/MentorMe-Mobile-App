@@ -1,0 +1,237 @@
+[
+  {
+    "id": "app_overview",
+    "title": "Giới thiệu MentorMe",
+    "content": "MentorMe là nền tảng kết nối mentor và mentee. Người dùng có thể tìm mentor theo kỹ năng, đặt lịch, thanh toán, và chat trực tiếp trong app.",
+    "tags": ["overview", "feature", "introduction"]
+  },
+  {
+    "id": "feature_booking",
+    "title": "Tính năng đặt lịch",
+    "content": "Mentee chọn mentor, chọn khung giờ, thanh toán qua ví trong app. Mentor sẽ nhận thông báo và có thể xác nhận hoặc huỷ buổi.",
+    "tags": ["booking", "payment", "notification", "schedule"]
+  },
+  {
+    "id": "pricing",
+    "title": "Chính sách giá",
+    "content": "Giá do mentor đặt theo giờ (hourlyRateVnd). Platform thu phí dịch vụ 10% trên mỗi buổi. Có gói trial miễn phí 1 buổi cho người mới.",
+    "tags": ["pricing", "finance", "fee", "trial"]
+  },
+  {
+    "id": "payment_methods",
+    "title": "Phương thức thanh toán",
+    "content": "MentorMe hỗ trợ thanh toán qua: Ví trong app (nạp tiền qua chuyển khoản ngân hàng, VNPay). Mentor được thanh toán sau mỗi buổi thành công.",
+    "tags": ["payment", "wallet", "banking", "vnpay"]
+  },
+  {
+    "id": "refund_policy",
+    "title": "Chính sách hoàn tiền",
+    "content": "Nếu mentor hủy buổi trong vòng 24h trước giờ hẹn, mentee được hoàn 100% tiền. Mentee hủy trong vòng 24h được hoàn 50%. Hủy trước 48h được hoàn 100%.",
+    "tags": ["refund", "cancellation", "policy"]
+  },
+  {
+    "id": "mentor_registration",
+    "title": "Đăng ký làm mentor",
+    "content": "Để trở thành mentor, bạn cần: Điền hồ sơ đầy đủ (kinh nghiệm, kỹ năng, học vấn), đợi admin duyệt (thường 1-3 ngày làm việc), sau đó có thể nhận booking từ mentee.",
+    "tags": ["mentor", "registration", "application", "approval"]
+  },
+  {
+    "id": "mentor_payout",
+    "title": "Thanh toán cho mentor",
+    "content": "Mentor nhận 90% giá buổi học (10% platform fee). Tiền được chuyển vào ví mentor sau khi buổi học hoàn thành. Mentor có thể rút tiền về tài khoản ngân hàng.",
+    "tags": ["mentor", "payout", "earnings", "withdraw"]
+  },
+  {
+    "id": "session_types",
+    "title": "Các loại buổi học",
+    "content": "MentorMe hỗ trợ 2 loại: Video call online (qua WebRTC tích hợp sẵn) và In-person (gặp trực tiếp tại địa điểm do mentor chọn).",
+    "tags": ["session", "video", "in-person", "meeting"]
+  },
+  {
+    "id": "rating_system",
+    "title": "Hệ thống đánh giá",
+    "content": "Sau mỗi buổi học, mentee có thể đánh giá mentor từ 1-5 sao và để lại nhận xét. Rating trung bình hiển thị trên profile mentor.",
+    "tags": ["rating", "review", "feedback"]
+  },
+  {
+    "id": "chat_feature",
+    "title": "Tính năng chat",
+    "content": "Mentee và mentor có thể chat trực tiếp trong app sau khi booking được xác nhận. Hỗ trợ gửi text, emoji, và file đính kèm (tài liệu học tập).",
+    "tags": ["chat", "messaging", "communication"]
+  },
+  {
+    "id": "notification",
+    "title": "Thông báo",
+    "content": "App gửi thông báo khi: Booking được xác nhận/hủy, Sắp đến giờ hẹn (30 phút trước), Mentor gửi tin nhắn, Cần đánh giá sau buổi học.",
+    "tags": ["notification", "alert", "reminder"]
+  },
+  {
+    "id": "founder",
+    "title": "Người sáng lập",
+    "content": "Nguyễn Đình Tâm - 23521389, Bùi Ngọc Thái - 23521412 và Huỳnh Lê Đại Thắng - 23521422 đã khởi xướng MentorMe năm 2025 với mục tiêu giúp người mới tìm mentor dễ dàng.",
+    "tags": ["founder", "team", "about", "history"]
+  },
+  {
+    "id": "contact",
+    "title": "Liên hệ hỗ trợ",
+    "content": "Email hỗ trợ: 23521389@gm.uit.edu.vn. Chúng tôi sẵn sàng hỗ trợ bạn 24/7 qua email này. Thời gian phản hồi thường trong vòng 24h.",
+    "tags": ["contact", "support", "help", "email"]
+  },
+  {
+    "id": "privacy",
+    "title": "Chính sách bảo mật",
+    "content": "Dữ liệu người dùng được mã hoá, không chia sẻ cho bên thứ 3. Xem chi tiết trong mục Privacy của app. Chúng tôi tuân thủ GDPR và luật bảo vệ dữ liệu Việt Nam.",
+    "tags": ["privacy", "security", "data", "gdpr"]
+  },
+  {
+    "id": "account_verification",
+    "title": "Xác thực tài khoản",
+    "content": "Người dùng cần xác thực email khi đăng ký. Mentor cần cung cấp thêm: Số điện thoại, Chứng chỉ/bằng cấp liên quan (nếu có) để tăng độ tin cậy.",
+    "tags": ["verification", "authentication", "security"]
+  },
+  {
+    "id": "mobile_app",
+    "title": "Ứng dụng di động",
+    "content": "MentorMe hiện có trên Android (Kotlin + Jetpack Compose). Sắp tới sẽ ra mắt phiên bản iOS. Web admin dành cho quản trị hệ thống.",
+    "tags": ["app", "mobile", "android", "platform"]
+  },
+  {
+    "id": "technical_support",
+    "title": "Hỗ trợ kỹ thuật",
+    "content": "Nếu gặp lỗi kỹ thuật (không load được, crash app, lỗi thanh toán), vui lòng chụp màn hình và gửi về email hỗ trợ kèm mô tả chi tiết.",
+    "tags": ["technical", "bug", "error", "troubleshooting"]
+  },
+  {
+    "id": "faq",
+    "title": "Câu hỏi thường gặp",
+    "content": "Q: Làm sao tìm mentor phù hợp? A: Dùng bộ lọc theo kỹ năng, giá, đánh giá. Q: Có thể đổi lịch không? A: Có, nếu cả 2 bên đồng ý. Q: Có thể hoàn tiền không? A: Xem mục Chính sách hoàn tiền.",
+    "tags": ["faq", "questions", "help"]
+  },
+  {
+    "id": "wallet_feature",
+    "title": "Tính năng ví điện tử",
+    "content": "Ví trong app cho phép bạn: Nạp tiền qua VNPay hoặc chuyển khoản ngân hàng, Thanh toán cho buổi học nhanh chóng, Theo dõi lịch sử giao dịch, Rút tiền về tài khoản ngân hàng (cho mentor). Số dư ví hiển thị trong trang Profile.",
+    "tags": [
+      "wallet",
+      "payment",
+      "balance",
+      "transaction",
+      "deposit",
+      "withdraw"
+    ]
+  },
+  {
+    "id": "search_mentor",
+    "title": "Tìm kiếm mentor",
+    "content": "Bạn có thể tìm mentor bằng: Tìm theo kỹ năng (Java, Python, React...), Lọc theo giá (từ giá thấp đến cao), Lọc theo đánh giá (từ 3 sao trở lên), Lọc theo kinh nghiệm (Junior, Mid, Senior). Sử dụng AI chatbot để được gợi ý mentor phù hợp với nhu cầu cụ thể.",
+    "tags": ["search", "filter", "mentor", "skill", "price", "rating"]
+  },
+  {
+    "id": "booking_process",
+    "title": "Quy trình đặt lịch chi tiết",
+    "content": "Quy trình đặt lịch: 1) Chọn mentor phù hợp, 2) Xem lịch rảnh của mentor, 3) Chọn khung giờ mong muốn, 4) Thanh toán qua ví, 5) Đợi mentor xác nhận (thường trong vòng 2-6 giờ), 6) Nhận thông báo xác nhận, 7) Tham gia buổi học đúng giờ, 8) Đánh giá sau buổi học.",
+    "tags": ["booking", "process", "schedule", "step-by-step"]
+  },
+  {
+    "id": "reschedule_policy",
+    "title": "Chính sách đổi lịch",
+    "content": "Đổi lịch buổi học: Mentee có thể yêu cầu đổi lịch trước 24h. Mentor có thể chấp nhận hoặc từ chối. Nếu cả 2 bên đồng ý, lịch mới được cập nhật tự động. Không mất phí đổi lịch lần đầu, từ lần thứ 2 trở đi thu phí 5% giá trị buổi học.",
+    "tags": ["reschedule", "change", "booking", "policy"]
+  },
+  {
+    "id": "mentor_profile",
+    "title": "Hồ sơ mentor",
+    "content": "Hồ sơ mentor bao gồm: Ảnh đại diện, Mô tả bản thân (bio), Danh sách kỹ năng chuyên môn, Kinh nghiệm làm việc, Học vấn, Giá theo giờ, Đánh giá từ mentee trước, Số buổi học đã hoàn thành. Mentor có thể cập nhật hồ sơ bất cứ lúc nào.",
+    "tags": ["profile", "mentor", "information", "bio", "experience"]
+  },
+  {
+    "id": "mentee_dashboard",
+    "title": "Trang tổng quan của mentee",
+    "content": "Dashboard mentee hiển thị: Các buổi học sắp tới, Lịch sử buổi học, Mentor đã đặt, Số dư ví, Thông báo chưa đọc, Gợi ý mentor phù hợp. Có thể truy cập nhanh vào chat với mentor từ đây.",
+    "tags": ["dashboard", "mentee", "overview", "ui"]
+  },
+  {
+    "id": "mentor_dashboard",
+    "title": "Trang tổng quan của mentor",
+    "content": "Dashboard mentor hiển thị: Booking request chờ xác nhận, Lịch dạy sắp tới, Tổng thu nhập trong tháng, Đánh giá gần nhất, Thống kê số buổi đã dạy. Mentor có thể cập nhật lịch rảnh và quản lý booking từ đây.",
+    "tags": ["dashboard", "mentor", "overview", "earnings", "schedule"]
+  },
+  {
+    "id": "ai_chatbot",
+    "title": "Trợ lý AI",
+    "content": "Trợ lý AI của MentorMe giúp: Gợi ý mentor phù hợp dựa trên mô tả nhu cầu của bạn (ví dụ: 'Tôi muốn học Backend với Java'), Trả lời các câu hỏi về app (tính năng, giá cả, chính sách), Hỗ trợ 24/7. AI sử dụng công nghệ Gemini để hiểu ngữ cảnh và đưa ra câu trả lời chính xác.",
+    "tags": ["ai", "chatbot", "assistant", "gemini", "recommendation"]
+  },
+  {
+    "id": "session_completion",
+    "title": "Hoàn thành buổi học",
+    "content": "Sau khi buổi học kết thúc: Mentor nhấn 'Hoàn thành buổi học', Tiền được chuyển từ ví mentee sang ví mentor (trừ 10% platform fee), Mentee nhận thông báo để đánh giá, Buổi học được lưu vào lịch sử. Nếu có tranh chấp, liên hệ support để giải quyết.",
+    "tags": ["session", "complete", "payment", "rating"]
+  },
+  {
+    "id": "mentor_availability",
+    "title": "Quản lý lịch rảnh",
+    "content": "Mentor có thể: Thiết lập khung giờ rảnh theo ngày trong tuần, Đánh dấu ngày nghỉ, Tạm khóa lịch khi bận, Chấp nhận hoặc từ chối booking request. Mentee chỉ thấy và chọn được những khung giờ mentor đã đánh dấu là rảnh.",
+    "tags": ["availability", "schedule", "mentor", "calendar", "time-slot"]
+  },
+  {
+    "id": "dispute_resolution",
+    "title": "Giải quyết tranh chấp",
+    "content": "Nếu có vấn đề: Mentor không tham gia buổi học, Mentee không hài lòng với chất lượng, Vấn đề thanh toán, bạn có thể báo cáo qua mục 'Báo cáo vấn đề' trong chi tiết booking. Admin sẽ xem xét và giải quyết trong vòng 1-3 ngày làm việc.",
+    "tags": ["dispute", "report", "issue", "support", "resolution"]
+  },
+  {
+    "id": "trial_session",
+    "title": "Buổi học dùng thử",
+    "content": "Người dùng mới được tặng 1 buổi học dùng thử miễn phí (trị giá tối đa 200,000 VND). Áp dụng cho buổi học đầu tiên với bất kỳ mentor nào. Sau đó, bạn cần nạp tiền để tiếp tục sử dụng dịch vụ.",
+    "tags": ["trial", "free", "promotion", "first-session"]
+  },
+  {
+    "id": "mentor_skills",
+    "title": "Danh mục kỹ năng",
+    "content": "MentorMe hỗ trợ các lĩnh vực: Backend (Java, Python, Node.js, Go), Frontend (React, Vue, Angular), Mobile (Android, iOS, Flutter), DevOps (Docker, K8s, AWS), Data Science (ML, AI, Analytics), Design (UI/UX), và nhiều kỹ năng khác. Mentor có thể đăng ký nhiều kỹ năng.",
+    "tags": ["skills", "category", "programming", "technology"]
+  },
+  {
+    "id": "level_system",
+    "title": "Hệ thống cấp độ",
+    "content": "Mentor có thể dạy các cấp độ: Beginner (người mới bắt đầu), Intermediate (có kinh nghiệm cơ bản), Advanced (chuyên sâu). Mentee nên chọn cấp độ phù hợp với trình độ hiện tại để có trải nghiệm học tập tốt nhất.",
+    "tags": ["level", "beginner", "intermediate", "advanced", "skill-level"]
+  },
+  {
+    "id": "video_call",
+    "title": "Tính năng video call",
+    "content": "Video call được tích hợp sẵn trong app sử dụng WebRTC. Không cần cài thêm phần mềm bên ngoài. Hỗ trợ: Chia sẻ màn hình, Chat trong cuộc gọi, Tắt/bật camera và mic. Đảm bảo kết nối internet ổn định để có chất lượng tốt nhất.",
+    "tags": ["video", "call", "webrtc", "screen-share", "meeting"]
+  },
+  {
+    "id": "in_person_meeting",
+    "title": "Gặp mặt trực tiếp",
+    "content": "Nếu chọn 'In-person', mentor sẽ đề xuất địa điểm gặp (quán cafe, không gian coworking, v.v.). Cả 2 bên cần thỏa thuận và xác nhận địa điểm trước. Thanh toán vẫn qua ví app. Lưu ý: Đảm bảo an toàn khi gặp mặt.",
+    "tags": ["in-person", "offline", "meeting", "location", "safety"]
+  },
+  {
+    "id": "file_sharing",
+    "title": "Chia sẻ tài liệu",
+    "content": "Trong chat, mentor và mentee có thể gửi: File PDF, Word, PowerPoint (tối đa 10MB), Hình ảnh, Code snippets. Tài liệu được lưu trong lịch sử chat và có thể tải xuống bất cứ lúc nào.",
+    "tags": ["file", "document", "sharing", "attachment", "upload"]
+  },
+  {
+    "id": "push_notification",
+    "title": "Thông báo đẩy",
+    "content": "Bạn sẽ nhận thông báo đẩy khi: Có booking mới, Booking được xác nhận/hủy, Sắp đến giờ học (30 phút trước), Có tin nhắn mới, Cần đánh giá sau buổi học. Có thể tùy chỉnh trong Settings.",
+    "tags": ["push", "notification", "alert", "settings"]
+  },
+  {
+    "id": "admin_panel",
+    "title": "Trang quản trị",
+    "content": "Admin có thể: Duyệt/từ chối đăng ký mentor, Xem thống kê platform (doanh thu, số user, số buổi học), Giải quyết tranh chấp, Quản lý user (khoá/mở khoá tài khoản), Cập nhật nội dung base knowledge. Truy cập qua web admin.",
+    "tags": ["admin", "management", "dashboard", "moderation"]
+  },
+  {
+    "id": "statistics",
+    "title": "Thống kê và báo cáo",
+    "content": "Mentor xem được: Tổng số buổi đã dạy, Tổng thu nhập, Đánh giá trung bình, Biểu đồ thu nhập theo tháng. Mentee xem được: Tổng số buổi đã học, Tổng chi tiêu, Mentor đã học. Dữ liệu được cập nhật real-time.",
+    "tags": ["statistics", "analytics", "report", "dashboard"]
+  }
+]

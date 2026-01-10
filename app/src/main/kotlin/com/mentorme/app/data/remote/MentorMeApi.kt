@@ -30,6 +30,7 @@ import com.mentorme.app.data.dto.notifications.NotificationReadAllResponse
 import com.mentorme.app.data.dto.notifications.NotificationPreferencesDto
 import com.mentorme.app.data.dto.*
 import com.mentorme.app.data.dto.MenteeStatsDto
+import com.mentorme.app.data.dto.ai.RecommendMentorResponse
 import com.mentorme.app.data.dto.wallet.TopupRequest
 import com.mentorme.app.data.dto.wallet.TopupResponse
 import com.mentorme.app.data.dto.wallet.WalletDto
@@ -268,4 +269,9 @@ interface MentorMeApi {
     // Mentee Stats endpoints
     @GET("bookings/mentee/stats")
     suspend fun getMenteeStats(): Response<ApiEnvelope<MenteeStatsDto>>
+    // AI
+    @POST("ai/recommend-mentor")
+    suspend fun recommendMentor(
+        @Body request: Map<String, String>
+    ): Response<ApiEnvelope<RecommendMentorResponse>>
 }

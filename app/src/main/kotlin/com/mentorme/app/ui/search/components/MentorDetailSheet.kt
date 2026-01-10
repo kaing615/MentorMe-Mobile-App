@@ -33,6 +33,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.mentorme.app.ui.home.Mentor as HomeMentor
+import com.mentorme.app.ui.utils.normalizeLanguageLabels
 import com.mentorme.app.core.utils.Logx
 import com.mentorme.app.data.dto.profile.ProfileDto
 import com.mentorme.app.domain.usecase.availability.GetPublicCalendarUseCase
@@ -406,7 +407,10 @@ private fun OverviewTab(mentor: HomeMentor, profile: ProfileDto?) {
         ?: profile?.headline?.trim().takeIf { !it.isNullOrBlank() }
         ?: "Senior ${mentor.role} với nhiều kinh nghiệm thực chiến. Chia sẻ về lộ trình, kỹ năng và định hướng."
     val skills = (profile?.skills?.filter { it.isNotBlank() } ?: mentor.skills).filter { it.isNotBlank() }
-    val languages = profile?.languages?.filter { it.isNotBlank() } ?: listOf("Tiếng Việt", "English")
+    val languages = profile?.languages
+        ?.let { normalizeLanguageLabels(it) }
+        ?.ifEmpty { listOf("Tiếng Việt", "Tiếng Anh") }
+        ?: listOf("Tiếng Việt", "Tiếng Anh")
     val location = profile?.location?.trim()?.takeIf { it.isNotBlank() } ?: "Online"
 
     Column(

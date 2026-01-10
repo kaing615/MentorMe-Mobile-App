@@ -1,13 +1,13 @@
 import { Router } from "express";
-import { auth, requireRoles } from "../middlewares/auth.middleware";
+import { param } from "express-validator";
 import payoutController from "../controllers/payout.controller";
 import { validate } from "../handlers/request.handler";
-import { param } from "express-validator";
+import { auth, requireRoles } from "../middlewares/auth.middleware";
 
 const router = Router();
 
-// Admin role (lowercase as per user.model.ts)
-const ADMIN_ROLE = "admin";
+// Admin and root roles (lowercase as per user.model.ts)
+const ADMIN_ROLES = ["admin", "root"];
 // Payout ID param validator
 const payoutIdParamValidator = [
   param("id").isMongoId().withMessage("Invalid payout id"),
@@ -16,14 +16,14 @@ const payoutIdParamValidator = [
 router.get(
   "/",
   auth,
-  requireRoles(ADMIN_ROLE),
+  requireRoles(...ADMIN_ROLES),
   payoutController.adminListPayoutRequests
 );
 
 router.post(
   "/:id/approve",
   auth,
-  requireRoles(ADMIN_ROLE),
+  requireRoles(...ADMIN_ROLES),
   payoutIdParamValidator,
   validate,
   payoutController.adminApprovePayout
@@ -32,14 +32,14 @@ router.post(
 router.post(
   "/payouts/:id/reject",
   auth,
-  requireRoles(ADMIN_ROLE),
+  requireRoles(...ADMIN_ROLES),
   payoutController.adminRejectPayout
 );
 
 router.post(
   "/:id/retry",
   auth,
-  requireRoles(ADMIN_ROLE),
+  requireRoles(...ADMIN_ROLES),
   payoutIdParamValidator,
   validate,
   payoutController.adminRetryPayout

@@ -627,18 +627,22 @@ private fun InfoBox(
             }
 
             Column(
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                modifier = Modifier.weight(1f) // ✅ Cho phép column co giãn
             ) {
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(0.7f)
+                    color = Color.White.copy(0.7f),
+                    maxLines = 1 // ✅ Label chỉ 1 dòng
                 )
                 Text(
                     text = value,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall, // ✅ Đổi từ bodyMedium → bodySmall để text nhỏ hơn
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = Color.White,
+                    maxLines = 1, // ✅ Value chỉ 1 dòng
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Clip // ✅ Đổi từ Ellipsis → Clip để không có "..."
                 )
             }
         }

@@ -76,10 +76,27 @@ fun AiChatPanel(
 
                         Spacer(Modifier.height(6.dp))
 
-                        msg.mentors.forEach { mentor ->
-                            MentorSuggestCard(
-                                mentor = mentor,
-                                onClick = { onMentorClick(mentor.id) }
+                        // Show mentor cards if available
+                        if (msg.mentors.isNotEmpty()) {
+                            msg.mentors.forEach { mentor ->
+                                MentorSuggestCard(
+                                    mentor = mentor,
+                                    onClick = { onMentorClick(mentor.id) }
+                                )
+                                Spacer(Modifier.height(4.dp))
+                            }
+                        }
+
+                        // Show suggestions if available
+                        if (msg.suggestions.isNotEmpty()) {
+                            Spacer(Modifier.height(4.dp))
+                            AiSuggestionChips(
+                                suggestions = msg.suggestions,
+                                onSuggestionClick = { suggestion ->
+                                    input = suggestion
+                                    viewModel.ask(suggestion)
+                                    input = ""
+                                }
                             )
                         }
                     }

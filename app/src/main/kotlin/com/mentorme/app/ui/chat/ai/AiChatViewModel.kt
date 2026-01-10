@@ -1,9 +1,11 @@
 package com.mentorme.app.ui.chat.ai
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.mentorme.app.data.repository.ai.AiChatHistoryManager
 import com.mentorme.app.data.repository.ai.AiRepository
+import com.mentorme.app.data.repository.ai.AiChatMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,7 +16,8 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class AiChatViewModel @Inject constructor(
     private val aiRepository: AiRepository,
-    private val historyManager: AiChatHistoryManager
+    private val historyManager: AiChatHistoryManager,
+    savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<AiChatMessage>>(emptyList())
@@ -23,25 +26,18 @@ class AiChatViewModel @Inject constructor(
     private val _loading = MutableStateFlow(false)
     val loading = _loading.asStateFlow()
 
+    private val mode = AiChatMode.fromRouteArg(savedStateHandle.get<String>("mode"))
+    private val historyKey = mode.id
+
     init {
         loadHistory()
     }
 
     private fun loadHistory() {
         viewModelScope.launch {
-            val history = historyManager.loadMessages()
+            val history = historyManager.loadMessages(historyKey)
             if (history.isEmpty()) {
-                // Add welcome message
-                _messages.value = listOf(
-                    AiChatMessage.Ai(
-                        text = "Xin chào! 👋 Tôi là trợ lý AI của MentorMe.\n\nTôi có thể giúp bạn tìm mentor phù hợp!",
-                        type = "text",
-                        suggestions = listOf(
-                            "Tìm mentor Java cho người mới",
-                            "App có những tính năng gì?"
-                        )
-                    )
-                )
+                _messages.value = listOf(defaultWelcomeMessage())
             } else {
                 _messages.value = history
             }
@@ -57,7 +53,7 @@ class AiChatViewModel @Inject constructor(
         viewModelScope.launch {
             _loading.value = true
 
-            val res = aiRepository.askAi(message)
+            val res = aiRepository.askAi(message, mode)
 
             res.fold(
                 onSuccess = { response ->
@@ -105,13 +101,13 @@ class AiChatViewModel @Inject constructor(
 
     private fun saveHistory() {
         viewModelScope.launch {
-            historyManager.saveMessages(_messages.value)
+            historyManager.saveMessages(_messages.value, historyKey)
         }
     }
 
     fun clearHistory() {
         viewModelScope.launch {
-            historyManager.clearHistory()
+            historyManager.clearHistory(historyKey)
             _messages.value = emptyList()
             loadHistory() // Reload welcome message
         }
@@ -120,7 +116,28 @@ class AiChatViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         viewModelScope.launch {
-            historyManager.saveMessages(_messages.value)
+            historyManager.saveMessages(_messages.value, historyKey)
+        }
+    }
+
+    private fun defaultWelcomeMessage(): AiChatMessage.Ai {
+        return when (mode) {
+            AiChatMode.MENTEE -> AiChatMessage.Ai(
+                text = "Xin chào! 👋 Tôi là trợ lý AI của MentorMe.\n\nTôi có thể giúp bạn tìm mentor phù hợp!",
+                type = "text",
+                suggestions = listOf(
+                    "Tìm mentor Java cho người mới",
+                    "App có những tính năng gì?"
+                )
+            )
+            AiChatMode.MENTOR -> AiChatMessage.Ai(
+                text = "Xin chào! 👋 Tôi là trợ lý AI hỗ trợ mentor.\n\nTôi có thể giúp bạn về lịch rảnh, booking, payout và chính sách app.",
+                type = "text",
+                suggestions = listOf(
+                    "Cách tạo lịch rảnh?",
+                    "Rút tiền về ngân hàng thế nào?"
+                )
+            )
         }
     }
 }

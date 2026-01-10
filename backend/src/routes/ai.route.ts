@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { recommendMentorController } from "../controllers/ai.controller";
+import { mentorAssistantController, recommendMentorController } from "../controllers/ai.controller";
 
 const router = Router();
 
 router.post("/recommend-mentor", recommendMentorController);
+router.post("/mentor-assistant", mentorAssistantController);
 
 export default router;

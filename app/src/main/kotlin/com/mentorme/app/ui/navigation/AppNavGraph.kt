@@ -89,6 +89,7 @@ import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.profile.sheet.ProfileBottomSheetViewModel
 import com.mentorme.app.ui.profile.sheet.ProfileSheetUiState
 import com.mentorme.app.ui.theme.liquidGlassStrong
+import com.mentorme.app.data.repository.ai.AiChatMode
 import kotlinx.coroutines.launch
 import com.mentorme.app.ui.components.ui.GlassOverlay
 import com.mentorme.app.ui.home.Mentor as HomeMentor
@@ -390,7 +391,14 @@ internal fun AppNavGraph(
 
             composable(Routes.MentorMessages) {
                 MentorMessagesScreen(
-                    onOpenConversation = { convId -> nav.navigate("${Routes.Chat}/$convId") },
+                    onOpenConversation = { convId ->
+                        val AI_CONVERSATION_ID = "mentor_ai_conversation"
+                        if (convId == AI_CONVERSATION_ID) {
+                            nav.navigate(Routes.aiChat("mentor"))
+                        } else {
+                            nav.navigate("${Routes.Chat}/$convId")
+                        }
+                    },
                     onFilterStudents = { Log.d("AppNav", "Filter students - TODO") },
                     onSearchConversations = { query ->
                         Log.d(
@@ -581,7 +589,7 @@ internal fun AppNavGraph(
                     onOpenConversation = { id ->
                         val AI_CONVERSATION_ID = "ai_conversation"
                         if (id == AI_CONVERSATION_ID) {
-                            nav.navigate(Routes.AiChat)
+                            nav.navigate(Routes.aiChat())
                         } else {
                             nav.navigate("${Routes.Chat}/$id")
                         }
@@ -589,7 +597,8 @@ internal fun AppNavGraph(
                 )
             }
 
-            composable(Routes.AiChat) {
+            composable(Routes.AiChatWithMode) { backStackEntry ->
+                val mode = AiChatMode.fromRouteArg(backStackEntry.arguments?.getString("mode"))
                 AiChatScreen(
                     onBack = { nav.popBackStack() },
                     onOpenProfile = { mentorId ->
@@ -607,7 +616,8 @@ internal fun AppNavGraph(
                             isAvailable = true
                         )
                         showMentorDetail = true
-                    }
+                    },
+                    mode = mode
                 )
             }
 

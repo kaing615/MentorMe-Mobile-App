@@ -58,18 +58,32 @@ import com.mentorme.app.ui.chat.components.GlassIconButton
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.components.ui.MMTextField
 import com.mentorme.app.ui.theme.liquidGlassStrong
+import com.mentorme.app.data.repository.ai.AiChatMode
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun AiChatScreen(
     onBack: () -> Unit,
-    onOpenProfile: (String) -> Unit
+    onOpenProfile: (String) -> Unit,
+    mode: AiChatMode = AiChatMode.MENTEE
 ) {
     val viewModel = hiltViewModel<AiChatViewModel>()
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val loading by viewModel.loading.collectAsStateWithLifecycle()
 
     val listState = rememberLazyListState()
+    val subtitle = remember(mode) {
+        when (mode) {
+            AiChatMode.MENTEE -> "Tr? l? t?m mentor"
+            AiChatMode.MENTOR -> "Tr? l? cho mentor"
+        }
+    }
+    val placeholder = remember(mode) {
+        when (mode) {
+            AiChatMode.MENTEE -> "H?i AI v? mentor b?n c?n..."
+            AiChatMode.MENTOR -> "H?i AI v? l?ch r?nh, booking, payout..."
+        }
+    }
 
     CompositionLocalProvider(LocalContentColor provides Color.White) {
         Column(
@@ -105,7 +119,7 @@ fun AiChatScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Trợ lý tìm mentor",
+                        subtitle,
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.White.copy(alpha = 0.7f)
                     )
@@ -148,11 +162,13 @@ fun AiChatScreen(
 
                                 Spacer(Modifier.height(6.dp))
 
-                                msg.mentors.forEach { mentor ->
-                                    MentorSuggestCard(
-                                        mentor = mentor,
-                                        onClick = { onOpenProfile(mentor.mentorId) }
-                                    )
+                                if (mode == AiChatMode.MENTEE) {
+                                    msg.mentors.forEach { mentor ->
+                                        MentorSuggestCard(
+                                            mentor = mentor,
+                                            onClick = { onOpenProfile(mentor.mentorId) }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -173,7 +189,7 @@ fun AiChatScreen(
                     viewModel.ask(text)
                 },
                 enabled = true,
-                placeholder = "Hỏi AI về mentor bạn cần...",
+                placeholder = placeholder,
                 modifier = Modifier
                     .fillMaxWidth()
                     .imePadding()

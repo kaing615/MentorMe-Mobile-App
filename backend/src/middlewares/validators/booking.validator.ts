@@ -29,6 +29,30 @@ export const getBookingsRules = [
   query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
 ];
 
+export const adminGetBookingsRules = [
+  query('status')
+    .optional()
+    .isIn([
+      'PaymentPending',
+      'PendingMentor',
+      'Confirmed',
+      'Failed',
+      'Cancelled',
+      'Declined',
+      'Completed',
+      'NoShowMentor',
+      'NoShowMentee',
+      'NoShowBoth',
+    ])
+    .withMessage('invalid status'),
+  query('mentorId').optional().isMongoId().withMessage('mentorId must be a valid ID'),
+  query('menteeId').optional().isMongoId().withMessage('menteeId must be a valid ID'),
+  query('from').optional().isISO8601().withMessage('from must be a valid ISO date'),
+  query('to').optional().isISO8601().withMessage('to must be a valid ISO date'),
+  query('page').optional().isInt({ min: 1 }).toInt(),
+  query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
+];
+
 export const bookingIdRules = [
   param('id').isMongoId().withMessage('id must be a valid booking ID'),
 ];
@@ -53,4 +77,42 @@ export const mentorDeclineRules = [
 
 export const completeBookingRules = [
   param('id').isMongoId().withMessage('id must be a valid booking ID'),
+];
+
+export const adminUpdateBookingRules = [
+  body('status')
+    .optional()
+    .isIn([
+      'PaymentPending',
+      'PendingMentor',
+      'Confirmed',
+      'Failed',
+      'Cancelled',
+      'Declined',
+      'Completed',
+      'NoShowMentor',
+      'NoShowMentee',
+      'NoShowBoth',
+    ])
+    .withMessage('invalid status'),
+  body('topic').optional().isString().trim().isLength({ max: 200 }).withMessage('topic must be at most 200 characters'),
+  body('notes').optional().isString().trim().isLength({ max: 1000 }).withMessage('notes must be at most 1000 characters'),
+  body('meetingLink')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 2000 })
+    .withMessage('meetingLink must be at most 2000 characters'),
+  body('location')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('location must be at most 200 characters'),
+  body('cancelReason')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('cancelReason must be at most 500 characters'),
 ];

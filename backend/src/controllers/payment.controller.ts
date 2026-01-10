@@ -272,7 +272,21 @@ export const payBookingByWallet = asyncHandler(async (req, res) => {
 
   await captureBookingPayment(bookingId);
 
-  await confirmBooking(bookingId);
+  const updated = await Booking.findById(bookingId);
+  if (!updated) return notFound(res, "Booking not found");
+
+  const needMentorConfirm =
+    (process.env.MENTOR_CONFIRM_REQUIRED || "false").toLowerCase() === "true";
+
+  if (needMentorConfirm) {
+    if (String((updated as any).status) !== "PendingMentor") {
+      await markBookingPendingMentor(bookingId);
+    }
+  } else {
+    if (String((updated as any).status) !== "Confirmed") {
+      await confirmBooking(bookingId);
+    }
+  }
 
   return ok(res, {
     success: true,

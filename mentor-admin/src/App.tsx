@@ -1,20 +1,24 @@
 import { Admin, CustomRoutes, Resource } from "react-admin";
 import { Route } from "react-router-dom";
 import { authProvider } from "./authProvider";
+import { Dashboard } from "./Dashboard";
 import { dataProvider } from "./dataProvider";
 import { Layout } from "./Layout";
+import { LoginPage } from "./LoginPage";
+import { darkTheme, lightTheme } from "./theme";
 
 import {
-  UserList,
-  UserEdit,
-  BookingList,
-  BookingEdit,
-  ReportList,
-  PayoutList,
-  TopUpList,
-  MentorApplicationList,
-  MentorApplicationEdit,
-  WebhookPage,
+    BookingEdit,
+    BookingList,
+    MentorApplicationEdit,
+    MentorApplicationList,
+    PayoutList,
+    ReportList,
+    SessionList,
+    TopUpList,
+    UserEdit,
+    UserList,
+    WebhookPage,
 } from "./resources";
 
 import { MyProfile } from "./MyProfile";
@@ -29,12 +33,18 @@ export default function App() {
     >
       <Resource name="users" list={UserList} edit={UserEdit} />
 
-      <Resource name="users" list={UserList} edit={UserEdit} />
+      <Resource
+        name="admin/bookings"
+        options={{ label: "Bookings" }}
+        list={BookingList}
+        edit={BookingEdit}
+      />
 
-      <Resource name="bookings" list={BookingList} edit={BookingEdit} />
-
-      {/* Moderation */}
-      <Resource name="reports" list={ReportList} />
+      <Resource
+        name="admin/sessions"
+        options={{ label: "Sessions" }}
+        list={SessionList}
+      />
 
       {/* Moderation */}
       <Resource name="reports" list={ReportList} />

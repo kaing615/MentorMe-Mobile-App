@@ -621,7 +621,7 @@ fun VideoCallScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left: Back button (chỉ hiển thị khi không InCall)
+                // Left: Back button (chỉ hiển thị khi chưa InCall)
                 if (state.phase != CallPhase.InCall) {
                     GlassIconButton(
                         icon = Icons.AutoMirrored.Filled.ArrowBack,
@@ -1055,14 +1055,23 @@ private fun CallControls(
             }
         }
 
-        // ✅ End Call button - TO, ĐỎ, NỔIỆT BẬT
+        // ✅ End Call button - ĐỎ, NỔI BẬT với hiệu ứng nhấn
+        var endCallPressed by remember { mutableStateOf(false) }
+        val endCallInteractionSource = remember { MutableInteractionSource() }
+
         Box(
             modifier = Modifier
                 .size(64.dp)
                 .clip(CircleShape)
-                .background(Color(0xFFDC2626))
+                .background(
+                    if (endCallPressed) Color(0xFFB91C1C) // Đỏ đậm hơn khi nhấn
+                    else Color(0xFFEF4444) // Đỏ tươi
+                )
                 .shadow(8.dp, CircleShape)
-                .clickable(onClick = onEndCall),
+                .clickable(
+                    interactionSource = endCallInteractionSource,
+                    indication = null
+                ) { onEndCall() },
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -1071,6 +1080,21 @@ private fun CallControls(
                 tint = Color.White,
                 modifier = Modifier.size(32.dp)
             )
+        }
+
+        // Lắng nghe interaction state cho End Call button
+        LaunchedEffect(endCallInteractionSource) {
+            endCallInteractionSource.interactions.collect { interaction ->
+                when (interaction) {
+                    is androidx.compose.foundation.interaction.PressInteraction.Press -> {
+                        endCallPressed = true
+                    }
+                    is androidx.compose.foundation.interaction.PressInteraction.Release,
+                    is androidx.compose.foundation.interaction.PressInteraction.Cancel -> {
+                        endCallPressed = false
+                    }
+                }
+            }
         }
     }
 }
@@ -1240,32 +1264,59 @@ private fun ControlButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
-    background: Color? = null,
+    background: Color? = null, // Chỉ dùng khi mic/camera off (màu đỏ)
     useGlass: Boolean = true,
     size: androidx.compose.ui.unit.Dp = 52.dp
 ) {
     val hasBackground = background != null
+    var isPressed by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
+
     val modifier = Modifier
         .size(size)
         .clip(CircleShape)
         .then(
             when {
-                hasBackground -> Modifier.background(background!!)
-                useGlass -> Modifier.liquidGlassStrong(radius = size / 2, alpha = 0.25f)
-                else -> Modifier
+                // ✅ Có background màu đỏ khi off
+                hasBackground -> Modifier.background(background)
+                // ✅ Background trong suốt khi bình thường, tối hơn khi nhấn
+                else -> Modifier.background(
+                    if (isPressed) Color.White.copy(alpha = 0.25f)
+                    else Color.White.copy(alpha = 0.12f)
+                )
             }
         )
+        .clickable(
+            interactionSource = interactionSource,
+            indication = null // Tắt ripple effect mặc định
+        ) {
+            onClick()
+        }
+
     Box(
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
-        IconButton(onClick = onClick, modifier = Modifier.size(size)) {
-            Icon(
-                icon,
-                contentDescription = contentDescription,
-                tint = Color.White,
-                modifier = Modifier.size(size * 0.46f)
-            )
+        Icon(
+            icon,
+            contentDescription = contentDescription,
+            tint = Color.White,
+            modifier = Modifier.size(size * 0.46f)
+        )
+    }
+
+    // Lắng nghe interaction state
+    LaunchedEffect(interactionSource) {
+        interactionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is androidx.compose.foundation.interaction.PressInteraction.Press -> {
+                    isPressed = true
+                }
+                is androidx.compose.foundation.interaction.PressInteraction.Release,
+                is androidx.compose.foundation.interaction.PressInteraction.Cancel -> {
+                    isPressed = false
+                }
+            }
         }
     }
 }

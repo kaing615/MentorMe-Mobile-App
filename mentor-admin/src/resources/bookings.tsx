@@ -216,11 +216,6 @@ function BookingActions() {
         label="Hủy"
         fromStatuses={["PaymentPending", "PendingMentor", "Confirmed"]}
       />
-      <ChangeStatusButton
-        toStatus="Failed"
-        label="Thất bại"
-        fromStatuses={["PaymentPending"]}
-      />
     </Stack>
   );
 }

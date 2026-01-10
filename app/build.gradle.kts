@@ -124,6 +124,11 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
+    // Coil for image loading (should already exist)
+    implementation("io.coil-kt:coil-compose:2.5.0")
+
+    // Activity Result API (should already exist in AndroidX)
+    // androidx.activity:activity-compose already includes this
 
     // Firebase BOM - manages all Firebase versions
     implementation(platform(libs.firebase.bom))

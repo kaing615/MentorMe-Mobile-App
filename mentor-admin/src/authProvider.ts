@@ -46,7 +46,6 @@ export const authProvider: AuthProvider = {
 
   async checkError(error) {
     const status = error?.status || error?.response?.status;
-
     if (status === 401) {
       localStorage.removeItem("access_token");
       localStorage.removeItem("role");

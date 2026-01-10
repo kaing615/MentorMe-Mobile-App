@@ -24,7 +24,9 @@ const MyUserMenu = () => (
 
 /* ===================== App Bar ===================== */
 
-const MyAppBar = () => <AppBar userMenu={<MyUserMenu />} />;
+const MyAppBar = () => (
+    <AppBar userMenu={<MyUserMenu />} />
+);
 
 /* ===================== Layout ===================== */
 

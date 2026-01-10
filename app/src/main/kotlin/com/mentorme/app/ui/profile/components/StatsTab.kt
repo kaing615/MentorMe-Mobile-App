@@ -51,7 +51,7 @@ fun StatsTab(userRole: UserRole, profile: UserProfile) {
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatCard(
-                title = if (userRole == UserRole.MENTOR) "Phiên đã dạy" else "Buổi tư vấn",
+                title = if (userRole == UserRole.MENTOR) "Phiên đã dạy" else "Phiên đã tư vấn",
                 value = profile.totalSessions.toString(),
                 icon = Icons.Outlined.MenuBook,
                 modifier = Modifier.weight(1f)

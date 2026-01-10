@@ -15,6 +15,14 @@ import com.mentorme.app.data.model.Booking
 import com.mentorme.app.ui.components.ui.GlassDialog
 import com.mentorme.app.ui.components.ui.MMGhostButton
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
+import java.text.NumberFormat
+import java.util.Locale
+
+/* ---- Helper function ---- */
+private fun formatVnd(amount: Double): String {
+    val nf = NumberFormat.getCurrencyInstance(Locale("vi", "VN"))
+    return nf.format(amount)
+}
 
 @Composable
 fun PendingBookingPromptDialog(
@@ -27,7 +35,7 @@ fun PendingBookingPromptDialog(
     val menteeName = menteeDisplayName(booking)
     val timeLabel = "${booking.date} ${booking.startTime}-${booking.endTime}"
     val priceLabel = if (booking.price > 0) {
-        "${"%.0f".format(booking.price)} VND"
+        formatVnd(booking.price)
     } else {
         "TBD"
     }

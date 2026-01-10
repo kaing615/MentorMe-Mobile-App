@@ -208,9 +208,9 @@ fun MentorDetailContent(
     CompositionLocalProvider(LocalContentColor provides Color.White) {
         Column(
             Modifier
-                .padding(horizontal = 16.dp, vertical = 20.dp)
+                .padding(horizontal = 20.dp, vertical = 20.dp) // ✅ Tăng padding ngang từ 16→20dp
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(20.dp) // ✅ Tăng spacing từ 16→20dp
         ) {
             // Header - matching BookSessionSheet style
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -351,7 +351,7 @@ private fun MentorDetailSummaryCard(
     }
 }
 
-//  Clean, borderless segmented tabs
+//  Clean, borderless segmented tabs với underline indicator
 @Composable
 fun SegmentedTabs(
     titles: List<String>,
@@ -362,36 +362,49 @@ fun SegmentedTabs(
     val outerShape = RoundedCornerShape(20.dp)
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = Color.White.copy(alpha = 0.08f), // Subtle background
+        color = Color.White.copy(alpha = 0.08f), // Lớp bọc ngoài duy nhất
         shape = outerShape
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp), //  Increased internal padding from 6.dp to 8.dp
+                .padding(horizontal = 12.dp, vertical = 10.dp), // ✅ Tăng padding ngang 8→12dp
+            horizontalArrangement = Arrangement.spacedBy(8.dp), // ✅ Spacing giữa tabs
             verticalAlignment = Alignment.CenterVertically
         ) {
             titles.forEachIndexed { index, title ->
                 val selected = index == selectedIndex
-                val innerShape = RoundedCornerShape(16.dp)
-                Box(
+
+                // ✅ Column để chứa Text + Underline
+                Column(
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = 54.dp) //  Increased from 44.dp to 54.dp
-                        .clip(innerShape)
-                        .background(if (selected) Color.White.copy(alpha = 0.22f) else Color.Transparent)
-                        .clickable { onSelect(index) },
-                    contentAlignment = Alignment.Center
+                        .clickable { onSelect(index) }
+                        .padding(vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.labelMedium, //  Changed from labelLarge for better fit
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                         color = if (selected) Color.White else Color.White.copy(alpha = 0.7f),
                         maxLines = 1,
                         softWrap = false,
                         overflow = TextOverflow.Ellipsis,
-                        letterSpacing = 0.15.sp // ✅ Slightly tighter spacing
+                        letterSpacing = 0.15.sp
+                    )
+
+                    Spacer(Modifier.height(6.dp))
+
+                    // ✅ UNDERLINE indicator thay vì background
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(3.dp)
+                            .background(
+                                if (selected) Color(0xFF60A5FA) else Color.Transparent,
+                                shape = RoundedCornerShape(2.dp)
+                            )
                     )
                 }
             }
@@ -415,7 +428,7 @@ private fun OverviewTab(mentor: HomeMentor, profile: ProfileDto?) {
 
     Column(
         Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(18.dp) // ✅ Tăng spacing từ 16→18dp
     ) {
         // Bio/Description - Use LiquidGlassCard to match ReviewItem style
         com.mentorme.app.ui.theme.LiquidGlassCard(
@@ -424,7 +437,7 @@ private fun OverviewTab(mentor: HomeMentor, profile: ProfileDto?) {
         ) {
             Text(
                 summaryText,
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(20.dp), // ✅ Tăng padding từ 16→20dp cho text rộng hơn
                 style = MaterialTheme.typography.bodyMedium.copy(
                     lineHeight = 24.sp,
                     color = Color.White.copy(alpha = 0.95f)
@@ -439,7 +452,7 @@ private fun OverviewTab(mentor: HomeMentor, profile: ProfileDto?) {
                 radius = 16.dp
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(20.dp), // ✅ Tăng padding từ 16→20dp
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
@@ -476,7 +489,7 @@ private fun OverviewTab(mentor: HomeMentor, profile: ProfileDto?) {
             radius = 16.dp
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(20.dp), // ✅ Tăng padding từ 16→20dp
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Languages
@@ -571,7 +584,7 @@ private fun ExperienceTab(profile: ProfileDto?) {
 
     Column(
         Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp) // ✅ Tăng spacing từ 12→16dp
     ) {
         entries.forEach { entry ->
             // Use LiquidGlassCard to match ReviewItem style
@@ -582,7 +595,7 @@ private fun ExperienceTab(profile: ProfileDto?) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(20.dp), // ✅ Tăng padding từ 16→20dp
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.Top
                 ) {
@@ -669,7 +682,7 @@ private fun ReviewsTab(mentorId: String) {
     // Use Column instead of LazyColumn to avoid nested scroll
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp) // ✅ Tăng spacing từ 12→16dp
     ) {
         if (reviews.isEmpty() && !isLoading) {
             // Empty state
@@ -733,7 +746,7 @@ private fun ScheduleTab(slots: List<String>, loading: Boolean, onBookNow: () -> 
 
     Column(
         Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp) // ✅ Tăng spacing từ 12→16dp
     ) {
         display.forEach { s ->
             // Use LiquidGlassCard to match ReviewItem style
@@ -744,9 +757,10 @@ private fun ScheduleTab(slots: List<String>, loading: Boolean, onBookNow: () -> 
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
+                        .padding(20.dp) // ✅ Tăng padding từ 16→20dp
                         .animateContentSize(),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp) // ✅ Thêm spacing giữa text và button
                 ) {
                     Text(
                         s,

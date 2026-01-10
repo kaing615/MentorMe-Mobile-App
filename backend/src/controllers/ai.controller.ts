@@ -7,7 +7,7 @@ import { ConversationContext } from "../services/ai/conversationContext.service"
 
 export async function recommendMentorController(req: Request, res: Response) {
   const { message } = req.body;
-  const userId = req.user?.id || "anonymous"; // ✅ Lấy từ auth middleware
+  const userId = "anonymous"; // Tạm thời dùng anonymous
 
   if (!message || typeof message !== "string") {
     return res.status(400).json({

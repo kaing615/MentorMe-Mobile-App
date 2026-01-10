@@ -1,6 +1,6 @@
 // src/dataProvider.ts
 import simpleRestProvider from "ra-data-simple-rest";
-import { fetchUtils, DataProvider } from "react-admin";
+import { DataProvider, fetchUtils } from "react-admin";
 
 const apiUrl = import.meta.env.VITE_API_URL;
 
@@ -14,14 +14,31 @@ const toQueryValue = (value: any) => {
   return String(value);
 };
 
-// httpClient cũ (giữ nguyên)
-const httpClient = (url: string, options: fetchUtils.Options = {}) => {
+// httpClient with better error handling
+const httpClient = async (url: string, options: fetchUtils.Options = {}) => {
   const token = localStorage.getItem("access_token");
+  if (!token) {
+    throw new Error("No token");
+  }
   options.user = {
     authenticated: true,
-    token: token ? `Bearer ${token}` : "",
+    token: `Bearer ${token}`,
   };
-  return fetchUtils.fetchJson(url, options);
+  try {
+    return await fetchUtils.fetchJson(url, options);
+  } catch (error: any) {
+    // Log the error for debugging
+    if (error.status === 403) {
+      console.warn("Access forbidden:", url);
+    } else {
+      console.error("HTTP Client Error:", {
+        url,
+        status: error.status,
+        message: error.message,
+      });
+    }
+    throw error;
+  }
 };
 
 // base provider cho các resource bình thường (users, bookings, reports, ...)

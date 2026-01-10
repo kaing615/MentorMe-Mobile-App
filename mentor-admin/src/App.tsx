@@ -1,21 +1,24 @@
 import { Admin, CustomRoutes, Resource } from "react-admin";
 import { Route } from "react-router-dom";
 import { authProvider } from "./authProvider";
+import { Dashboard } from "./Dashboard";
 import { dataProvider } from "./dataProvider";
 import { Layout } from "./Layout";
+import { LoginPage } from "./LoginPage";
+import { darkTheme, lightTheme } from "./theme";
 
 import {
-  UserList,
-  UserEdit,
-  BookingList,
-  BookingEdit,
-  SessionList,
-  ReportList,
-  PayoutList,
-  TopUpList,
-  MentorApplicationList,
-  MentorApplicationEdit,
-  WebhookPage,
+    BookingEdit,
+    BookingList,
+    MentorApplicationEdit,
+    MentorApplicationList,
+    PayoutList,
+    ReportList,
+    SessionList,
+    TopUpList,
+    UserEdit,
+    UserList,
+    WebhookPage,
 } from "./resources";
 
 import { MyProfile } from "./MyProfile";
@@ -26,11 +29,12 @@ export default function App() {
       dataProvider={dataProvider}
       authProvider={authProvider}
       layout={Layout}
-      requireAuth
+      theme={lightTheme}
+      darkTheme={darkTheme}
+      dashboard={Dashboard}
+      loginPage={LoginPage}
       requireAuth
     >
-      <Resource name="users" list={UserList} edit={UserEdit} />
-
       <Resource name="users" list={UserList} edit={UserEdit} />
 
       <Resource
@@ -49,10 +53,6 @@ export default function App() {
       {/* Moderation */}
       <Resource name="reports" list={ReportList} />
 
-      {/* Moderation */}
-      <Resource name="reports" list={ReportList} />
-
-      {/* Admin only */}
       {/* Admin only */}
       <Resource
         name="admin/payouts"

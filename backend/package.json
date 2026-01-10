@@ -11,7 +11,7 @@
     "removeData": "tsx src/utils/removeData.ts",
     "seed:mentors": "tsx src/utils/scripts/seed-mentors.ts",
     "seed:admin": "tsx src/utils/scripts/seed-admin.ts",
-    "seed:database": "tsx src/utils/scripts/seed-database.ts",
+    "seed:database": "tsx src/scripts/runSeed.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "db:setup": "psql \"$PG_URL\" -f db.sql"

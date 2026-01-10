@@ -7,5 +7,6 @@ data class Message(
     val createdAtIso: String,
     val fromCurrentUser: Boolean,
     val senderName: String? = null,
-    val senderAvatar: String? = null
+    val senderAvatar: String? = null,
+    val messageType: String = "text"
 )

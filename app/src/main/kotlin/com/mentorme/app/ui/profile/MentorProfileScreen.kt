@@ -575,31 +575,30 @@ private fun MentorStatsTab(
                 Spacer(Modifier.height(16.dp))
 
                 // Bar chart for 7 days (Mon-Sun)
-                Row(
-                    Modifier.fillMaxWidth().height(120.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    val days = listOf("T2", "T3", "T4", "T5", "T6", "T7", "CN")
+                Column(Modifier.fillMaxWidth()) {
+                    // Bar area
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(100.dp), // ✅ Fixed height cho bars
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        val days = listOf("T2", "T3", "T4", "T5", "T6", "T7", "CN")
 
-                    if (weeklyEarnings.isNotEmpty() && weeklyEarnings.size == 7) {
-                        // ✅ Calculate dynamic maxAmount from actual data
-                        val maxEarning = weeklyEarnings.maxOrNull() ?: 1L
-                        val maxAmount = if (maxEarning > 0) maxEarning else 700_000L
+                        if (weeklyEarnings.isNotEmpty() && weeklyEarnings.size == 7) {
+                            val maxEarning = weeklyEarnings.maxOrNull() ?: 1L
+                            val maxAmount = if (maxEarning > 0) maxEarning else 700_000L
 
-                        weeklyEarnings.forEachIndexed { index, amount ->
-                            Column(
-                                Modifier.weight(1f).padding(horizontal = 2.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                // Bar
+                            weeklyEarnings.forEachIndexed { index, amount ->
                                 val heightFraction = if (maxAmount > 0) {
                                     (amount.toFloat() / maxAmount.toFloat()).coerceIn(0.05f, 1f)
                                 } else 0.05f
 
                                 Box(
                                     Modifier
-                                        .fillMaxWidth()
+                                        .weight(1f)
+                                        .padding(horizontal = 2.dp)
                                         .fillMaxHeight(heightFraction)
                                         .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
                                         .background(
@@ -607,38 +606,36 @@ private fun MentorStatsTab(
                                             else Color.White.copy(0.2f)
                                         )
                                 )
-
-                                Spacer(Modifier.height(6.dp))
-
-                                // Day label
-                                Text(
-                                    days[index],
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White.copy(0.7f)
-                                )
                             }
-                        }
-                    } else {
-                        // Placeholder if no data
-                        listOf(0.2f, 0.4f, 0.3f, 0.6f, 0.5f, 0.7f, 0.4f).forEachIndexed { index, h ->
-                            Column(
-                                Modifier.weight(1f).padding(horizontal = 2.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
+                        } else {
+                            listOf(0.2f, 0.4f, 0.3f, 0.6f, 0.5f, 0.7f, 0.4f).forEach { h ->
                                 Box(
                                     Modifier
-                                        .fillMaxWidth()
+                                        .weight(1f)
+                                        .padding(horizontal = 2.dp)
                                         .fillMaxHeight(h)
                                         .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
                                         .background(Color.White.copy(0.3f))
                                 )
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    days[index],
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White.copy(0.7f)
-                                )
                             }
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Label area (tách riêng)
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        listOf("T2", "T3", "T4", "T5", "T6", "T7", "CN").forEach { day ->
+                            Text(
+                                text = day,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(0.7f),
+                                modifier = Modifier.weight(1f),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
                         }
                     }
                 }
@@ -668,29 +665,28 @@ private fun MentorStatsTab(
                 Spacer(Modifier.height(16.dp))
 
                 // Bar chart for 12 months (Jan-Dec)
-                Row(
-                    Modifier.fillMaxWidth().height(120.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    val months = listOf("T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12")
+                Column(Modifier.fillMaxWidth()) {
+                    // Bar area
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(100.dp), // ✅ Fixed height cho bars
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        val months = listOf("T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12")
 
-                    if (yearlyEarnings.isNotEmpty() && yearlyEarnings.size == 12) {
-                        // ✅ Calculate dynamic maxAmount from actual data
-                        val maxEarning = yearlyEarnings.maxOrNull() ?: 1L
-                        val maxAmount = if (maxEarning > 0) maxEarning else 10_000_000L
+                        if (yearlyEarnings.isNotEmpty() && yearlyEarnings.size == 12) {
+                            val maxEarning = yearlyEarnings.maxOrNull() ?: 1L
+                            val maxAmount = if (maxEarning > 0) maxEarning else 10_000_000L
 
-                        yearlyEarnings.forEachIndexed { index, amount ->
-                            Column(
-                                Modifier.weight(1f).padding(horizontal = 1.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                // Bar
+                            yearlyEarnings.forEach { amount ->
                                 val heightFraction = (amount.toFloat() / maxAmount.toFloat()).coerceIn(0.05f, 1f)
 
                                 Box(
                                     Modifier
-                                        .fillMaxWidth()
+                                        .weight(1f)
+                                        .padding(horizontal = 1.dp)
                                         .fillMaxHeight(heightFraction)
                                         .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
                                         .background(
@@ -698,38 +694,36 @@ private fun MentorStatsTab(
                                             else Color.White.copy(0.2f)
                                         )
                                 )
-
-                                Spacer(Modifier.height(4.dp))
-
-                                // Month label
-                                Text(
-                                    months[index],
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                    color = Color.White.copy(0.7f)
-                                )
                             }
-                        }
-                    } else {
-                        // Placeholder if no data
-                        listOf(0.3f, 0.5f, 0.4f, 0.6f, 0.7f, 0.5f, 0.8f, 0.6f, 0.7f, 0.5f, 0.6f, 0.4f).forEachIndexed { index, h ->
-                            Column(
-                                Modifier.weight(1f).padding(horizontal = 1.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
+                        } else {
+                            listOf(0.3f, 0.5f, 0.4f, 0.6f, 0.7f, 0.5f, 0.8f, 0.6f, 0.7f, 0.5f, 0.6f, 0.4f).forEach { h ->
                                 Box(
                                     Modifier
-                                        .fillMaxWidth()
+                                        .weight(1f)
+                                        .padding(horizontal = 1.dp)
                                         .fillMaxHeight(h)
                                         .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
                                         .background(Color.White.copy(0.3f))
                                 )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    months[index],
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                    color = Color.White.copy(0.7f)
-                                )
                             }
+                        }
+                    }
+
+                    Spacer(Modifier.height(6.dp))
+
+                    // Label area (tách riêng)
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        listOf("T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12").forEach { month ->
+                            Text(
+                                text = month,
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                color = Color.White.copy(0.7f),
+                                modifier = Modifier.weight(1f),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
                         }
                     }
                 }

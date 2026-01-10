@@ -21,6 +21,14 @@ import com.mentorme.app.data.model.BookingStatus
 import com.mentorme.app.ui.components.ui.MMPrimaryButton
 import com.mentorme.app.ui.theme.LiquidGlassCard
 import com.mentorme.app.ui.theme.liquidGlass
+import java.text.NumberFormat
+import java.util.Locale
+
+/* ---- Helper function ---- */
+private fun formatVnd(amount: Double): String {
+    val nf = NumberFormat.getCurrencyInstance(Locale("vi", "VN"))
+    return nf.format(amount)
+}
 
 /* ---- OPTIONAL: nếu muốn show tên/avatar mentor ----
  * Truyền vào hàm getMentorBrief để map từ mentorId -> (name, avatarUrl)
@@ -184,7 +192,7 @@ private fun BookingItemCard(
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
-                    "Giá: \$${"%.2f".format(booking.price)}",
+                    "Giá: ${formatVnd(booking.price)}",
                     color = Color.White.copy(alpha = 0.9f),
                     fontWeight = FontWeight.Medium
                 )

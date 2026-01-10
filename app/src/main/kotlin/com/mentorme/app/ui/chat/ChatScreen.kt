@@ -618,6 +618,7 @@ fun ChatScreen(
             ProfileSheet(
                 name = conversation.peerName,
                 role = conversation.peerRole,
+                peerId = conversation.peerId,
                 onClose = { showProfile = false }
             )
         }

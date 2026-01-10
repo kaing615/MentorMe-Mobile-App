@@ -199,13 +199,13 @@ export const getPublicProfile = asyncHandler(
       skills: profile.skills,
       languages: profile.languages,
       links: profile.links,
+      phone: profile.phone, // ✅ FIXED: Thêm phone
+      category: profile.category, // ✅ FIXED: Thêm category (lĩnh vực quan tâm)
+      hourlyRateVnd: profile.hourlyRateVnd, // ✅ FIXED: Thêm hourlyRateVnd (cho mentor)
     };
 
-    return responseHandler.ok(
-      res,
-      { profile: publicProfile },
-      "Public profile fetched"
-    );
+    //  FIXED: Trả về publicProfile trực tiếp, không wrap thêm { profile: ... }
+    return responseHandler.ok(res, publicProfile, "Public profile fetched");
   }
 );
 

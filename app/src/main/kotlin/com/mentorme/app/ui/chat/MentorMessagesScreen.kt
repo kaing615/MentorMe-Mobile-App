@@ -47,6 +47,8 @@ import com.mentorme.app.ui.components.ui.MMTextField
 import com.mentorme.app.ui.chat.components.ConversationCard
 import com.mentorme.app.ui.chat.components.GlassIconButton
 import com.mentorme.app.ui.theme.liquidGlass
+import com.mentorme.app.data.model.BookingStatus
+import com.mentorme.app.data.model.chat.Conversation
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -60,6 +62,29 @@ fun MentorMessagesScreen(
     var query by remember { mutableStateOf("") }
     val conversations by viewModel.conversations.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    val AI_CONVERSATION_ID = "mentor_ai_conversation"
+    val aiConversation = Conversation(
+        id = AI_CONVERSATION_ID,
+        peerId = "ai",
+        peerName = "MentorMe AI",
+        peerAvatar = null,
+        peerRole = "AI",
+        lastMessage = "H?i AI v? h? tr? mentor",
+        lastMessageTimeIso = "",
+        unreadCount = 0,
+        isOnline = true,
+        bookingStatus = BookingStatus.CONFIRMED
+    )
+
+    val combinedConversations = remember(conversations, query) {
+        val base = listOf(aiConversation) + conversations
+        if (query.isBlank()) {
+            base
+        } else {
+            base.filter { it.peerName.contains(query, ignoreCase = true) }
+        }
+    }
 
     CompositionLocalProvider(LocalContentColor provides Color.White) {
         Column(
@@ -109,10 +134,6 @@ fun MentorMessagesScreen(
 
             Spacer(Modifier.height(12.dp))
 
-            val filtered = remember(query, conversations) {
-                if (query.isBlank()) conversations
-                else conversations.filter { it.peerName.contains(query, ignoreCase = true) }
-            }
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -120,7 +141,7 @@ fun MentorMessagesScreen(
                 contentPadding = PaddingValues(bottom = 80.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(filtered) { c ->
+                items(combinedConversations) { c ->
                     ConversationCard(conversation = c, onClick = { onOpenConversation(c.id) })
                 }
             }

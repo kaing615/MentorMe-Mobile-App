@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { analyzeMentorIntent } from "../services/ai/mentorRecommend.service";
 import { recommendMentors } from "../services/mentor/mentorRecommend.pipeline";
 import { answerAppQuestion } from "../services/ai/appQA.service";
-import { classifyIntent } from "../utils/aiIntentRouter";
+import { classifyIntent, classifyMentorIntent } from "../utils/aiIntentRouter";
 import { ConversationContext } from "../services/ai/conversationContext.service";
 
 export async function recommendMentorController(req: Request, res: Response) {
@@ -75,6 +75,65 @@ export async function recommendMentorController(req: Request, res: Response) {
     });
   } catch (err) {
     console.error("❌ RECOMMEND CONTROLLER ERROR", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      data: null,
+    });
+  }
+}
+
+export async function mentorAssistantController(req: Request, res: Response) {
+  const { message } = req.body;
+  const userId = "anonymous";
+
+  if (!message || typeof message !== "string") {
+    return res.status(400).json({
+      success: false,
+      message: "Message is required",
+      data: null,
+    });
+  }
+
+  try {
+    const contextPrompt = "";
+    const intent = await classifyMentorIntent(message, contextPrompt);
+
+    if (intent === "app_qa") {
+      const answer = await answerAppQuestion(message);
+
+      await ConversationContext.addMessage(userId, "assistant", answer);
+
+      return res.json({
+        success: true,
+        message: null,
+        data: {
+          type: "app_qa",
+          answer,
+          suggestions: [
+            "Cách cập nhật lịch rảnh?",
+            "Rút tiền về ngân hàng thế nào?",
+            "Mentor xác nhận booking ra sao?",
+          ],
+        },
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: null,
+      data: {
+        type: "general_response",
+        answer: getMentorGeneralResponse(message),
+        suggestions: [
+          "Cách tạo lịch rảnh?",
+          "Chính sách payout cho mentor",
+          "Hủy hoặc đổi lịch thế nào?",
+        ],
+      },
+    });
+  } catch (err) {
+    console.error("❌ MENTOR ASSISTANT ERROR", err);
     return res.status(500).json({
       success: false,
       message: "Internal server error",

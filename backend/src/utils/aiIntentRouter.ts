@@ -62,6 +62,64 @@ Trả về ĐÚNG 1 TRONG 3 TỪ: mentor_recommend, app_qa, general
   }
 }
 
+export async function classifyMentorIntent(
+  message: string,
+  context?: string
+): Promise<"app_qa" | "general"> {
+  const lowerMsg = message.toLowerCase().trim();
+
+  // Quick keyword check for app-related questions
+  if (
+    lowerMsg.includes("app") ||
+    lowerMsg.includes("tính năng") ||
+    lowerMsg.includes("giá") ||
+    lowerMsg.includes("pricing") ||
+    lowerMsg.includes("founder") ||
+    lowerMsg.includes("sáng lập") ||
+    lowerMsg.includes("lịch") ||
+    lowerMsg.includes("schedule") ||
+    lowerMsg.includes("booking") ||
+    lowerMsg.includes("availability") ||
+    lowerMsg.includes("payout") ||
+    lowerMsg.includes("thu nhập") ||
+    lowerMsg.includes("rút tiền") ||
+    lowerMsg.includes("wallet") ||
+    lowerMsg.includes("ví") ||
+    lowerMsg.includes("đánh giá") ||
+    lowerMsg.includes("review") ||
+    lowerMsg.includes("refund") ||
+    lowerMsg.includes("hủy") ||
+    lowerMsg.includes("cancel") ||
+    lowerMsg.includes("lięn h?") ||
+    lowerMsg.includes("contact")
+  ) {
+    return "app_qa";
+  }
+
+  try {
+    const prompt = `
+Phân loại ý định của mentor vào 1 trong 2 loại:
+- "app_qa": Hỏi về app (tính năng, lịch, payout, chính sách)
+- "general": Chào hỏi, câu hỏi chung
+
+${context ? context : ""}
+
+Tin nhắn: "${message}"
+
+Trả về ĐÚNG 1 TRONG 2 TỪ: app_qa, general
+`;
+
+    const result = await generateGeminiContent(prompt);
+    const intent = result.trim().toLowerCase();
+
+    if (intent.includes("app") || intent.includes("qa")) return "app_qa";
+    return "general";
+  } catch (error) {
+    console.error("❌ Mentor intent classification failed:", error);
+    return "general";
+  }
+}
+
 export function isMentorRelatedQuestion(message: string): boolean {
   const keywords = [
     "mentor",

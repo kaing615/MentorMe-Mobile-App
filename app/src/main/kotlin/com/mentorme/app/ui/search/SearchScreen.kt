@@ -292,13 +292,23 @@ fun SearchMentorScreen(
                                             else "${selectedSkills.size} bộ lọc"
                                         )
                                         Spacer(Modifier.weight(1f))
-                                        TextButton(onClick = {
-                                            query = ""
-                                            selectedSkills = emptyList()
-                                            minRating = 0f
-                                            priceStart = 0
-                                            priceEnd = 20
-                                        }) { Text("Đặt lại") }
+                                        TextButton(
+                                            onClick = {
+                                                query = ""
+                                                selectedSkills = emptyList()
+                                                minRating = 0f
+                                                priceStart = 0
+                                                priceEnd = 20
+                                            },
+                                            colors = ButtonDefaults.textButtonColors(
+                                                contentColor = Color(0xFFFFD700) // ✅ Gold/Yellow - nổi bật với background xanh
+                                            )
+                                        ) {
+                                            Text(
+                                                "Đặt lại",
+                                                fontWeight = FontWeight.SemiBold // ✅ Thêm bold để nổi bật
+                                            )
+                                        }
                                     }
 
                                     // Skills – chip “glass”
@@ -400,7 +410,7 @@ fun SearchMentorScreen(
             GlassOverlay(
                 visible = blurOn,
                 onDismiss = { showDetail = false; showBooking = false },
-                formModifier = Modifier.fillMaxSize().padding(12.dp)
+                formModifier = Modifier.fillMaxSize().padding(4.dp) // ✅ Giảm padding 12→4dp để sheet rộng hơn
             ) {
                 selectedMentor?.let { mentor ->
                     when {

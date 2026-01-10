@@ -15,6 +15,10 @@ import routes from "./routes/index";
 import redis from "./utils/redis";
 import { connectMongoDB } from "./utils/mongo";
 import { startBookingJobs, stopBookingJobs } from "./jobs/booking.jobs";
+import {
+  startNotificationCleanupJobs,
+  stopNotificationCleanupJobs,
+} from "./jobs/notificationCleanup.jobs";
 import { initSocket, closeSocket } from "./socket";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -55,6 +59,7 @@ async function startServer() {
     await connectMongoDB();
 
     await startBookingJobs();
+    await startNotificationCleanupJobs();
 
     await initSocket(server);
 
@@ -76,6 +81,7 @@ const shutdown = async () => {
   try {
     server.close(() => console.log("HTTP server closed"));
     await stopBookingJobs();
+    await stopNotificationCleanupJobs();
     await closeSocket();
     if (redis.isOpen) await redis.quit();
     if (mongoose.connection.readyState === 1) await mongoose.connection.close();

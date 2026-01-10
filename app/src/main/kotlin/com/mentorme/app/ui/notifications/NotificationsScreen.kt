@@ -115,7 +115,21 @@ fun NotificationsScreen(
                                 Text(stringResource(R.string.notifications_title), fontWeight = FontWeight.Bold)
                                 if (unreadCount > 0) {
                                     Spacer(Modifier.width(8.dp))
-                                    Badge { Text("$unreadCount") }
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(CircleShape)
+                                            .background(Color(0xFFFF3B30))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "$unreadCount",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1
+                                        )
+                                    }
                                 }
                             }
                         },
@@ -223,25 +237,25 @@ private fun NotificationFilterBar(
             .border(1.dp, Color.White.copy(alpha = 0.15f), shape) // ✅ Gentle border
             .padding(4.dp)
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             NotificationFilterOption(
                 label = stringResource(NotificationFilter.ALL.labelRes),
                 selected = selected == NotificationFilter.ALL,
                 onClick = { onSelect(NotificationFilter.ALL) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(0.9f) // ✅ Nhỏ hơn chút
             )
             NotificationFilterOption(
                 label = stringResource(NotificationFilter.UNREAD.labelRes),
                 selected = selected == NotificationFilter.UNREAD,
                 badgeCount = unreadCount,
                 onClick = { onSelect(NotificationFilter.UNREAD) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1.2f) // ✅ Rộng hơn để chứa badge
             )
             NotificationFilterOption(
                 label = stringResource(NotificationFilter.READ.labelRes),
                 selected = selected == NotificationFilter.READ,
                 onClick = { onSelect(NotificationFilter.READ) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(0.9f) // ✅ Nhỏ hơn chút
             )
         }
     }
@@ -281,7 +295,22 @@ private fun NotificationFilterOption(
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
             )
             if (badgeCount > 0) {
-                Badge { Text(badgeCount.coerceAtMost(99).toString()) }
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 2.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFF3B30))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = badgeCount.coerceAtMost(99).toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
             }
         }
     }

@@ -30,7 +30,7 @@ router.post(
 );
 
 router.post(
-  "/payouts/:id/reject",
+  "/:id/reject",
   auth,
   requireRoles(...ADMIN_ROLES),
   payoutController.adminRejectPayout

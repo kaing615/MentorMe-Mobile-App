@@ -8,13 +8,14 @@
   "main": "server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "removeData": "tsx src/utils/removeData.ts",
-    "seed:mentors": "tsx src/utils/scripts/seed-mentors.ts",
-    "seed:admin": "tsx src/utils/scripts/seed-admin.ts",
-    "seed:database": "tsx src/scripts/runSeed.ts",
+    "generate:users": "tsx src/utils/scripts/generate-many-users.ts",
+    "generate:reviews:db": "tsx src/utils/scripts/generate-reviews-from-db.ts",
+    "import:data": "tsx src/utils/scripts/import-generated-data.ts",
+    "clear:data": "tsx src/utils/scripts/clear-data.ts",
+    "clear:reviews": "tsx src/utils/scripts/clear-reviews.ts",
+    "preview:data": "tsx src/utils/scripts/preview-data.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js",
-    "db:setup": "psql \"$PG_URL\" -f db.sql"
+    "start": "node dist/server.js"
   },
   "dependencies": {
     "@google-cloud/vertexai": "^1.10.0",
@@ -55,12 +56,12 @@
     "remove": "^0.1.5",
     "rrule": "^2.8.1",
     "socket.io": "^4.8.1",
-    "@socket.io/redis-adapter": "^8.2.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "yamljs": "^0.3.0"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.2.0",
     "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.9",
     "@types/cors": "^2.8.19",

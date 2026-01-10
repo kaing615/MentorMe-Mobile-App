@@ -1063,7 +1063,11 @@ export const approveMentor = asyncHandler(
       );
     }
 
-    await User.findByIdAndUpdate(id, { status: "active" });
+    await User.findByIdAndUpdate(id, {
+      status: "active",
+      mentorApplicationStatus: "approved",
+      mentorApplicationReviewedAt: new Date(),
+    });
 
     // Gửi email thông báo được duyệt
     try {
@@ -1193,7 +1197,13 @@ export const rejectMentor = asyncHandler(
     }
 
     // Chuyển về mentee hoặc xóa tùy yêu cầu - ở đây chuyển về mentee
-    await User.findByIdAndUpdate(id, { role: "mentee", status: "active" });
+    await User.findByIdAndUpdate(id, {
+      role: "mentee",
+      status: "active",
+      mentorApplicationStatus: "rejected",
+      mentorApplicationNote: reason || "",
+      mentorApplicationReviewedAt: new Date(),
+    });
 
     // Gửi email thông báo bị từ chối
     try {

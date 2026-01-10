@@ -7,7 +7,6 @@ import { validate } from "../handlers/request.handler";
 
 const router = Router();
 
-// Mentor role (lowercase as per user.model.ts)
 const MENTOR_ROLE = "mentor";
 
 router.post(

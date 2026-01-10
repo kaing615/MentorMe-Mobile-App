@@ -262,6 +262,7 @@ fun AppNav(
                 snackbarHost = { GlassSnackbarHost(snackbarHostState, activeType = snackbarType) },
                 bottomBar = {
                     val hideForChat = currentRoute?.startsWith("${Routes.Chat}/") == true
+                    val hideForAiChat = currentRoute == Routes.AiChat
                     val hideForVideoCall = currentRoute?.startsWith("${Routes.VideoCall}/") == true
                     val hideForBooking = currentRoute?.startsWith("booking/") == true || currentRoute?.startsWith("bookingSummary/") == true
                     val hideForWallet = currentRoute?.startsWith("wallet/") == true
@@ -269,7 +270,7 @@ fun AppNav(
                     val hideForPendingApproval = currentRoute == Routes.PendingApproval
 
                     if (!overlayVisible && sessionState.isLoggedIn && currentRoute != Routes.Auth &&
-                        !hideForChat && !hideForVideoCall && !hideForBooking && !hideForWallet &&
+                        !hideForChat && !hideForAiChat && !hideForVideoCall && !hideForBooking && !hideForWallet &&
                         !hideForOnboarding && !hideForPendingApproval
                     ) {
                         GlassBottomBar(

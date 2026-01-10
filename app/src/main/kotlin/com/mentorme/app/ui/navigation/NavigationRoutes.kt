@@ -22,6 +22,8 @@ object Routes {
     const val NotificationDetail = "notifications/detail/{notificationId}"
     fun notificationDetail(notificationId: String) = "notifications/detail/$notificationId"
     const val Messages = "messages"
+
+    const val AiChat = "ai_chat"
     const val Profile = "profile"
     const val Chat = "chat"
     const val VideoCall = "video_call"

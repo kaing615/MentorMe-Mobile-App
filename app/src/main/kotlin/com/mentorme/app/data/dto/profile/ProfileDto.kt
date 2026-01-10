@@ -67,3 +67,9 @@ data class LinksDto(
     @SerializedName("youtube") val youtube: String?,
     @SerializedName("facebook") val facebook: String?
 )
+
+data class ProfileSheetState(
+    val mentorId: String,
+    val role: String? = null
+)
+

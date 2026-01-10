@@ -1,27 +1,46 @@
 import { generateGeminiContent } from "./gemini.client";
 import { safeJsonParse } from "../../utils/safeJsonParse";
+import { mentorIntentSystemContext } from "./mentorIntent.system";
 
-interface MentorIntentResult {
+export interface MentorIntentResult {
   intent: string;
   skills: string[];
-  level: string;
+  level: "beginner" | "intermediate" | "advanced";
 }
 
 export async function analyzeMentorIntent(
   userMessage: string
-): Promise<MentorIntentResult | null> {
+): Promise<MentorIntentResult> {
   const prompt = `
-Phân tích intent người dùng và trả về JSON:
+CHỈ TRẢ VỀ JSON HỢP LỆ. KHÔNG TEXT. KHÔNG GIẢI THÍCH.
+
+JSON FORMAT:
 {
-  "intent": "",
-  "skills": [],
-  "level": ""
+  "intent": "string",
+  "skills": ["string"],
+  "level": "beginner | intermediate | advanced"
 }
 
-Câu hỏi: "${userMessage}"
+CÂU HỎI NGƯỜI DÙNG:
+"${userMessage}"
+
+QUY TẮC:
+- Nếu không rõ intent → "find_mentor"
+- Nếu không có kỹ năng → []
+- Nếu không xác định level → "beginner"
 `;
 
-  const aiText = await generateGeminiContent(prompt);
+  const aiText = await generateGeminiContent(prompt, mentorIntentSystemContext);
 
-  return safeJsonParse<MentorIntentResult>(aiText);
+  const parsed = safeJsonParse<MentorIntentResult>(aiText);
+
+  if (!parsed) {
+    return {
+      intent: "find_mentor",
+      skills: [],
+      level: "beginner",
+    };
+  }
+
+  return parsed;
 }

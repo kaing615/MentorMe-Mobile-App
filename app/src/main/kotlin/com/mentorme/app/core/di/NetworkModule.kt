@@ -13,6 +13,8 @@ import com.mentorme.app.data.network.api.profile.ProfileApiService
 import com.mentorme.app.data.network.api.review.ReviewApiService
 import com.mentorme.app.data.network.api.session.SessionApiService
 import com.mentorme.app.data.repository.wallet.WalletRepository
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -59,6 +61,14 @@ object NetworkModule {
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideGson(): Gson {
+        return GsonBuilder()
+            .setLenient()
+            .create()
     }
 
     @Provides @Singleton
@@ -111,7 +121,9 @@ object NetworkModule {
     fun provideWalletApi(retrofit: Retrofit): WalletApi {
         return retrofit.create(WalletApi::class.java)
     }
-}
+
+    @Provides
+    @Singleton
     fun provideWalletRepository(
         walletApi: WalletApi,
         paymentMethodApi: PaymentMethodApi
@@ -120,4 +132,5 @@ object NetworkModule {
             api = walletApi,
             paymentMethodApi = paymentMethodApi
         )
+}
 

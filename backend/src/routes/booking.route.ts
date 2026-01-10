@@ -11,7 +11,8 @@ import {
   mentorConfirmBooking,
   mentorDeclineBooking,
   completeBooking,
-  captureBooking
+  captureBooking,
+  getMenteeStats,
 } from '../controllers/booking.controller';
 import {
   createBookingRules,
@@ -25,6 +26,9 @@ import {
 } from '../middlewares/validators/booking.validator';
 
 const router = Router();
+
+// ✅ NEW: Get mentee stats (must be before /:id route)
+router.get('/mentee/stats', auth, getMenteeStats);
 
 // Create booking (mentee only in practice)
 router.post('/', auth, createBookingRules, validate, createBooking);

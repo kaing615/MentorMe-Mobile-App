@@ -4,12 +4,19 @@ import com.mentorme.app.data.dto.Message
 import com.mentorme.app.data.dto.SendMessageRequest
 import com.mentorme.app.data.dto.availability.ApiEnvelope
 import com.mentorme.app.data.model.chat.ChatRestrictionInfo
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import retrofit2.Response
-import retrofit2.http.Body
-import retrofit2.http.GET
-import retrofit2.http.POST
-import retrofit2.http.Path
-import retrofit2.http.Query
+import retrofit2.http.*
+
+data class FileUploadResponse(
+    val url: String,
+    val publicId: String,
+    val fileType: String, // "image" or "file"
+    val format: String,
+    val size: Long,
+    val originalName: String
+)
 
 interface ChatApiService {
     @GET("messages/{bookingId}")
@@ -35,4 +42,11 @@ interface ChatApiService {
     suspend fun getChatRestrictionInfo(
         @Path("bookingId") bookingId: String
     ): Response<ApiEnvelope<ChatRestrictionInfo>>
+    
+    @Multipart
+    @POST("messages/upload")
+    suspend fun uploadFile(
+        @Part file: MultipartBody.Part,
+        @Part("bookingId") bookingId: RequestBody
+    ): Response<ApiEnvelope<FileUploadResponse>>
 }

@@ -29,10 +29,6 @@ export default function App() {
       dataProvider={dataProvider}
       authProvider={authProvider}
       layout={Layout}
-      theme={lightTheme}
-      darkTheme={darkTheme}
-      dashboard={Dashboard}
-      loginPage={LoginPage}
       requireAuth
     >
       <Resource name="users" list={UserList} edit={UserEdit} />

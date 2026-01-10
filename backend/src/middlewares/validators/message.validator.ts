@@ -19,7 +19,12 @@ export const sendMessageRules = [
     .withMessage('messageType must be text, image, or file'),
 ];
 
+export const uploadFileRules = [
+  body('bookingId').notEmpty().isMongoId().withMessage('Valid bookingId is required'),
+];
+
 export default {
   messageBookingIdRules,
   sendMessageRules,
+  uploadFileRules,
 };

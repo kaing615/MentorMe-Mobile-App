@@ -1,5 +1,6 @@
 package com.mentorme.app.ui.chat.components
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -168,9 +169,21 @@ fun MessageContentWithFile(
                 modifier = modifier
                     .fillMaxWidth()
                     .clickable {
-                        // Open file in browser
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(content))
-                        context.startActivity(intent)
+                        try {
+                            // Download file using DownloadManager
+                            val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+                            val fileName = content.substringAfterLast('/').substringBefore('?')
+                            val request = android.app.DownloadManager.Request(Uri.parse(content)).apply {
+                                setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                                setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, fileName)
+                                setTitle("Đang tải $fileName")
+                                setDescription("Tải file từ chat")
+                            }
+                            downloadManager.enqueue(request)
+                            android.widget.Toast.makeText(context, "Đang tải file xuống...", android.widget.Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            android.widget.Toast.makeText(context, "Không thể tải file: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                        }
                     },
                 tonalElevation = 2.dp
             ) {
@@ -187,11 +200,13 @@ fun MessageContentWithFile(
                         Spacer(Modifier.width(8.dp))
                         Column {
                             Text(
-                                "File đính kèm",
-                                style = MaterialTheme.typography.bodyMedium
+                                text = content.substringAfterLast('/').substringBefore('?'),
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                             Text(
-                                "Nhấn để xem",
+                                "Nhấn để tải về",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )

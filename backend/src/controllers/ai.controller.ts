@@ -124,7 +124,7 @@ export async function mentorAssistantController(req: Request, res: Response) {
       message: null,
       data: {
         type: "general_response",
-        answer: getMentorGeneralResponse(message),
+        answer: getGeneralResponse(message),
         suggestions: [
           "Cách tạo lịch rảnh?",
           "Chính sách payout cho mentor",

@@ -2,12 +2,27 @@ package com.mentorme.app.ui.navigation
 
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -56,6 +71,9 @@ import com.mentorme.app.ui.wallet.WalletViewModel
 import com.mentorme.app.ui.wallet.WithdrawScreen
 import com.mentorme.app.ui.videocall.VideoCallScreen
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -64,6 +82,13 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import com.mentorme.app.domain.usecase.chat.GetConversationWithPeerUseCase
 import com.mentorme.app.core.utils.AppResult
+import com.mentorme.app.data.dto.profile.ProfileSheetState
+import com.mentorme.app.ui.chat.ai.AiChatScreen
+import com.mentorme.app.ui.chat.components.ProfileSheet
+import com.mentorme.app.ui.components.ui.MMButton
+import com.mentorme.app.ui.profile.sheet.ProfileBottomSheetViewModel
+import com.mentorme.app.ui.profile.sheet.ProfileSheetUiState
+import com.mentorme.app.ui.theme.liquidGlassStrong
 import kotlinx.coroutines.launch
 
 @EntryPoint
@@ -99,6 +124,10 @@ internal fun AppNavGraph(
         Modifier.hazeSource(state = hazeState)
     } else {
         Modifier
+    }
+
+    var selectedMentorId by remember {
+        mutableStateOf<String?>(null)
     }
 
     Box(
@@ -541,9 +570,25 @@ internal fun AppNavGraph(
             }
 
             composable(Routes.Messages) {
-                MessagesScreen(onOpenConversation = { convId ->
-                    nav.navigate("${Routes.Chat}/$convId")
-                })
+                MessagesScreen(
+                    onOpenConversation = { id ->
+                        val AI_CONVERSATION_ID = "ai_conversation"
+                        if (id == AI_CONVERSATION_ID) {
+                            nav.navigate(Routes.AiChat)
+                        } else {
+                            nav.navigate("${Routes.Chat}/$id")
+                        }
+                    }
+                )
+            }
+
+            composable(Routes.AiChat) {
+                AiChatScreen(
+                    onBack = { nav.popBackStack() },
+                    onOpenProfile = { mentorId ->
+                        nav.navigate("profile/$mentorId")
+                    }
+                )
             }
 
             composable(Routes.Notifications) {
@@ -585,6 +630,9 @@ internal fun AppNavGraph(
                     },
                     onOpenBookingDetail = { bookingId ->
                         nav.navigate("booking_detail/$bookingId")
+                    },
+                    onOpenProfile = { mentorId ->
+                        selectedMentorId = mentorId
                     }
                 )
             }
@@ -870,6 +918,117 @@ internal fun AppNavGraph(
                     }
                 )
             }
+        }
+
+        selectedMentorId?.let { mentorId ->
+            ProfileBottomSheet(
+                mentorId = mentorId,
+                onClose = { selectedMentorId = null },
+                onViewProfile = {
+                    selectedMentorId = null
+                    nav.navigate(Routes.mentorProfile(it))
+                },
+                onBook = {
+                    selectedMentorId = null
+                    nav.navigate("booking/$it")
+                },
+                onMessage = {
+                    selectedMentorId = null
+                }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProfileBottomSheet(
+    mentorId: String,
+    onClose: () -> Unit,
+    onViewProfile: (String) -> Unit,
+    onBook: (String) -> Unit,
+    onMessage: (String) -> Unit,
+    viewModel: ProfileBottomSheetViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    LaunchedEffect(mentorId) {
+        viewModel.loadMentor(mentorId)
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = {
+            viewModel.reset()
+            onClose()
+        },
+        sheetState = sheetState
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+                .liquidGlassStrong(radius = 28.dp, alpha = 0.35f)
+        ) {
+
+            when (uiState) {
+                ProfileSheetUiState.Loading -> {
+                    CircularProgressIndicator()
+                }
+
+                is ProfileSheetUiState.Success -> {
+                    val mentor = (uiState as ProfileSheetUiState.Success).mentor
+
+                    Text(
+                        mentor.fullName ?: "Mentor",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    mentor.skills?.take(3)?.let {
+                        Text(
+                            text = it.joinToString(" • "),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    Spacer(Modifier.height(20.dp))
+
+                    // ---------- CTA ----------
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+
+                        MMButton(
+                            text = "Xem hồ sơ",
+                            onClick = { onViewProfile(mentor.id) }
+                        )
+
+                        MMButton(
+                            text = "Đặt lịch tư vấn",
+                            onClick = { onBook(mentor.id) }
+                        )
+
+                        OutlinedButton(
+                            onClick = { onMessage(mentor.id) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Nhắn tin")
+                        }
+                    }
+                }
+
+                is ProfileSheetUiState.Error -> {
+                    Text(
+                        (uiState as ProfileSheetUiState.Error).message,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
+                else -> Unit
+            }
+
+            Spacer(Modifier.height(12.dp))
         }
     }
 }

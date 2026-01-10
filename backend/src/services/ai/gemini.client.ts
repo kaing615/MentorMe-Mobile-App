@@ -1,10 +1,18 @@
 import geminiClient from "../../utils/gemini";
 
-export async function generateGeminiContent(prompt: string): Promise<string> {
+export async function generateGeminiContent(
+  prompt: string,
+  systemContext?: string
+): Promise<string> {
   try {
+    const fullPrompt =
+      systemContext && systemContext.trim().length > 0
+        ? `${systemContext}\n\n${prompt}`
+        : prompt;
+
     const response = await geminiClient.client.models.generateContent({
       model: geminiClient.GEMINI_MODEL,
-      contents: prompt,
+      contents: fullPrompt,
     });
 
     return response.text ?? "";

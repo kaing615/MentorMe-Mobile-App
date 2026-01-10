@@ -90,6 +90,9 @@ import com.mentorme.app.ui.profile.sheet.ProfileBottomSheetViewModel
 import com.mentorme.app.ui.profile.sheet.ProfileSheetUiState
 import com.mentorme.app.ui.theme.liquidGlassStrong
 import kotlinx.coroutines.launch
+import com.mentorme.app.ui.components.ui.GlassOverlay
+import com.mentorme.app.ui.home.Mentor as HomeMentor
+import com.mentorme.app.ui.search.components.MentorDetailSheet
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)
@@ -129,6 +132,10 @@ internal fun AppNavGraph(
     var selectedMentorId by remember {
         mutableStateOf<String?>(null)
     }
+    var selectedMentor by remember {
+        mutableStateOf<HomeMentor?>(null)
+    }
+    var showMentorDetail by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier.fillMaxSize().then(hazeModifier)
@@ -586,7 +593,20 @@ internal fun AppNavGraph(
                 AiChatScreen(
                     onBack = { nav.popBackStack() },
                     onOpenProfile = { mentorId ->
-                        nav.navigate("profile/$mentorId")
+                        // Create HomeMentor object to show in MentorDetailSheet
+                        selectedMentor = HomeMentor(
+                            id = mentorId,
+                            name = "Loading...",
+                            role = "",
+                            company = "",
+                            skills = emptyList(),
+                            rating = 0.0,
+                            totalReviews = 0,
+                            hourlyRate = 0,
+                            imageUrl = "",
+                            isAvailable = true
+                        )
+                        showMentorDetail = true
                     }
                 )
             }
@@ -936,6 +956,62 @@ internal fun AppNavGraph(
                     selectedMentorId = null
                 }
             )
+        }
+
+        if (showMentorDetail && selectedMentor != null) {
+            GlassOverlay(
+                visible = true,
+                onDismiss = { 
+                    showMentorDetail = false
+                    selectedMentor = null
+                },
+                formModifier = Modifier.fillMaxSize().padding(12.dp)
+            ) {
+                MentorDetailSheet(
+                    mentorId = selectedMentor!!.id,
+                    mentor = selectedMentor!!,
+                    onClose = { 
+                        showMentorDetail = false
+                        selectedMentor = null
+                    },
+                    onBookNow = { mentorId ->
+                        showMentorDetail = false
+                        selectedMentor = null
+                        nav.navigate("booking/$mentorId")
+                    },
+                    onMessage = { mentorId ->
+                        showMentorDetail = false
+                        selectedMentor = null
+                        // Open chat with mentor
+                        scope.launch {
+                            when (val result = getConversationUseCase(mentorId)) {
+                                is AppResult.Success<*> -> {
+                                    val conversationId = result.data
+                                    if (conversationId != null) {
+                                        nav.navigate("${Routes.Chat}/$conversationId") {
+                                            launchSingleTop = true
+                                        }
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            "Bạn cần đặt lịch với mentor này trước khi có thể nhắn tin",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                                is AppResult.Error -> {
+                                    Toast.makeText(
+                                        context,
+                                        "Không thể mở chat: ${result.throwable}",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                                AppResult.Loading -> {}
+                            }
+                        }
+                    }
+                )
+            }
         }
     }
 }

@@ -156,6 +156,14 @@ fun AuthScreen(
         }
     }
 
+    // ✅ Reset auth state when entering this screen (after logout)
+    LaunchedEffect(Unit) {
+        // Check if we don't have a token but authState still has data
+        if (authState.isAuthenticated) {
+            authViewModel?.resetAuthState()
+        }
+    }
+
     Scaffold(
         topBar = {
             if (mode != AuthMode.Welcome) {

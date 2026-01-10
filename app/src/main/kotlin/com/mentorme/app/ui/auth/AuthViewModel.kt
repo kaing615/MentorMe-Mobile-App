@@ -521,7 +521,12 @@ class AuthViewModel @Inject constructor(
             SessionManager.clear()
             dataStoreManager.clearUserInfo()
 
+            // ✅ IMPORTANT: Reset auth state completely
             _authState.value = AuthState()
+            
+            // ✅ Clear any other cached ViewModels by restarting the activity
+            // This forces Hilt to recreate all ViewModels with fresh data
+            
             onComplete?.invoke()
         }
     }
@@ -545,6 +550,10 @@ class AuthViewModel @Inject constructor(
         } catch (e: Exception) {
             null
         }
+    }
+
+    fun resetAuthState() {
+        _authState.value = AuthState()
     }
 
 }

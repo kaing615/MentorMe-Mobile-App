@@ -153,5 +153,5 @@ function getGeneralResponse(message: string): string {
   }
 
   // Fallback - không hiểu
-  return 'Xin lỗi, tôi chưa hiểu rõ câu hỏi của bạn. 🤔\n\n**Bạn có thể hỏi tôi về:**\n\n🎯 **Tìm Mentor:**\n• "Tìm mentor Java cho người mới"\n• "Gợi ý mentor Backend giá dưới 200k"\n\n💡 **Thông tin App:**\n• "Làm sao để đăng ký mentor?"\n• "Chính sách hoàn tiền như thế nào?"\n• "App có những tính năng gì?"\n\n🔧 **Hỗ trợ:**\n• "Làm sao để đặt lịch?"\n• "Tôi muốn nạp tiền vào ví"\n\nHãy thử hỏi lại theo cách khác nhé! 😊';
+  return 'Xin lỗi, tôi chưa hiểu rõ câu hỏi của bạn. 🤔\n\nBạn có thể hỏi tôi về:\n\n🎯 Tìm Mentor:\n• "Tìm mentor Java cho người mới"\n• "Gợi ý mentor Backend giá dưới 200k"\n\n💡 Thông tin App:\n• "Làm sao để đăng ký mentor?"\n• "Chính sách hoàn tiền như thế nào?"\n• "App có những tính năng gì?"\n\n🔧 Hỗ trợ:\n• "Làm sao để đặt lịch?"\n• "Tôi muốn nạp tiền vào ví"\n\nHãy thử hỏi lại theo cách khác nhé! 😊';
 }

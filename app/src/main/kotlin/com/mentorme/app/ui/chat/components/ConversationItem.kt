@@ -80,7 +80,16 @@ fun ConversationCard(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = conversation.peerName.firstOrNull()?.uppercase() ?: "?",
+                                text = if (conversation.peerId == "ai" || conversation.peerName == "MentorMe AI") {
+                                    "🤖"
+                                } else {
+                                    conversation.peerName.firstOrNull()?.uppercase() ?: "?"
+                                },
+                                style = if (conversation.peerId == "ai") {
+                                    MaterialTheme.typography.titleLarge
+                                } else {
+                                    MaterialTheme.typography.bodyLarge
+                                },
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )

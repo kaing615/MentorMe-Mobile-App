@@ -144,11 +144,11 @@ fun MessageContentWithFile(
     val context = LocalContext.current
     
     // Auto-detect file type from URL if messageType is not set correctly
-    val isImageUrl = content.matches(Regex(".*\\.(jpg|jpeg|png|gif|webp|bmp)(\\?.*)?$", RegexOption.IGNORE_CASE)) ||
+    val isImageUrl = content.matches(Regex(".*\\.(jpg|jpeg|png|gif|webp|bmp)([?#].*)?$", RegexOption.IGNORE_CASE)) ||
         (content.contains("cloudinary.com") && content.contains("/image/"))
     val isFileUrl = content.startsWith("http") && (
         content.contains("cloudinary.com/") || 
-        content.matches(Regex(".*\\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar)(\\?.*)?$", RegexOption.IGNORE_CASE))
+        content.matches(Regex(".*\\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|rar)([?#].*)?$", RegexOption.IGNORE_CASE))
     )
     
     // Debug logging

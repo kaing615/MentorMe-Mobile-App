@@ -46,6 +46,14 @@ import com.mentorme.app.ui.components.ui.MMPrimaryButton
 import com.mentorme.app.ui.components.ui.MMGhostButton
 import com.mentorme.app.ui.session.SessionViewModel
 import com.mentorme.app.ui.theme.LiquidGlassCard
+import java.text.NumberFormat
+import java.util.Locale
+
+/* ---- Helper function ---- */
+private fun formatVnd(amount: Double): String {
+    val nf = NumberFormat.getCurrencyInstance(Locale("vi", "VN"))
+    return nf.format(amount)
+}
 
 @Composable
 fun BookingDetailScreen(
@@ -174,7 +182,7 @@ private fun BookingDetailContent(
     val context = androidx.compose.ui.platform.LocalContext.current
     val mentorName = mentorDisplayName(booking)
     val timeRange = "${booking.startTime} - ${booking.endTime}"
-    val priceLabel = "$${"%.2f".format(booking.price)}"
+    val priceLabel = formatVnd(booking.price)
     val canRespond = showActions && (booking.status == BookingStatus.PENDING_MENTOR || booking.status == BookingStatus.PAYMENT_PENDING)
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val bottomPadding = 84.dp + bottomInset

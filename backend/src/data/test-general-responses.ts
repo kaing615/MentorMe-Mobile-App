@@ -1,106 +1,8 @@
-import { Request, Response } from "express";
-import { analyzeMentorIntent } from "../services/ai/mentorRecommend.service";
-import { recommendMentors } from "../services/mentor/mentorRecommend.pipeline";
-import { answerAppQuestion } from "../services/ai/appQA.service";
-import { classifyIntent } from "../utils/aiIntentRouter";
-import { ConversationContext } from "../services/ai/conversationContext.service";
-
-export async function recommendMentorController(req: Request, res: Response) {
-  const { message } = req.body;
-  const userId = req.user?.id || "anonymous"; // ✅ Lấy từ auth middleware
-
-  if (!message || typeof message !== "string") {
-    return res.status(400).json({
-      success: false,
-      error: "Message is required",
-    });
-  }
-
-  try {
-    // ✅ Lưu tin nhắn người dùng
-    await ConversationContext.addMessage(userId, "user", message);
-
-    // ✅ Lấy context để AI hiểu ngữ cảnh
-    const contextPrompt = await ConversationContext.getContextPrompt(userId);
-
-    // ✅ Sử dụng context khi gọi AI
-    const intent = await classifyIntent(message, contextPrompt);
-
-    if (intent === "general") {
-      return res.json({
-        success: true,
-        type: "general_response",
-        answer: getGeneralResponse(message),
-      });
-    }
-
-    // ✅ Trả lời câu hỏi về app
-    if (intent === "app_qa") {
-      const answer = await answerAppQuestion(message);
-      return res.json({
-        success: true,
-        type: "app_qa",
-        answer,
-        // ✅ Thêm suggestions cho câu hỏi tiếp theo
-        suggestions: [
-          "Làm sao để đăng ký mentor?",
-          "Chính sách hoàn tiền như thế nào?",
-          "Tôi muốn tìm mentor về Backend",
-        ],
-      });
-    }
-
-    // ✅ Gợi ý mentor
-    const aiResult = await analyzeMentorIntent(message);
-    const mentors = await recommendMentors(aiResult, message);
-
-    const response = {
-      success: true,
-      type: "mentor_recommend",
-      ai: aiResult,
-      mentors,
-      // ✅ Thêm context cho frontend
-      context: {
-        totalFound: mentors.length,
-        searchCriteria: {
-          skills: aiResult.skills,
-          level: aiResult.level,
-          priceRange: aiResult.priceRange,
-        },
-      },
-      // ✅ Suggestions để tinh chỉnh tìm kiếm
-      suggestions:
-        mentors.length === 0
-          ? [
-              "Thử tìm với giá cao hơn",
-              "Tìm mentor cho người mới bắt đầu",
-              "Xem tất cả mentor trong lĩnh vực này",
-            ]
-          : ["Xem chi tiết mentor", "Đặt lịch ngay", "Tìm mentor khác"],
-    };
-
-    // ✅ Lưu câu trả lời của AI
-    await ConversationContext.addMessage(
-      userId,
-      "assistant",
-      JSON.stringify(response)
-    );
-
-    return res.json(response);
-  } catch (err) {
-    console.error("❌ RECOMMEND CONTROLLER ERROR", err);
-    return res.status(500).json({
-      success: false,
-      error: "Internal server error",
-    });
-  }
-}
-
 /**
- * Xử lý các câu hỏi chung chung (chào hỏi, cảm ơn, v.v.)
- * @param message Tin nhắn người dùng
- * @returns Câu trả lời phù hợp
+ * Demo test cho general responses
  */
+
+// Mock function từ controller
 function getGeneralResponse(message: string): string {
   const lower = message.toLowerCase();
 
@@ -165,6 +67,33 @@ function getGeneralResponse(message: string): string {
     return "Cảm ơn bạn! 🥰 Tôi rất vui khi giúp được bạn!\n\nNếu có thêm câu hỏi nào về MentorMe, cứ hỏi tôi nhé!";
   }
 
-  // Fallback - không hiểu
+  // Fallback
   return 'Xin lỗi, tôi chưa hiểu rõ câu hỏi của bạn. 🤔\n\n**Bạn có thể hỏi tôi về:**\n\n🎯 **Tìm Mentor:**\n• "Tìm mentor Java cho người mới"\n• "Gợi ý mentor Backend giá dưới 200k"\n\n💡 **Thông tin App:**\n• "Làm sao để đăng ký mentor?"\n• "Chính sách hoàn tiền như thế nào?"\n• "App có những tính năng gì?"\n\n🔧 **Hỗ trợ:**\n• "Làm sao để đặt lịch?"\n• "Tôi muốn nạp tiền vào ví"\n\nHãy thử hỏi lại theo cách khác nhé! 😊';
 }
+
+// Test cases
+console.log("🧪 Testing General Responses\n");
+console.log("=".repeat(80));
+
+const testCases = [
+  "Xin chào",
+  "Hello",
+  "Cảm ơn bạn",
+  "Thanks!",
+  "Tạm biệt",
+  "Bye",
+  "Bạn là ai?",
+  "Bạn làm được gì?",
+  "Bạn giỏi quá!",
+  "Tôi muốn tìm mentor về blockchain", // Should fallback
+];
+
+testCases.forEach((testCase, index) => {
+  console.log(`\n[${index + 1}] User: "${testCase}"`);
+  console.log("-".repeat(80));
+  const response = getGeneralResponse(testCase);
+  console.log(`AI: ${response}`);
+  console.log("=".repeat(80));
+});
+
+console.log("\n✅ All test cases executed!");

@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.VideoCall
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DoneAll
 import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material3.Badge
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -42,11 +41,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,13 +56,11 @@ import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.mentorme.app.R
 import com.mentorme.app.core.notifications.NotificationStore
-import com.mentorme.app.data.mock.MockData
 import com.mentorme.app.data.model.NotificationItem
 import com.mentorme.app.ui.components.ui.MMGhostButton
 import com.mentorme.app.ui.navigation.Routes
 import com.mentorme.app.ui.theme.LiquidBackground
 import com.mentorme.app.ui.theme.LiquidGlassCard
-import com.mentorme.app.ui.theme.liquidGlass
 import kotlinx.coroutines.launch
 
 private enum class NotificationFilter(@StringRes val labelRes: Int) {
@@ -88,11 +87,6 @@ fun NotificationsScreen(
     }
 
     val notifications by NotificationStore.notifications.collectAsState()
-    LaunchedEffect(notifications) {
-        if (notifications.isEmpty()) {
-            NotificationStore.seed(MockData.mockNotifications)
-        }
-    }
     val unreadCount = notifications.count { !it.read }
     val filtered = remember(filter, notifications) {
         when (filter) {
@@ -352,14 +346,14 @@ private fun NotificationRow(
     onOpenDetail: () -> Unit,
     onJoinSession: (String) -> Unit = {},
     onMarkRead: (String) -> Unit,
-    viewModel: NotificationsViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    viewModel: NotificationsViewModel = hiltViewModel()
 ) {
     val typeStyle = notificationTypeStyle(item.type)
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     // Extract booking ID from deepLink
-    val bookingId = item.deepLink?.let { link ->
+    val bookingId: String? = item.deepLink?.let { link ->
         when {
             link.startsWith("booking_detail/") -> link.removePrefix("booking_detail/")
             link.startsWith("video_call/") -> link.removePrefix("video_call/")
@@ -468,7 +462,8 @@ private fun NotificationRow(
         }
         
         // Join Session button for booking notifications
-        if (showJoinButton && bookingId != null) {
+        if (showJoinButton) {
+            // Safe: showJoinButton is true only when bookingId is not null (smart cast applies)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -492,7 +487,7 @@ private fun NotificationRow(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(
-                        androidx.compose.material.icons.Icons.Default.VideoCall,
+                        Icons.Default.VideoCall,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
                     )

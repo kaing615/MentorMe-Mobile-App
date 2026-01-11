@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -20,7 +19,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +54,7 @@ private data class DashboardStat(
 
 @Composable
 fun MentorDashboardScreen(
+    modifier: Modifier = Modifier,
     vm: com.mentorme.app.ui.profile.ProfileViewModel,
     dashboardVm: MentorDashboardViewModel = hiltViewModel(),
     onViewSchedule: () -> Unit = {},
@@ -65,8 +65,7 @@ fun MentorDashboardScreen(
     onViewBookingDetail: (String) -> Unit = {},
     onViewAllSessions: () -> Unit = {},
     onUpdateProfile: () -> Unit = {},
-    onOpenSettings: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onOpenSettings: () -> Unit = {}
 ) {
     // Collect profile data from ViewModel
     val state by vm.state.collectAsState()

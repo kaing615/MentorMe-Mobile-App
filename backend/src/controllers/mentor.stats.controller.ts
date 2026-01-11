@@ -36,11 +36,20 @@ export const getMyStats = asyncHandler(async (req: Request, res: Response) => {
     createdAt: { $gte: startOfMonth, $lte: endOfMonth }
   });
 
-  const earnings = earningTransactions.reduce((sum, tx) => sum + tx.amountMinor, 0);
+  const penaltyTransactions = await WalletTransaction.find({
+    userId: new mongoose.Types.ObjectId(mentorId),
+    source: "NO_SHOW_PENALTY",
+    createdAt: { $gte: startOfMonth, $lte: endOfMonth }
+  });
+
+  const totalEarnings = earningTransactions.reduce((sum, tx) => sum + tx.amountMinor, 0);
+  const totalPenalties = penaltyTransactions.reduce((sum, tx) => sum + tx.amountMinor, 0);
+  const earnings = totalEarnings - totalPenalties;
 
   console.log(`📊 [getMyStats] Mentor ${mentorId}:`);
-  console.log(`  - Found ${earningTransactions.length} BOOKING_EARN transactions`);
-  console.log(`  - Total earnings: ${earnings} (${earnings / 1000} VND)`);
+  console.log(`  - Found ${earningTransactions.length} BOOKING_EARN transactions: ${totalEarnings}`);
+  console.log(`  - Found ${penaltyTransactions.length} NO_SHOW_PENALTY transactions: ${totalPenalties}`);
+  console.log(`  - Net earnings: ${earnings} (${earnings / 1000} VND)`);
   console.log(`  - Period: ${startOfMonth.toISOString()} to ${endOfMonth.toISOString()}`);
 
   // 2. Số mentee unique trong tháng này
@@ -113,16 +122,24 @@ export const getWeeklyEarnings = asyncHandler(async (req: Request, res: Response
     const dayEnd = new Date(dayStart);
     dayEnd.setHours(23, 59, 59, 999);
 
-    // ✅ FIXED: Tính từ WalletTransaction với source BOOKING_EARN trong ngày này
+    // ✅ FIXED: Tính từ WalletTransaction (BOOKING_EARN - NO_SHOW_PENALTY) trong ngày này
     const earningTransactions = await WalletTransaction.find({
       userId: new mongoose.Types.ObjectId(mentorId),
       source: "BOOKING_EARN",
       createdAt: { $gte: dayStart, $lte: dayEnd }
     });
 
-    const dailyTotal = earningTransactions.reduce((sum, tx) => sum + tx.amountMinor, 0);
+    const penaltyTransactions = await WalletTransaction.find({
+      userId: new mongoose.Types.ObjectId(mentorId),
+      source: "NO_SHOW_PENALTY",
+      createdAt: { $gte: dayStart, $lte: dayEnd }
+    });
 
-    console.log(`📊 Day ${i + 1}:`, dayStart.toISOString().split('T')[0], '- earnings:', dailyTotal, 'from', earningTransactions.length, 'transactions');
+    const totalEarnings = earningTransactions.reduce((sum, tx) => sum + tx.amountMinor, 0);
+    const totalPenalties = penaltyTransactions.reduce((sum, tx) => sum + tx.amountMinor, 0);
+    const dailyTotal = totalEarnings - totalPenalties;
+
+    console.log(`📊 Day ${i + 1}:`, dayStart.toISOString().split('T')[0], '- earnings:', dailyTotal, '(', totalEarnings, '-', totalPenalties, ') from', earningTransactions.length, '+', penaltyTransactions.length, 'transactions');
     dailyEarnings.push(dailyTotal);
   }
 
@@ -156,16 +173,24 @@ export const getYearlyEarnings = asyncHandler(async (req: Request, res: Response
     const monthStart = new Date(currentYear, month, 1, 0, 0, 0, 0);
     const monthEnd = new Date(currentYear, month + 1, 0, 23, 59, 59, 999);
 
-    // ✅ FIXED: Tính từ WalletTransaction với source BOOKING_EARN trong tháng này
+    // ✅ FIXED: Tính từ WalletTransaction (BOOKING_EARN - NO_SHOW_PENALTY) trong tháng này
     const earningTransactions = await WalletTransaction.find({
       userId: new mongoose.Types.ObjectId(mentorId),
       source: "BOOKING_EARN",
       createdAt: { $gte: monthStart, $lte: monthEnd }
     });
 
-    const monthlyTotal = earningTransactions.reduce((sum, tx) => sum + tx.amountMinor, 0);
+    const penaltyTransactions = await WalletTransaction.find({
+      userId: new mongoose.Types.ObjectId(mentorId),
+      source: "NO_SHOW_PENALTY",
+      createdAt: { $gte: monthStart, $lte: monthEnd }
+    });
 
-    console.log(`📊 Month ${month + 1}:`, monthlyTotal, 'from', earningTransactions.length, 'transactions');
+    const totalEarnings = earningTransactions.reduce((sum, tx) => sum + tx.amountMinor, 0);
+    const totalPenalties = penaltyTransactions.reduce((sum, tx) => sum + tx.amountMinor, 0);
+    const monthlyTotal = totalEarnings - totalPenalties;
+
+    console.log(`📊 Month ${month + 1}:`, monthlyTotal, '(', totalEarnings, '-', totalPenalties, ') from', earningTransactions.length, '+', penaltyTransactions.length, 'transactions');
     monthlyEarnings.push(monthlyTotal);
   }
 

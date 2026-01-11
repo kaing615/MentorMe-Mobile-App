@@ -29,7 +29,7 @@ export const getMyStats = asyncHandler(async (req: Request, res: Response) => {
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-  // 1. Thu nhập: Tính từ WalletTransaction (BOOKING_EARN - NO_SHOW_PENALTY) trong tháng này
+  // 1. Thu nhập: Tính từ WalletTransaction với source BOOKING_EARN trong tháng này
   const earningTransactions = await WalletTransaction.find({
     userId: new mongoose.Types.ObjectId(mentorId),
     source: "BOOKING_EARN",

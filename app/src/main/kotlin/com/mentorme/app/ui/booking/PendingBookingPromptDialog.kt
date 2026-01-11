@@ -42,30 +42,50 @@ fun PendingBookingPromptDialog(
 
     GlassDialog(
         onDismiss = onDismiss,
-        title = "🎉 Booking đã được thanh toán!",
+        title = "Yêu cầu tư vấn mới",
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "Mentee vừa hoàn tất thanh toán. Bạn muốn chấp nhận booking này không?",
+                    "Bạn có một lịch hẹn mới đang chờ xác nhận. Mentee đã hoàn tất thanh toán và đang chờ phản hồi từ bạn.",
                     style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White,
+                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+                Text(
+                    "Mentee",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.65f)
+                )
+                Text(
+                    menteeName,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    "📝 Mentee: $menteeName",
+                    "Thời gian",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.65f)
+                )
+                Text(
+                    timeLabel,
                     style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                     color = Color.White
                 )
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    "🕐 Thời gian: $timeLabel",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.85f)
+                    "Thu nhập dự kiến",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.65f)
                 )
                 Text(
-                    "💰 Giá: $priceLabel",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.85f)
+                    priceLabel,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF34D399)
                 )
             }
         },

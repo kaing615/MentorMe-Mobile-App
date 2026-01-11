@@ -263,14 +263,24 @@ export const payBookingByWallet = asyncHandler(async (req, res) => {
   const bookingId = req.params.id;
   const userId = (req as any).user.id;
 
+  console.log(`💳 [payBookingByWallet] Called by user ${userId} for booking ${bookingId}`);
+
   const booking = await Booking.findById(bookingId);
-  if (!booking) return notFound(res, "Booking not found");
+  if (!booking) {
+    console.log(`❌ [payBookingByWallet] Booking ${bookingId} not found`);
+    return notFound(res, "Booking not found");
+  }
+
+  console.log(`📋 [payBookingByWallet] Booking status: ${booking.status}, mentee: ${booking.mentee}, mentor: ${booking.mentor}, price: ${booking.price}`);
 
   if (booking.status !== "PaymentPending") {
+    console.log(`❌ [payBookingByWallet] Booking not payable - status is ${booking.status}`);
     return badRequest(res, "Booking is not payable");
   }
 
+  console.log(`💰 [payBookingByWallet] Calling captureBookingPayment...`);
   await captureBookingPayment(bookingId);
+  console.log(`✅ [payBookingByWallet] captureBookingPayment completed`);
 
   const updated = await Booking.findById(bookingId);
   if (!updated) return notFound(res, "Booking not found");
@@ -278,15 +288,21 @@ export const payBookingByWallet = asyncHandler(async (req, res) => {
   const needMentorConfirm =
     (process.env.MENTOR_CONFIRM_REQUIRED || "false").toLowerCase() === "true";
 
+  console.log(`🔄 [payBookingByWallet] needMentorConfirm=${needMentorConfirm}, updated status=${updated.status}`);
+
   if (needMentorConfirm) {
     if (String((updated as any).status) !== "PendingMentor") {
+      console.log(`📤 [payBookingByWallet] Marking booking as PendingMentor`);
       await markBookingPendingMentor(bookingId);
     }
   } else {
     if (String((updated as any).status) !== "Confirmed") {
+      console.log(`✅ [payBookingByWallet] Confirming booking`);
       await confirmBooking(bookingId);
     }
   }
+
+  console.log(`✅ [payBookingByWallet] Payment completed for booking ${bookingId}`);
 
   return ok(res, {
     success: true,

@@ -62,8 +62,8 @@ import java.util.Locale
 private fun tabIndexFor(target: String): Int {
     return when (target.lowercase(Locale.ROOT)) {
         "profile", "hoso", "ho-so" -> 0
-        "dashboard" -> 1
-        "wallet", "vi" -> 2
+        "wallet", "vi" -> 1
+        "dashboard" -> 2
         "settings", "caidat", "cai-dat" -> 3
         else -> 0
     }
@@ -130,7 +130,7 @@ fun MentorProfileScreen(
         selectedTab = tabIndexFor(startTarget)
     }
 
-    val tabs = listOf("Hồ sơ", "Thống kê", "Ví", "Cài đặt")
+    val tabs = listOf("Hồ sơ", "Ví", "Thống kê", "Cài đặt")
 
     Box(Modifier.fillMaxSize()) {
         LiquidBackground(
@@ -298,14 +298,7 @@ fun MentorProfileScreen(
                         )
 
 
-                        1 -> MentorStatsTab(
-                            vm = vm,
-                            profile = profile,
-                            onViewDetail = onViewStatistics,
-                            onViewReviews = onViewReviews
-                        )
-
-                        2 -> MentorWalletTab(
+                        1 -> MentorWalletTab(
                             balance = walletBalance,
                             payouts = payouts,
                             methods = methods,
@@ -318,6 +311,13 @@ fun MentorProfileScreen(
                                     snackbarHostState.showSnackbar("Đã gửi yêu cầu rút tiền")
                                 }
                             }
+                        )
+
+                        2 -> MentorStatsTab(
+                            vm = vm,
+                            profile = profile,
+                            onViewDetail = onViewStatistics,
+                            onViewReviews = onViewReviews
                         )
 
                         3 -> MentorSettingsTab(

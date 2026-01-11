@@ -184,34 +184,10 @@ fun MentorCalendarScreen(
                     return@filter true
                 }
 
-                // Case 2: Status CONFIRMED nhưng đã qua giờ kết thúc -> coi như hoàn thành
+                // Case 2: Status CONFIRMED -> tiền đã được chuyển vào ví (đã thanh toán)
+                // Tính luôn bất kể đã qua endTime hay chưa
                 if (booking.status == BookingStatus.CONFIRMED) {
-                    try {
-                        val bookingDate = java.time.LocalDate.parse(booking.date)
-                        val endTime = try {
-                            java.time.LocalTime.parse(booking.endTime, java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
-                        } catch (e: Exception) {
-                            java.time.LocalTime.parse(booking.endTime, java.time.format.DateTimeFormatter.ofPattern("H:mm"))
-                        }
-                        val startTime = try {
-                            java.time.LocalTime.parse(booking.startTime, java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
-                        } catch (e: Exception) {
-                            java.time.LocalTime.parse(booking.startTime, java.time.format.DateTimeFormatter.ofPattern("H:mm"))
-                        }
-
-                        val endDate = if (endTime.isBefore(startTime) || endTime == startTime) {
-                            bookingDate.plusDays(1)
-                        } else {
-                            bookingDate
-                        }
-
-                        val bookingEndDateTime = endDate.atTime(endTime).atZone(zoneId).toInstant()
-
-                        // ✅ Đã kết thúc -> tính vào đã thu
-                        return@filter now.isAfter(bookingEndDateTime)
-                    } catch (e: Exception) {
-                        return@filter false
-                    }
+                    return@filter true
                 }
 
                 false

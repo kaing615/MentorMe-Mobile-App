@@ -28,6 +28,8 @@ data class WalletTransactionDto(
     @SerializedName("referenceType") val referenceType: String?,
     @SerializedName("referenceId") val referenceId: String?,
 
+    @SerializedName("description") val description: String?,
+
     @SerializedName("createdAt") val createdAt: String,
     @SerializedName("updatedAt") val updatedAt: String
 )

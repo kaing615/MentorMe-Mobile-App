@@ -29,11 +29,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
@@ -121,159 +123,316 @@ fun AvailabilityTabSection(
 
     // Only show content when dialogs are closed
     if (!showAdd && !showEdit) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
 
-            // Header
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // Header với gradient background đẹp
+            LiquidGlassCard(radius = 20.dp, modifier = Modifier.fillMaxWidth()) {
                 Box(
-                    modifier = Modifier.size(30.dp).clip(RoundedCornerShape(10.dp))
-                        .background(Color(0x3348A6FF)).padding(6.dp),
-                    contentAlignment = Alignment.Center
-                ) { Icon(Icons.Default.CalendarToday, null, tint = Color.White) }
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "Thiết lập lịch trống",
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color(0xFF4F46E5).copy(alpha = 0.2f),
+                                    Color(0xFF7C3AED).copy(alpha = 0.2f)
+                                )
+                            )
+                        )
+                        .padding(20.dp)
+                ) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(
+                                        androidx.compose.ui.graphics.Brush.linearGradient(
+                                            colors = listOf(Color(0xFF4F46E5), Color(0xFF7C3AED))
+                                        )
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.CalendarToday,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(14.dp))
+                            Column {
+                                Text(
+                                    "Thiết lập lịch trống",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "Quản lý thời gian của bạn",
+                                    color = Color.White.copy(0.7f),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                        MMPrimaryButton(
+                            onClick = {
+                                resetForm()
+                                onShowAddChange(true)
+                            }
+                        ) {
+                            Icon(Icons.Default.Add, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Tạo lịch", color = Color.White, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
             }
-            Spacer(Modifier.weight(1f))
-            MMPrimaryButton(onClick = {
-                resetForm()
-                onShowAddChange(true)
-            }) {
-                Icon(Icons.Default.Add, null, tint = Color.White)
-                Spacer(Modifier.width(6.dp)); Text("Tạo lịch", color = Color.White)
-            }
-        }
 
+
+        // Statistics Cards với design đẹp hơn
         if (totalCount > 0) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                InfoChip("Tổng slot", totalCount.toString(), Modifier.weight(1f), center = true)
-                InfoChip("Còn trống", openCount.toString(), Modifier.weight(1f), center = true)
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                InfoChip("Đã đặt", bookedCount.toString(), Modifier.weight(1f), center = true)
-                InfoChip("Tạm dừng", pausedCount.toString(), Modifier.weight(1f), center = true)
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatCard(
+                        title = "Tổng slot",
+                        value = totalCount.toString(),
+                        icon = Icons.Default.CalendarToday,
+                        gradientColors = listOf(Color(0xFF3B82F6), Color(0xFF2563EB)),
+                        modifier = Modifier.weight(1f)
+                    )
+                    StatCard(
+                        title = "Còn trống",
+                        value = openCount.toString(),
+                        icon = Icons.Default.CalendarToday,
+                        gradientColors = listOf(Color(0xFF22C55E), Color(0xFF16A34A)),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatCard(
+                        title = "Đã đặt",
+                        value = bookedCount.toString(),
+                        icon = Icons.Default.CalendarToday,
+                        gradientColors = listOf(Color(0xFFEF4444), Color(0xFFDC2626)),
+                        modifier = Modifier.weight(1f)
+                    )
+                    StatCard(
+                        title = "Tạm dừng",
+                        value = pausedCount.toString(),
+                        icon = Icons.Default.CalendarToday,
+                        gradientColors = listOf(Color(0xFF6B7280), Color(0xFF4B5563)),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
 
         // Empty / List
         if (slots.isEmpty()) {
             LiquidGlassCard(radius = 24.dp, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 40.dp, horizontal = 20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                     Box(
-                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(18.dp))
-                            .background(Color(0x3348A6FF)),
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(
+                                androidx.compose.ui.graphics.Brush.linearGradient(
+                                    colors = listOf(Color(0x3348A6FF), Color(0x337C3AED))
+                                )
+                            ),
                         contentAlignment = Alignment.Center
-                    ) { Icon(Icons.Default.CalendarToday, null, tint = Color.White.copy(.7f)) }
-                    Spacer(Modifier.height(8.dp))
-                    Text("Chưa có lịch trống", color = Color.White)
+                    ) {
+                        Icon(
+                            Icons.Default.CalendarToday,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
+                    Text(
+                        "Chưa có lịch trống",
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
                     Text(
                         "Hãy thêm lịch trống để mentee có thể đặt hẹn tư vấn cá nhân với bạn!",
-                        color = Color.White.copy(.7f)
+                        color = Color.White.copy(.7f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
             }
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 slots.forEach { slot ->
-                    LiquidGlassCard(radius = 22.dp, modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    LiquidGlassCard(radius = 24.dp, modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            Modifier.padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
 
                             val sessionLabel = if (slot.sessionType == "video") "Gọi video" else "Trực tiếp"
                             val sessionIcon = if (slot.sessionType == "video") Icons.Default.Videocam else Icons.Default.LocationOn
+                            val sessionGradient = if (slot.sessionType == "video")
+                                listOf(Color(0xFF4F46E5), Color(0xFF6366F1))
+                            else
+                                listOf(Color(0xFF22C55E), Color(0xFF10B981))
 
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Box(
-                                    modifier = Modifier.size(28.dp).clip(RoundedCornerShape(10.dp))
-                                        .background(if (slot.sessionType == "video") Color(0x332467F1) else Color(0x3322C55E)),
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(
+                                            androidx.compose.ui.graphics.Brush.linearGradient(sessionGradient)
+                                        ),
                                     contentAlignment = Alignment.Center
-                                ) { Icon(sessionIcon, null, tint = Color.White, modifier = Modifier.size(16.dp)) }
+                                ) {
+                                    Icon(
+                                        sessionIcon,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
 
-                                Spacer(Modifier.width(10.dp))
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Spacer(Modifier.width(14.dp))
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text(
                                         text = slot.date,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
                                         color = Color.White
                                     )
-                                    Text(
-                                        "${slot.startTime} - ${slot.endTime}",
-                                        color = Color.White.copy(.8f)
-                                    )
-                                    Text(
-                                        text = slot.description ?: "Buổi $sessionLabel",
-                                        color = Color.White.copy(.7f),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Default.AccessTime,
+                                            contentDescription = null,
+                                            tint = Color.White.copy(.7f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            "${slot.startTime} - ${slot.endTime}",
+                                            color = Color.White.copy(.8f),
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+                                    if (slot.description != null) {
+                                        Text(
+                                            text = slot.description,
+                                            color = Color.White.copy(.6f),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
                                 }
 
                                 SlotStatusPill(slot)
                             }
 
+                            // Info Chips với design mới
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    InfoChip("Thời lượng", "${slot.duration} phút", Modifier.weight(1f))
-                                    InfoChip(
-                                        "Giá tư vấn",
-                                        if (slot.priceVnd > 0) numberFormat.format(slot.priceVnd) else "Chưa có giá",
-                                        Modifier.weight(1f)
+                                    ModernInfoChip(
+                                        icon = Icons.Default.AccessTime,
+                                        label = "Thời lượng",
+                                        value = "${slot.duration} phút",
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    ModernInfoChip(
+                                        icon = Icons.Default.AttachMoney,
+                                        label = "Giá",
+                                        value = if (slot.priceVnd > 0) numberFormat.format(slot.priceVnd) else "Chưa có giá",
+                                        modifier = Modifier.weight(1f)
                                     )
                                 }
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    InfoChip(
-                                        "Hình thức",
-                                        if (slot.sessionType=="video") "Gọi video" else "Trực tiếp",
-                                        Modifier.weight(1f)
+                                    ModernInfoChip(
+                                        icon = if (slot.sessionType == "video") Icons.Default.Videocam else Icons.Default.LocationOn,
+                                        label = "Hình thức",
+                                        value = if (slot.sessionType == "video") "Gọi video" else "Trực tiếp",
+                                        modifier = Modifier.weight(1f)
                                     )
-                                    InfoChip(
-                                        "Trạng thái",
-                                        if (slot.isBooked) "Đã đặt" else "Trống",
-                                        Modifier.weight(1f)
+                                    ModernInfoChip(
+                                        icon = Icons.Default.CalendarToday,
+                                        label = "Trạng thái",
+                                        value = if (slot.isBooked) "Đã đặt" else "Trống",
+                                        modifier = Modifier.weight(1f)
                                     )
                                 }
                             }
 
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                MMButton(
+                            // Action Buttons với design đẹp hơn
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                ModernActionButton(
                                     text = "Sửa",
-                                    size = MMButtonSize.Compact,
+                                    icon = null,
+                                    containerColor = Color(0xFF3B82F6).copy(alpha = 0.2f),
+                                    contentColor = Color(0xFF60A5FA),
+                                    borderColor = Color(0xFF3B82F6).copy(alpha = 0.4f),
+                                    modifier = Modifier.weight(1f),
                                     onClick = {
                                         // Prefill form from slot
                                         editingSlot = slot
-                        try {
-                            selectedDate = LocalDate.parse(slot.date)
-                            startTime = LocalTime.parse(slot.startTime)
-                            endTime = LocalTime.parse(slot.endTime)
-                        } catch (_: Exception) {
-                            // ignore
-                        }
+                                        try {
+                                            selectedDate = LocalDate.parse(slot.date)
+                                            startTime = LocalTime.parse(slot.startTime)
+                                            endTime = LocalTime.parse(slot.endTime)
+                                        } catch (_: Exception) {
+                                            // ignore
+                                        }
                                         type = slot.sessionType
                                         desc = TextFieldValue(slot.description ?: "")
                                         priceDigits = if (slot.priceVnd > 0) slot.priceVnd.toString() else ""
-                                        startErr = null; endErr = null
+                                        startErr = null
+                                        endErr = null
                                         onShowEditChange(true)
                                     }
                                 )
-                                MMButton(
+                                ModernActionButton(
                                     text = if (slot.isActive) "Tạm dừng" else "Kích hoạt",
-                                    onClick = { onToggle(slot.backendSlotId) },
-                                    size = MMButtonSize.Compact
+                                    icon = null,
+                                    containerColor = if (slot.isActive)
+                                        Color(0xFFFFA500).copy(alpha = 0.2f)
+                                    else
+                                        Color(0xFF22C55E).copy(alpha = 0.2f),
+                                    contentColor = if (slot.isActive) Color(0xFFFFA500) else Color(0xFF22C55E),
+                                    borderColor = if (slot.isActive)
+                                        Color(0xFFFFA500).copy(alpha = 0.4f)
+                                    else
+                                        Color(0xFF22C55E).copy(alpha = 0.4f),
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { onToggle(slot.backendSlotId) }
                                 )
-                                MMButton(
+                                ModernActionButton(
                                     text = "Xóa",
+                                    icon = null,
+                                    containerColor = Color(0xFFEF4444).copy(alpha = 0.2f),
+                                    contentColor = Color(0xFFEF4444),
+                                    borderColor = Color(0xFFEF4444).copy(alpha = 0.4f),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .then(if (!slot.isBooked) Modifier else Modifier.alpha(0.5f)),
                                     onClick = {
                                         if (!slot.isBooked) {
                                             onDelete(slot.backendSlotId)
                                         }
-                                    },
-                                    size = MMButtonSize.Compact,
-                                    modifier = if (!slot.isBooked) Modifier else Modifier.alpha(0.5f)
+                                    }
                                 )
                             }
                         }
@@ -443,12 +602,167 @@ private fun SlotStatusPill(slot: AvailabilitySlot) {
 
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(color.copy(alpha = 0.18f))
-            .border(BorderStroke(1.dp, color.copy(alpha = 0.45f)), RoundedCornerShape(12.dp))
-            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(color.copy(alpha = 0.2f))
+            .border(BorderStroke(1.5.dp, color.copy(alpha = 0.5f)), RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
-        Text(label, color = Color.White, style = MaterialTheme.typography.labelMedium)
+        Text(
+            label,
+            color = Color.White,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+// ===== NEW COMPONENTS =====
+
+@Composable
+private fun StatCard(
+    title: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    gradientColors: List<Color>,
+    modifier: Modifier = Modifier
+) {
+    LiquidGlassCard(radius = 18.dp, modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    androidx.compose.ui.graphics.Brush.linearGradient(
+                        colors = gradientColors.map { it.copy(alpha = 0.15f) }
+                    )
+                )
+                .padding(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            androidx.compose.ui.graphics.Brush.linearGradient(gradientColors)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        title,
+                        color = Color.White.copy(0.7f),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    Text(
+                        value,
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModernInfoChip(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = Color.White.copy(alpha = 0.08f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = Color.White.copy(0.6f),
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    label,
+                    color = Color.White.copy(0.6f),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 11.sp
+                )
+            }
+            Text(
+                value,
+                color = Color.White,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun ModernActionButton(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector?,
+    containerColor: Color,
+    contentColor: Color,
+    borderColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.heightIn(min = 42.dp),
+        shape = RoundedCornerShape(14.dp),
+        color = containerColor,
+        border = BorderStroke(1.5.dp, borderColor)
+    ) {
+        Box(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                icon?.let {
+                    Icon(
+                        it,
+                        contentDescription = null,
+                        tint = contentColor,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Text(
+                    text,
+                    color = contentColor,
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+        }
     }
 }
 
@@ -865,44 +1179,115 @@ private fun AvailabilityPreviewCard(
     priceLabel: String,
     typeLabel: String
 ) {
-    LiquidGlassCard(radius = 18.dp, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                "Xem trước lịch",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-            Text(
-                "$dateLabel • $timeLabel",
-                color = Color.White.copy(alpha = 0.85f)
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PreviewPill(typeLabel)
-                PreviewPill(durationLabel)
-                PreviewPill(priceLabel)
+    LiquidGlassCard(radius = 20.dp, modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    androidx.compose.ui.graphics.Brush.linearGradient(
+                        colors = listOf(
+                            Color(0xFF4F46E5).copy(alpha = 0.15f),
+                            Color(0xFF7C3AED).copy(alpha = 0.15f)
+                        )
+                    )
+                )
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                androidx.compose.ui.graphics.Brush.linearGradient(
+                                    colors = listOf(Color(0xFF4F46E5), Color(0xFF7C3AED))
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.CalendarToday,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Text(
+                        "Xem trước lịch",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                
+                HorizontalDivider(color = Color.White.copy(alpha = 0.2f), thickness = 1.dp)
+                
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PreviewRow(icon = Icons.Default.CalendarToday, text = dateLabel)
+                    PreviewRow(icon = Icons.Default.AccessTime, text = timeLabel)
+                }
+                
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    EnhancedPreviewPill(typeLabel, Color(0xFF4F46E5))
+                    EnhancedPreviewPill(durationLabel, Color(0xFF10B981))
+                    EnhancedPreviewPill(priceLabel, Color(0xFFF59E0B))
+                }
+                
+                Text(
+                    "Tối thiểu 30 phút. Bạn có thể chỉnh sửa sau khi tạo.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.6f),
+                    lineHeight = 16.sp
+                )
             }
-            Text(
-                "Tối thiểu 30 phút. Bạn có thể chỉnh sửa sau khi tạo.",
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White.copy(alpha = 0.65f)
-            )
         }
     }
 }
 
 @Composable
-private fun PreviewPill(text: String) {
+private fun PreviewRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = Color.White.copy(0.7f),
+            modifier = Modifier.size(18.dp)
+        )
+        Text(
+            text = text,
+            color = Color.White.copy(alpha = 0.9f),
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
+@Composable
+private fun EnhancedPreviewPill(text: String, accentColor: Color) {
     Surface(
-        color = Color.White.copy(alpha = 0.12f),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.28f))
+        color = accentColor.copy(alpha = 0.2f),
+        shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.4f))
     ) {
         Text(
             text = text,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             style = MaterialTheme.typography.labelMedium,
-            color = Color.White
+            color = Color.White,
+            fontWeight = FontWeight.Medium
         )
     }
 }

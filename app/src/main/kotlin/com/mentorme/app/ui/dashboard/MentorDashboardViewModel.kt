@@ -88,6 +88,11 @@ class MentorDashboardViewModel @Inject constructor(
                         Logx.d(TAG) { "🔄 Booking cancelled: ${event.bookingId}, refreshing dashboard" }
                         loadDashboard()
                     }
+                    is RealtimeEvent.BookingChanged -> {
+                        // When booking status changes (e.g. confirmed, paid), refresh dashboard
+                        Logx.d(TAG) { "🔄 Booking changed: ${event.bookingId}, refreshing dashboard and stats" }
+                        loadDashboard()
+                    }
                     is RealtimeEvent.SessionEnded -> {
                         // When session ends, refresh to remove from upcoming
                         Logx.d(TAG) { "🔄 Session ended: ${event.payload.bookingId}, refreshing dashboard" }

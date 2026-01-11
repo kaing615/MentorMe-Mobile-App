@@ -350,20 +350,27 @@ fun HomeScreen(
             }
         }
 
-        item { SectionTitle("Khám phá theo lĩnh vực") }
+        item { 
+            SectionHeader(
+                title = "Khám phá theo lĩnh vực",
+                subtitle = "Chọn lĩnh vực bạn quan tâm"
+            )
+        }
         items(categories.chunked(2)) { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 row.forEach { cat ->
-                    // NEON/Highly saturated colors - MUST POP against dark blue background
-                    val categoryColor = when (cat.name) {
-                        "Technology" -> Color(0xFF00F5FF) // Electric NEON Cyan/Aqua
-                        "Business" -> Color(0xFFBB6BFF) // Bright NEON Purple
-                        "Design" -> Color(0xFFFF1493) // Deep NEON Pink/Magenta
-                        "Marketing" -> Color(0xFFFF6600) // Vibrant NEON Orange
-                        "Finance" -> Color(0xFF00FF7F) // Bright NEON Spring Green
-                        "Career" -> Color(0xFFFFD700) // Bright NEON Gold
-                        else -> Color(0xFF00E5FF) // Electric Cyan default
+                    // Gradient colors for modern look
+                    val categoryGradient = when (cat.name) {
+                        "Technology" -> listOf(Color(0xFF06B6D4), Color(0xFF0891B2)) // Cyan gradient
+                        "Business" -> listOf(Color(0xFF8B5CF6), Color(0xFF7C3AED)) // Purple gradient
+                        "Design" -> listOf(Color(0xFFEC4899), Color(0xFFDB2777)) // Pink gradient
+                        "Marketing" -> listOf(Color(0xFFF97316), Color(0xFFEA580C)) // Orange gradient
+                        "Finance" -> listOf(Color(0xFF10B981), Color(0xFF059669)) // Green gradient
+                        "Career" -> listOf(Color(0xFFF59E0B), Color(0xFFD97706)) // Gold gradient
+                        else -> listOf(Color(0xFF06B6D4), Color(0xFF0891B2))
                     }
+                    
+                    val categoryColor = categoryGradient[0]
 
                     // Subtitle for each category
                     val categorySubtitle = when (cat.name) {
@@ -379,53 +386,70 @@ fun HomeScreen(
                     LiquidGlassCard(
                         modifier = Modifier
                             .weight(1f)
-                            .height(120.dp) // Increased to prevent clipping
+                            .height(140.dp)
                             .noIndicationClickable {
                                 onNavigateToCategory(cat.name)
-                            }
-                            .shadow(
-                                elevation = 8.dp,
-                                shape = RoundedCornerShape(22.dp),
-                                ambientColor = Color.Black.copy(alpha = 0.3f),
-                                spotColor = Color.Black.copy(alpha = 0.3f)
-                            ),
-                        radius = 22.dp
+                            },
+                        radius = 24.dp
                     ) {
-                        // Left-aligned column layout with proper padding
-                        Column(
+                        Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(18.dp), // Increased padding
-                            verticalArrangement = Arrangement.SpaceBetween
+                                .background(
+                                    androidx.compose.ui.graphics.Brush.linearGradient(
+                                        colors = categoryGradient.map { it.copy(alpha = 0.15f) },
+                                        start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                                        end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
+                                    )
+                                )
                         ) {
-                            // Icon WITHOUT background - NEON color to POP!
-                            Icon(
-                                imageVector = cat.icon,
-                                contentDescription = null,
-                                tint = categoryColor, // NEON saturated color
-                                modifier = Modifier.size(36.dp) // Larger icon
-                            )
-
-                            // Text column - left aligned
                             Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(20.dp),
+                                verticalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(
-                                    cat.name,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1
-                                )
-                                Text(
-                                    categorySubtitle,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color.White.copy(alpha = 0.75f),
-                                    fontWeight = FontWeight.Normal,
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
+                                // Icon with gradient background
+                                Box(
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(
+                                            androidx.compose.ui.graphics.Brush.linearGradient(
+                                                colors = categoryGradient
+                                            )
+                                        ),
+                                    contentAlignment = androidx.compose.ui.Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = cat.icon,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+
+                                // Text column - left aligned
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        cat.name,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        categorySubtitle,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        fontWeight = FontWeight.Normal,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }

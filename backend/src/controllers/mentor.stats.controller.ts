@@ -124,16 +124,24 @@ export const getWeeklyEarnings = asyncHandler(async (req: Request, res: Response
     const dayEnd = new Date(dayStart);
     dayEnd.setHours(23, 59, 59, 999);
 
-    // Tính từ WalletTransaction với source BOOKING_EARN trong ngày này
+    // ✅ FIXED: Tính từ WalletTransaction với source BOOKING_EARN trong ngày này
     const earningTransactions = await WalletTransaction.find({
       userId: new mongoose.Types.ObjectId(mentorId),
       source: "BOOKING_EARN",
       createdAt: { $gte: dayStart, $lte: dayEnd }
     });
 
-    const dailyTotal = earningTransactions.reduce((sum, tx) => sum + tx.amountMinor, 0);
+    const penaltyTransactions = await WalletTransaction.find({
+      userId: new mongoose.Types.ObjectId(mentorId),
+      source: "NO_SHOW_PENALTY",
+      createdAt: { $gte: dayStart, $lte: dayEnd }
+    });
 
-    console.log(`📊 Day ${i + 1}:`, dayStart.toISOString().split('T')[0], '- earnings:', dailyTotal, 'from', earningTransactions.length, 'transactions');
+    const totalEarnings = earningTransactions.reduce((sum, tx) => sum + tx.amountMinor, 0);
+    const totalPenalties = penaltyTransactions.reduce((sum, tx) => sum + tx.amountMinor, 0);
+    const dailyTotal = totalEarnings - totalPenalties;
+
+    console.log(`📊 Day ${i + 1}:`, dayStart.toISOString().split('T')[0], '- earnings:', dailyTotal, '(', totalEarnings, '-', totalPenalties, ') from', earningTransactions.length, '+', penaltyTransactions.length, 'transactions');
     dailyEarnings.push(dailyTotal);
   }
 

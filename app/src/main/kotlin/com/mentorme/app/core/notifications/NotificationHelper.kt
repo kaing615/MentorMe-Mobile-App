@@ -31,23 +31,29 @@ object NotificationHelper {
             NotificationChannel(
                 CHANNEL_GENERAL,
                 "MentorMe Updates",
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "System updates and announcements"
+                enableVibration(true)
+                enableLights(true)
             },
             NotificationChannel(
                 CHANNEL_BOOKING,
                 "Booking Updates",
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Booking confirmations, reminders, and cancellations"
+                enableVibration(true)
+                enableLights(true)
             },
             NotificationChannel(
                 CHANNEL_MESSAGES,
                 "Messages",
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Chat messages from mentors"
+                enableVibration(true)
+                enableLights(true)
             }
         )
 
@@ -82,7 +88,8 @@ object NotificationHelper {
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .build()

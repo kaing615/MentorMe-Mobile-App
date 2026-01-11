@@ -315,12 +315,18 @@ fun MentorProfileScreen(
                             }
                         )
 
-                        2 -> MentorStatsTab(
-                            vm = vm,
-                            profile = profile,
-                            onViewDetail = onViewStatistics,
-                            onViewReviews = onViewReviews
-                        )
+                        2 -> {
+                            LaunchedEffect(Unit) {
+                                Log.d(TAG, "📊 Stats tab opened, refreshing stats...")
+                                vm.loadStats()
+                            }
+                            MentorStatsTab(
+                                vm = vm,
+                                profile = profile,
+                                onViewDetail = onViewStatistics,
+                                onViewReviews = onViewReviews
+                            )
+                        }
 
                         3 -> MentorSettingsTab(
                             onOpenSettings = onSettings,
@@ -589,6 +595,20 @@ private fun MentorStatsTab(
             .padding(bottom = 100.dp), // ✅ Extra space for GlassBottomBar
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // First row: Total Earnings (full width)
+        val totalEarningsText = overallStats?.totalEarnings?.let {
+            val nf = java.text.NumberFormat.getCurrencyInstance(java.util.Locale("vi", "VN"))
+            nf.format(it)
+        } ?: "..."
+        MentorStatCard(
+            "Tổng thu nhập", 
+            totalEarningsText, 
+            Icons.Outlined.CreditCard, 
+            Color(0xFF10B981), 
+            Modifier.fillMaxWidth()
+        ) { onViewDetail() }
+
+        // Second row: Rating, Mentees, Hours
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             // Rating - from backend
             val ratingText = overallStats?.averageRating?.let {

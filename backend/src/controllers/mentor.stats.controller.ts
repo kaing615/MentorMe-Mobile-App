@@ -219,10 +219,25 @@ export const getOverallStats = asyncHandler(async (req: Request, res: Response) 
     }
   }
 
+  // 5. Tổng thu nhập: Tính từ tất cả WalletTransaction với source BOOKING_EARN
+  const allEarningTransactions = await WalletTransaction.find({
+    userId: new mongoose.Types.ObjectId(mentorId),
+    source: "BOOKING_EARN"
+  });
+
+  const totalEarnings = allEarningTransactions.reduce((sum, tx) => sum + tx.amountMinor, 0);
+
+  console.log(`📊 [getOverallStats] Mentor ${mentorId}:`);
+  console.log(`  - Total earnings: ${totalEarnings} (${totalEarnings / 1000} VND)`);
+  console.log(`  - Total mentees: ${totalMentees}`);
+  console.log(`  - Average rating: ${averageRating}`);
+  console.log(`  - Total hours: ${totalHours}`);
+
   return ok(res, {
     averageRating: Math.round(averageRating * 10) / 10,
     totalMentees,
-    totalHours: Math.round(totalHours * 10) / 10
+    totalHours: Math.round(totalHours * 10) / 10,
+    totalEarnings
   });
 });
 

@@ -1,8 +1,11 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import { asyncHandler } from "../handlers/async.handler";
 import responseHandler from "../handlers/response.handler";
 import Profile from "../models/profile.model";
 import User from "../models/user.model";
+import Wallet from "../models/wallet.model";
+import WalletTransaction from "../models/walletTransaction.model";
 
 type MentorApplicationStatus = "pending" | "approved" | "rejected";
 
@@ -136,6 +139,10 @@ export const updateMentorApplication = asyncHandler(async (req: Request, res: Re
   const updates: any = {};
   if (note !== undefined) updates.mentorApplicationNote = String(note);
 
+  // Kiểm tra nếu status thay đổi sang "approved"
+  const wasNotApproved = user.mentorApplicationStatus !== "approved";
+  const willBeApproved = status === "approved";
+
   if (status) {
     if (status === "pending") {
       updates.role = "mentor";
@@ -158,17 +165,82 @@ export const updateMentorApplication = asyncHandler(async (req: Request, res: Re
     }
   }
 
-  const updated = await User.findByIdAndUpdate(req.params.id, updates, {
-    new: true,
-  }).lean();
+  // Sử dụng transaction nếu cần tạo ví
+  if (wasNotApproved && willBeApproved) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-  if (!updated) return responseHandler.notFound(res, null, "User not found");
+    try {
+      // Cập nhật user
+      const updated = await User.findByIdAndUpdate(req.params.id, updates, {
+        new: true,
+        session,
+      }).lean();
 
-  const profile = await Profile.findOne({ user: updated._id })
-    .select("user fullName jobTitle category createdAt")
-    .lean();
+      if (!updated) {
+        await session.abortTransaction();
+        session.endSession();
+        return responseHandler.notFound(res, null, "User not found");
+      }
 
-  return res.json(mapApplication(updated, profile));
+      // Tạo hoặc lấy ví của mentor
+      let wallet = await Wallet.findOne({ userId: req.params.id }).session(session);
+
+      if (!wallet) {
+        // Tạo ví mới với số dư khởi tạo 500,000 VND
+        const initialBalance = 500000;
+        wallet = new Wallet({
+          userId: req.params.id,
+          currency: "VND",
+          balanceMinor: initialBalance,
+          status: "ACTIVE",
+        });
+        await wallet.save({ session });
+
+        // Tạo transaction ghi nhận số dư khởi tạo
+        await WalletTransaction.create([{
+          walletId: wallet._id,
+          userId: req.params.id,
+          type: "CREDIT",
+          source: "INITIAL_BALANCE",
+          amountMinor: initialBalance,
+          currency: "VND",
+          balanceBeforeMinor: 0,
+          balanceAfterMinor: initialBalance,
+          referenceType: null,
+          referenceId: null,
+          idempotencyKey: `initial_balance_${req.params.id}`,
+          description: "Số dư khởi tạo cho mentor mới được duyệt",
+        }], { session });
+      }
+
+      await session.commitTransaction();
+      session.endSession();
+
+      const profile = await Profile.findOne({ user: updated._id })
+        .select("user fullName jobTitle category createdAt")
+        .lean();
+
+      return res.json(mapApplication(updated, profile));
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
+  } else {
+    // Không cần transaction, chỉ cập nhật user
+    const updated = await User.findByIdAndUpdate(req.params.id, updates, {
+      new: true,
+    }).lean();
+
+    if (!updated) return responseHandler.notFound(res, null, "User not found");
+
+    const profile = await Profile.findOne({ user: updated._id })
+      .select("user fullName jobTitle category createdAt")
+      .lean();
+
+    return res.json(mapApplication(updated, profile));
+  }
 });
 
 export default {

@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Booking from "../models/booking.model";
 import Wallet from "../models/wallet.model";
 import WalletTransaction from "../models/walletTransaction.model";
+import { emitToUser } from "../socket";
 
 /* -------------------- Retry helper -------------------- */
 
@@ -177,6 +178,7 @@ export async function captureBookingPayment(bookingId: string): Promise<void> {
             referenceType: "BOOKING",
             referenceId: booking._id,
             idempotencyKey,
+            description: "Thanh toán booking",
           },
         ],
         { session }
@@ -202,13 +204,20 @@ export async function captureBookingPayment(bookingId: string): Promise<void> {
             referenceType: "BOOKING",
             referenceId: booking._id,
             idempotencyKey,
+            description: "Thu nhập từ booking",
           },
         ],
         { session }
       );
 
+      console.log(`✅ [captureBookingPayment] Created BOOKING_EARN transaction for mentor ${mentorId}, amount: ${amountMinor}, bookingId: ${bookingId}`);
+
       await session.commitTransaction();
       session.endSession();
+
+      // Emit socket event to notify mentor about booking payment
+      emitToUser(mentorId, "booking:changed", { bookingId });
+      console.log(`✅ [captureBookingPayment] Emitted booking:changed to mentor ${mentorId}`);
     } catch (error: any) {
       await session.abortTransaction();
       session.endSession();
@@ -227,6 +236,9 @@ export async function captureBookingPayment(bookingId: string): Promise<void> {
 
 /* =====================================================
    REFUND BOOKING PAYMENT
+   - Mentee hủy booking sau khi đã thanh toán: hoàn 80%
+   - Mentor giữ 20% như phí bồi thường cho slot bị chiếm
+   - Mentor chỉ bị trừ 80% (trả lại cho mentee)
    ===================================================== */
 
 export async function refundBookingPayment(bookingId: string): Promise<void> {
@@ -271,16 +283,22 @@ export async function refundBookingPayment(bookingId: string): Promise<void> {
       const amountMinor = Number(originalPayment.amountMinor);
       const currency = originalPayment.currency as "VND" | "USD";
 
+      // Tính toán: Hoàn 80% cho mentee, Mentor giữ 20% phí slot
+      const refundRate = 0.8; // 80%
+      const refundAmount = Math.round(amountMinor * refundRate);
+      const mentorFee = amountMinor - refundAmount; // 20% - phí slot bị chiếm
+
       const menteeWallet = await getOrCreateWallet(menteeId, currency, session);
       const mentorWallet = await getOrCreateWallet(mentorId, currency, session);
 
-      if (mentorWallet.balanceMinor < amountMinor) {
+      // Mentor chỉ bị trừ 80% (hoàn lại cho mentee), giữ 20% phí slot
+      if (mentorWallet.balanceMinor < refundAmount) {
         throw new Error("MENTOR_INSUFFICIENT_BALANCE");
       }
 
-      // Debit mentor
+      // Debit mentor (80% - trả lại cho mentee)
       const mentorBefore = mentorWallet.balanceMinor;
-      mentorWallet.balanceMinor -= amountMinor;
+      mentorWallet.balanceMinor -= refundAmount;
       await mentorWallet.save({ session });
 
       await WalletTransaction.create(
@@ -290,21 +308,22 @@ export async function refundBookingPayment(bookingId: string): Promise<void> {
             userId: mentorWallet.userId,
             type: "DEBIT",
             source: "BOOKING_REFUND",
-            amountMinor,
+            amountMinor: refundAmount,
             currency,
             balanceBeforeMinor: mentorBefore,
             balanceAfterMinor: mentorWallet.balanceMinor,
             referenceType: "BOOKING",
             referenceId: booking._id,
             idempotencyKey,
+            description: `Hoàn tiền booking bị hủy (Giữ lại ${mentorFee} ${currency} phí slot)`,
           },
         ],
         { session }
       );
 
-      // Refund mentee
+      // Refund mentee (80%)
       const menteeBefore = menteeWallet.balanceMinor;
-      menteeWallet.balanceMinor += amountMinor;
+      menteeWallet.balanceMinor += refundAmount;
       await menteeWallet.save({ session });
 
       await WalletTransaction.create(
@@ -314,17 +333,20 @@ export async function refundBookingPayment(bookingId: string): Promise<void> {
             userId: menteeWallet.userId,
             type: "REFUND",
             source: "BOOKING_REFUND",
-            amountMinor,
+            amountMinor: refundAmount,
             currency,
             balanceBeforeMinor: menteeBefore,
             balanceAfterMinor: menteeWallet.balanceMinor,
             referenceType: "BOOKING",
             referenceId: booking._id,
             idempotencyKey,
+            description: `Hoàn tiền booking 80% (Phí hủy: ${mentorFee} ${currency})`,
           },
         ],
         { session }
       );
+
+      console.log(`✅ [refundBookingPayment] Mentor keeps ${mentorFee} ${currency} (20% slot fee), debited ${refundAmount} ${currency} (80%) to refund mentee, bookingId: ${bookingId}`);
 
       await session.commitTransaction();
       session.endSession();

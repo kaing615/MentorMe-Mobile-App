@@ -128,6 +128,21 @@ export async function sendPushToTokens(
         notification: {
           channelId: DEFAULT_ANDROID_CHANNEL_ID,
           sound: 'default',
+          clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+        },
+        ttl: 86400000, // 24 hours in milliseconds
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default',
+            badge: 1,
+            contentAvailable: true,
+          },
+        },
+        headers: {
+          'apns-priority': '10',
+          'apns-push-type': 'alert',
         },
       },
     });

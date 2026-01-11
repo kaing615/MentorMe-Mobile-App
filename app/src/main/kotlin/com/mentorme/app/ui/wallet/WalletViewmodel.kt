@@ -47,6 +47,15 @@ class WalletViewModel @Inject constructor(
                 _topUpEvents.emit(TopUpEvent.Approved)
             }
             .launchIn(viewModelScope)
+
+        // Listen to booking changes to refresh wallet transactions
+        RealtimeEventBus.events
+            .filterIsInstance<RealtimeEvent.BookingChanged>()
+            .onEach {
+                Log.d("WalletViewModel", "🔄 Booking changed, refreshing wallet")
+                loadWallet()
+            }
+            .launchIn(viewModelScope)
     }
 
     private val _uiState = MutableStateFlow<WalletUiState>(WalletUiState.Loading)
@@ -88,12 +97,18 @@ class WalletViewModel @Inject constructor(
     fun loadWallet() {
         viewModelScope.launch {
             try {
+                Log.d("WalletViewModel", "🔄 Loading wallet and transactions...")
                 val (wallet, txs) = repo.getMyWalletWithTransactions()
+                Log.d("WalletViewModel", "✅ Loaded wallet: balance=${wallet.balanceMinor}, transactions=${txs.size}")
+                txs.take(5).forEachIndexed { i, tx ->
+                    Log.d("WalletViewModel", "  TX[$i]: ${tx.source} ${tx.type} ${tx.amount} - ${tx.description}")
+                }
 
                 _uiState.value = WalletUiState.Success(
                     wallet.copy(transactions = txs)
                 )
             } catch (e: Exception) {
+                Log.e("WalletViewModel", "❌ Error loading wallet: ${e.message}")
                 _uiState.value = WalletUiState.Error(e.message)
             }
         }

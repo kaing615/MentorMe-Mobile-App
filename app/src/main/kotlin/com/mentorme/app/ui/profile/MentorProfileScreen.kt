@@ -63,8 +63,8 @@ import java.util.Locale
 private fun tabIndexFor(target: String): Int {
     return when (target.lowercase(Locale.ROOT)) {
         "profile", "hoso", "ho-so" -> 0
-        "dashboard" -> 1
-        "wallet", "vi" -> 2
+        "wallet", "vi" -> 1
+        "dashboard" -> 2
         "settings", "caidat", "cai-dat" -> 3
         else -> 0
     }
@@ -131,7 +131,7 @@ fun MentorProfileScreen(
         selectedTab = tabIndexFor(startTarget)
     }
 
-    val tabs = listOf("Hồ sơ", "Thống kê", "Ví", "Cài đặt")
+    val tabs = listOf("Hồ sơ", "Ví", "Thống kê", "Cài đặt")
 
     Box(Modifier.fillMaxSize()) {
         LiquidBackground(
@@ -300,14 +300,7 @@ fun MentorProfileScreen(
                         )
 
 
-                        1 -> MentorStatsTab(
-                            vm = vm,
-                            profile = profile,
-                            onViewDetail = onViewStatistics,
-                            onViewReviews = onViewReviews
-                        )
-
-                        2 -> MentorWalletTab(
+                        1 -> MentorWalletTab(
                             balance = walletBalance,
                             payouts = payouts,
                             methods = methods,
@@ -321,6 +314,19 @@ fun MentorProfileScreen(
                                 }
                             }
                         )
+
+                        2 -> {
+                            LaunchedEffect(Unit) {
+                                Log.d(TAG, "📊 Stats tab opened, refreshing stats...")
+                                vm.loadStats()
+                            }
+                            MentorStatsTab(
+                                vm = vm,
+                                profile = profile,
+                                onViewDetail = onViewStatistics,
+                                onViewReviews = onViewReviews
+                            )
+                        }
 
                         3 -> MentorSettingsTab(
                             onOpenSettings = onSettings,
@@ -589,6 +595,20 @@ private fun MentorStatsTab(
             .padding(bottom = 100.dp), // ✅ Extra space for GlassBottomBar
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // First row: Total Earnings (full width)
+        val totalEarningsText = overallStats?.totalEarnings?.let {
+            val nf = java.text.NumberFormat.getCurrencyInstance(java.util.Locale("vi", "VN"))
+            nf.format(it)
+        } ?: "..."
+        MentorStatCard(
+            "Tổng thu nhập", 
+            totalEarningsText, 
+            Icons.Outlined.CreditCard, 
+            Color(0xFF10B981), 
+            Modifier.fillMaxWidth()
+        ) { onViewDetail() }
+
+        // Second row: Rating, Mentees, Hours
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             // Rating - from backend
             val ratingText = overallStats?.averageRating?.let {

@@ -123,34 +123,39 @@ private fun StatCard(
     icon: ImageVector,
     modifier: Modifier = Modifier
 ) {
-    LiquidGlassCard(modifier = modifier.height(120.dp), radius = 22.dp) {
-        Row(
-            Modifier.fillMaxSize().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+    LiquidGlassCard(modifier = modifier.height(140.dp), radius = 22.dp) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
             Box(
                 modifier = Modifier
-                    .size(42.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.12f)),
+                    .background(Color.White.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, null, tint = Color.White)
+                Icon(icon, null, tint = Color.White, modifier = Modifier.size(24.dp))
             }
-            Spacer(Modifier.width(12.dp))
+            
             Column {
                 Text(
                     value,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = MaterialTheme.typography.titleLarge.fontSize
                 )
+                Spacer(Modifier.height(4.dp))
                 Text(
                     title,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = .8f)
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = .8f),
+                    fontWeight = FontWeight.Medium
                 )
             }
         }

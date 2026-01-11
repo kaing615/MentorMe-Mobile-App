@@ -9,9 +9,9 @@ router.post('/topup-intent/:id/confirm', auth, confirmTopUpTransferred);
 router.get('/topup-intents/me', auth, getMyTopUpIntents);
 
 // admin
-router.get('/admin/topups/pending', auth, requireRoles('admin'), listPendingTopUpsAdmin);
-router.get('/admin/topups', auth, requireRoles('admin'), listAllTopUpsAdmin);
-router.post('/admin/topups/:id/approve', auth, requireRoles('admin'), approveTopUpAdmin);
-router.post('/admin/topups/:id/reject', auth, requireRoles('admin'), rejectTopUpAdmin);
+router.get('/admin/topups/pending', auth, requireRoles('admin', 'root'), listPendingTopUpsAdmin);
+router.get('/admin/topups', auth, requireRoles('admin', 'root'), listAllTopUpsAdmin);
+router.post('/admin/topups/:id/approve', auth, requireRoles('admin', 'root'), approveTopUpAdmin);
+router.post('/admin/topups/:id/reject', auth, requireRoles('admin', 'root'), rejectTopUpAdmin);
 
 export default router;

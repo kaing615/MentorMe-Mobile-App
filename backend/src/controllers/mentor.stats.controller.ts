@@ -3,8 +3,8 @@ import mongoose from "mongoose";
 import { asyncHandler } from "../handlers/async.handler";
 import responseHandler from "../handlers/response.handler";
 import Booking from "../models/booking.model";
-import Wallet from "../models/wallet.model";
 import Review from "../models/review.model";
+import WalletTransaction from "../models/walletTransaction.model";
 
 const { ok, forbidden } = responseHandler;
 
@@ -29,9 +29,19 @@ export const getMyStats = asyncHandler(async (req: Request, res: Response) => {
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-  // 1. Thu nhập: Lấy từ wallet balance
-  const wallet = await Wallet.findOne({ userId: mentorId });
-  const earnings = wallet?.balanceMinor ?? 0;
+  // 1. Thu nhập: Tính từ WalletTransaction với source BOOKING_EARN trong tháng này
+  const earningTransactions = await WalletTransaction.find({
+    userId: new mongoose.Types.ObjectId(mentorId),
+    source: "BOOKING_EARN",
+    createdAt: { $gte: startOfMonth, $lte: endOfMonth }
+  });
+
+  const earnings = earningTransactions.reduce((sum, tx) => sum + tx.amountMinor, 0);
+
+  console.log(`📊 [getMyStats] Mentor ${mentorId}:`);
+  console.log(`  - Found ${earningTransactions.length} BOOKING_EARN transactions`);
+  console.log(`  - Total earnings: ${earnings} (${earnings / 1000} VND)`);
+  console.log(`  - Period: ${startOfMonth.toISOString()} to ${endOfMonth.toISOString()}`);
 
   // 2. Số mentee unique trong tháng này
   const bookingsThisMonth = await Booking.find({
@@ -103,19 +113,16 @@ export const getWeeklyEarnings = asyncHandler(async (req: Request, res: Response
     const dayEnd = new Date(dayStart);
     dayEnd.setHours(23, 59, 59, 999);
 
-    // ✅ FIXED: Lấy booking đã Confirmed/Completed VÀ đã qua endTime trong ngày này
-    const bookingsInDay = await Booking.find({
-      mentor: new mongoose.Types.ObjectId(mentorId),
-      status: { $in: ["Confirmed", "Completed"] },
-      endTime: { $gte: dayStart, $lt: dayEnd, $lte: now } // endTime trong ngày VÀ đã qua
+    // ✅ FIXED: Tính từ WalletTransaction với source BOOKING_EARN trong ngày này
+    const earningTransactions = await WalletTransaction.find({
+      userId: new mongoose.Types.ObjectId(mentorId),
+      source: "BOOKING_EARN",
+      createdAt: { $gte: dayStart, $lte: dayEnd }
     });
 
-    // ✅ FIXED: Tính tổng thu nhập trong ngày (dùng price thay vì priceMinor)
-    const dailyTotal = bookingsInDay.reduce((sum, booking) => {
-      return sum + ((booking as any).price ?? 0);
-    }, 0);
+    const dailyTotal = earningTransactions.reduce((sum, tx) => sum + tx.amountMinor, 0);
 
-    console.log(`📊 Day ${i + 1}:`, dayStart.toISOString().split('T')[0], '- earnings:', dailyTotal, 'from', bookingsInDay.length, 'bookings');
+    console.log(`📊 Day ${i + 1}:`, dayStart.toISOString().split('T')[0], '- earnings:', dailyTotal, 'from', earningTransactions.length, 'transactions');
     dailyEarnings.push(dailyTotal);
   }
 
@@ -149,19 +156,16 @@ export const getYearlyEarnings = asyncHandler(async (req: Request, res: Response
     const monthStart = new Date(currentYear, month, 1, 0, 0, 0, 0);
     const monthEnd = new Date(currentYear, month + 1, 0, 23, 59, 59, 999);
 
-    // ✅ FIXED: Lấy booking đã Confirmed/Completed VÀ đã qua endTime trong tháng này
-    const bookingsInMonth = await Booking.find({
-      mentor: new mongoose.Types.ObjectId(mentorId),
-      status: { $in: ["Confirmed", "Completed"] },
-      endTime: { $gte: monthStart, $lt: monthEnd, $lte: now } // endTime trong tháng VÀ đã qua
+    // ✅ FIXED: Tính từ WalletTransaction với source BOOKING_EARN trong tháng này
+    const earningTransactions = await WalletTransaction.find({
+      userId: new mongoose.Types.ObjectId(mentorId),
+      source: "BOOKING_EARN",
+      createdAt: { $gte: monthStart, $lte: monthEnd }
     });
 
-    // ✅ FIXED: Tính tổng thu nhập trong tháng (dùng price thay vì priceMinor)
-    const monthlyTotal = bookingsInMonth.reduce((sum, booking) => {
-      return sum + ((booking as any).price ?? 0);
-    }, 0);
+    const monthlyTotal = earningTransactions.reduce((sum, tx) => sum + tx.amountMinor, 0);
 
-    console.log(`📊 Month ${month + 1}:`, monthlyTotal, 'from', bookingsInMonth.length, 'bookings');
+    console.log(`📊 Month ${month + 1}:`, monthlyTotal, 'from', earningTransactions.length, 'transactions');
     monthlyEarnings.push(monthlyTotal);
   }
 
@@ -215,10 +219,25 @@ export const getOverallStats = asyncHandler(async (req: Request, res: Response) 
     }
   }
 
+  // 5. Tổng thu nhập: Tính từ tất cả WalletTransaction với source BOOKING_EARN
+  const allEarningTransactions = await WalletTransaction.find({
+    userId: new mongoose.Types.ObjectId(mentorId),
+    source: "BOOKING_EARN"
+  });
+
+  const totalEarnings = allEarningTransactions.reduce((sum, tx) => sum + tx.amountMinor, 0);
+
+  console.log(`📊 [getOverallStats] Mentor ${mentorId}:`);
+  console.log(`  - Total earnings: ${totalEarnings} (${totalEarnings / 1000} VND)`);
+  console.log(`  - Total mentees: ${totalMentees}`);
+  console.log(`  - Average rating: ${averageRating}`);
+  console.log(`  - Total hours: ${totalHours}`);
+
   return ok(res, {
     averageRating: Math.round(averageRating * 10) / 10,
     totalMentees,
-    totalHours: Math.round(totalHours * 10) / 10
+    totalHours: Math.round(totalHours * 10) / 10,
+    totalEarnings
   });
 });
 

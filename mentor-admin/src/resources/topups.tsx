@@ -1,8 +1,12 @@
-import * as React from "react";
+import CancelIcon from "@mui/icons-material/Cancel";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import QrCodeIcon from "@mui/icons-material/QrCode2";
 import {
   Box,
+  Button,
   Card,
   CardContent,
+  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -16,14 +20,12 @@ import {
   TableHead,
   TableRow,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Tooltip,
   Typography,
-  Button,
-  Chip,
 } from "@mui/material";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import CancelIcon from "@mui/icons-material/Cancel";
-import QrCodeIcon from "@mui/icons-material/QrCode2";
+import * as React from "react";
 import { useNotify } from "react-admin";
 
 const apiUrl = import.meta.env.VITE_API_URL;
@@ -41,7 +43,12 @@ type TopUpItem = {
   qrImageUrl?: string | null;
   referenceCode?: string;
   createdAt?: string;
+  reviewedAt?: string;
   user?: {
+    userName?: string;
+    email?: string;
+  };
+  reviewedBy?: {
     userName?: string;
     email?: string;
   };
@@ -84,6 +91,7 @@ export function TopUpList() {
 
   const [loading, setLoading] = React.useState(false);
   const [items, setItems] = React.useState<TopUpItem[]>([]);
+  const [statusFilter, setStatusFilter] = React.useState<string>("ALL");
 
   const [approveId, setApproveId] = React.useState<string | null>(null);
   const [rejectId, setRejectId] = React.useState<string | null>(null);
@@ -98,7 +106,12 @@ export function TopUpList() {
   const fetchList = React.useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${apiUrl}/wallet/admin/topups/pending`, {
+      // Use the new /admin/topups endpoint with status filter
+      const url = statusFilter === "ALL" || !statusFilter
+        ? `${apiUrl}/wallet/admin/topups`
+        : `${apiUrl}/wallet/admin/topups?status=${statusFilter}`;
+
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -116,7 +129,7 @@ export function TopUpList() {
     } finally {
       setLoading(false);
     }
-  }, [token, notify]);
+  }, [token, notify, statusFilter]);
 
   React.useEffect(() => {
     fetchList();
@@ -180,9 +193,31 @@ export function TopUpList() {
 
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Typography color="text.secondary">
-            Các yêu cầu nạp tiền đang chờ admin xử lý.
-          </Typography>
+          <Stack spacing={2}>
+            <Typography color="text.secondary">
+              Các yêu cầu nạp tiền từ người dùng.
+            </Typography>
+            
+            <Box>
+              <Typography variant="subtitle2" gutterBottom>
+                Lọc theo trạng thái:
+              </Typography>
+              <ToggleButtonGroup
+                value={statusFilter}
+                exclusive
+                onChange={(_, newValue) => {
+                  if (newValue !== null) setStatusFilter(newValue);
+                }}
+                size="small"
+              >
+                <ToggleButton value="ALL">Tất cả</ToggleButton>
+                <ToggleButton value="PENDING">Chờ duyệt</ToggleButton>
+                <ToggleButton value="SUBMITTED">Đã chuyển</ToggleButton>
+                <ToggleButton value="APPROVED">Đã duyệt</ToggleButton>
+                <ToggleButton value="REJECTED">Từ chối</ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+          </Stack>
         </CardContent>
       </Card>
 
@@ -199,6 +234,7 @@ export function TopUpList() {
               <TableCell>Số tiền</TableCell>
               <TableCell>Trạng thái</TableCell>
               <TableCell>Tạo lúc</TableCell>
+              <TableCell>Người xử lý</TableCell>
               <TableCell align="right">Hành động</TableCell>
             </TableRow>
           </TableHead>
@@ -206,7 +242,7 @@ export function TopUpList() {
           <TableBody>
             {items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} align="center">
+                <TableCell colSpan={7} align="center">
                   Không có yêu cầu nào
                 </TableCell>
               </TableRow>
@@ -236,6 +272,23 @@ export function TopUpList() {
                   {it.createdAt ? new Date(it.createdAt).toLocaleString() : "—"}
                 </TableCell>
 
+                <TableCell>
+                  {it.reviewedBy ? (
+                    <Box>
+                      <Typography variant="body2" fontWeight={500}>
+                        {it.reviewedBy.userName ?? it.reviewedBy.email ?? "—"}
+                      </Typography>
+                      {it.reviewedAt && (
+                        <Typography variant="caption" color="text.secondary">
+                          {new Date(it.reviewedAt).toLocaleString()}
+                        </Typography>
+                      )}
+                    </Box>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
+
                 <TableCell align="right">
                   <Stack direction="row" spacing={1} justifyContent="flex-end">
                     {it.qrImageUrl && (
@@ -253,23 +306,35 @@ export function TopUpList() {
                       </Tooltip>
                     )}
 
-                    <Tooltip title="Duyệt">
-                      <IconButton
-                        color="success"
-                        onClick={() => setApproveId(it.id)}
-                      >
-                        <CheckCircleIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                    {(it.status === "PENDING" || it.status === "SUBMITTED") && (
+                      <>
+                        <Tooltip title="Duyệt">
+                          <IconButton
+                            color="success"
+                            onClick={() => setApproveId(it.id)}
+                          >
+                            <CheckCircleIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
 
-                    <Tooltip title="Từ chối">
-                      <IconButton
-                        color="error"
-                        onClick={() => setRejectId(it.id)}
-                      >
-                        <CancelIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                        <Tooltip title="Từ chối">
+                          <IconButton
+                            color="error"
+                            onClick={() => setRejectId(it.id)}
+                          >
+                            <CancelIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    )}
+
+                    {it.status === "APPROVED" && (
+                      <Chip size="small" label="Đã xử lý" color="success" />
+                    )}
+                    
+                    {it.status === "REJECTED" && (
+                      <Chip size="small" label="Đã từ chối" color="error" />
+                    )}
                   </Stack>
                 </TableCell>
               </TableRow>

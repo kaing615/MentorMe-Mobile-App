@@ -26,6 +26,12 @@ class NotificationsViewModel @Inject constructor(
     private val notificationCache: NotificationCache,
     private val bookingRepository: BookingRepository
 ) : ViewModel() {
+    enum class JoinWindowState {
+        CAN_JOIN,
+        TOO_EARLY,
+        ENDED,
+        UNKNOWN
+    }
 
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
@@ -35,6 +41,36 @@ class NotificationsViewModel @Inject constructor(
 
     private val _preferences = MutableStateFlow(NotificationPreferences())
     val preferences: StateFlow<NotificationPreferences> = _preferences.asStateFlow()
+
+    suspend fun getJoinWindowState(bookingId: String): JoinWindowState {
+        return try {
+            when (val result = bookingRepository.getBookingById(bookingId)) {
+                is AppResult.Success -> {
+                    val booking = result.data
+                    val startTimeStr = booking.startTimeIso ?: "${booking.date}T${booking.startTime}:00"
+                    val endTimeStr = booking.endTimeIso ?: "${booking.date}T${booking.endTime}:00"
+                    val startTime = parseZonedDateTime(startTimeStr)
+                    val endTime = parseZonedDateTime(endTimeStr)
+                    val now = java.time.ZonedDateTime.now()
+                    val windowOpen = startTime.minusMinutes(20)
+
+                    when {
+                        now.isBefore(windowOpen) -> JoinWindowState.TOO_EARLY
+                        now.isAfter(endTime) -> JoinWindowState.ENDED
+                        else -> JoinWindowState.CAN_JOIN
+                    }
+                }
+                is AppResult.Error -> {
+                    Logx.e(TAG, { "get join window failed: ${result.throwable}" })
+                    JoinWindowState.UNKNOWN
+                }
+                else -> JoinWindowState.UNKNOWN
+            }
+        } catch (e: Exception) {
+            Logx.e(TAG, { "get join window error: ${e.message}" })
+            JoinWindowState.UNKNOWN
+        }
+    }
 
     /**
      * Validate if a booking can still be joined (session hasn't ended yet)
@@ -71,6 +107,15 @@ class NotificationsViewModel @Inject constructor(
         } catch (e: Exception) {
             Logx.e(TAG, { "validate booking time error: ${e.message}" })
             null // Allow join on error to avoid blocking
+        }
+    }
+
+    private fun parseZonedDateTime(value: String): java.time.ZonedDateTime {
+        return try {
+            java.time.ZonedDateTime.parse(value)
+        } catch (e: Exception) {
+            java.time.LocalDateTime.parse(value.replace("Z", ""))
+                .atZone(java.time.ZoneId.systemDefault())
         }
     }
 

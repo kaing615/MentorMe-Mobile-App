@@ -260,9 +260,9 @@ fun LiquidBackground(
         label = "t"
     )
 
+    // ✅ Fix: Don't add fillMaxSize() here - let caller decide size via modifier
     Box(
         modifier
-            .fillMaxSize()
             .background(Brush.linearGradient(baseGradient))
     ) {
         Canvas(Modifier.fillMaxSize()) {

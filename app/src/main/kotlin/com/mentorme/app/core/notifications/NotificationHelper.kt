@@ -15,7 +15,6 @@ import androidx.core.content.ContextCompat
 import com.mentorme.app.MainActivity
 import com.mentorme.app.R
 import com.mentorme.app.data.model.NotificationType
-import kotlin.random.Random
 
 object NotificationHelper {
     const val CHANNEL_GENERAL = "mentorme_general"
@@ -72,17 +71,30 @@ object NotificationHelper {
         ensureChannels(context)
         val channelId = channelFor(type)
         val targetRoute = route ?: NotificationDeepLink.ROUTE_NOTIFICATIONS
+
+        // ✅ Tạo Intent với action và data để đảm bảo khác biệt giữa các notification
         val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            action = Intent.ACTION_VIEW
+            // ✅ Thêm các flags cần thiết để mở app từ killed state
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra(EXTRA_NAV_ROUTE, targetRoute)
+            // ✅ Thêm timestamp để mỗi notification có intent khác nhau
+            putExtra("timestamp", System.currentTimeMillis())
         }
+
+        // ✅ Sử dụng requestCode duy nhất cho mỗi notification để tránh bị ghi đè
+        val requestCode = System.currentTimeMillis().toInt()
         val pendingIntent = PendingIntent.getActivity(
             context,
-            Random.nextInt(),
+            requestCode,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        Log.d("NotificationHelper", "Show notification channel=$channelId title=$title")
+
+        Log.d("NotificationHelper", "Show notification channel=$channelId title=$title route=$targetRoute")
+
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.mipmap.mentorme)
             .setContentTitle(title)
@@ -91,10 +103,10 @@ object NotificationHelper {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
+            .setAutoCancel(true) // ✅ Auto dismiss notification when tapped
             .build()
 
-        NotificationManagerCompat.from(context).notify(Random.nextInt(), notification)
+        NotificationManagerCompat.from(context).notify(System.currentTimeMillis().toInt(), notification)
     }
 
     fun channelFor(type: NotificationType): String {

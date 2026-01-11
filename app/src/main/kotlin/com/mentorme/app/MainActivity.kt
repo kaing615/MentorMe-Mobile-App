@@ -32,9 +32,9 @@ class MainActivity : ComponentActivity() {
         )
         super.onCreate(savedInstanceState)
 
-        // Extract route from intent
-        pendingRoute = intent?.getStringExtra(NotificationHelper.EXTRA_NAV_ROUTE)
-        android.util.Log.d("MainActivity", "onCreate - pendingRoute: $pendingRoute")
+        // ✅ Extract route from intent - xử lý cả khi app bị kill
+        pendingRoute = extractRouteFromIntent(intent)
+        android.util.Log.d("MainActivity", "onCreate - pendingRoute: $pendingRoute, action: ${intent?.action}")
 
         // Observe lifecycle to ensure proper cleanup
         lifecycleScope.launch {
@@ -58,9 +58,27 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent) // Important: update the intent
-        // Update pendingRoute which will trigger recomposition in AppNav
-        pendingRoute = intent.getStringExtra(NotificationHelper.EXTRA_NAV_ROUTE)
-        android.util.Log.d("MainActivity", "onNewIntent - pendingRoute: $pendingRoute")
+
+        // ✅ Update pendingRoute which will trigger recomposition in AppNav
+        val newRoute = extractRouteFromIntent(intent)
+        android.util.Log.d("MainActivity", "onNewIntent - pendingRoute: $newRoute, action: ${intent.action}")
+
+        // ✅ Only update if we have a new route
+        if (!newRoute.isNullOrBlank()) {
+            pendingRoute = newRoute
+        }
+    }
+
+    /**
+     * ✅ Helper function để extract route từ Intent một cách nhất quán
+     */
+    private fun extractRouteFromIntent(intent: android.content.Intent?): String? {
+        if (intent == null) return null
+
+        val route = intent.getStringExtra(NotificationHelper.EXTRA_NAV_ROUTE)
+        android.util.Log.d("MainActivity", "extractRouteFromIntent - route: $route, extras: ${intent.extras?.keySet()}")
+
+        return route
     }
 
     override fun onPause() {

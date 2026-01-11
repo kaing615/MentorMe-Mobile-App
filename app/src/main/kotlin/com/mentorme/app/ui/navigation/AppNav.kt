@@ -241,7 +241,7 @@ fun AppNav(
 
     LaunchedEffect(phase, pendingRoute, currentBaseRoute) {
         val targetRoute = pendingRoute ?: return@LaunchedEffect
-        Log.d("AppNav", "LaunchedEffect triggered - phase: $phase, pendingRoute: $targetRoute, currentRoute: $currentRoute")
+        Log.d("AppNav", "⭐ LaunchedEffect triggered - phase: $phase, pendingRoute: $targetRoute, currentRoute: $currentRoute")
 
         if (phase == AppPhase.Home) {
             // Handle routes with parameters
@@ -253,20 +253,20 @@ fun AppNav(
 
             if (currentRoute != actualTargetRoute) {
                 try {
-                    Log.d("AppNav", "Navigating to: $actualTargetRoute")
+                    Log.d("AppNav", "✅ Navigating to: $actualTargetRoute from notification")
                     nav.navigate(actualTargetRoute) {
                         launchSingleTop = true
                     }
                 } catch (e: Exception) {
-                    Log.e("AppNav", "Navigation error from pendingRoute to $actualTargetRoute", e)
+                    Log.e("AppNav", "❌ Navigation error from pendingRoute to $actualTargetRoute", e)
                 }
             } else {
-                Log.d("AppNav", "Already at target route: $actualTargetRoute")
+                Log.d("AppNav", "ℹ️ Already at target route: $actualTargetRoute")
             }
             // Notify MainActivity to clear pendingRoute
             onRouteConsumed()
         } else {
-            Log.d("AppNav", "Waiting for Home phase, current phase: $phase")
+            Log.d("AppNav", "⏳ Waiting for Home phase, current phase: $phase")
         }
     }
 
@@ -308,12 +308,15 @@ fun AppNav(
             Box(
                 modifier = Modifier.fillMaxSize()
             ) {
-                val backgroundHazeModifier = if (blurEnabled) {
-                    Modifier.hazeSource(state = hazeBackgroundState)
-                } else {
+                // ✅ Fix: LiquidBackground now needs explicit size from caller
+                val backgroundModifier = if (blurEnabled) {
                     Modifier
+                        .fillMaxSize()
+                        .hazeSource(state = hazeBackgroundState)
+                } else {
+                    Modifier.fillMaxSize()
                 }
-                LiquidBackground(modifier = Modifier.matchParentSize().then(backgroundHazeModifier))
+                LiquidBackground(modifier = backgroundModifier)
                 Box(modifier = Modifier.fillMaxSize()) {
                     AppNavGraph(
                         nav = nav,

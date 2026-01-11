@@ -881,9 +881,6 @@ private fun MentorWalletTab(
                             color = Color(0xFFF59E0B),
                             style = MaterialTheme.typography.bodySmall
                         )
-                        TextButton(onClick = onAddMethod) {
-                            Text("Thêm phương thức thanh toán")
-                        }
                     }
                     hasPending -> {
                         Text(

@@ -36,7 +36,7 @@ class AuthViewModel @Inject constructor(
     private val verifyOtpUseCase: VerifyOtpUseCase,
     private val resendOtpUseCase: ResendOtpUseCase,
     private val signOutUseCase: SignOutUseCase,
-    private val dataStoreManager: DataStoreManager,
+    val dataStoreManager: DataStoreManager, // Made public for notification permission access
     private val pushTokenManager: PushTokenManager
 ) : ViewModel() {
 

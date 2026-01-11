@@ -2,6 +2,7 @@ package com.mentorme.app.core.datastore
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.mentorme.app.data.session.SessionManager
@@ -23,6 +24,7 @@ class DataStoreManager @Inject constructor(
         private val USER_ROLE_KEY = stringPreferencesKey("user_role")
         private val USER_STATUS_KEY = stringPreferencesKey("user_status")
         private val FCM_TOKEN_KEY = stringPreferencesKey("fcm_token")
+        private val NOTIFICATION_PERMISSION_ASKED_KEY = booleanPreferencesKey("notification_permission_asked")
     }
 
     fun getToken(): Flow<String?> {
@@ -106,6 +108,18 @@ class DataStoreManager @Inject constructor(
     suspend fun saveFcmToken(token: String) {
         dataStore.edit { preferences ->
             preferences[FCM_TOKEN_KEY] = token
+        }
+    }
+
+    fun hasAskedNotificationPermission(): Flow<Boolean> {
+        return dataStore.data.map { preferences ->
+            preferences[NOTIFICATION_PERMISSION_ASKED_KEY] ?: false
+        }
+    }
+
+    suspend fun setNotificationPermissionAsked(asked: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[NOTIFICATION_PERMISSION_ASKED_KEY] = asked
         }
     }
 }

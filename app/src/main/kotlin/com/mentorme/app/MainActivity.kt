@@ -34,6 +34,7 @@ class MainActivity : ComponentActivity() {
 
         // Extract route from intent
         pendingRoute = intent?.getStringExtra(NotificationHelper.EXTRA_NAV_ROUTE)
+        android.util.Log.d("MainActivity", "onCreate - pendingRoute: $pendingRoute")
 
         // Observe lifecycle to ensure proper cleanup
         lifecycleScope.launch {
@@ -45,8 +46,11 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             AppNav(
-                initialRoute = pendingRoute,
-                onRouteConsumed = { pendingRoute = null }
+                pendingRoute = pendingRoute,
+                onRouteConsumed = {
+                    android.util.Log.d("MainActivity", "Route consumed, clearing pendingRoute")
+                    pendingRoute = null
+                }
             )
         }
     }
@@ -54,7 +58,9 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent) // Important: update the intent
+        // Update pendingRoute which will trigger recomposition in AppNav
         pendingRoute = intent.getStringExtra(NotificationHelper.EXTRA_NAV_ROUTE)
+        android.util.Log.d("MainActivity", "onNewIntent - pendingRoute: $pendingRoute")
     }
 
     override fun onPause() {

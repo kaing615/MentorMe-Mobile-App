@@ -34,6 +34,7 @@ import androidx.navigation.compose.rememberNavController
 import com.mentorme.app.core.appstate.AppForegroundTracker
 import com.mentorme.app.core.notifications.NotificationDeduper
 import com.mentorme.app.core.notifications.NotificationPreferencesStore
+import com.mentorme.app.core.notifications.RequestNotificationPermission
 import com.mentorme.app.core.realtime.RealtimeEvent
 import com.mentorme.app.core.realtime.RealtimeEventBus
 import com.mentorme.app.data.model.NotificationType
@@ -47,7 +48,6 @@ import com.mentorme.app.ui.session.SessionViewModel
 import com.mentorme.app.ui.theme.LocalHazeEnabled
 import com.mentorme.app.ui.theme.LocalHazeState
 import com.mentorme.app.ui.theme.LiquidBackground
-import com.mentorme.app.ui.wallet.initialPaymentMethods
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 
@@ -55,7 +55,7 @@ import dev.chrisbanes.haze.hazeSource
 @Composable
 fun AppNav(
     nav: NavHostController = rememberNavController(),
-    initialRoute: String? = null,
+    pendingRoute: String? = null,
     onRouteConsumed: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -82,10 +82,14 @@ fun AppNav(
     val hazeContentState = remember { HazeState() }
     val hazeBackgroundState = remember { HazeState() }
 
+    // Request notification permission when app starts
+    RequestNotificationPermission(
+        dataStoreManager = authVm.dataStoreManager
+    )
+
     var overlayVisible by remember { mutableStateOf(false) }
     var pendingActionBusy by remember { mutableStateOf(false) }
     var pendingRoleHint by rememberSaveable { mutableStateOf<String?>(null) }
-    var pendingRoute by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     var snackbarType by remember { mutableStateOf<NotificationType?>(null) }
 
@@ -105,11 +109,6 @@ fun AppNav(
         pendingActionBusy = false
     }
 
-    LaunchedEffect(initialRoute) {
-        if (!initialRoute.isNullOrBlank()) {
-            pendingRoute = initialRoute
-        }
-    }
 
     LaunchedEffect(sessionState.isLoggedIn) {
         if (sessionState.isLoggedIn) {
@@ -242,12 +241,32 @@ fun AppNav(
 
     LaunchedEffect(phase, pendingRoute, currentBaseRoute) {
         val targetRoute = pendingRoute ?: return@LaunchedEffect
+        Log.d("AppNav", "LaunchedEffect triggered - phase: $phase, pendingRoute: $targetRoute, currentRoute: $currentRoute")
+
         if (phase == AppPhase.Home) {
-            if (currentBaseRoute != targetRoute) {
-                nav.navigate(targetRoute) { launchSingleTop = true }
+            // Handle routes with parameters
+            val actualTargetRoute = when {
+                targetRoute.startsWith("booking_detail/") -> targetRoute
+                targetRoute.startsWith("notifications/detail/") -> targetRoute
+                else -> targetRoute
             }
-            pendingRoute = null
+
+            if (currentRoute != actualTargetRoute) {
+                try {
+                    Log.d("AppNav", "Navigating to: $actualTargetRoute")
+                    nav.navigate(actualTargetRoute) {
+                        launchSingleTop = true
+                    }
+                } catch (e: Exception) {
+                    Log.e("AppNav", "Navigation error from pendingRoute to $actualTargetRoute", e)
+                }
+            } else {
+                Log.d("AppNav", "Already at target route: $actualTargetRoute")
+            }
+            // Notify MainActivity to clear pendingRoute
             onRouteConsumed()
+        } else {
+            Log.d("AppNav", "Waiting for Home phase, current phase: $phase")
         }
     }
 

@@ -52,6 +52,7 @@ import coil.request.ImageRequest
 import com.mentorme.app.ui.components.ui.GlassOverlay
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.components.session.ActiveSessionBanner
+import com.mentorme.app.ui.components.session.OngoingSessionDialog
 import com.mentorme.app.ui.search.components.BookSessionContent
 import com.mentorme.app.ui.search.components.MentorDetailSheet
 import com.mentorme.app.ui.theme.LiquidGlassCard
@@ -155,6 +156,9 @@ fun HomeScreen(
             )
         )
     }
+
+    var dismissedOngoingSessionId by rememberSaveable { mutableStateOf<String?>(null) }
+    val ongoingSession = uiState.upcomingSessions.firstOrNull { it.isOngoing && it.canJoin }
 
     Box(Modifier.fillMaxSize()) {
         // LAYER A: Main content (blur when modal shown)
@@ -693,6 +697,19 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    if (!blurOn && ongoingSession != null && ongoingSession.id != dismissedOngoingSessionId) {
+        OngoingSessionDialog(
+            title = "Phiên tư vấn đang diễn ra",
+            description = "Bạn đang có phiên tư vấn với ${ongoingSession.mentorName}. Hãy vào phòng để tiếp tục.",
+            timeLabel = ongoingSession.time,
+            onJoin = {
+                dismissedOngoingSessionId = ongoingSession.id
+                onJoinSession(ongoingSession.id)
+            },
+            onDismiss = { dismissedOngoingSessionId = ongoingSession.id }
+        )
     }
     } // End outer Box
 }

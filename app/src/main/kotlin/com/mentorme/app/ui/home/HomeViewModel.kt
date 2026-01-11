@@ -41,6 +41,7 @@ data class MenteeUpcomingSessionUi(
     val time: String,
     val avatarInitial: String,
     val avatarUrl: String?,
+    val isOngoing: Boolean,
     val isStartingSoon: Boolean,
     val canJoin: Boolean
 )
@@ -361,6 +362,7 @@ class HomeViewModel @Inject constructor(
                 // Check if can join - must be within join window
                 val canJoin = now.isAfter(joinWindowStart) && now.isBefore(joinWindowEnd)
 
+                val isOngoing = now.isAfter(bookingStartInstant) && now.isBefore(bookingEndInstant)
                 // Check if starting soon (within 30 min of start time)
                 val isStartingSoon = now.isAfter(bookingStartInstant.minus(java.time.Duration.ofMinutes(30)))
                     && now.isBefore(bookingEndInstant)
@@ -382,6 +384,7 @@ class HomeViewModel @Inject constructor(
                     time = timeDisplay,
                     avatarInitial = avatarInitial,
                     avatarUrl = avatarUrl,
+                    isOngoing = isOngoing,
                     isStartingSoon = isStartingSoon,
                     canJoin = canJoin
                 )

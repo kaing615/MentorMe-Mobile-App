@@ -31,7 +31,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -283,11 +285,26 @@ private fun NotificationDetailActions(
             else -> null
         }
     }
+    var joinWindowState by remember(bookingId) {
+        mutableStateOf(NotificationsViewModel.JoinWindowState.UNKNOWN)
+    }
+
+    LaunchedEffect(bookingId, item.type) {
+        if (bookingId != null && (
+                item.type == com.mentorme.app.data.model.NotificationType.BOOKING_REMINDER ||
+                    item.type == com.mentorme.app.data.model.NotificationType.BOOKING_CONFIRMED
+            )
+        ) {
+            joinWindowState = viewModel.getJoinWindowState(bookingId)
+        }
+    }
 
     if (bookingId != null && (
         item.type == com.mentorme.app.data.model.NotificationType.BOOKING_REMINDER ||
         item.type == com.mentorme.app.data.model.NotificationType.BOOKING_CONFIRMED
     )) {
+        val isTooEarly = joinWindowState == NotificationsViewModel.JoinWindowState.TOO_EARLY
+        val buttonLabel = if (isTooEarly) "Chưa tới giờ" else "Join Session"
         LiquidGlassCard(
             radius = 22.dp,
             alpha = 0.12f, // ✅ Standard glass for readability
@@ -320,14 +337,15 @@ private fun NotificationDetailActions(
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isTooEarly
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(Icons.Default.VideoCall, contentDescription = null)
-                        Text("Join Session")
+                        Text(buttonLabel)
                     }
                 }
             }

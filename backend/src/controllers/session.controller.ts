@@ -55,6 +55,11 @@ export const createJoinToken = asyncHandler(async (req: Request, res: Response) 
     return forbidden(res, 'Access denied');
   }
 
+  // Check if session has been marked as no-show
+  if (['NoShowMentor', 'NoShowMentee', 'NoShowBoth'].includes(booking.status)) {
+    return badRequest(res, 'Session has been marked as no-show and is closed');
+  }
+
   if (booking.status !== 'Confirmed') {
     return badRequest(res, 'Session is not ready for join');
   }

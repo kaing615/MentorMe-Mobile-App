@@ -1,14 +1,13 @@
 import { Request, Response } from "express";
-import TopUpIntent from "../models/topupIntent.model";
+import mongoose from "mongoose";
 import { asyncHandler } from "../handlers/async.handler";
 import responseHandler from "../handlers/response.handler";
+import Notification from "../models/notification.model";
+import TopUpIntent from "../models/topupIntent.model";
 import User from "../models/user.model";
 import Wallet from "../models/wallet.model";
 import WalletTransaction from "../models/walletTransaction.model";
-import mongoose from "mongoose";
 import { sendPushToUser } from "../utils/push.service";
-import Notification from "../models/notification.model";
-import { maskAccountNumber } from "../utils/maskAccount";
 
 const { ok, created, badRequest, forbidden, notFound } = responseHandler;
 
@@ -127,6 +126,29 @@ export const listPendingTopUpsAdmin = asyncHandler(
     })
       .sort({ createdAt: -1 })
       .populate("user", "userName email");
+    return ok(res, { items }, "OK");
+  }
+);
+
+export const listAllTopUpsAdmin = asyncHandler(
+  async (req: Request, res: Response) => {
+    const role = (req as any).user?.role;
+    if (!role || !["admin", "root"].includes(role))
+      return forbidden(res, "Unauthorized");
+
+    // Get status filter from query params
+    const statusFilter = req.query.status as string;
+    const query: any = {};
+    
+    if (statusFilter && ["PENDING", "SUBMITTED", "APPROVED", "REJECTED"].includes(statusFilter)) {
+      query.status = statusFilter;
+    }
+
+    const items = await TopUpIntent.find(query)
+      .sort({ createdAt: -1 })
+      .populate("user", "userName email")
+      .populate("reviewedBy", "userName email");
+    
     return ok(res, { items }, "OK");
   }
 );

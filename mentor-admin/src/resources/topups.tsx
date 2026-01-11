@@ -115,6 +115,13 @@ export function TopUpList() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ message: 'Unknown error' }));
+        console.error('Failed to fetch topups:', res.status, errorData);
+        notify(`Không tải được danh sách topup: ${errorData.message || res.statusText}`, { type: "error" });
+        return;
+      }
+
       const json = await res.json();
       const list = json?.data?.items ?? [];
 
@@ -124,7 +131,8 @@ export function TopUpList() {
           ...it,
         }))
       );
-    } catch {
+    } catch (error) {
+      console.error('Error fetching topups:', error);
       notify("Không tải được danh sách topup", { type: "error" });
     } finally {
       setLoading(false);

@@ -42,28 +42,28 @@ fun PendingBookingPromptDialog(
 
     GlassDialog(
         onDismiss = onDismiss,
-        title = "Booking da duoc thanh toan",
+        title = "🎉 Booking đã được thanh toán!",
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "Mentee vua hoan tat thanh toan. Ban muon chap nhan booking nay khong?",
+                    "Mentee vừa hoàn tất thanh toán. Bạn muốn chấp nhận booking này không?",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    "Mentee: $menteeName",
+                    "📝 Mentee: $menteeName",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = Color.White
                 )
                 Text(
-                    "Thoi gian: $timeLabel",
+                    "🕐 Thời gian: $timeLabel",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White.copy(alpha = 0.85f)
                 )
                 Text(
-                    "Gia: $priceLabel",
+                    "💰 Giá: $priceLabel",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White.copy(alpha = 0.85f)
                 )
@@ -74,7 +74,7 @@ fun PendingBookingPromptDialog(
                 onClick = onAccept,
                 enabled = !actionBusy
             ) {
-                Text("Chap nhan", fontWeight = FontWeight.SemiBold)
+                Text("Chấp nhận", fontWeight = FontWeight.SemiBold)
             }
         },
         dismiss = {
@@ -82,7 +82,7 @@ fun PendingBookingPromptDialog(
                 onClick = onDecline,
                 enabled = !actionBusy
             ) {
-                Text("Tu choi", fontWeight = FontWeight.SemiBold)
+                Text("Từ chối", fontWeight = FontWeight.SemiBold)
             }
         }
     )

@@ -122,7 +122,7 @@ class NotificationsViewModel @Inject constructor(
     fun refresh(read: Boolean? = null, type: String? = null) {
         viewModelScope.launch {
             _loading.value = true
-            when (val res = notificationRepository.getNotifications(read = read, type = type, page = 1, limit = 50)) {
+            when (val res = notificationRepository.getNotifications(read = read, type = type, page = 1, limit = 100)) {
                 is AppResult.Success -> {
                     val items = res.data.items.orEmpty().mapNotNull { it.toNotificationItem() }
                     NotificationStore.setAll(items)

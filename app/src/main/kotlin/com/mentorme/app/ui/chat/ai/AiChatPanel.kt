@@ -3,9 +3,11 @@ package com.mentorme.app.ui.chat.ai
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -25,9 +27,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -36,11 +40,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.mentorme.app.data.dto.ai.MentorWithExplanation
+import com.mentorme.app.ui.components.ui.GlassOverlay
 import com.mentorme.app.ui.components.ui.MMButton
 import com.mentorme.app.ui.components.ui.MMTextField
-import com.mentorme.app.ui.theme.liquidGlassStrong
-
-@Composable
+import com.mentorme.app.ui.home.Mentor
+import com.mentorme.app.ui.search.components.MentorDetailSheet
+import com.mentorme.app.ui.theme.liquidGlassStrong@Composable
 fun AiChatPanel(
     onMentorClick: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -50,90 +55,160 @@ fun AiChatPanel(
     val loading by viewModel.loading.collectAsStateWithLifecycle()
     var input by remember { mutableStateOf("") }
 
-    Column(
-        modifier
-            .fillMaxWidth()
-            .liquidGlassStrong(radius = 24.dp, alpha = 0.25f)
-            .padding(12.dp)
-    ) {
-        Text(
-            "🤖 Trợ lý AI – tìm mentor",
-            fontWeight = FontWeight.Bold
-        )
+    // ✅ State for GlassOverlay pattern (same as SearchScreen)
+    var showDetail by rememberSaveable { mutableStateOf(false) }
+    var selectedMentorId by remember { mutableStateOf<String?>(null) }
 
-        Spacer(Modifier.height(8.dp))
+    val blurOn = showDetail
+    val blurRadius = if (blurOn) 8.dp else 0.dp
 
-        LazyColumn(
-            modifier = Modifier.heightIn(max = 220.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+    // ✅ Notify parent when overlay state changes (like SearchScreen)
+    androidx.compose.runtime.LaunchedEffect(blurOn) {
+        // Parent callback removed to keep this component self-contained
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // LAYER A: Main content (blur when modal shown)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .blur(blurRadius)
         ) {
-            items(messages) { msg ->
-                when (msg) {
-                    is AiChatMessage.User -> {
-                        Text("🧑‍💻 ${msg.text}")
-                    }
+            Column(
+                modifier
+                    .fillMaxWidth()
+                    .liquidGlassStrong(radius = 24.dp, alpha = 0.25f)
+                    .padding(12.dp)
+            ) {
+                Text(
+                    "🤖 Trợ lý AI – tìm mentor",
+                    fontWeight = FontWeight.Bold
+                )
 
-                    is AiChatMessage.Ai -> {
-                        Text("🤖 ${msg.text}")
+                Spacer(Modifier.height(8.dp))
 
-                        Spacer(Modifier.height(6.dp))
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 220.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(messages) { msg ->
+                        when (msg) {
+                            is AiChatMessage.User -> {
+                                Text("🧑‍💻 ${msg.text}")
+                            }
 
-                        msg.mentors.forEach { mentor ->
-                            MentorSuggestCard(
-                                mentor = mentor,
-                                onClick = { onMentorClick(mentor.mentorId) }
-                            )
-                            Spacer(Modifier.height(4.dp))
-                        }
-                        
-                        // Show suggestions if available
-                        if (msg.suggestions.isNotEmpty()) {
-                            Spacer(Modifier.height(8.dp))
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                msg.suggestions.take(2).forEach { suggestion ->
-                                    SuggestionChip(
+                            is AiChatMessage.Ai -> {
+                                Text("🤖 ${msg.text}")
+
+                                Spacer(Modifier.height(6.dp))
+
+                                msg.mentors.forEach { mentor ->
+                                    MentorSuggestCard(
+                                        mentor = mentor,
                                         onClick = {
-                                            input = suggestion
-                                            viewModel.ask(suggestion)
-                                            input = ""
-                                        },
-                                        label = { Text(suggestion) }
+                                            // ✅ Store mentorId and show detail sheet
+                                            // MentorDetailSheet will fetch full info from backend
+                                            selectedMentorId = mentor.mentorId
+                                            showDetail = true
+                                        }
                                     )
+                                    Spacer(Modifier.height(4.dp))
+                                }
+
+                                // Show suggestions if available
+                                if (msg.suggestions.isNotEmpty()) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        msg.suggestions.take(2).forEach { suggestion ->
+                                            SuggestionChip(
+                                                onClick = {
+                                                    input = suggestion
+                                                    viewModel.ask(suggestion)
+                                                    input = ""
+                                                },
+                                                label = { Text(suggestion) }
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
+
+                if (loading) {
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                Row {
+                    MMTextField(
+                        value = input,
+                        onValueChange = { input = it },
+                        placeholder = "Nhập nhu cầu (VD: Java backend, DevOps...)",
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    MMButton(
+                        text = "Hỏi AI",
+                        enabled = input.isNotBlank(),
+                        onClick = {
+                            viewModel.ask(input)
+                            input = ""
+                        }
+                    )
+                }
             }
         }
 
-        if (loading) {
-            LinearProgressIndicator(
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        // LAYER B: GlassOverlay with MentorDetailSheet (same as SearchScreen)
+        GlassOverlay(
+            visible = blurOn,
+            onDismiss = { showDetail = false; selectedMentorId = null },
+            formModifier = Modifier.fillMaxSize().padding(4.dp)
+        ) {
+            selectedMentorId?.let { mentorId ->
+                // ✅ Create temporary Mentor object - MentorDetailSheet will fetch full data
+                val tempMentor = Mentor(
+                    id = mentorId,
+                    name = "Loading...",
+                    role = "",
+                    company = "",
+                    rating = 0.0,
+                    totalReviews = 0,
+                    skills = emptyList(),
+                    hourlyRate = 0,
+                    imageUrl = "",
+                    isAvailable = false
+                )
 
-        Spacer(Modifier.height(8.dp))
-
-        Row {
-            MMTextField(
-                value = input,
-                onValueChange = { input = it },
-                placeholder = "Nhập nhu cầu (VD: Java backend, DevOps...)",
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(Modifier.width(8.dp))
-            MMButton(
-                text = "Hỏi AI",
-                enabled = input.isNotBlank(),
-                onClick = {
-                    viewModel.ask(input)
-                    input = ""
-                }
-            )
+                MentorDetailSheet(
+                    mentorId = mentorId,
+                    mentor = tempMentor,
+                    onClose = {
+                        showDetail = false
+                        selectedMentorId = null
+                    },
+                    onBookNow = { _ ->
+                        showDetail = false
+                        selectedMentorId = null
+                        // ✅ Trigger parent callback to navigate to booking
+                        onMentorClick(mentorId)
+                    },
+                    onMessage = { mid ->
+                        showDetail = false
+                        selectedMentorId = null
+                        // ✅ Trigger parent callback to navigate to chat
+                        onMentorClick(mid)
+                    }
+                )
+            }
         }
     }
 }

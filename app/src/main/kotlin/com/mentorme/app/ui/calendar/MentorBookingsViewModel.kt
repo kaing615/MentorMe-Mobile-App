@@ -61,7 +61,7 @@ class MentorBookingsViewModel @Inject constructor(
         viewModelScope.launch {
             Logx.d(TAG) { "refresh bookings for role=$role" }
             try {
-                val resp = api.getBookings(role = role, page = 1, limit = 50)
+                val resp = api.getBookings(role = role, page = 1, limit = 100)
                 if (resp.isSuccessful) {
                     val envelope = resp.body()
                     Logx.d(TAG) { "🔍 DEBUG: envelope=${envelope != null}" }

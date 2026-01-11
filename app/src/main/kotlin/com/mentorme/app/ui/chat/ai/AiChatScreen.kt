@@ -43,9 +43,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -55,10 +57,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mentorme.app.ui.chat.components.ChatComposer
 import com.mentorme.app.ui.chat.components.GlassIconButton
-import com.mentorme.app.ui.components.ui.MMButton
-import com.mentorme.app.ui.components.ui.MMTextField
+import com.mentorme.app.ui.components.ui.GlassOverlay
+import com.mentorme.app.ui.home.Mentor
+import com.mentorme.app.ui.search.components.MentorDetailSheet
 import com.mentorme.app.ui.theme.liquidGlassStrong
 import com.mentorme.app.data.repository.ai.AiChatMode
+import com.mentorme.app.data.dto.ai.MentorWithExplanation
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
@@ -70,6 +74,13 @@ fun AiChatScreen(
     val viewModel = hiltViewModel<AiChatViewModel>()
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val loading by viewModel.loading.collectAsStateWithLifecycle()
+
+    // ✅ State for GlassOverlay pattern (same as AiChatPanel)
+    var showDetail by rememberSaveable { mutableStateOf(false) }
+    var selectedMentor by remember { mutableStateOf<MentorWithExplanation?>(null) }
+
+    val blurOn = showDetail
+    val blurRadius = if (blurOn) 8.dp else 0.dp
 
     val listState = rememberLazyListState()
     val subtitle = remember(mode) {
@@ -85,8 +96,15 @@ fun AiChatScreen(
         }
     }
 
-    CompositionLocalProvider(LocalContentColor provides Color.White) {
-        Column(
+    Box(modifier = Modifier.fillMaxSize()) {
+        // LAYER A: Main content (blur when modal shown)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .blur(blurRadius)
+        ) {
+            CompositionLocalProvider(LocalContentColor provides Color.White) {
+                Column(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(
@@ -166,7 +184,11 @@ fun AiChatScreen(
                                     msg.mentors.forEach { mentor ->
                                         MentorSuggestCard(
                                             mentor = mentor,
-                                            onClick = { onOpenProfile(mentor.mentorId) }
+                                            onClick = {
+                                                // ✅ Store full mentor object and show detail sheet
+                                                selectedMentor = mentor
+                                                showDetail = true
+                                            }
                                         )
                                     }
                                 }
@@ -199,11 +221,60 @@ fun AiChatScreen(
         }
     }
 
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.lastIndex)
+        LaunchedEffect(messages.size) {
+            if (messages.isNotEmpty()) {
+                listState.animateScrollToItem(messages.lastIndex)
+            }
         }
-    }
+    } // End blur Box
+
+        // LAYER B: GlassOverlay with MentorDetailSheet (same as AiChatPanel)
+        GlassOverlay(
+            visible = blurOn,
+            onDismiss = {
+                showDetail = false
+                selectedMentor = null
+            },
+            formModifier = Modifier.fillMaxSize().padding(4.dp)
+        ) {
+            selectedMentor?.let { mentor ->
+                // ✅ Create Mentor object from MentorWithExplanation data
+                val tempMentor = Mentor(
+                    id = mentor.mentorId,
+                    name = mentor.fullName,
+                    role = mentor.headline ?: "",
+                    company = "",
+                    rating = mentor.rating?.average ?: 0.0,
+                    totalReviews = mentor.rating?.count ?: 0,
+                    skills = emptyList(),
+                    hourlyRate = mentor.hourlyRateVnd,
+                    imageUrl = mentor.avatarUrl ?: "",
+                    isAvailable = false
+                )
+
+                MentorDetailSheet(
+                    mentorId = mentor.mentorId,
+                    mentor = tempMentor,
+                    onClose = {
+                        showDetail = false
+                        selectedMentor = null
+                    },
+                    onBookNow = { _ ->
+                        showDetail = false
+                        selectedMentor = null
+                        // ✅ Trigger parent callback to navigate to booking
+                        onOpenProfile(mentor.mentorId)
+                    },
+                    onMessage = { mid ->
+                        showDetail = false
+                        selectedMentor = null
+                        // ✅ Trigger parent callback to navigate to chat
+                        onOpenProfile(mid)
+                    }
+                )
+            }
+        }
+    } // End outer Box
 }
 
 @Composable

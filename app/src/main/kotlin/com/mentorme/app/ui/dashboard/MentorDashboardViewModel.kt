@@ -113,7 +113,7 @@ class MentorDashboardViewModel @Inject constructor(
                     role = "mentor",
                     status = null, // Get ALL bookings, filter on client side
                     page = 1,
-                    limit = 50
+                    limit = 100
                 )
 
                 val upcomingBooking = when (bookingsResult) {

@@ -15,8 +15,9 @@ data class MentorCardDto(
     val hourlyRate: Int?,
     val skills: List<String>?,
     val avatarUrl: String?,
+    val isAvailable: Boolean?, // ✅ NEW: Mentor has published availability
 
-    // ✅ NEW: Extended fields từ getMentorById
+    // ✅ Extended fields từ getMentorById
     val phone: String?,
     val bio: String?,
     val languages: List<String>?,

@@ -288,7 +288,7 @@ fun HomeScreen(
                     LiquidGlassCard(
                         modifier = Modifier
                             .weight(1f)
-                            .height(130.dp)
+                            .height(145.dp) // ✅ Tăng từ 130dp → 145dp để tránh text bị cắt
                             .shadow(
                                 elevation = 8.dp,
                                 shape = RoundedCornerShape(22.dp),
@@ -340,7 +340,7 @@ fun HomeScreen(
                                     color = Color.White.copy(alpha = 0.9f),
                                     fontWeight = FontWeight.Normal,
                                     maxLines = 2,
-                                    lineHeight = 20.sp
+                                    lineHeight = 22.sp // ✅ Tăng từ 20sp → 22sp để text không bị cắt
                                 )
                             }
                         }
@@ -1082,6 +1082,15 @@ private fun HomeMentorCard(
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
+                            // Always show initials as fallback
+                            Text(
+                                text = initials,
+                                color = Color.White,
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            // Load avatar on top if URL exists
                             if (avatarUrl.isNotBlank()) {
                                 AsyncImage(
                                     model = ImageRequest.Builder(LocalContext.current)
@@ -1091,13 +1100,6 @@ private fun HomeMentorCard(
                                     contentDescription = null,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.matchParentSize().clip(CircleShape)
-                                )
-                            } else {
-                                Text(
-                                    text = initials,
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }

@@ -4,8 +4,8 @@ object NetworkConstants {
     // Thay đổi IP này thành IP máy tính chạy backend của bạn
     // Nếu chạy trên emulator, dùng 10.0.2.2
     // Nếu chạy trên device thật, dùng IP thật của máy tính
-    const val BASE_URL = "http://192.168.1.16:4000/api/v1/"
-
+    // Nếu vừa chạy trên device thật vừa chạy emulator, dùng IP local (IPV4 của mạng)
+    const val BASE_URL = "http://192.168.1.104:4000/api/v1/"
     val SOCKET_URL: String = BASE_URL
         .removeSuffix("/")
         .removeSuffix("api/v1")

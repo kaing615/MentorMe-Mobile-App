@@ -3,6 +3,7 @@ package com.mentorme.app.ui.profile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mentorme.app.core.utils.AppResult
+import com.mentorme.app.core.datastore.DataStoreManager
 import com.mentorme.app.data.dto.mentor.MentorOverallStatsDto
 import com.mentorme.app.data.dto.mentor.MentorWeeklyEarningsDto
 import com.mentorme.app.data.dto.mentor.MentorYearlyEarningsDto
@@ -15,12 +16,15 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 @HiltViewModel
 class MentorProfileViewModel @Inject constructor(
     private val repo: ProfileRepository,
-    private val api: MentorMeApi
+    private val api: MentorMeApi,
+    private val dataStoreManager: DataStoreManager // ✅ Observe userId changes
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ProfileUiState())
@@ -45,6 +49,18 @@ class MentorProfileViewModel @Inject constructor(
         refresh()
         loadStats()
         loadWallet()
+        // ✅ Observe userId changes to detect account switch
+        viewModelScope.launch {
+            dataStoreManager.getUserId()
+                .distinctUntilChanged()
+                .drop(1) // Skip initial value
+                .collect { userId ->
+                    android.util.Log.d("MentorProfileVM", "🔄 userId changed: $userId, refreshing profile & stats")
+                    refresh()
+                    loadStats()
+                    loadWallet()
+                }
+        }
     }
 
     fun refresh() = viewModelScope.launch {

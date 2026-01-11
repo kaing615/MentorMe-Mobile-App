@@ -20,7 +20,7 @@ fun com.mentorme.app.data.dto.mentors.MentorCardDto.toUiMentor(): UiMentor = UiM
     skills = this.skills ?: emptyList(),
     hourlyRate = this.hourlyRate ?: 0,
     imageUrl = this.avatarUrl ?: "",
-    isAvailable = true
+    isAvailable = this.isAvailable ?: false // ✅ Map from DTO, default false if not present
 )
 
 /** Map list of discovery cards to UI Mentors. */

@@ -229,6 +229,7 @@ fun MentorDetailContent(
             MentorDetailSummaryCard(
                 mentor = mentor,
                 profile = profile,
+                profileLoading = profileLoading,
                 displayName = displayName,
                 subtitle = subtitle
             )
@@ -295,9 +296,15 @@ fun MentorDetailContent(
 private fun MentorDetailSummaryCard(
     mentor: HomeMentor,
     profile: ProfileDto?,
+    profileLoading: Boolean,
     displayName: String,
     subtitle: String
 ) {
+    // ✅ Rating always from mentor object (from MentorCardDto)
+    // ✅ HourlyRate: prefer profile data if available
+    val displayRating = mentor.rating
+    val displayHourlyRate = profile?.hourlyRateVnd?.toLong() ?: mentor.hourlyRate.toLong()
+
     com.mentorme.app.ui.theme.LiquidGlassCard(
         modifier = Modifier.fillMaxWidth(),
         radius = 24.dp,
@@ -310,7 +317,7 @@ private fun MentorDetailSummaryCard(
         ) {
             // Name and subtitle
             Text(
-                displayName,
+                if (profileLoading && displayName == "Loading...") "Đang tải..." else displayName,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
@@ -322,29 +329,49 @@ private fun MentorDetailSummaryCard(
                 color = Color.White.copy(alpha = 0.8f)
             )
 
-            // Rating & Price chips
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = Color.White.copy(0.16f)
-                ) {
-                    Text(
-                        "⭐ ${"%.1f".format(mentor.rating)}",
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Medium
-                    )
+            // Rating & Price chips - Show loading state if needed
+            if (profileLoading && profile == null && mentor.rating == 0.0) {
+                // Loading state
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color.White.copy(0.16f)
+                    ) {
+                        Text(
+                            "Đang tải...",
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White.copy(0.6f)
+                        )
+                    }
                 }
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = Color.White.copy(0.16f)
-                ) {
-                    Text(
-                        "${mentor.hourlyRate} VNĐ/giờ",
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Medium
-                    )
+            } else {
+                // Data loaded
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color.White.copy(0.16f)
+                    ) {
+                        Text(
+                            "⭐ ${"%.1f".format(displayRating)}",
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color.White.copy(0.16f)
+                    ) {
+                        val nf = java.text.NumberFormat.getInstance(Locale("vi", "VN"))
+                        Text(
+                            "₫${nf.format(displayHourlyRate)}/giờ",
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
         }

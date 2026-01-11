@@ -7,8 +7,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import com.mentorme.app.core.utils.AppResult
+import com.mentorme.app.core.datastore.DataStoreManager
 import com.mentorme.app.data.dto.profile.ProfileMePayload
 import com.mentorme.app.data.remote.MentorMeApi
 import com.mentorme.app.data.repository.ProfileRepository
@@ -27,7 +30,8 @@ data class ProfileUiState(
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val repo: ProfileRepository,
-    private val api: MentorMeApi // ✅ Inject API để gọi getMenteeStats
+    private val api: MentorMeApi, // ✅ Inject API để gọi getMenteeStats
+    private val dataStoreManager: DataStoreManager // ✅ Observe userId changes
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ProfileUiState())
@@ -35,7 +39,16 @@ class ProfileViewModel @Inject constructor(
 
     init {
         refresh()
-        // ✅ REMOVED: Không gọi loadMenteeStats ở đây vì profile chưa có
+        // ✅ Observe userId changes to detect account switch
+        viewModelScope.launch {
+            dataStoreManager.getUserId()
+                .distinctUntilChanged()
+                .drop(1) // Skip initial value (already loaded in refresh())
+                .collect { userId ->
+                    android.util.Log.d("ProfileViewModel", "🔄 userId changed: $userId, refreshing profile")
+                    refresh()
+                }
+        }
     }
 
     fun refresh() = viewModelScope.launch {

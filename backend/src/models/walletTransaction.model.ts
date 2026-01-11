@@ -10,7 +10,9 @@ export type WalletTransactionSource =
   | "BOOKING_REFUND"
   | "MENTOR_PAYOUT"
   | "MENTOR_PAYOUT_REFUND"
-  | "INITIAL_BALANCE";
+  | "INITIAL_BALANCE"
+  | "NO_SHOW_PENALTY"
+  | "NO_SHOW_REFUND";
 
 export type WalletTransactionReferenceType = "BOOKING" | "PAYOUT" | "TOPUP"| "REFUND" | null;
 

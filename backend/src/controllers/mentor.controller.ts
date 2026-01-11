@@ -95,7 +95,8 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
   // ✅ FIXED: Check if mentor has available slots
   // Logic:
   // 1. Find AvailabilitySlot with status="published"
-  // 2. Find AvailabilityOccurrence with status="open" that references that slot
+  // 2. Find AvailabilityOccurrence with status="open" AND start >= now (future only)
+  const now = new Date();
   pipeline.push({
     $lookup: {
       from: "availabilityslots", // Collection name for AvailabilitySlot model
@@ -111,18 +112,19 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
             }
           }
         },
-        // ✅ Check if this slot has open occurrences
+        // ✅ Check if this slot has open occurrences in the future
         {
           $lookup: {
             from: "availabilityoccurrences",
-            let: { slotId: "$_id" },
+            let: { slotId: "$_id", nowDate: now },
             pipeline: [
               {
                 $match: {
                   $expr: {
                     $and: [
                       { $eq: ["$slot", "$$slotId"] },
-                      { $eq: ["$status", "open"] } // ✅ Move status check to $expr
+                      { $eq: ["$status", "open"] },
+                      { $gte: ["$start", "$$nowDate"] } // ✅ Only future occurrences
                     ]
                   }
                 }

@@ -386,7 +386,7 @@ fun HomeScreen(
                     LiquidGlassCard(
                         modifier = Modifier
                             .weight(1f)
-                            .height(140.dp)
+                            .height(155.dp) // ✅ Tăng từ 140dp → 155dp để text không bị cắt
                             .noIndicationClickable {
                                 onNavigateToCategory(cat.name)
                             },
@@ -397,7 +397,7 @@ fun HomeScreen(
                                 .fillMaxSize()
                                 .background(
                                     androidx.compose.ui.graphics.Brush.linearGradient(
-                                        colors = categoryGradient.map { it.copy(alpha = 0.15f) },
+                                        colors = categoryGradient.map { it.copy(alpha = 0.25f) }, // ✅ Tăng alpha từ 0.15f → 0.25f để background blur đậm hơn
                                         start = androidx.compose.ui.geometry.Offset(0f, 0f),
                                         end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
                                     )
@@ -409,15 +409,20 @@ fun HomeScreen(
                                     .padding(20.dp),
                                 verticalArrangement = Arrangement.SpaceBetween
                             ) {
-                                // Icon with gradient background
+                                // Icon with gradient background - blur đậm hơn
                                 Box(
                                     modifier = Modifier
                                         .size(56.dp)
                                         .clip(RoundedCornerShape(16.dp))
                                         .background(
                                             androidx.compose.ui.graphics.Brush.linearGradient(
-                                                colors = categoryGradient
+                                                colors = categoryGradient.map { it.copy(alpha = 0.95f) } // ✅ Tăng opacity của icon background
                                             )
+                                        )
+                                        .border(
+                                            width = 1.dp,
+                                            color = Color.White.copy(alpha = 0.3f),
+                                            shape = RoundedCornerShape(16.dp)
                                         ),
                                     contentAlignment = androidx.compose.ui.Alignment.Center
                                 ) {
@@ -429,24 +434,28 @@ fun HomeScreen(
                                     )
                                 }
 
-                                // Text column - left aligned
+                                // Text column - left aligned với lineHeight tốt hơn
                                 Column(
                                     modifier = Modifier.fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    verticalArrangement = Arrangement.spacedBy(6.dp) // ✅ Tăng từ 4dp → 6dp
                                 ) {
                                     Text(
                                         cat.name,
-                                        style = MaterialTheme.typography.titleLarge,
+                                        style = MaterialTheme.typography.titleLarge.copy(
+                                            lineHeight = 26.sp // ✅ Thêm lineHeight để tránh bị cắt
+                                        ),
                                         color = Color.White,
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1
                                     )
                                     Text(
                                         categorySubtitle,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = Color.White.copy(alpha = 0.7f),
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            lineHeight = 20.sp // ✅ Thêm lineHeight
+                                        ),
+                                        color = Color.White.copy(alpha = 0.8f), // ✅ Tăng alpha từ 0.7f → 0.8f để rõ hơn
                                         fontWeight = FontWeight.Normal,
-                                        maxLines = 1,
+                                        maxLines = 2, // ✅ Cho phép 2 dòng thay vì 1
                                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
                                 }
@@ -1020,8 +1029,8 @@ private fun HomeMentorCard(
         Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(16.dp), // ✅ Giảm từ 20dp → 16dp để card gọn hơn
+                verticalArrangement = Arrangement.spacedBy(12.dp) // ✅ Giảm từ 16dp → 12dp
             ) {
                 // FEATURED BADGE - Gradient Haze Effect
                 Box(
@@ -1068,129 +1077,79 @@ private fun HomeMentorCard(
                     }
                 }
 
-                // ROW: Avatar + Name/Role (cùng hàng)
+                // ✅ NEW LAYOUT: Avatar + Name/Role/Company + Rating + Skills (tối ưu không gian)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.Top // Đổi từ CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Avatar + Rating (column layout - rating BELOW avatar)
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val avatarUrl = mentor.imageUrl.trim()
-                        val initials = mentor.name
-                            .trim()
-                            .split(Regex("\\s+"))
-                            .filter { it.isNotBlank() }
-                            .mapNotNull { it.firstOrNull() }
-                            .take(2)
-                            .joinToString("")
+                    val avatarUrl = mentor.imageUrl.trim()
+                    val initials = mentor.name
+                        .trim()
+                        .split(Regex("\\s+"))
+                        .filter { it.isNotBlank() }
+                        .mapNotNull { it.firstOrNull() }
+                        .take(2)
+                        .joinToString("")
 
-                        // Avatar - KHÔNG có rating che mặt
-                        Box(
-                            modifier = Modifier
-                                .size(90.dp)
-                                .shadow(
-                                    elevation = 12.dp,
-                                    shape = CircleShape,
-                                    ambientColor = Color.Black.copy(alpha = 0.4f),
-                                    spotColor = Color.Black.copy(alpha = 0.4f)
-                                )
-                                .clip(CircleShape)
-                                .background(
-                                    Brush.linearGradient(
-                                        colors = listOf(Color(0xFF667eea), Color(0xFF764ba2))
-                                    )
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            // Always show initials as fallback
-                            Text(
-                                text = initials,
-                                color = Color.White,
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold
+                    // Avatar - compact size
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp) // ✅ Giảm từ 90dp → 72dp
+                            .shadow(
+                                elevation = 10.dp,
+                                shape = CircleShape,
+                                ambientColor = Color.Black.copy(alpha = 0.4f),
+                                spotColor = Color.Black.copy(alpha = 0.4f)
                             )
+                            .clip(CircleShape)
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF667eea), Color(0xFF764ba2))
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // Always show initials as fallback
+                        Text(
+                            text = initials,
+                            color = Color.White,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
 
-                            // Load avatar on top if URL exists
-                            if (avatarUrl.isNotBlank()) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(LocalContext.current)
-                                        .data(avatarUrl)
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.matchParentSize().clip(CircleShape)
-                                )
-                            }
-                        }
-
-                        // Rating badge - Haze gradient effect
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(
-                                    Brush.horizontalGradient(
-                                        colors = listOf(
-                                            Color(0xFFFFD700).copy(alpha = 0.35f), // Gold
-                                            Color(0xFFFFA500).copy(alpha = 0.25f)  // Orange
-                                        )
-                                    )
-                                )
-                                .border(
-                                    width = 1.dp,
-                                    color = Color(0xFFFFD700).copy(alpha = 0.6f), // Gold border
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .shadow(
-                                    elevation = 6.dp,
-                                    shape = RoundedCornerShape(12.dp),
-                                    ambientColor = Color(0xFFFFD700).copy(alpha = 0.3f),
-                                    spotColor = Color(0xFFFFD700).copy(alpha = 0.2f)
-                                )
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Star,
-                                    contentDescription = null,
-                                    tint = Color(0xFFFFD700), // Solid Yellow star
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "%.1f".format(mentor.rating), // ✅ Làm tròn đến 1 chữ số thập phân
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                        // Load avatar on top if URL exists
+                        if (avatarUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalContext.current)
+                                    .data(avatarUrl)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.matchParentSize().clip(CircleShape)
+                            )
                         }
                     }
 
-                    // Name + Role
+                    // Name + Role + Company (vertical stack)
                     Column(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
                             text = mentor.name,
-                            style = MaterialTheme.typography.headlineMedium,
+                            style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White,
-                            maxLines = 2,
-                            lineHeight = MaterialTheme.typography.headlineMedium.fontSize * 1.1
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
 
                         Text(
                             text = mentor.role,
-                            style = MaterialTheme.typography.titleSmall,
-                            color = Color.White.copy(alpha = 0.95f),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White.copy(alpha = 0.9f),
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -1200,46 +1159,90 @@ private fun HomeMentorCard(
                             Text(
                                 text = mentor.company,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.75f),
+                                color = Color.White.copy(alpha = 0.7f),
                                 fontWeight = FontWeight.Light,
                                 maxLines = 1,
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                         }
                     }
+
+                    // Rating badge - Haze gradient effect (nằm bên phải)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color(0xFFFFD700).copy(alpha = 0.35f), // Gold
+                                        Color(0xFFFFA500).copy(alpha = 0.25f)  // Orange
+                                    )
+                                )
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = Color(0xFFFFD700).copy(alpha = 0.6f), // Gold border
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .shadow(
+                                elevation = 6.dp,
+                                shape = RoundedCornerShape(12.dp),
+                                ambientColor = Color(0xFFFFD700).copy(alpha = 0.3f),
+                                spotColor = Color(0xFFFFD700).copy(alpha = 0.2f)
+                            )
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Star,
+                                contentDescription = null,
+                                tint = Color(0xFFFFD700), // Solid Yellow star
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "%.1f".format(mentor.rating),
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
 
-                // Skills
+                // ✅ Skills row - compact spacing
                 if (mentor.skills.isNotEmpty()) {
                     FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        mentor.skills.take(5).forEach { skill ->
+                        mentor.skills.take(6).forEach { skill ->
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(14.dp))
+                                    .clip(RoundedCornerShape(12.dp))
                                     .background(Color.White.copy(alpha = 0.2f))
-                                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 Text(
                                     text = skill,
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = MaterialTheme.typography.bodySmall,
                                     color = Color.White,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
                         }
-                        if (mentor.skills.size > 5) {
+                        if (mentor.skills.size > 6) {
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(14.dp))
+                                    .clip(RoundedCornerShape(12.dp))
                                     .background(Color.White.copy(alpha = 0.2f))
-                                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 Text(
-                                    text = "+${mentor.skills.size - 5}",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    text = "+${mentor.skills.size - 6}",
+                                    style = MaterialTheme.typography.bodySmall,
                                     color = Color.White.copy(alpha = 0.85f)
                                 )
                             }

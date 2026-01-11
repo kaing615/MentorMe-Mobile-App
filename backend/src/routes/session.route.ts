@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { checkAllNoShows, checkNoShow, createJoinToken, getSessionLog } from '../controllers/session.controller';
-import { validate } from '../handlers/request.handler';
 import { auth, requireRoles } from '../middlewares/auth.middleware';
+import { validate } from '../handlers/request.handler';
+import { createJoinToken, getSessionLog, checkNoShow, checkAllNoShows } from '../controllers/session.controller';
 import { sessionBookingIdRules } from '../middlewares/validators/session.validator';
 
 const router = Router();

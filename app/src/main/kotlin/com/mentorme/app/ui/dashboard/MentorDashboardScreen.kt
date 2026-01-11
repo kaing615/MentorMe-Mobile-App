@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -68,6 +69,15 @@ fun MentorDashboardScreen(
     val profile = state.profile
     val mentorName = profile?.fullName ?: "Mentor"
     
+    // ✅ FIX: Refresh dashboard when userId changes (detect account switch)
+    val userId = profile?.id
+    LaunchedEffect(userId) {
+        if (userId != null) {
+            android.util.Log.d("MentorDashboard", "🔄 userId changed to: $userId, refreshing dashboard")
+            dashboardVm.refresh()
+        }
+    }
+
     // Collect dashboard data
     val dashboardState by dashboardVm.uiState.collectAsState()
 

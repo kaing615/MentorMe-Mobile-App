@@ -629,18 +629,28 @@ private fun MentorStatsTab(
             MentorStatCard("Giờ tư vấn", hoursText, Icons.Outlined.AccessTime, Color(0xFF60A5FA), Modifier.weight(1f)) { onViewDetail() }
         }
 
-        // Weekly Performance Chart (changed from "Hiệu suất tháng này" to "Hiệu suất tuần này")
+        // Weekly Performance Chart (7 ngày gần nhất)
         LiquidGlassCard(radius = 22.dp, modifier = Modifier.clickable { onViewDetail() }) {
             Column(Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.AutoMirrored.Outlined.ShowChart, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Hiệu suất tuần này", style = MaterialTheme.typography.titleMedium)
+                    Text("7 ngày gần nhất", style = MaterialTheme.typography.titleMedium)
                 }
                 Spacer(Modifier.height(16.dp))
 
-                // Bar chart for 7 days (Mon-Sun)
+                // Bar chart for 7 days
                 Column(Modifier.fillMaxWidth()) {
+                    // Generate day labels (last 7 days)
+                    val dayLabels = remember {
+                        val today = java.util.Calendar.getInstance()
+                        (0..6).map { offset ->
+                            val day = java.util.Calendar.getInstance()
+                            day.add(java.util.Calendar.DATE, -(6 - offset))
+                            day.get(java.util.Calendar.DATE).toString()
+                        }
+                    }
+
                     // Bar area
                     Row(
                         Modifier
@@ -649,7 +659,6 @@ private fun MentorStatsTab(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.Bottom
                     ) {
-                        val days = listOf("T2", "T3", "T4", "T5", "T6", "T7", "CN")
 
                         if (weeklyEarnings.isNotEmpty() && weeklyEarnings.size == 7) {
                             val maxEarning = weeklyEarnings.maxOrNull() ?: 1L
@@ -688,12 +697,12 @@ private fun MentorStatsTab(
 
                     Spacer(Modifier.height(8.dp))
 
-                    // Label area (tách riêng)
+                    // Label area (ngày trong tháng)
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        listOf("T2", "T3", "T4", "T5", "T6", "T7", "CN").forEach { day ->
+                        dayLabels.forEach { day ->
                             Text(
                                 text = day,
                                 style = MaterialTheme.typography.labelSmall,

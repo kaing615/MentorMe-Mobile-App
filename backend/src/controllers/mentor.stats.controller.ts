@@ -95,34 +95,36 @@ export const getMyStats = asyncHandler(async (req: Request, res: Response) => {
 
 /**
  * GET /mentors/me/stats/weekly
- * Lấy thu nhập theo từng ngày trong tuần hiện tại (7 ngày gần nhất)
- * Trả về mảng 7 phần tử tương ứng với 7 ngày (từ thứ 2 đến chủ nhật)
+ * Lấy thu nhập theo từng ngày trong 7 ngày gần nhất
+ * Trả về mảng 7 phần tử tương ứng với 7 ngày gần nhất
  *
- * ✅ UPDATED: Tính từ booking Confirmed/Completed đã qua endTime (đã diễn ra xong)
+ * ✅ UPDATED: Đổi từ tuần lịch sang 7 ngày gần nhất
  */
 export const getWeeklyEarnings = asyncHandler(async (req: Request, res: Response) => {
   const mentorId = getUserId(req);
   if (!mentorId) return forbidden(res, "Unauthorized");
 
   const now = new Date();
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay() + 1); // Monday
-  startOfWeek.setHours(0, 0, 0, 0);
+  
+  // Thay vì tính từ thứ 2, tính từ 7 ngày trước
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(now.getDate() - 6); // 6 ngày trước + hôm nay = 7 ngày
+  sevenDaysAgo.setHours(0, 0, 0, 0);
 
-  console.log('📊 [getWeeklyEarnings] Week start:', startOfWeek);
+  console.log('📊 [getWeeklyEarnings] Last 7 days:', sevenDaysAgo.toISOString().split('T')[0], 'to', now.toISOString().split('T')[0]);
 
   // Tạo mảng 7 ngày
   const dailyEarnings: number[] = [];
 
   for (let i = 0; i < 7; i++) {
-    const dayStart = new Date(startOfWeek);
-    dayStart.setDate(startOfWeek.getDate() + i);
+    const dayStart = new Date(sevenDaysAgo);
+    dayStart.setDate(sevenDaysAgo.getDate() + i);
     dayStart.setHours(0, 0, 0, 0);
 
     const dayEnd = new Date(dayStart);
     dayEnd.setHours(23, 59, 59, 999);
 
-    // ✅ FIXED: Tính từ WalletTransaction (BOOKING_EARN - NO_SHOW_PENALTY) trong ngày này
+    // ✅ FIXED: Tính từ WalletTransaction với source BOOKING_EARN trong ngày này
     const earningTransactions = await WalletTransaction.find({
       userId: new mongoose.Types.ObjectId(mentorId),
       source: "BOOKING_EARN",
@@ -146,7 +148,7 @@ export const getWeeklyEarnings = asyncHandler(async (req: Request, res: Response
   console.log('📊 [getWeeklyEarnings] Result:', dailyEarnings);
 
   return ok(res, {
-    weeklyEarnings: dailyEarnings // Array of 7 numbers (Mon-Sun)
+    weeklyEarnings: dailyEarnings // Array of 7 numbers (last 7 days)
   });
 });
 

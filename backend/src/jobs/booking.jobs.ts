@@ -8,6 +8,7 @@ import noShowService from '../services/noShow.service';
 import { processNoShowBookings } from '../services/session.service';
 import { notifyBookingNoShow } from '../utils/notification.service';
 import { getUserInfo } from '../utils/userInfo';
+import { closePastOccurrences } from '../services/occurrence.service';
 
 const QUEUE_NAME = process.env.BOOKING_QUEUE_NAME || 'booking-jobs';
 const JOB_NAME = 'booking-tick';
@@ -31,7 +32,7 @@ async function runBookingJobs() {
   console.log(`\n[${timestamp}] BOOKING_JOBS: Starting cycle`);
   
   try {
-    const [expiredCount, declinedCount, reminders, noShowCount, noShowResults] = await Promise.all([
+    const [expiredCount, declinedCount, reminders, noShowCount, noShowResults, deletedOccurrences] = await Promise.all([
       processExpiredBookings(),
       processPendingMentorBookings(),
       processBookingReminders(),
@@ -53,6 +54,8 @@ async function runBookingJobs() {
       }),
       // New no-show detection service
       noShowService.checkAllNoShows(),
+      // Auto-delete past availability occurrences
+      closePastOccurrences(),
     ]);
 
     if (
@@ -61,10 +64,11 @@ async function runBookingJobs() {
       noShowCount ||
       noShowResults.length ||
       reminders.reminded24h ||
-      reminders.reminded1h
+      reminders.reminded1h ||
+      deletedOccurrences
     ) {
       console.log(
-        `[${new Date().toISOString()}] BOOKING_JOBS: Processed - expired=${expiredCount}, declined=${declinedCount}, noShow=${noShowCount}, newNoShows=${noShowResults.length}, reminders24h=${reminders.reminded24h}, reminders1h=${reminders.reminded1h}`
+        `[${new Date().toISOString()}] BOOKING_JOBS: Processed - expired=${expiredCount}, declined=${declinedCount}, noShow=${noShowCount}, newNoShows=${noShowResults.length}, reminders24h=${reminders.reminded24h}, reminders1h=${reminders.reminded1h}, deletedOccurrences=${deletedOccurrences}`
       );
       
       // Log no-show details

@@ -40,12 +40,9 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
 
   // Build match conditions for Profile
   const match: any = { profileCompleted: true };
-
-  // ✅ REMOVED: Don't filter by minRating in $match stage
   // We'll handle rating filter AFTER ensuring all mentors are included
   // This allows mentors with rating=0 (no reviews) to appear
 
-  // ✅ REMOVED: Don't filter price in initial $match stage
   // We'll apply price filter AFTER ensuring hourlyRateVnd defaults to 0
   // This prevents null/undefined hourlyRateVnd from being excluded
   if (skills.length > 0) {
@@ -148,15 +145,10 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
   pipeline.push({
     $addFields: {
       hasAvailability: { $gt: [{ $size: "$availableSlots" }, 0] },
-      // ✅ NEW: isAvailable field for UI (same as hasAvailability)
       isAvailable: { $gt: [{ $size: "$availableSlots" }, 0] },
-      // ✅ Ensure rating fields exist with default 0
       "rating.average": { $ifNull: ["$rating.average", 0] },
       "rating.count": { $ifNull: ["$rating.count", 0] },
-      // ✅ FIX: Ensure hourlyRateVnd defaults to 0 (prevents null filtering)
       hourlyRateVnd: { $ifNull: ["$hourlyRateVnd", 0] }
-      // ✅ NOTE: avatarUrl will be preserved automatically from Profile doc (no need to re-add)
-      // MongoDB aggregation preserves all fields unless explicitly excluded with $project
     }
   });
 

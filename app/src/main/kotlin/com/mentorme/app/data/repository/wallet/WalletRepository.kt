@@ -65,8 +65,13 @@ class WalletRepository @Inject constructor(
     }
 
     suspend fun getMyWalletWithTransactions(): Pair<WalletDto, List<WalletTransactionDto>> {
+        android.util.Log.d("WalletRepository", "🌐 Calling API getWalletTransactions...")
         val wallet = api.getMyWallet().data
         val txs = api.getWalletTransactions().data.items
+        android.util.Log.d("WalletRepository", "✅ API returned ${txs.size} transactions")
+        txs.take(3).forEachIndexed { i, tx ->
+            android.util.Log.d("WalletRepository", "  TX[$i]: ${tx.source} ${tx.type} ${tx.amount} - ${tx.description}")
+        }
         return wallet to txs
     }
 

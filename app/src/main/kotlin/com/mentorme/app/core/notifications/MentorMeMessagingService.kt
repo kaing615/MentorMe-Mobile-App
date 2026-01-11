@@ -46,6 +46,9 @@ class MentorMeMessagingService : FirebaseMessagingService() {
         Log.d(TAG, "FCM message received: title=$title body=$body data=${message.data}")
         val serverId = message.data["notificationId"]
         val pushEnabled = NotificationPreferencesStore.prefs.value.isPushEnabled(type)
+        
+        // Show notification when app is in background
+        // When app is killed, Android system auto-shows notification from FCM payload
         if (!AppForegroundTracker.isForeground.value && pushEnabled &&
             NotificationDeduper.shouldNotify(serverId, title, body, type)
         ) {

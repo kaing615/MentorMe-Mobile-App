@@ -1,15 +1,17 @@
 import bcrypt from "bcryptjs";
-import transporter from "../utils/emailService";
-import nodemailer from "nodemailer";
-import redis from "../utils/redis";
 import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
 import { Request, Response } from "express";
 import jwt, { SignOptions } from "jsonwebtoken";
+import mongoose from "mongoose";
 import { asyncHandler } from "../handlers/async.handler";
 import responseHandler from "../handlers/response.handler";
 import getTokenFromReq from "../middlewares/auth.middleware";
 import Profile from "../models/profile.model";
 import User, { IUser } from "../models/user.model";
+import Wallet from "../models/wallet.model";
+import WalletTransaction from "../models/walletTransaction.model";
+import transporter from "../utils/emailService";
+import redis from "../utils/redis";
 
 const OTP_TTL_SEC = 10 * 60;
 const OTP_MAX_ATTEMPTS = 5;
@@ -1063,22 +1065,62 @@ export const approveMentor = asyncHandler(
       );
     }
 
-    await User.findByIdAndUpdate(id, {
-      status: "active",
-      mentorApplicationStatus: "approved",
-      mentorApplicationReviewedAt: new Date(),
-    });
+    // Tạo session để đảm bảo atomicity
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    // Gửi email thông báo được duyệt
     try {
-      await transporter.sendMail({
-        to: user.email,
-        from: `"MentorMe" <${process.env.SMTP_USER}>`,
-        subject: "MentorMe • Mentor Application Approved ✅",
-        text: `Hi ${
-          user.name || user.userName
-        },\n\nCongratulations! Your mentor application has been approved.\nYou can now login and start mentoring.\n\n— MentorMe Team`,
-        html: `
+      // Cập nhật status của user
+      await User.findByIdAndUpdate(id, {
+        status: "active",
+        mentorApplicationStatus: "approved",
+        mentorApplicationReviewedAt: new Date(),
+      }, { session });
+
+      // Tạo hoặc lấy ví của mentor
+      let wallet = await Wallet.findOne({ userId: id }).session(session);
+
+      if (!wallet) {
+        // Tạo ví mới với số dư khởi tạo 500,000 VND
+        const initialBalance = 500000;
+        wallet = new Wallet({
+          userId: id,
+          currency: "VND",
+          balanceMinor: initialBalance,
+          status: "ACTIVE",
+        });
+        await wallet.save({ session });
+
+        // Tạo transaction ghi nhận số dư khởi tạo
+        await WalletTransaction.create([{
+          walletId: wallet._id,
+          userId: id,
+          type: "CREDIT",
+          source: "INITIAL_BALANCE",
+          amountMinor: initialBalance,
+          currency: "VND",
+          balanceBeforeMinor: 0,
+          balanceAfterMinor: initialBalance,
+          referenceType: null,
+          referenceId: null,
+          idempotencyKey: `initial_balance_${id}`,
+          description: "Số dư khởi tạo cho mentor mới được duyệt",
+        }], { session });
+      }
+
+      await session.commitTransaction();
+      session.endSession();
+
+      // Gửi email thông báo được duyệt
+      try {
+        await transporter.sendMail({
+          to: user.email,
+          from: `"MentorMe" <${process.env.SMTP_USER}>`,
+          subject: "MentorMe • Mentor Application Approved ✅",
+          text: `Hi ${
+            user.name || user.userName
+          },\n\nCongratulations! Your mentor application has been approved.\nYou can now login and start mentoring.\n\n— MentorMe Team`,
+          html: `
         <!DOCTYPE html>
         <html>
         <head>
@@ -1167,12 +1209,17 @@ export const approveMentor = asyncHandler(
         </body>
         </html>
       `,
-      });
-    } catch (emailError) {
-      console.error("Failed to send approval email:", emailError);
-    }
+        });
+      } catch (emailError) {
+        console.error("Failed to send approval email:", emailError);
+      }
 
-    return responseHandler.ok(res, { id }, "Mentor approved successfully");
+      return responseHandler.ok(res, { id }, "Mentor approved successfully");
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
   }
 );
 

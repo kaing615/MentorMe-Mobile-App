@@ -234,6 +234,10 @@ class HomeViewModel @Inject constructor(
                         limit = 100
                     )) {
                         is AppResult.Success -> {
+                            android.util.Log.d(TAG, "Total bookings fetched: ${bookingsResult.data.bookings.size}")
+                            bookingsResult.data.bookings.forEach { b ->
+                                android.util.Log.d(TAG, "Booking ${b.id}: status=${b.status}, start=${b.startTimeIso}, end=${b.endTimeIso}")
+                            }
                             val sessions = findUpcomingSessions(bookingsResult.data.bookings)
                             _uiState.update { it.copy(upcomingSessions = sessions) }
                             android.util.Log.d(TAG, "Loaded ${sessions.size} upcoming sessions for mentee")
@@ -301,42 +305,80 @@ class HomeViewModel @Inject constructor(
     /**
      * Find all upcoming sessions (max 5) for the mentee
      */
+    private data class BookingWindow(
+        val booking: Booking,
+        val startInstant: Instant,
+        val endInstant: Instant,
+        val startDate: LocalDate,
+        val startTime: LocalTime,
+        val endTime: LocalTime
+    )
+
+    private fun parseLocalTime(value: String): LocalTime? {
+        return runCatching {
+            LocalTime.parse(value, DateTimeFormatter.ofPattern("HH:mm"))
+        }.getOrElse {
+            runCatching { LocalTime.parse(value, DateTimeFormatter.ofPattern("H:mm")) }.getOrNull()
+        }
+    }
+
+    private fun resolveBookingWindow(booking: Booking, zoneId: ZoneId): BookingWindow? {
+        val startInstant = booking.startTimeIso?.let { runCatching { Instant.parse(it) }.getOrNull() }
+        val endInstant = booking.endTimeIso?.let { runCatching { Instant.parse(it) }.getOrNull() }
+
+        if (startInstant != null && endInstant != null) {
+            val startZoned = startInstant.atZone(zoneId)
+            val endZoned = endInstant.atZone(zoneId)
+            return BookingWindow(
+                booking = booking,
+                startInstant = startInstant,
+                endInstant = endInstant,
+                startDate = startZoned.toLocalDate(),
+                startTime = startZoned.toLocalTime(),
+                endTime = endZoned.toLocalTime()
+            )
+        }
+
+        val bookingDate = runCatching { LocalDate.parse(booking.date) }.getOrNull() ?: return null
+        val startTime = parseLocalTime(booking.startTime) ?: return null
+        val endTime = parseLocalTime(booking.endTime) ?: return null
+        val startInstantFallback = bookingDate.atTime(startTime).atZone(zoneId).toInstant()
+        val endInstantFallback = bookingDate.atTime(endTime).atZone(zoneId).toInstant()
+
+        return BookingWindow(
+            booking = booking,
+            startInstant = startInstantFallback,
+            endInstant = endInstantFallback,
+            startDate = bookingDate,
+            startTime = startTime,
+            endTime = endTime
+        )
+    }
+
     private fun findUpcomingSessions(bookings: List<Booking>): List<MenteeUpcomingSessionUi> {
         val now = Instant.now()
         val zoneId = ZoneId.systemDefault()
         val today = LocalDate.now(zoneId)
 
-        // Filter: CONFIRMED + not ended
-        val upcoming = bookings
-            .filter { booking ->
-                if (booking.status != BookingStatus.CONFIRMED) return@filter false
-
-                try {
-                    val bookingDate = LocalDate.parse(booking.date)
-                    val endTime = LocalTime.parse(booking.endTime, DateTimeFormatter.ofPattern("HH:mm"))
-                    val bookingEndDateTime = bookingDate.atTime(endTime).atZone(zoneId).toInstant()
-                    bookingEndDateTime.isAfter(now)
-                } catch (e: Exception) {
-                    false
-                }
+        // Filter: CONFIRMED or PENDING_MENTOR (paid bookings) + not ended
+        val upcoming = bookings.mapNotNull { booking ->
+            // Only show confirmed or pending mentor bookings (both are paid)
+            if (booking.status != BookingStatus.CONFIRMED && booking.status != BookingStatus.PENDING_MENTOR) {
+                return@mapNotNull null
             }
-            .sortedWith(compareBy({ it.date }, { it.startTime }))
+            val window = resolveBookingWindow(booking, zoneId) ?: return@mapNotNull null
+            window.takeIf { it.endInstant.isAfter(now) }
+        }.sortedBy { it.startInstant }
             .take(5)
 
-        return upcoming.mapNotNull { booking ->
+        return upcoming.mapNotNull { window ->
+            val booking = window.booking
             try {
-                val bookingDate = LocalDate.parse(booking.date)
-                val startTime = LocalTime.parse(booking.startTime, DateTimeFormatter.ofPattern("HH:mm"))
-                val endTime = LocalTime.parse(booking.endTime, DateTimeFormatter.ofPattern("HH:mm"))
-                
-                // Prefer ISO timestamps from server for accurate timezone handling
-                val bookingStartInstant = booking.startTimeIso?.let { iso ->
-                    runCatching { Instant.parse(iso) }.getOrNull()
-                } ?: bookingDate.atTime(startTime).atZone(zoneId).toInstant()
-                
-                val bookingEndInstant = booking.endTimeIso?.let { iso ->
-                    runCatching { Instant.parse(iso) }.getOrNull()
-                } ?: bookingDate.atTime(endTime).atZone(zoneId).toInstant()
+                val bookingDate = window.startDate
+                val startTime = window.startTime
+                val endTime = window.endTime
+                val bookingStartInstant = window.startInstant
+                val bookingEndInstant = window.endInstant
 
                 // Format time display
                 val timeDisplay = when {

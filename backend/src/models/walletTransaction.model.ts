@@ -9,7 +9,8 @@ export type WalletTransactionSource =
   | "BOOKING_PAYMENT"
   | "BOOKING_REFUND"
   | "MENTOR_PAYOUT"
-  | "MENTOR_PAYOUT_REFUND";
+  | "MENTOR_PAYOUT_REFUND"
+  | "INITIAL_BALANCE";
 
 export type WalletTransactionReferenceType = "BOOKING" | "PAYOUT" | "TOPUP"| "REFUND" | null;
 
@@ -62,6 +63,7 @@ const WalletTransactionSchema = new Schema<IWalletTransaction>(
         "MENTOR_PAYOUT_REFUND",
         "NO_SHOW_REFUND",
         "NO_SHOW_PENALTY",
+        "INITIAL_BALANCE",
       ],
       required: true,
     },

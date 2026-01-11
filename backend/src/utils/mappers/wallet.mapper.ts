@@ -17,6 +17,7 @@ export interface WalletTransactionDto {
   balanceAfter: number;
   referenceType?: IWalletTransaction["referenceType"];
   referenceId?: string | null;
+  description?: string;
   createdAt: string;
 }
 
@@ -51,6 +52,7 @@ export function mapWalletTransactionToDto(
     balanceAfter: tx.balanceAfterMinor,
     referenceType: tx.referenceType,
     referenceId: tx.referenceId ? tx.referenceId.toString() : null,
+    description: tx.description,
     createdAt: tx.createdAt.toISOString(),
   };
 }

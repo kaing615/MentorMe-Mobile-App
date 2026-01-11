@@ -208,13 +208,14 @@ export async function processNoShow(bookingId: string, sendNotifications = true)
 
       // TH2: Mentor no-show - Full refund to mentee (100%)
       if (status === "NoShowMentor") {
-        const idempotencyKey = `no_show_refund:${bookingId}`;
+        const refundIdempotencyKey = `no_show_refund:${bookingId}`;
+        const penaltyIdempotencyKey = `no_show_penalty:${bookingId}`;
 
         // Check if refund already processed
         const existingRefund = await WalletTransaction.findOne({
           userId: new mongoose.Types.ObjectId(menteeId),
           source: "NO_SHOW_REFUND",
-          idempotencyKey,
+          idempotencyKey: refundIdempotencyKey,
         }).session(session);
 
         if (existingRefund) {
@@ -228,7 +229,7 @@ export async function processNoShow(bookingId: string, sendNotifications = true)
         const menteeWallet = await getOrCreateWallet(menteeId, currency, session);
         const mentorWallet = await getOrCreateWallet(mentorId, currency, session);
 
-        // Debit mentor wallet
+        // Debit mentor wallet (penalty for no-show)
         const mentorBefore = mentorWallet.balanceMinor;
         if (mentorWallet.balanceMinor < bookingPrice) {
           throw new Error("MENTOR_INSUFFICIENT_BALANCE");
@@ -243,14 +244,15 @@ export async function processNoShow(bookingId: string, sendNotifications = true)
               walletId: mentorWallet._id,
               userId: mentorWallet.userId,
               type: "DEBIT",
-              source: "NO_SHOW_REFUND",
+              source: "NO_SHOW_PENALTY",
               amountMinor: bookingPrice,
               currency,
               balanceBeforeMinor: mentorBefore,
               balanceAfterMinor: mentorWallet.balanceMinor,
               referenceType: "BOOKING",
               referenceId: booking._id,
-              idempotencyKey,
+              idempotencyKey: penaltyIdempotencyKey,
+              description: "Phạt do mentor vắng mặt (no-show)",
             },
           ],
           { session }
@@ -274,7 +276,8 @@ export async function processNoShow(bookingId: string, sendNotifications = true)
               balanceAfterMinor: menteeWallet.balanceMinor,
               referenceType: "BOOKING",
               referenceId: booking._id,
-              idempotencyKey,
+              idempotencyKey: refundIdempotencyKey,
+              description: "Hoàn tiền do mentor vắng mặt",
             },
           ],
           { session }
@@ -325,13 +328,14 @@ export async function processNoShow(bookingId: string, sendNotifications = true)
 
       // TH3: Both no-show - Partial refund to mentee (80%)
       if (status === "NoShowBoth") {
-        const idempotencyKey = `no_show_refund:${bookingId}`;
+        const refundIdempotencyKey = `no_show_refund:${bookingId}`;
+        const penaltyIdempotencyKey = `no_show_penalty:${bookingId}`;
 
         // Check if refund already processed
         const existingRefund = await WalletTransaction.findOne({
           userId: new mongoose.Types.ObjectId(menteeId),
           source: "NO_SHOW_REFUND",
-          idempotencyKey,
+          idempotencyKey: refundIdempotencyKey,
         }).session(session);
 
         if (existingRefund) {
@@ -349,7 +353,7 @@ export async function processNoShow(bookingId: string, sendNotifications = true)
         const menteeWallet = await getOrCreateWallet(menteeId, currency, session);
         const mentorWallet = await getOrCreateWallet(mentorId, currency, session);
 
-        // Debit mentor wallet (100%)
+        // Debit mentor wallet (100% penalty)
         const mentorBefore = mentorWallet.balanceMinor;
         if (mentorWallet.balanceMinor < bookingPrice) {
           throw new Error("MENTOR_INSUFFICIENT_BALANCE");
@@ -371,7 +375,8 @@ export async function processNoShow(bookingId: string, sendNotifications = true)
               balanceAfterMinor: mentorWallet.balanceMinor,
               referenceType: "BOOKING",
               referenceId: booking._id,
-              idempotencyKey: `${idempotencyKey}:mentor`,
+              idempotencyKey: penaltyIdempotencyKey,
+              description: "Phạt do cả hai vắng mặt (no-show)",
             },
           ],
           { session }
@@ -395,7 +400,8 @@ export async function processNoShow(bookingId: string, sendNotifications = true)
               balanceAfterMinor: menteeWallet.balanceMinor,
               referenceType: "BOOKING",
               referenceId: booking._id,
-              idempotencyKey,
+              idempotencyKey: refundIdempotencyKey,
+              description: `Hoàn ${refundPercentage}% do cả hai vắng mặt (trừ ${PLATFORM_FEE_PERCENTAGE}% phí)`,
             },
           ],
           { session }

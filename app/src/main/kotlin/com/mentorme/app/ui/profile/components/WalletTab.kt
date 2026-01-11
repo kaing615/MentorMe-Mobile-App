@@ -243,6 +243,10 @@ fun WalletTabWithVm(
     val txDtos = (uiState as? WalletUiState.Success)?.wallet?.transactions ?: emptyList()
     val walletTxs = txDtos.mapNotNull { mapTransactionDtoToWalletTx(it) }
 
+    androidx.compose.runtime.LaunchedEffect(walletTxs.size) {
+        android.util.Log.d("WalletTab", "📊 Rendering WalletTab: balance=$balance, transactions=${walletTxs.size}")
+    }
+
     val methods by walletViewModel.paymentMethods.collectAsState()
 
     // collect event để show snackbar hoặc reload nếu cần

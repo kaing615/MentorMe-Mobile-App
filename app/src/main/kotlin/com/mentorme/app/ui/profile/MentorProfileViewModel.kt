@@ -88,36 +88,51 @@ class MentorProfileViewModel @Inject constructor(
     }
 
     fun loadStats() = viewModelScope.launch {
-        // Load overall stats (rating, total mentees, total hours)
+        android.util.Log.d("MentorProfileVM", "📊 Loading stats...")
+        // Load overall stats (rating, total mentees, total hours, total earnings)
         try {
             val overallResp = api.getMentorOverallStats()
+            android.util.Log.d("MentorProfileVM", "📊 Overall stats response: ${overallResp.code()}")
             if (overallResp.isSuccessful) {
-                _overallStats.value = overallResp.body()?.data
+                val data = overallResp.body()?.data
+                android.util.Log.d("MentorProfileVM", "📊 Overall stats data: $data")
+                _overallStats.value = data
             }
         } catch (e: Exception) {
-            // Handle error silently or log it
+            android.util.Log.e("MentorProfileVM", "📊 Error loading overall stats: ${e.message}")
         }
 
         // Load weekly earnings
         try {
+            android.util.Log.d("MentorProfileVM", "📊 Loading weekly earnings...")
             val weeklyResp = api.getMentorWeeklyEarnings()
+            android.util.Log.d("MentorProfileVM", "📊 Weekly earnings response: ${weeklyResp.code()}")
             if (weeklyResp.isSuccessful) {
-                _weeklyEarnings.value = weeklyResp.body()?.data?.weeklyEarnings ?: emptyList()
+                val data = weeklyResp.body()?.data?.weeklyEarnings
+                android.util.Log.d("MentorProfileVM", "📊 Weekly earnings data: $data")
+                _weeklyEarnings.value = data ?: emptyList()
+            } else {
+                android.util.Log.e("MentorProfileVM", "📊 Weekly earnings failed: ${weeklyResp.errorBody()?.string()}")
             }
         } catch (e: Exception) {
-            // Handle error silently or log it
+            android.util.Log.e("MentorProfileVM", "📊 Error loading weekly earnings: ${e.message}")
         }
 
         // Load yearly earnings
         try {
+            android.util.Log.d("MentorProfileVM", "📊 Loading yearly earnings...")
             val yearlyResp = api.getMentorYearlyEarnings()
+            android.util.Log.d("MentorProfileVM", "📊 Yearly earnings response: ${yearlyResp.code()}")
             if (yearlyResp.isSuccessful) {
                 val data = yearlyResp.body()?.data
+                android.util.Log.d("MentorProfileVM", "📊 Yearly earnings data: ${data?.yearlyEarnings}")
                 _yearlyEarnings.value = data?.yearlyEarnings ?: emptyList()
                 _currentYear.value = data?.year ?: java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+            } else {
+                android.util.Log.e("MentorProfileVM", "📊 Yearly earnings failed: ${yearlyResp.errorBody()?.string()}")
             }
         } catch (e: Exception) {
-            // Handle error silently or log it
+            android.util.Log.e("MentorProfileVM", "📊 Error loading yearly earnings: ${e.message}")
         }
     }
 

@@ -2,14 +2,14 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { asyncHandler } from "../handlers/async.handler";
 import responseHandler from "../handlers/response.handler";
+import PaymentMethod from "../models/paymentMethod.model";
 import Wallet from "../models/wallet.model";
 import WalletTransaction from "../models/walletTransaction.model";
 import {
-  mapWalletToDto,
-  mapWalletTransactionToDto,
+    mapWalletToDto,
+    mapWalletTransactionToDto,
 } from "../utils/mappers/wallet.mapper";
 import { maskAccountNumber } from "../utils/maskAccount";
-import PaymentMethod from "../models/paymentMethod.model";
 
 const { ok, created, badRequest, forbidden } = responseHandler;
 
@@ -265,9 +265,16 @@ export const listTransactions = asyncHandler(
       query.createdAt = { $lt: new Date(cursor) };
     }
 
+    console.log(`📋 [listTransactions] userId=${userId}, query:`, query);
+
     const results = await WalletTransaction.find(query)
       .sort({ createdAt: -1 })
       .limit(limit + 1);
+
+    console.log(`📋 [listTransactions] Found ${results.length} transactions`);
+    results.slice(0, 3).forEach((tx, i) => {
+      console.log(`  TX[${i}]: ${tx.source} ${tx.type} ${tx.amountMinor} - ${tx.description}`);
+    });
 
     let nextCursor: string | null = null;
     let items = results;

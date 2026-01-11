@@ -3,13 +3,13 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { asyncHandler } from '../handlers/async.handler';
 import {
-  badRequest,
-  conflict,
-  created,
-  forbidden,
-  notFound,
-  ok,
-  unauthorized,
+    badRequest,
+    conflict,
+    created,
+    forbidden,
+    notFound,
+    ok,
+    unauthorized,
 } from '../handlers/response.handler';
 import AvailabilityOccurrence from '../models/availabilityOccurrence.model';
 import AvailabilitySlot from '../models/availabilitySlot.model';
@@ -19,23 +19,23 @@ import User from '../models/user.model';
 import { captureBookingPayment, refundBookingPayment } from '../services/walletBooking.service';
 import { emitToUser } from '../socket';
 import {
-  BookingEmailData,
-  resendBookingIcsEmail,
-  sendBookingCancelledEmail,
-  sendBookingConfirmedEmail,
-  sendBookingDeclinedEmail,
-  sendBookingFailedEmail,
-  sendBookingPendingEmail,
-  sendBookingReminderEmail,
+    BookingEmailData,
+    resendBookingIcsEmail,
+    sendBookingCancelledEmail,
+    sendBookingConfirmedEmail,
+    sendBookingDeclinedEmail,
+    sendBookingFailedEmail,
+    sendBookingPendingEmail,
+    sendBookingReminderEmail,
 } from '../utils/email.service';
 import { generateBookingIcs } from '../utils/ics.service';
 import {
-  notifyBookingCancelled,
-  notifyBookingConfirmed,
-  notifyBookingDeclined,
-  notifyBookingFailed,
-  notifyBookingPending,
-  notifyBookingReminder,
+    notifyBookingCancelled,
+    notifyBookingConfirmed,
+    notifyBookingDeclined,
+    notifyBookingFailed,
+    notifyBookingPending,
+    notifyBookingReminder,
 } from '../utils/notification.service';
 import redis from '../utils/redis';
 import { getUserInfo } from '../utils/userInfo';
@@ -315,6 +315,14 @@ export const createBooking = asyncHandler(async (req: Request, res: Response) =>
       }
 
       const userSummaries = await buildUserSummaryMap([menteeId, mentorId]);
+      
+      console.log(`📅 [createBooking] Created booking ${String(booking[0]._id)}:`);
+      console.log(`  - Mentee: ${menteeId}`);
+      console.log(`  - Mentor: ${mentorId}`);
+      console.log(`  - Price: ${price} VND`);
+      console.log(`  - Status: PaymentPending`);
+      console.log(`  ⚠️ NEXT STEP: Mentee must call POST /api/bookings/${String(booking[0]._id)}/capture to pay`);
+      
       return created(
         res,
         formatBookingResponse(booking[0], userSummaries),
@@ -357,21 +365,29 @@ export const captureBooking = asyncHandler(async (req: Request, res: Response) =
 
   const { id: bookingId } = req.params;
 
+  console.log(`💳 [captureBooking] API called by user ${userId} for booking ${bookingId}`);
+
   const booking = await Booking.findById(bookingId);
   if (!booking) {
+    console.log(`❌ [captureBooking] Booking ${bookingId} not found`);
     return notFound(res, 'Booking not found');
   }
 
+  console.log(`📋 [captureBooking] Booking status: ${booking.status}, mentee: ${booking.mentee}, mentor: ${booking.mentor}, price: ${booking.price}`);
+
   // Only mentee can trigger payment
   if (String(booking.mentee) !== String(userId)) {
+    console.log(`❌ [captureBooking] Access denied - user ${userId} is not the mentee`);
     return forbidden(res, 'ONLY_MENTEE_CAN_PAY');
   }
 
   if (booking.status !== 'PaymentPending') {
+    console.log(`❌ [captureBooking] Booking not payable - status is ${booking.status}`);
     return badRequest(res, 'BOOKING_NOT_PAYABLE');
   }
 
   try {
+    console.log(`💰 [captureBooking] Calling captureBookingPayment for ${bookingId}...`);
     await captureBookingPayment(bookingId);
 
     // Re-fetch booking after capture

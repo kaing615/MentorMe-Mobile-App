@@ -578,7 +578,7 @@ private fun BookingCard(
                 when (booking.status) {
                     BookingStatus.PAYMENT_PENDING -> {
                         MMButton(
-                            text = "Thanh toán (test)",
+                            text = "Thanh toán",
                             onClick = { onPay(booking) },
                             modifier = Modifier.weight(1f)
                         )

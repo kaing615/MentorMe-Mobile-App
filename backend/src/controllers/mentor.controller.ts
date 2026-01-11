@@ -40,12 +40,9 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
 
   // Build match conditions for Profile
   const match: any = { profileCompleted: true };
-
-  // ✅ REMOVED: Don't filter by minRating in $match stage
   // We'll handle rating filter AFTER ensuring all mentors are included
   // This allows mentors with rating=0 (no reviews) to appear
 
-  // ✅ REMOVED: Don't filter price in initial $match stage
   // We'll apply price filter AFTER ensuring hourlyRateVnd defaults to 0
   // This prevents null/undefined hourlyRateVnd from being excluded
   if (skills.length > 0) {
@@ -95,8 +92,7 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
   // ✅ FIXED: Check if mentor has available slots
   // Logic:
   // 1. Find AvailabilitySlot with status="published"
-  // 2. Find AvailabilityOccurrence with status="open" AND start >= now (future only)
-  const now = new Date();
+  // 2. Find AvailabilityOccurrence with status="open" that references that slot
   pipeline.push({
     $lookup: {
       from: "availabilityslots", // Collection name for AvailabilitySlot model
@@ -112,19 +108,18 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
             }
           }
         },
-        // ✅ Check if this slot has open occurrences in the future
+        // ✅ Check if this slot has open occurrences
         {
           $lookup: {
             from: "availabilityoccurrences",
-            let: { slotId: "$_id", nowDate: now },
+            let: { slotId: "$_id" },
             pipeline: [
               {
                 $match: {
                   $expr: {
                     $and: [
                       { $eq: ["$slot", "$$slotId"] },
-                      { $eq: ["$status", "open"] },
-                      { $gte: ["$start", "$$nowDate"] } // ✅ Only future occurrences
+                      { $eq: ["$status", "open"] } // ✅ Move status check to $expr
                     ]
                   }
                 }
@@ -150,15 +145,10 @@ export const listMentors = asyncHandler(async (req: Request, res: Response) => {
   pipeline.push({
     $addFields: {
       hasAvailability: { $gt: [{ $size: "$availableSlots" }, 0] },
-      // ✅ NEW: isAvailable field for UI (same as hasAvailability)
       isAvailable: { $gt: [{ $size: "$availableSlots" }, 0] },
-      // ✅ Ensure rating fields exist with default 0
       "rating.average": { $ifNull: ["$rating.average", 0] },
       "rating.count": { $ifNull: ["$rating.count", 0] },
-      // ✅ FIX: Ensure hourlyRateVnd defaults to 0 (prevents null filtering)
       hourlyRateVnd: { $ifNull: ["$hourlyRateVnd", 0] }
-      // ✅ NOTE: avatarUrl will be preserved automatically from Profile doc (no need to re-add)
-      // MongoDB aggregation preserves all fields unless explicitly excluded with $project
     }
   });
 
